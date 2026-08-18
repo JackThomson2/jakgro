@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use super::Position;
+use super::evaluation::{NEG_INFINITY, evaluate};
 
 /// Limits supplied to a search operation.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -53,19 +54,34 @@ impl SearchResult {
 }
 
 pub(super) fn search(position: &Position, limits: &SearchLimits) -> SearchResult {
-    let mut legal_moves = position.legal_moves();
+    let mut candidates = position
+        .search_moves()
+        .into_iter()
+        .map(|chess_move| (position.format_search_move(chess_move), chess_move))
+        .collect::<Vec<_>>();
+    candidates.sort_unstable_by(|left, right| left.0.cmp(&right.0));
 
-    if !limits.search_moves.is_empty() {
-        legal_moves.retain(|legal_move| {
-            limits
+    let mut best_move = None;
+    let mut best_score = NEG_INFINITY;
+    for (move_text, chess_move) in candidates {
+        if !limits.search_moves.is_empty()
+            && !limits
                 .search_moves
                 .iter()
-                .any(|candidate| candidate == legal_move)
-        });
+                .any(|candidate| candidate == &move_text)
+        {
+            continue;
+        }
+
+        let score = -evaluate(&position.play_search_move(chess_move));
+        if score > best_score {
+            best_score = score;
+            best_move = Some(move_text);
+        }
     }
 
     SearchResult {
-        best_move: legal_moves.into_iter().next(),
+        best_move,
         ponder: None,
     }
 }
@@ -132,5 +148,14 @@ mod tests {
             search(&position, &SearchLimits::default()).best_move(),
             None
         );
+    }
+
+    #[test]
+    fn baseline_prefers_an_immediate_material_gain() {
+        let position = Position::from_fen("7k/8/8/8/8/8/q7/R3K3 w Q - 0 1").unwrap();
+
+        let result = search(&position, &SearchLimits::default());
+
+        assert_eq!(result.best_move(), Some("a1a2"));
     }
 }

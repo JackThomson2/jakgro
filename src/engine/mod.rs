@@ -1,5 +1,6 @@
 //! Protocol-independent engine state and search interfaces.
 
+mod evaluation;
 mod position;
 mod search;
 

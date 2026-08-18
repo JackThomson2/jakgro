@@ -5,7 +5,7 @@ mod position;
 mod search;
 
 pub use position::{Position, PositionError};
-pub use search::{SearchLimits, SearchResult};
+pub use search::{SearchControl, SearchInfo, SearchLimits, SearchResult, SearchScore};
 
 /// Owns the current game position and coordinates searches.
 #[derive(Clone, Debug, Default)]
@@ -40,6 +40,20 @@ impl Engine {
     #[must_use]
     pub fn search(&self, limits: &SearchLimits) -> SearchResult {
         search::search(&self.position, limits)
+    }
+
+    /// Searches while reporting every fully completed iteration.
+    #[must_use]
+    pub fn search_with_reporter<F>(
+        &self,
+        limits: &SearchLimits,
+        control: &SearchControl,
+        report: F,
+    ) -> SearchResult
+    where
+        F: FnMut(SearchInfo),
+    {
+        search::search_with_reporter(&self.position, limits, control, report)
     }
 }
 

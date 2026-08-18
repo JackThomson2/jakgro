@@ -177,7 +177,7 @@ mod tests {
             transcript(
                 "position startpos moves e2e4\nposition startpos moves e2e5\ngo searchmoves e7e5\nquit\n"
             ),
-            "bestmove e7e5\n"
+            "bestmove e7e5 ponder a2a3\n"
         );
     }
 

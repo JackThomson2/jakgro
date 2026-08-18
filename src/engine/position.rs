@@ -83,14 +83,6 @@ impl Position {
         display_uci_move(&self.board, chess_move).to_string()
     }
 
-    pub(super) fn play_search_move(&self, chess_move: Move) -> Self {
-        debug_assert!(self.board.is_legal(chess_move));
-        let mut child = self.clone();
-        child.board.play_unchecked(chess_move);
-        child.hash_history.push(repetition_key(&child.board));
-        child
-    }
-
     pub(super) fn board(&self) -> &Board {
         &self.board
     }
@@ -124,7 +116,7 @@ impl Position {
     }
 }
 
-fn repetition_key(board: &Board) -> u64 {
+pub(super) fn repetition_key(board: &Board) -> u64 {
     if let Some(file) = board.en_passant() {
         let color = board.side_to_move();
         let target = Square::new(file, Rank::Sixth.relative_to(color));
@@ -310,25 +302,6 @@ mod tests {
         assert_ne!(
             super::repetition_key(&with_ep),
             super::repetition_key(&without_ep)
-        );
-    }
-
-    #[test]
-    fn search_children_do_not_change_the_parent() {
-        let position = Position::default();
-        let chess_move = position
-            .search_moves()
-            .into_iter()
-            .find(|&chess_move| position.format_search_move(chess_move) == "e2e4")
-            .unwrap();
-
-        let child = position.play_search_move(chess_move);
-
-        assert_eq!(position, Position::default());
-        assert_eq!(child.hash_history().len(), 2);
-        assert_eq!(
-            child.to_string(),
-            "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
         );
     }
 }

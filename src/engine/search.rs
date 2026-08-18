@@ -1,7 +1,13 @@
+mod algorithm;
+mod control;
+mod time;
+
 use std::time::Duration;
 
+pub use control::SearchControl;
+
 use super::Position;
-use super::evaluation::{NEG_INFINITY, evaluate};
+use super::evaluation::{MATE_SCORE, MATE_THRESHOLD, Score};
 
 /// Limits supplied to a search operation.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -32,14 +38,110 @@ pub struct SearchLimits {
     pub infinite: bool,
 }
 
+/// A score reported for a completed search iteration.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SearchScore {
+    /// A static score in centipawns from the root side's perspective.
+    Centipawns(i32),
+    /// A forced mate in the signed number of moves.
+    Mate(i32),
+}
+
+impl SearchScore {
+    fn from_internal(score: Score) -> Self {
+        if score.abs() >= MATE_THRESHOLD {
+            let plies = MATE_SCORE - score.abs();
+            let moves = (plies + 1) / 2;
+            Self::Mate(if score.is_negative() { -moves } else { moves })
+        } else {
+            Self::Centipawns(score)
+        }
+    }
+}
+
+/// Progress from one fully completed iterative-deepening pass.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SearchInfo {
+    depth: u32,
+    score: SearchScore,
+    nodes: u64,
+    elapsed: Duration,
+    pv: Vec<String>,
+}
+
+impl SearchInfo {
+    fn new(depth: u32, score: SearchScore, nodes: u64, elapsed: Duration, pv: Vec<String>) -> Self {
+        Self {
+            depth,
+            score,
+            nodes,
+            elapsed,
+            pv,
+        }
+    }
+
+    /// Returns the completed depth in plies.
+    #[must_use]
+    pub fn depth(&self) -> u32 {
+        self.depth
+    }
+
+    /// Returns the root-relative score.
+    #[must_use]
+    pub fn score(&self) -> SearchScore {
+        self.score
+    }
+
+    /// Returns the cumulative searched node count.
+    #[must_use]
+    pub fn nodes(&self) -> u64 {
+        self.nodes
+    }
+
+    /// Returns the elapsed search time.
+    #[must_use]
+    pub fn elapsed(&self) -> Duration {
+        self.elapsed
+    }
+
+    /// Returns the measured nodes per second.
+    #[must_use]
+    pub fn nodes_per_second(&self) -> u64 {
+        let nanos = self.elapsed.as_nanos().max(1);
+        (u128::from(self.nodes)
+            .saturating_mul(1_000_000_000)
+            .checked_div(nanos)
+            .unwrap_or_default()
+            .min(u128::from(u64::MAX))) as u64
+    }
+
+    /// Returns the principal variation in standard UCI notation.
+    #[must_use]
+    pub fn pv(&self) -> &[String] {
+        &self.pv
+    }
+}
+
 /// The principal result produced by a search.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SearchResult {
     best_move: Option<String>,
     ponder: Option<String>,
+    info: Option<SearchInfo>,
 }
 
 impl SearchResult {
+    fn from_parts(best_move: Option<String>, info: Option<SearchInfo>) -> Self {
+        let ponder = info
+            .as_ref()
+            .and_then(|search_info| search_info.pv().get(1).cloned());
+        Self {
+            best_move,
+            ponder,
+            info,
+        }
+    }
+
     /// Returns the selected move in standard UCI notation.
     #[must_use]
     pub fn best_move(&self) -> Option<&str> {
@@ -51,48 +153,42 @@ impl SearchResult {
     pub fn ponder(&self) -> Option<&str> {
         self.ponder.as_deref()
     }
+
+    /// Returns the final completed iteration, when one finished.
+    #[must_use]
+    pub fn info(&self) -> Option<&SearchInfo> {
+        self.info.as_ref()
+    }
 }
 
 pub(super) fn search(position: &Position, limits: &SearchLimits) -> SearchResult {
-    let mut candidates = position
-        .search_moves()
-        .into_iter()
-        .map(|chess_move| (position.format_search_move(chess_move), chess_move))
-        .collect::<Vec<_>>();
-    candidates.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+    let control = SearchControl::new();
+    search_with_reporter(position, limits, &control, |_| {})
+}
 
-    let mut best_move = None;
-    let mut best_score = NEG_INFINITY;
-    for (move_text, chess_move) in candidates {
-        if !limits.search_moves.is_empty()
-            && !limits
-                .search_moves
-                .iter()
-                .any(|candidate| candidate == &move_text)
-        {
-            continue;
-        }
-
-        let score = -evaluate(&position.play_search_move(chess_move));
-        if score > best_score {
-            best_score = score;
-            best_move = Some(move_text);
-        }
-    }
-
-    SearchResult {
-        best_move,
-        ponder: None,
-    }
+pub(super) fn search_with_reporter<F>(
+    position: &Position,
+    limits: &SearchLimits,
+    control: &SearchControl,
+    report: F,
+) -> SearchResult
+where
+    F: FnMut(SearchInfo),
+{
+    algorithm::run(position, limits, control, report)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{SearchLimits, search};
+    use std::time::Duration;
+
+    use super::{
+        SearchControl, SearchInfo, SearchLimits, SearchScore, search, search_with_reporter,
+    };
     use crate::engine::Position;
 
     #[test]
-    fn baseline_search_is_deterministic() {
+    fn iterative_search_is_deterministic() {
         let position = Position::default();
 
         let first = search(&position, &SearchLimits::default());
@@ -151,11 +247,284 @@ mod tests {
     }
 
     #[test]
-    fn baseline_prefers_an_immediate_material_gain() {
+    fn search_prefers_an_immediate_material_gain() {
         let position = Position::from_fen("7k/8/8/8/8/8/q7/R3K3 w Q - 0 1").unwrap();
 
         let result = search(&position, &SearchLimits::default());
 
         assert_eq!(result.best_move(), Some("a1a2"));
+    }
+
+    #[test]
+    fn reports_each_completed_iteration() {
+        let position = Position::default();
+        let limits = SearchLimits {
+            depth: Some(3),
+            ..SearchLimits::default()
+        };
+        let control = SearchControl::new();
+        let mut reports = Vec::new();
+
+        let result = search_with_reporter(&position, &limits, &control, |info| {
+            reports.push(info);
+        });
+
+        assert_eq!(
+            reports.iter().map(SearchInfo::depth).collect::<Vec<_>>(),
+            vec![1, 2, 3]
+        );
+        assert!(
+            reports
+                .windows(2)
+                .all(|pair| pair[0].nodes() < pair[1].nodes())
+        );
+        assert_eq!(result.info(), reports.last());
+        assert_eq!(
+            result.best_move(),
+            reports.last().unwrap().pv().first().map(String::as_str)
+        );
+        let mut replay = position;
+        replay
+            .apply_uci_moves(reports.last().unwrap().pv().iter().map(String::as_str))
+            .unwrap();
+    }
+
+    #[test]
+    fn pre_cancelled_search_returns_a_legal_fallback() {
+        let position = Position::default();
+        let control = SearchControl::new();
+        control.stop();
+
+        let result = search_with_reporter(
+            &position,
+            &SearchLimits {
+                depth: Some(20),
+                ..SearchLimits::default()
+            },
+            &control,
+            |_| panic!("a cancelled search must not report an iteration"),
+        );
+
+        assert!(result.info().is_none());
+        assert!(
+            position
+                .legal_moves()
+                .contains(&result.best_move().unwrap().to_owned())
+        );
+    }
+
+    #[test]
+    fn zero_move_time_returns_a_legal_fallback() {
+        let position = Position::default();
+        let result = search(
+            &position,
+            &SearchLimits {
+                move_time: Some(Duration::ZERO),
+                ..SearchLimits::default()
+            },
+        );
+
+        assert!(result.info().is_none());
+        assert!(result.best_move().is_some());
+    }
+
+    #[test]
+    fn reports_forced_mate_in_moves() {
+        let position = Position::from_fen("7k/5Q2/6K1/8/8/8/8/8 w - - 0 1").unwrap();
+        let result = search(
+            &position,
+            &SearchLimits {
+                depth: Some(1),
+                ..SearchLimits::default()
+            },
+        );
+
+        assert_eq!(result.info().unwrap().score(), SearchScore::Mate(1));
+        let mut checkmate = position;
+        checkmate
+            .apply_uci_moves([result.best_move().unwrap()])
+            .unwrap();
+        assert!(checkmate.legal_moves().is_empty());
+    }
+
+    #[test]
+    fn computes_nodes_per_second_without_dividing_by_zero() {
+        let info = SearchInfo::new(
+            1,
+            SearchScore::Centipawns(0),
+            1_000,
+            Duration::from_secs(2),
+            vec!["e2e4".to_owned()],
+        );
+        let immediate = SearchInfo::new(
+            1,
+            SearchScore::Centipawns(0),
+            1,
+            Duration::ZERO,
+            vec!["e2e4".to_owned()],
+        );
+
+        assert_eq!(info.nodes_per_second(), 500);
+        assert_eq!(immediate.nodes_per_second(), 1_000_000_000);
+    }
+
+    #[test]
+    fn node_limit_interrupts_an_incomplete_iteration() {
+        let position = Position::default();
+        let result = search(
+            &position,
+            &SearchLimits {
+                depth: Some(20),
+                nodes: Some(1),
+                ..SearchLimits::default()
+            },
+        );
+
+        assert!(result.info().is_none());
+        assert!(result.best_move().is_some());
+    }
+
+    #[test]
+    fn quiescence_avoids_a_poisoned_capture() {
+        let position = Position::from_fen("r7/7k/8/8/8/8/p7/Q3K3 w - - 0 1").unwrap();
+        let result = search(
+            &position,
+            &SearchLimits {
+                depth: Some(1),
+                ..SearchLimits::default()
+            },
+        );
+
+        assert_ne!(result.best_move(), Some("a1a2"));
+    }
+
+    #[test]
+    fn root_repetition_is_scored_as_a_draw() {
+        let mut position = Position::default();
+        position
+            .apply_uci_moves([
+                "g1f3", "g8f6", "f3g1", "f6g8", "g1f3", "g8f6", "f3g1", "f6g8",
+            ])
+            .unwrap();
+
+        let result = search(
+            &position,
+            &SearchLimits {
+                depth: Some(4),
+                ..SearchLimits::default()
+            },
+        );
+
+        assert_eq!(result.info().unwrap().depth(), 0);
+        assert_eq!(result.info().unwrap().score(), SearchScore::Centipawns(0));
+        assert!(result.best_move().is_some());
+    }
+
+    #[test]
+    fn dead_material_is_scored_as_a_draw() {
+        let position = Position::from_fen("7k/8/8/8/8/8/8/KB6 w - - 0 1").unwrap();
+
+        let result = search(
+            &position,
+            &SearchLimits {
+                depth: Some(4),
+                ..SearchLimits::default()
+            },
+        );
+
+        assert_eq!(result.info().unwrap().score(), SearchScore::Centipawns(0));
+    }
+
+    #[test]
+    fn depth_and_mate_limits_use_the_stricter_bound() {
+        let position = Position::default();
+        let mut reports = Vec::new();
+
+        search_with_reporter(
+            &position,
+            &SearchLimits {
+                depth: Some(20),
+                mate: Some(1),
+                ..SearchLimits::default()
+            },
+            &SearchControl::new(),
+            |info| reports.push(info),
+        );
+
+        assert_eq!(reports.last().unwrap().depth(), 2);
+    }
+
+    #[test]
+    fn infinite_search_waits_for_an_explicit_stop() {
+        let control = SearchControl::new();
+        let worker_control = control.clone();
+        let (report_sender, report_receiver) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            search_with_reporter(
+                &Position::default(),
+                &SearchLimits {
+                    infinite: true,
+                    ..SearchLimits::default()
+                },
+                &worker_control,
+                |info| report_sender.send(info).unwrap(),
+            )
+        });
+
+        report_receiver
+            .recv_timeout(Duration::from_secs(2))
+            .unwrap();
+        assert!(!worker.is_finished());
+        control.stop();
+        let result = worker.join().unwrap();
+
+        assert!(result.best_move().is_some());
+    }
+
+    #[test]
+    fn move_time_interrupts_search_within_a_bounded_delay() {
+        let started = std::time::Instant::now();
+        let result = search(
+            &Position::default(),
+            &SearchLimits {
+                depth: Some(64),
+                move_time: Some(Duration::from_millis(20)),
+                ..SearchLimits::default()
+            },
+        );
+
+        assert!(started.elapsed() < Duration::from_secs(1));
+        assert!(result.best_move().is_some());
+    }
+
+    #[test]
+    fn completed_iterations_respect_the_node_limit() {
+        let result = search(
+            &Position::default(),
+            &SearchLimits {
+                depth: Some(20),
+                nodes: Some(100),
+                ..SearchLimits::default()
+            },
+        );
+
+        assert!(result.info().unwrap().nodes() <= 100);
+    }
+
+    #[test]
+    fn converts_internal_mate_distance_to_uci_moves() {
+        assert_eq!(
+            SearchScore::from_internal(super::MATE_SCORE - 1),
+            SearchScore::Mate(1)
+        );
+        assert_eq!(
+            SearchScore::from_internal(super::MATE_SCORE - 3),
+            SearchScore::Mate(2)
+        );
+        assert_eq!(
+            SearchScore::from_internal(-super::MATE_SCORE + 2),
+            SearchScore::Mate(-1)
+        );
+        assert_eq!(SearchScore::from_internal(25), SearchScore::Centipawns(25));
     }
 }

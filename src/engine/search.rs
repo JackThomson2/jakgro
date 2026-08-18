@@ -177,6 +177,9 @@ where
 {
     algorithm::run(position, limits, control, report)
 }
+pub(super) fn ponder_time_budget(position: &Position, limits: &SearchLimits) -> Option<Duration> {
+    time::allocate_time_after_ponder(position.board().side_to_move(), limits)
+}
 
 #[cfg(test)]
 mod tests {
@@ -526,5 +529,22 @@ mod tests {
             SearchScore::Mate(-1)
         );
         assert_eq!(SearchScore::from_internal(25), SearchScore::Centipawns(25));
+    }
+
+    #[test]
+    fn missing_side_to_move_clock_uses_the_default_depth() {
+        let mut reports = Vec::new();
+
+        search_with_reporter(
+            &Position::default(),
+            &SearchLimits {
+                black_time: Some(Duration::from_secs(30)),
+                ..SearchLimits::default()
+            },
+            &SearchControl::new(),
+            |info| reports.push(info),
+        );
+
+        assert_eq!(reports.last().unwrap().depth(), 4);
     }
 }

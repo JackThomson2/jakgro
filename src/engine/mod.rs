@@ -55,6 +55,9 @@ impl Engine {
     {
         search::search_with_reporter(&self.position, limits, control, report)
     }
+    pub(crate) fn ponder_time_budget(&self, limits: &SearchLimits) -> Option<std::time::Duration> {
+        search::ponder_time_budget(&self.position, limits)
+    }
 }
 
 #[cfg(test)]

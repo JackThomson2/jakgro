@@ -35,6 +35,14 @@ pub(super) fn allocate_time(side_to_move: Color, limits: &SearchLimits) -> Optio
         .min(usable);
     Some(allocation.max(Duration::from_millis(1).min(usable)))
 }
+pub(super) fn allocate_time_after_ponder(
+    side_to_move: Color,
+    limits: &SearchLimits,
+) -> Option<Duration> {
+    let mut active_limits = limits.clone();
+    active_limits.ponder = false;
+    allocate_time(side_to_move, &active_limits)
+}
 
 #[cfg(test)]
 mod tests {
@@ -105,5 +113,18 @@ mod tests {
 
         assert_eq!(allocate_time(Color::White, &infinite), None);
         assert_eq!(allocate_time(Color::White, &ponder), None);
+    }
+
+    #[test]
+    fn ponderhit_activates_the_normal_clock_budget() {
+        let limits = SearchLimits {
+            ponder: true,
+            white_time: Some(Duration::from_secs(30)),
+            white_increment: Some(Duration::from_secs(1)),
+            ..SearchLimits::default()
+        };
+
+        assert_eq!(allocate_time(Color::White, &limits), None);
+        assert!(super::allocate_time_after_ponder(Color::White, &limits).is_some());
     }
 }

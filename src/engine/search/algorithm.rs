@@ -1,5 +1,4 @@
-use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use cozy_chess::util::display_uci_move;
 use cozy_chess::{BitBoard, Board, GameStatus, Move, Piece};
@@ -67,7 +66,8 @@ pub(super) fn run<F>(
 where
     F: FnMut(SearchInfo),
 {
-    if let Some(duration) = allocate_time(position.board().side_to_move(), limits) {
+    let time_budget = allocate_time(position.board().side_to_move(), limits);
+    if let Some(duration) = time_budget {
         control.set_deadline_from_now(duration);
     }
 
@@ -117,12 +117,11 @@ where
             vec![fallback.clone().expect("root moves are non-empty")],
         );
         report(info.clone());
-        wait_for_unbounded(limits, &context);
         return SearchResult::from_parts(fallback, Some(info));
     }
     let mut previous_pv = Vec::new();
     let mut final_info = None;
-    let maximum_depth = maximum_depth(limits);
+    let maximum_depth = maximum_depth(limits, time_budget.is_some());
 
     for depth in 1..=maximum_depth {
         if context.should_stop() {
@@ -159,7 +158,6 @@ where
         }
     }
 
-    wait_for_unbounded(limits, &context);
     let best_move = final_info
         .as_ref()
         .and_then(|info| info.pv().first().cloned())
@@ -167,15 +165,7 @@ where
     SearchResult::from_parts(best_move, final_info)
 }
 
-fn wait_for_unbounded(limits: &SearchLimits, context: &SearchContext<'_>) {
-    if (limits.infinite || limits.ponder) && limits.nodes.is_none() {
-        while !context.should_stop() {
-            thread::sleep(Duration::from_millis(1));
-        }
-    }
-}
-
-fn maximum_depth(limits: &SearchLimits) -> u32 {
+fn maximum_depth(limits: &SearchLimits, has_deadline: bool) -> u32 {
     let depth_limit = limits.depth.map(|depth| depth.clamp(1, MAX_DEPTH));
     let mate_limit = limits
         .mate
@@ -185,12 +175,7 @@ fn maximum_depth(limits: &SearchLimits) -> u32 {
         (Some(depth), None) => depth,
         (None, Some(mate)) => mate,
         (None, None)
-            if limits.nodes.is_some()
-                || limits.move_time.is_some()
-                || limits.white_time.is_some()
-                || limits.black_time.is_some()
-                || limits.infinite
-                || limits.ponder =>
+            if limits.nodes.is_some() || has_deadline || limits.infinite || limits.ponder =>
         {
             MAX_DEPTH
         }

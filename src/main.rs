@@ -1,9 +1,9 @@
 fn main() -> std::process::ExitCode {
-    let stdin = std::io::stdin();
+    let input = std::io::BufReader::new(std::io::stdin());
     let stdout = std::io::stdout();
     let output = std::io::BufWriter::new(stdout.lock());
 
-    match jakgro::uci::run(stdin.lock(), output) {
+    match jakgro::uci::run(input, output) {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("jakgro: {error}");

@@ -515,6 +515,19 @@ mod tests {
     }
 
     #[test]
+    fn depth_one_counts_each_non_root_node_once() {
+        let result = search(
+            &Position::default(),
+            &SearchLimits {
+                depth: Some(1),
+                ..SearchLimits::default()
+            },
+        );
+
+        assert_eq!(result.info().unwrap().nodes(), 20);
+    }
+
+    #[test]
     fn converts_internal_mate_distance_to_uci_moves() {
         assert_eq!(
             SearchScore::from_internal(super::MATE_SCORE - 1),

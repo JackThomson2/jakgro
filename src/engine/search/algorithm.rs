@@ -1,7 +1,8 @@
+use std::collections::HashMap;
 use std::time::Instant;
 
 use cozy_chess::util::display_uci_move;
-use cozy_chess::{BitBoard, Board, GameStatus, Move, Piece};
+use cozy_chess::{BitBoard, Board, Move, Piece};
 
 use super::time::allocate_time;
 use super::{SearchControl, SearchInfo, SearchLimits, SearchResult, SearchScore};
@@ -19,9 +20,61 @@ const QUIESCENCE_DEPTH: u32 = 16;
 struct Aborted;
 
 #[derive(Debug)]
+struct RepetitionTracker {
+    keys: Vec<u64>,
+    counts: HashMap<u64, usize>,
+}
+
+impl RepetitionTracker {
+    fn new(history: &[u64]) -> Self {
+        let mut counts = HashMap::new();
+        for &key in history {
+            *counts.entry(key).or_insert(0) += 1;
+        }
+
+        Self {
+            keys: history.to_vec(),
+            counts,
+        }
+    }
+
+    fn push(&mut self, board: &Board) {
+        let key = repetition_key(board);
+        self.keys.push(key);
+        *self.counts.entry(key).or_insert(0) += 1;
+    }
+
+    fn pop(&mut self) {
+        let key = self.keys.pop().expect("search repetition stack underflow");
+        let count = self
+            .counts
+            .get_mut(&key)
+            .expect("search repetition count missing");
+        *count -= 1;
+        if *count == 0 {
+            self.counts.remove(&key);
+        }
+    }
+
+    fn occurrences(&self, board: &Board) -> usize {
+        self.counts
+            .get(&repetition_key(board))
+            .copied()
+            .unwrap_or(0)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct TerminalResult {
+    score: Score,
+    path_dependent: bool,
+}
+
+#[derive(Debug)]
 struct NodeResult {
     score: Score,
     pv: Vec<Move>,
+    path_dependent: bool,
 }
 
 struct SearchContext<'a> {
@@ -107,8 +160,10 @@ where
         nodes: 0,
         started: Instant::now(),
     };
-    let mut history = position.hash_history().to_vec();
-    if !context.should_stop() && terminal_score(&root_board, &history, 0) == Some(0) {
+    let mut history = RepetitionTracker::new(position.hash_history());
+    if !context.should_stop()
+        && terminal_score(&root_board, &history, 0, false).is_some_and(|result| result.score == 0)
+    {
         let info = SearchInfo::new(
             0,
             SearchScore::Centipawns(0),
@@ -186,7 +241,7 @@ fn maximum_depth(limits: &SearchLimits, has_deadline: bool) -> u32 {
 fn search_root(
     board: &Board,
     root_moves: &[Move],
-    history: &mut Vec<u64>,
+    history: &mut RepetitionTracker,
     depth: u32,
     previous_pv: &[Move],
     context: &mut SearchContext<'_>,
@@ -198,6 +253,7 @@ fn search_root(
     let mut best = NodeResult {
         score: NEG_INFINITY,
         pv: Vec::new(),
+        path_dependent: false,
     };
 
     for chess_move in moves {
@@ -207,7 +263,7 @@ fn search_root(
 
         let mut child = board.clone();
         child.play_unchecked(chess_move);
-        history.push(repetition_key(&child));
+        history.push(&child);
         let expected_child_pv = if preferred == Some(chess_move) {
             previous_pv.get(1..).unwrap_or_default()
         } else {
@@ -231,7 +287,11 @@ fn search_root(
             let mut pv = Vec::with_capacity(child_result.pv.len() + 1);
             pv.push(chess_move);
             pv.extend(child_result.pv);
-            best = NodeResult { score, pv };
+            best = NodeResult {
+                score,
+                pv,
+                path_dependent: child_result.path_dependent,
+            };
         }
         alpha = alpha.max(score);
     }
@@ -242,7 +302,7 @@ fn search_root(
 #[allow(clippy::too_many_arguments)]
 fn negamax(
     board: &Board,
-    history: &mut Vec<u64>,
+    history: &mut RepetitionTracker,
     depth: u32,
     ply: u32,
     mut alpha: Score,
@@ -255,30 +315,34 @@ fn negamax(
     }
 
     context.visit_node()?;
-    if let Some(score) = terminal_score(board, history, ply) {
+    let moves = generate_moves(board);
+    if let Some(result) = terminal_score(board, history, ply, moves.is_empty()) {
         return Ok(NodeResult {
-            score,
+            score: result.score,
             pv: Vec::new(),
+            path_dependent: result.path_dependent,
         });
     }
     if ply >= MAX_PLY {
         return Ok(NodeResult {
             score: evaluate(board),
             pv: Vec::new(),
+            path_dependent: false,
         });
     }
 
     let preferred = previous_pv.first().copied();
-    let moves = order_moves(board, generate_moves(board), preferred);
+    let moves = order_moves(board, moves, preferred);
     let mut best = NodeResult {
         score: NEG_INFINITY,
         pv: Vec::new(),
+        path_dependent: false,
     };
 
     for chess_move in moves {
         let mut child = board.clone();
         child.play_unchecked(chess_move);
-        history.push(repetition_key(&child));
+        history.push(&child);
         let expected_child_pv = if preferred == Some(chess_move) {
             previous_pv.get(1..).unwrap_or_default()
         } else {
@@ -302,7 +366,11 @@ fn negamax(
             let mut pv = Vec::with_capacity(child_result.pv.len() + 1);
             pv.push(chess_move);
             pv.extend(child_result.pv);
-            best = NodeResult { score, pv };
+            best = NodeResult {
+                score,
+                pv,
+                path_dependent: child_result.path_dependent,
+            };
         }
         alpha = alpha.max(score);
         if alpha >= beta {
@@ -316,7 +384,7 @@ fn negamax(
 #[allow(clippy::too_many_arguments)]
 fn quiescence(
     board: &Board,
-    history: &mut Vec<u64>,
+    history: &mut RepetitionTracker,
     ply: u32,
     mut alpha: Score,
     beta: Score,
@@ -324,10 +392,12 @@ fn quiescence(
     context: &mut SearchContext<'_>,
 ) -> Result<NodeResult, Aborted> {
     context.visit_node()?;
-    if let Some(score) = terminal_score(board, history, ply) {
+    let mut moves = generate_moves(board);
+    if let Some(result) = terminal_score(board, history, ply, moves.is_empty()) {
         return Ok(NodeResult {
-            score,
+            score: result.score,
             pv: Vec::new(),
+            path_dependent: result.path_dependent,
         });
     }
 
@@ -337,22 +407,20 @@ fn quiescence(
         return Ok(NodeResult {
             score: stand_pat,
             pv: Vec::new(),
+            path_dependent: false,
         });
     }
 
     let mut best = NodeResult {
         score: if in_check { NEG_INFINITY } else { stand_pat },
         pv: Vec::new(),
+        path_dependent: false,
     };
     if !in_check {
         if stand_pat >= beta {
             return Ok(best);
         }
         alpha = alpha.max(stand_pat);
-    }
-
-    let mut moves = generate_moves(board);
-    if !in_check {
         moves.retain(|&chess_move| is_tactical(board, chess_move));
     }
     moves = order_moves(board, moves, None);
@@ -360,7 +428,7 @@ fn quiescence(
     for chess_move in moves {
         let mut child = board.clone();
         child.play_unchecked(chess_move);
-        history.push(repetition_key(&child));
+        history.push(&child);
         let child_result = quiescence(
             &child,
             history,
@@ -378,7 +446,11 @@ fn quiescence(
             let mut pv = Vec::with_capacity(child_result.pv.len() + 1);
             pv.push(chess_move);
             pv.extend(child_result.pv);
-            best = NodeResult { score, pv };
+            best = NodeResult {
+                score,
+                pv,
+                path_dependent: child_result.path_dependent,
+            };
         }
         alpha = alpha.max(score);
         if alpha >= beta {
@@ -389,18 +461,39 @@ fn quiescence(
     Ok(best)
 }
 
-fn terminal_score(board: &Board, history: &[u64], ply: u32) -> Option<Score> {
-    let current = repetition_key(board);
-    if history.iter().filter(|&&hash| hash == current).count() >= 3 || is_dead_material(board) {
-        return Some(0);
+fn terminal_score(
+    board: &Board,
+    history: &RepetitionTracker,
+    ply: u32,
+    no_legal_moves: bool,
+) -> Option<TerminalResult> {
+    if no_legal_moves {
+        return Some(TerminalResult {
+            score: if board.checkers().is_empty() {
+                0
+            } else {
+                -MATE_SCORE + ply as Score
+            },
+            path_dependent: false,
+        });
     }
 
-    match board.status() {
-        GameStatus::Won => Some(-MATE_SCORE + ply as Score),
-        GameStatus::Drawn => Some(0),
-        GameStatus::Ongoing => None,
+    if history.occurrences(board) >= 3 {
+        return Some(TerminalResult {
+            score: 0,
+            path_dependent: true,
+        });
     }
+    if board.halfmove_clock() >= 100 || is_dead_material(board) {
+        return Some(TerminalResult {
+            score: 0,
+            path_dependent: false,
+        });
+    }
+
+    None
 }
+
 fn is_dead_material(board: &Board) -> bool {
     if !board.pieces(Piece::Pawn).is_empty()
         || !board.pieces(Piece::Rook).is_empty()
@@ -484,4 +577,62 @@ fn format_pv(root: &Board, pv: &[Move]) -> Vec<String> {
             move_text
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{MATE_SCORE, RepetitionTracker, generate_moves, terminal_score};
+    use crate::engine::Position;
+
+    #[test]
+    fn repetition_tracker_pushes_and_pops_in_constant_time() {
+        let position = Position::default();
+        let mut tracker = RepetitionTracker::new(position.hash_history());
+
+        assert_eq!(tracker.occurrences(position.board()), 1);
+        tracker.push(position.board());
+        assert_eq!(tracker.occurrences(position.board()), 2);
+        tracker.pop();
+        assert_eq!(tracker.occurrences(position.board()), 1);
+    }
+
+    #[test]
+    fn repetition_draws_are_marked_as_path_dependent() {
+        let position = Position::default();
+        let key = position.hash_history()[0];
+        let tracker = RepetitionTracker::new(&[key, key, key]);
+
+        let result = terminal_score(position.board(), &tracker, 0, false).unwrap();
+
+        assert_eq!(result.score, 0);
+        assert!(result.path_dependent);
+    }
+
+    #[test]
+    fn rule_fifty_draws_are_board_state_dependent() {
+        let position = Position::from_fen("7k/8/8/8/8/8/R7/K7 w - - 100 51").unwrap();
+        let tracker = RepetitionTracker::new(position.hash_history());
+
+        let result = terminal_score(position.board(), &tracker, 0, false).unwrap();
+
+        assert_eq!(result.score, 0);
+        assert!(!result.path_dependent);
+    }
+
+    #[test]
+    fn checkmate_precedes_rule_fifty() {
+        let position = Position::from_fen("7k/6Q1/6K1/8/8/8/8/8 b - - 100 51").unwrap();
+        let tracker = RepetitionTracker::new(position.hash_history());
+
+        let result = terminal_score(
+            position.board(),
+            &tracker,
+            7,
+            generate_moves(position.board()).is_empty(),
+        )
+        .unwrap();
+
+        assert_eq!(result.score, -MATE_SCORE + 7);
+        assert!(!result.path_dependent);
+    }
 }

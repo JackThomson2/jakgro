@@ -6,3 +6,7 @@ rust-version = "1.85"
 
 [dependencies]
 cozy-chess = "0.3.4"
+
+[[bench]]
+name = "search"
+harness = false

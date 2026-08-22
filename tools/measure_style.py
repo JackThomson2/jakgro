@@ -191,7 +191,12 @@ class UciEngine:
             if predicate(line):
                 return lines
 
-    def measure(self, fixture: Fixture, aggression: int) -> Observation:
+    def measure(
+        self,
+        fixture: Fixture,
+        aggression: int,
+        root_moves: frozenset[str] | None = None,
+    ) -> Observation:
         self.send(f"setoption name Aggression value {aggression}")
         self.send("ucinewgame")
         self.send("isready")
@@ -201,7 +206,10 @@ class UciEngine:
         position_output = self.read_until(lambda line: line == "readyok")
         if any(line.startswith("info string position rejected:") for line in position_output):
             raise RuntimeError(f"{fixture.identifier}: engine rejected fixture FEN")
-        self.send(f"go nodes {fixture.nodes}")
+        searchmoves = ""
+        if root_moves:
+            searchmoves = f" searchmoves {' '.join(sorted(root_moves))}"
+        self.send(f"go nodes {fixture.nodes}{searchmoves}")
         output = self.read_until(lambda line: line.startswith("bestmove "))
         bestmove_fields = output[-1].split()
         parsed_info = next(

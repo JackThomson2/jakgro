@@ -9,7 +9,7 @@ pub use control::SearchControl;
 pub(super) use transposition::{DEFAULT_HASH_MIB, MAX_HASH_MIB, MIN_HASH_MIB, TranspositionTable};
 
 use super::Position;
-use super::evaluation::{MATE_SCORE, MATE_THRESHOLD, Score};
+use super::evaluation::{EvaluationConfig, MATE_SCORE, MATE_THRESHOLD, Score};
 
 /// Limits supplied to a search operation.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -181,20 +181,28 @@ where
 {
     let mut table = TranspositionTable::new(MIN_HASH_MIB)
         .expect("the minimum transposition table must be allocatable");
-    search_with_table(position, limits, control, &mut table, report)
+    search_with_table(
+        position,
+        limits,
+        control,
+        EvaluationConfig::default(),
+        &mut table,
+        report,
+    )
 }
 
 pub(super) fn search_with_table<F>(
     position: &Position,
     limits: &SearchLimits,
     control: &SearchControl,
+    evaluation: EvaluationConfig,
     table: &mut TranspositionTable,
     report: F,
 ) -> SearchResult
 where
     F: FnMut(SearchInfo),
 {
-    algorithm::run(position, limits, control, table, report)
+    algorithm::run(position, limits, control, evaluation, table, report)
 }
 
 pub(super) fn ponder_time_budget(position: &Position, limits: &SearchLimits) -> Option<Duration> {
@@ -206,8 +214,8 @@ mod tests {
     use std::time::Duration;
 
     use super::{
-        SearchControl, SearchInfo, SearchLimits, SearchScore, TranspositionTable, search,
-        search_with_reporter, search_with_table,
+        EvaluationConfig, SearchControl, SearchInfo, SearchLimits, SearchScore, TranspositionTable,
+        search, search_with_reporter, search_with_table,
     };
     use crate::engine::Position;
 
@@ -225,6 +233,19 @@ mod tests {
                 .contains(&first.best_move().unwrap().to_owned())
         );
     }
+    #[test]
+    fn root_style_preference_does_not_change_draw_scores() {
+        let position = Position::from_fen("6k1/5ppp/8/7Q/2B5/8/5PPP/6K1 w - - 99 1").unwrap();
+        let limits = SearchLimits {
+            search_moves: vec!["h5g5".to_owned()],
+            depth: Some(1),
+            ..SearchLimits::default()
+        };
+
+        let result = search(&position, &limits);
+
+        assert_eq!(result.info().unwrap().score(), SearchScore::Centipawns(0));
+    }
 
     #[test]
     fn a_warm_transposition_table_reduces_nodes_without_changing_the_result() {
@@ -238,12 +259,74 @@ mod tests {
         let control = SearchControl::new();
         let mut table = TranspositionTable::new(1).unwrap();
 
-        let cold = search_with_table(&position, &limits, &control, &mut table, |_| {});
-        let warm = search_with_table(&position, &limits, &control, &mut table, |_| {});
+        let cold = search_with_table(
+            &position,
+            &limits,
+            &control,
+            EvaluationConfig::default(),
+            &mut table,
+            |_| {},
+        );
+        let warm = search_with_table(
+            &position,
+            &limits,
+            &control,
+            EvaluationConfig::default(),
+            &mut table,
+            |_| {},
+        );
 
         assert_eq!(warm.best_move(), cold.best_move());
         assert_eq!(warm.info().unwrap().score(), cold.info().unwrap().score());
         assert!(warm.info().unwrap().nodes() < cold.info().unwrap().nodes());
+    }
+    #[test]
+    fn aggression_changes_do_not_reuse_stale_hash_scores() {
+        let position =
+            Position::from_fen("rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2")
+                .unwrap();
+        let limits = SearchLimits {
+            depth: Some(3),
+            ..SearchLimits::default()
+        };
+        let control = SearchControl::new();
+        let mut switched_table = TranspositionTable::new(1).unwrap();
+        let mut fresh_table = TranspositionTable::new(1).unwrap();
+
+        let conservative = search_with_table(
+            &position,
+            &limits,
+            &control,
+            EvaluationConfig::new(0),
+            &mut switched_table,
+            |_| {},
+        );
+        let switched = search_with_table(
+            &position,
+            &limits,
+            &control,
+            EvaluationConfig::new(100),
+            &mut switched_table,
+            |_| {},
+        );
+        let fresh = search_with_table(
+            &position,
+            &limits,
+            &control,
+            EvaluationConfig::new(100),
+            &mut fresh_table,
+            |_| {},
+        );
+
+        assert_ne!(
+            conservative.info().unwrap().score(),
+            switched.info().unwrap().score(),
+        );
+        assert_eq!(switched.best_move(), fresh.best_move());
+        assert_eq!(
+            switched.info().unwrap().score(),
+            fresh.info().unwrap().score(),
+        );
     }
 
     #[test]
@@ -556,7 +639,7 @@ mod tests {
     }
 
     #[test]
-    fn depth_one_counts_each_non_root_node_once() {
+    fn depth_one_counts_pvs_researches_as_nodes() {
         let result = search(
             &Position::default(),
             &SearchLimits {
@@ -565,7 +648,7 @@ mod tests {
             },
         );
 
-        assert_eq!(result.info().unwrap().nodes(), 20);
+        assert_eq!(result.info().unwrap().nodes(), 24);
     }
 
     #[test]

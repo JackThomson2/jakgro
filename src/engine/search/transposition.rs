@@ -60,6 +60,7 @@ pub(in crate::engine) struct TranspositionTable {
     entries: Box<[Option<Entry>]>,
     size_mib: usize,
     generation: u16,
+    evaluation_profile: Option<u8>,
 }
 
 impl TranspositionTable {
@@ -77,6 +78,7 @@ impl TranspositionTable {
             entries: entries.into_boxed_slice(),
             size_mib,
             generation: 0,
+            evaluation_profile: None,
         })
     }
 
@@ -84,7 +86,11 @@ impl TranspositionTable {
         self.size_mib
     }
 
-    pub(super) fn start_search(&mut self) {
+    pub(super) fn start_search(&mut self, evaluation_profile: u8) {
+        if self.evaluation_profile != Some(evaluation_profile) {
+            self.entries.fill(None);
+            self.evaluation_profile = Some(evaluation_profile);
+        }
         self.generation = self.generation.wrapping_add(1);
     }
 
@@ -254,6 +260,19 @@ mod tests {
 
         table.clear();
 
+        assert!(table.probe(position.board()).is_none());
+    }
+    #[test]
+    fn evaluation_profile_changes_discard_entries() {
+        let position = Position::default();
+        let mut table = TranspositionTable::new(1).unwrap();
+        table.start_search(0);
+        table.store(position.board(), 1, 0, 0, Bound::Upper, None);
+
+        table.start_search(0);
+        assert!(table.probe(position.board()).is_some());
+
+        table.start_search(100);
         assert!(table.probe(position.board()).is_none());
     }
 }

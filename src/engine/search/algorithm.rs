@@ -9,7 +9,8 @@ use super::transposition::{Bound, TranspositionTable};
 use super::{SearchControl, SearchInfo, SearchLimits, SearchResult, SearchScore};
 use crate::engine::Position;
 use crate::engine::evaluation::{
-    MATE_SCORE, MATE_THRESHOLD, MAX_PLY, NEG_INFINITY, POS_INFINITY, Score, evaluate, piece_value,
+    EvaluationConfig, MATE_SCORE, MATE_THRESHOLD, MAX_PLY, NEG_INFINITY, POS_INFINITY, Score,
+    evaluate_with_config, piece_value, root_complexity_bonus,
 };
 use crate::engine::position::repetition_key;
 
@@ -128,6 +129,7 @@ fn history_index(color: Color, chess_move: Move) -> usize {
 struct SearchContext<'a> {
     control: &'a SearchControl,
     table: &'a mut TranspositionTable,
+    evaluation: EvaluationConfig,
     node_limit: Option<u64>,
     nodes: u64,
     started: Instant,
@@ -184,6 +186,7 @@ pub(super) fn run<F>(
     position: &Position,
     limits: &SearchLimits,
     control: &SearchControl,
+    evaluation: EvaluationConfig,
     table: &mut TranspositionTable,
     mut report: F,
 ) -> SearchResult
@@ -195,7 +198,7 @@ where
         control.set_deadline_from_now(duration);
     }
 
-    table.start_search();
+    table.start_search(evaluation.aggression());
     let root_board = position.board().clone();
     let mut labeled_moves = generate_moves(&root_board)
         .into_iter()
@@ -229,6 +232,7 @@ where
     let mut context = SearchContext {
         control,
         table,
+        evaluation,
         node_limit: limits.nodes,
         nodes: 0,
         started: Instant::now(),
@@ -376,7 +380,13 @@ fn search_root(
         .probe(board)
         .and_then(|entry| entry.best_move());
     let preferred = previous_pv.first().copied().or(hash_move);
-    let moves = order_moves(board, root_moves.to_vec(), preferred, 0, &context.ordering);
+    let moves = order_root_moves(
+        board,
+        root_moves.to_vec(),
+        preferred,
+        &context.ordering,
+        context.evaluation,
+    );
     let (child_depth, child_extensions) = next_search_depth(depth, !board.checkers().is_empty(), 0);
     let mut best = NodeResult {
         score: NEG_INFINITY,
@@ -502,7 +512,7 @@ fn negamax(
     }
     if ply >= MAX_PLY {
         return Ok(NodeResult {
-            score: evaluate(board),
+            score: evaluate_with_config(board, context.evaluation),
             path_dependent: false,
         });
     }
@@ -662,7 +672,7 @@ fn quiescence(
     }
 
     let in_check = !board.checkers().is_empty();
-    let stand_pat = evaluate(board);
+    let stand_pat = evaluate_with_config(board, context.evaluation);
     if (remaining == 0 && !in_check) || ply >= MAX_PLY {
         return Ok(NodeResult {
             score: stand_pat,
@@ -800,6 +810,37 @@ fn order_moves(
             .then_with(|| move_key(*left).cmp(&move_key(*right)))
     });
     moves
+}
+fn order_root_moves(
+    board: &Board,
+    moves: Vec<Move>,
+    preferred: Option<Move>,
+    ordering: &MoveOrdering,
+    evaluation: EvaluationConfig,
+) -> Vec<Move> {
+    if evaluation.aggression() == 0 {
+        return order_moves(board, moves, preferred, 0, ordering);
+    }
+    let mover = board.side_to_move();
+    let mut ranked = moves
+        .into_iter()
+        .map(|chess_move| {
+            let mut child = board.clone();
+            child.play_unchecked(chess_move);
+            let complexity = root_complexity_bonus(&child, mover, evaluation);
+            (chess_move, complexity)
+        })
+        .collect::<Vec<_>>();
+    ranked.sort_unstable_by(|(left, left_complexity), (right, right_complexity)| {
+        move_order_score(board, *right, preferred, 0, ordering)
+            .cmp(&move_order_score(board, *left, preferred, 0, ordering))
+            .then_with(|| right_complexity.cmp(left_complexity))
+            .then_with(|| move_key(*left).cmp(&move_key(*right)))
+    });
+    ranked
+        .into_iter()
+        .map(|(chess_move, _)| chess_move)
+        .collect()
 }
 
 fn move_order_score(
@@ -978,6 +1019,33 @@ mod tests {
             &ordering,
         );
         assert_eq!(position.format_search_move(numeric[0]), "b1a3");
+    }
+    #[test]
+    fn root_complexity_orders_equally_ranked_quiet_moves() {
+        let position = Position::from_fen("6k1/5ppp/8/7Q/2B5/8/5PPP/6K1 w - - 0 1").unwrap();
+        let quiet_moves = generate_moves(position.board())
+            .into_iter()
+            .filter(|&chess_move| super::is_quiet(position.board(), chess_move))
+            .collect::<Vec<_>>();
+        let config = super::EvaluationConfig::default();
+        let complexity = |chess_move| {
+            let mut child = position.board().clone();
+            child.play_unchecked(chess_move);
+            super::root_complexity_bonus(&child, position.board().side_to_move(), config)
+        };
+        let minimum = quiet_moves.iter().copied().map(complexity).min().unwrap();
+        let maximum = quiet_moves.iter().copied().map(complexity).max().unwrap();
+
+        let ordered = super::order_root_moves(
+            position.board(),
+            quiet_moves,
+            None,
+            &MoveOrdering::new(),
+            config,
+        );
+
+        assert!(maximum > minimum);
+        assert_eq!(complexity(ordered[0]), maximum);
     }
 
     #[test]

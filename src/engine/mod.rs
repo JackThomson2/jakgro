@@ -17,6 +17,12 @@ pub const DEFAULT_HASH_MIB: usize = search::DEFAULT_HASH_MIB;
 pub const MIN_HASH_MIB: usize = search::MIN_HASH_MIB;
 /// Largest accepted transposition-table allocation in mebibytes.
 pub const MAX_HASH_MIB: usize = search::MAX_HASH_MIB;
+/// Lowest supported attacking-style percentage.
+pub const MIN_AGGRESSION: u8 = evaluation::MIN_AGGRESSION;
+/// Default attacking-style percentage.
+pub const DEFAULT_AGGRESSION: u8 = evaluation::DEFAULT_AGGRESSION;
+/// Highest supported attacking-style percentage.
+pub const MAX_AGGRESSION: u8 = evaluation::MAX_AGGRESSION;
 
 /// Failure to validate or allocate a requested transposition-table size.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -47,6 +53,7 @@ impl Error for HashResizeError {}
 #[derive(Clone, Debug)]
 pub struct Engine {
     position: Position,
+    evaluation: evaluation::EvaluationConfig,
     table: Arc<Mutex<search::TranspositionTable>>,
 }
 
@@ -56,6 +63,7 @@ impl Default for Engine {
             .expect("the default transposition table must be allocatable");
         Self {
             position: Position::default(),
+            evaluation: evaluation::EvaluationConfig::default(),
             table: Arc::new(Mutex::new(table)),
         }
     }
@@ -77,6 +85,18 @@ impl Engine {
     /// Replaces the current position.
     pub fn set_position(&mut self, position: Position) {
         self.position = position;
+    }
+    /// Returns the bounded attacking-style percentage used by new searches.
+    #[must_use]
+    pub fn aggression(&self) -> u8 {
+        self.evaluation.aggression()
+    }
+
+    /// Changes the attacking-style percentage used by new searches.
+    ///
+    /// Values above [`MAX_AGGRESSION`] are clamped to that limit.
+    pub fn set_aggression(&mut self, aggression: u8) {
+        self.evaluation = evaluation::EvaluationConfig::new(aggression);
     }
 
     /// Resets game state while retaining configured resources.
@@ -128,7 +148,14 @@ impl Engine {
         F: FnMut(SearchInfo),
     {
         let mut table = self.lock_table();
-        search::search_with_table(&self.position, limits, control, &mut table, report)
+        search::search_with_table(
+            &self.position,
+            limits,
+            control,
+            self.evaluation,
+            &mut table,
+            report,
+        )
     }
 
     /// Computes the normal time budget that should begin after `ponderhit`.
@@ -144,7 +171,7 @@ impl Engine {
 
 #[cfg(test)]
 mod tests {
-    use super::{Engine, Position};
+    use super::{DEFAULT_AGGRESSION, Engine, MAX_AGGRESSION, Position};
 
     #[test]
     fn new_game_restores_the_starting_position() {
@@ -179,5 +206,19 @@ mod tests {
         engine.new_game();
 
         assert_eq!(engine.hash_size_mib(), 2);
+    }
+    #[test]
+    fn aggression_is_clamped_and_preserved_across_new_games() {
+        let mut engine = Engine::new();
+        assert_eq!(engine.aggression(), DEFAULT_AGGRESSION);
+
+        engine.set_aggression(37);
+        let clone = engine.clone();
+        engine.new_game();
+
+        assert_eq!(engine.aggression(), 37);
+        assert_eq!(clone.aggression(), 37);
+        engine.set_aggression(u8::MAX);
+        assert_eq!(engine.aggression(), MAX_AGGRESSION);
     }
 }

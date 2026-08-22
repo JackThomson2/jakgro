@@ -477,6 +477,78 @@ fn null_move_reduction(depth: u32) -> u32 {
     (2 + depth / 4).min(depth.saturating_sub(1))
 }
 
+#[allow(clippy::too_many_arguments)]
+fn verified_null_move_cutoff(
+    board: &Board,
+    history: &mut RepetitionTracker,
+    depth: u32,
+    ply: u32,
+    extensions_used: u8,
+    alpha: Score,
+    beta: Score,
+    context: &mut SearchContext<'_>,
+) -> Result<Option<NodeResult>, Aborted> {
+    if !context.null_move_enabled {
+        return Ok(None);
+    }
+    let static_evaluation = evaluate_with_config(board, context.evaluation);
+    let pv_node = beta.saturating_sub(alpha) > 1;
+    if null_move_block(board, depth, beta, pv_node, static_evaluation, context.mode).is_some() {
+        return Ok(None);
+    }
+
+    let (probe_mode, verification_mode) = null_search_modes();
+    let reduction = null_move_reduction(depth);
+    let null_depth = depth.saturating_sub(reduction).saturating_sub(1);
+    let verification_depth = depth.saturating_sub(reduction);
+    let null_board = board.null_move().expect("eligible null move must exist");
+    let original_mode = context.mode;
+    context.telemetry.null_move_attempts += 1;
+    context.mode = probe_mode;
+    let probe = negamax(
+        &null_board,
+        history,
+        null_depth,
+        ply + 1,
+        extensions_used,
+        -beta,
+        -beta + 1,
+        &[],
+        context,
+    );
+    context.mode = original_mode;
+    let probe = probe?;
+    if -probe.score < beta {
+        return Ok(None);
+    }
+
+    context.telemetry.null_move_fail_highs += 1;
+    context.telemetry.null_move_verifications += 1;
+    context.mode = verification_mode;
+    let verification = negamax(
+        board,
+        history,
+        verification_depth,
+        ply,
+        extensions_used,
+        beta - 1,
+        beta,
+        &[],
+        context,
+    );
+    context.mode = original_mode;
+    context.clear_pv(ply);
+    let verification = verification?;
+    if verification.score >= beta {
+        context.telemetry.null_move_cutoffs += 1;
+        return Ok(Some(NodeResult {
+            score: beta,
+            path_dependent: false,
+        }));
+    }
+    Ok(None)
+}
+
 struct SearchContext<'a> {
     control: &'a SearchControl,
     table: &'a mut TranspositionTable,
@@ -601,7 +673,7 @@ where
         evaluation,
         mode: SearchMode::Normal,
         telemetry: SearchTelemetry::default(),
-        null_move_enabled: limits.null_move.unwrap_or(false),
+        null_move_enabled: limits.null_move.unwrap_or(true),
         node_limit: limits.nodes,
         nodes: 0,
         started: Instant::now(),
@@ -1684,17 +1756,6 @@ fn negamax(
         }
     }
 
-    if context.null_move_enabled {
-        let (probe_mode, verification_mode) = null_search_modes();
-        debug_assert!(!probe_mode.tracks_legal_draws());
-        debug_assert!(verification_mode.tracks_legal_draws());
-        let static_evaluation = evaluate_with_config(board, context.evaluation);
-        let pv_node = beta.saturating_sub(alpha) > 1;
-        if null_move_block(board, depth, beta, pv_node, static_evaluation, context.mode).is_none() {
-            let _ = null_move_reduction(depth);
-        }
-    }
-
     let moves = generate_moves(board);
     if moves.is_empty() {
         let result = terminal_score_for_mode(board, history, ply, true, context.mode)
@@ -1704,6 +1765,19 @@ fn negamax(
             path_dependent: result.path_dependent,
         });
     }
+    if let Some(result) = verified_null_move_cutoff(
+        board,
+        history,
+        depth,
+        ply,
+        extensions_used,
+        alpha,
+        beta,
+        context,
+    )? {
+        return Ok(result);
+    }
+
     let preferred = previous_pv.first().copied().or(hash_move);
     let moves = order_move_metadata(
         board,

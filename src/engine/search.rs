@@ -314,6 +314,56 @@ mod tests {
                 .contains(&first.best_move().unwrap().to_owned())
         );
     }
+
+    #[test]
+    fn verified_null_move_reports_attempts_and_cutoffs() {
+        let position = Position::default();
+        let control = SearchControl::new();
+        let mut disabled_table = TranspositionTable::new(1).unwrap();
+        let mut enabled_table = TranspositionTable::new(1).unwrap();
+        let disabled = search_with_table(
+            &position,
+            &SearchLimits {
+                nodes: Some(20_000),
+                null_move: Some(false),
+                ..SearchLimits::default()
+            },
+            &control,
+            EvaluationConfig::new(0),
+            MOVE_OVERHEAD,
+            &mut disabled_table,
+            |_| {},
+        );
+        let enabled = search_with_table(
+            &position,
+            &SearchLimits {
+                nodes: Some(20_000),
+                null_move: Some(true),
+                ..SearchLimits::default()
+            },
+            &control,
+            EvaluationConfig::new(0),
+            MOVE_OVERHEAD,
+            &mut enabled_table,
+            |_| {},
+        );
+
+        let disabled = disabled.telemetry();
+        let enabled = enabled.telemetry();
+        assert_eq!(disabled.null_move_attempts(), 0);
+        assert_eq!(disabled.null_move_cutoffs(), 0);
+        assert!(enabled.null_move_attempts() > 0);
+        assert_eq!(
+            enabled.null_move_fail_highs(),
+            enabled.null_move_verifications()
+        );
+        assert_eq!(
+            enabled.null_move_verifications(),
+            enabled.null_move_cutoffs()
+        );
+        assert!(enabled.null_probe_nodes() >= enabled.null_move_attempts());
+        assert!(enabled.null_verification_nodes() >= enabled.null_move_verifications());
+    }
     #[test]
     fn a_reached_soft_deadline_stops_after_a_stable_iteration() {
         let position = Position::default();

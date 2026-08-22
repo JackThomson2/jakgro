@@ -138,9 +138,14 @@ impl TranspositionTable {
         self.entries[index] = Some(candidate);
     }
 
-    pub(super) fn principal_variation(&self, board: &Board, depth: u32) -> Vec<Move> {
+    pub(super) fn write_principal_variation(
+        &self,
+        board: &Board,
+        depth: u32,
+        output: &mut Vec<Move>,
+    ) {
+        output.clear();
         let mut board = board.clone();
-        let mut pv = Vec::with_capacity(depth as usize);
 
         for _ in 0..depth {
             let Some(entry) = self.probe(&board) else {
@@ -156,11 +161,9 @@ impl TranspositionTable {
                 break;
             }
 
-            pv.push(best_move);
+            output.push(best_move);
             board.play_unchecked(best_move);
         }
-
-        pv
     }
 
     fn index(&self, key: u64) -> usize {

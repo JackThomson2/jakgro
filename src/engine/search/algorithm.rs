@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::time::Instant;
 
 use cozy_chess::util::display_uci_move;
-use cozy_chess::{BitBoard, Board, Move, Piece};
+use cozy_chess::{BitBoard, Board, Color, Move, Piece};
 
 use super::time::allocate_time;
 use super::transposition::{Bound, TranspositionTable};
@@ -74,41 +74,106 @@ struct TerminalResult {
 #[derive(Debug)]
 struct NodeResult {
     score: Score,
-    pv: Vec<Move>,
     path_dependent: bool,
 }
 
+const HISTORY_MAX: u32 = 900_000;
+
+#[derive(Debug)]
+struct MoveOrdering {
+    killers: Vec<[Option<Move>; 2]>,
+    history: Vec<u32>,
+}
+
+impl MoveOrdering {
+    fn new() -> Self {
+        Self {
+            killers: vec![[None; 2]; MAX_PLY as usize + 1],
+            history: vec![0; 2 * 64 * 64],
+        }
+    }
+
+    fn killers(&self, ply: u32) -> [Option<Move>; 2] {
+        self.killers.get(ply as usize).copied().unwrap_or([None; 2])
+    }
+
+    fn history_score(&self, color: Color, chess_move: Move) -> u32 {
+        self.history[history_index(color, chess_move)]
+    }
+
+    fn record_quiet_cutoff(&mut self, color: Color, chess_move: Move, ply: u32, depth: u32) {
+        let killers = &mut self.killers[ply.min(MAX_PLY) as usize];
+        if killers[0] != Some(chess_move) {
+            killers[1] = killers[0];
+            killers[0] = Some(chess_move);
+        }
+
+        let bonus = depth.saturating_mul(depth).min(HISTORY_MAX / 4);
+        let index = history_index(color, chess_move);
+        if self.history[index] > HISTORY_MAX - bonus {
+            for score in &mut self.history {
+                *score /= 2;
+            }
+        }
+        self.history[index] = self.history[index].saturating_add(bonus).min(HISTORY_MAX);
+    }
+}
+
+fn history_index(color: Color, chess_move: Move) -> usize {
+    ((color as usize * 64 + chess_move.from as usize) * 64) + chess_move.to as usize
+}
 struct SearchContext<'a> {
     control: &'a SearchControl,
     table: &'a mut TranspositionTable,
     node_limit: Option<u64>,
     nodes: u64,
     started: Instant,
+    pv: Vec<Vec<Move>>,
+    ordering: MoveOrdering,
 }
 
 impl SearchContext<'_> {
     fn visit_node(&mut self) -> Result<(), Aborted> {
-        if self.control.is_stopped()
-            || self
-                .node_limit
-                .is_some_and(|node_limit| self.nodes >= node_limit)
+        if self.should_stop() {
+            return Err(Aborted);
+        }
+        if let Some(limit) = self.node_limit
+            && self.nodes >= limit
         {
             return Err(Aborted);
         }
-
         self.nodes += 1;
-        if self.control.deadline_reached() {
-            return Err(Aborted);
-        }
         Ok(())
     }
 
     fn should_stop(&self) -> bool {
         self.control.is_stopped()
             || self.control.deadline_reached()
-            || self
-                .node_limit
-                .is_some_and(|node_limit| self.nodes >= node_limit)
+            || self.node_limit.is_some_and(|limit| self.nodes >= limit)
+    }
+
+    fn clear_pv(&mut self, ply: u32) {
+        self.pv[ply.min(MAX_PLY) as usize].clear();
+    }
+
+    fn update_pv(&mut self, ply: u32, chess_move: Move) {
+        let ply = ply.min(MAX_PLY) as usize;
+        let (current_rows, child_rows) = self.pv.split_at_mut(ply + 1);
+        let current = &mut current_rows[ply];
+        current.clear();
+        current.push(chess_move);
+        if let Some(child) = child_rows.first() {
+            current.extend_from_slice(child);
+        }
+    }
+
+    fn write_hash_pv(&mut self, board: &Board, depth: u32, ply: u32) {
+        let output = &mut self.pv[ply.min(MAX_PLY) as usize];
+        self.table.write_principal_variation(board, depth, output);
+    }
+
+    fn pv(&self, ply: u32) -> &[Move] {
+        &self.pv[ply.min(MAX_PLY) as usize]
     }
 }
 
@@ -164,6 +229,10 @@ where
         node_limit: limits.nodes,
         nodes: 0,
         started: Instant::now(),
+        pv: (0..=MAX_PLY)
+            .map(|ply| Vec::with_capacity((MAX_PLY - ply) as usize))
+            .collect(),
+        ordering: MoveOrdering::new(),
     };
     let mut history = RepetitionTracker::new(position.hash_history());
     if !context.should_stop()
@@ -200,7 +269,8 @@ where
             break;
         };
 
-        previous_pv = iteration.pv;
+        previous_pv.clear();
+        previous_pv.extend_from_slice(context.pv(0));
         let pv = format_pv(&root_board, &previous_pv);
         let info = SearchInfo::new(
             depth,
@@ -251,17 +321,17 @@ fn search_root(
     previous_pv: &[Move],
     context: &mut SearchContext<'_>,
 ) -> Result<NodeResult, Aborted> {
+    context.clear_pv(0);
     let hash_move = context
         .table
         .probe(board)
         .and_then(|entry| entry.best_move());
     let preferred = previous_pv.first().copied().or(hash_move);
-    let moves = order_moves(board, root_moves.to_vec(), preferred);
+    let moves = order_moves(board, root_moves.to_vec(), preferred, 0, &context.ordering);
     let mut alpha = NEG_INFINITY;
     let beta = POS_INFINITY;
     let mut best = NodeResult {
         score: NEG_INFINITY,
-        pv: Vec::new(),
         path_dependent: false,
     };
 
@@ -293,14 +363,11 @@ fn search_root(
         let score = -child_result.score;
 
         if score > best.score {
-            let mut pv = Vec::with_capacity(child_result.pv.len() + 1);
-            pv.push(chess_move);
-            pv.extend(child_result.pv);
             best = NodeResult {
                 score,
-                pv,
                 path_dependent: child_result.path_dependent,
             };
+            context.update_pv(0, chess_move);
         }
         alpha = alpha.max(score);
     }
@@ -312,7 +379,7 @@ fn search_root(
             0,
             best.score,
             Bound::Exact,
-            best.pv.first().copied(),
+            context.pv(0).first().copied(),
         );
     }
     Ok(best)
@@ -333,19 +400,18 @@ fn negamax(
         return quiescence(board, history, ply, alpha, beta, QUIESCENCE_DEPTH, context);
     }
 
+    context.clear_pv(ply);
     context.visit_node()?;
     let moves = generate_moves(board);
     if let Some(result) = terminal_score(board, history, ply, moves.is_empty()) {
         return Ok(NodeResult {
             score: result.score,
-            pv: Vec::new(),
             path_dependent: result.path_dependent,
         });
     }
     if ply >= MAX_PLY {
         return Ok(NodeResult {
             score: evaluate(board),
-            pv: Vec::new(),
             path_dependent: false,
         });
     }
@@ -360,9 +426,9 @@ fn negamax(
             Bound::Upper => score <= alpha,
         };
         if cutoff {
+            context.write_hash_pv(board, depth, ply);
             return Ok(NodeResult {
                 score,
-                pv: context.table.principal_variation(board, depth),
                 path_dependent: false,
             });
         }
@@ -370,10 +436,9 @@ fn negamax(
 
     let hash_move = hash_entry.and_then(|entry| entry.best_move());
     let preferred = previous_pv.first().copied().or(hash_move);
-    let moves = order_moves(board, moves, preferred);
+    let moves = order_moves(board, moves, preferred, ply, &context.ordering);
     let mut best = NodeResult {
         score: NEG_INFINITY,
-        pv: Vec::new(),
         path_dependent: false,
     };
 
@@ -401,17 +466,19 @@ fn negamax(
         let score = -child_result.score;
 
         if score > best.score {
-            let mut pv = Vec::with_capacity(child_result.pv.len() + 1);
-            pv.push(chess_move);
-            pv.extend(child_result.pv);
             best = NodeResult {
                 score,
-                pv,
                 path_dependent: child_result.path_dependent,
             };
+            context.update_pv(ply, chess_move);
         }
         alpha = alpha.max(score);
         if alpha >= beta {
+            if is_quiet(board, chess_move) {
+                context
+                    .ordering
+                    .record_quiet_cutoff(board.side_to_move(), chess_move, ply, depth);
+            }
             break;
         }
     }
@@ -430,7 +497,7 @@ fn negamax(
             ply,
             best.score,
             bound,
-            best.pv.first().copied(),
+            context.pv(ply).first().copied(),
         );
     }
 
@@ -447,12 +514,12 @@ fn quiescence(
     remaining: u32,
     context: &mut SearchContext<'_>,
 ) -> Result<NodeResult, Aborted> {
+    context.clear_pv(ply);
     context.visit_node()?;
     let mut moves = generate_moves(board);
     if let Some(result) = terminal_score(board, history, ply, moves.is_empty()) {
         return Ok(NodeResult {
             score: result.score,
-            pv: Vec::new(),
             path_dependent: result.path_dependent,
         });
     }
@@ -462,14 +529,12 @@ fn quiescence(
     if (remaining == 0 && !in_check) || ply >= MAX_PLY {
         return Ok(NodeResult {
             score: stand_pat,
-            pv: Vec::new(),
             path_dependent: false,
         });
     }
 
     let mut best = NodeResult {
         score: if in_check { NEG_INFINITY } else { stand_pat },
-        pv: Vec::new(),
         path_dependent: false,
     };
     if !in_check {
@@ -479,7 +544,7 @@ fn quiescence(
         alpha = alpha.max(stand_pat);
         moves.retain(|&chess_move| is_tactical(board, chess_move));
     }
-    moves = order_moves(board, moves, None);
+    moves = order_moves(board, moves, None, ply, &context.ordering);
 
     for chess_move in moves {
         let mut child = board.clone();
@@ -499,14 +564,11 @@ fn quiescence(
         let score = -child_result.score;
 
         if score > best.score {
-            let mut pv = Vec::with_capacity(child_result.pv.len() + 1);
-            pv.push(chess_move);
-            pv.extend(child_result.pv);
             best = NodeResult {
                 score,
-                pv,
                 path_dependent: child_result.path_dependent,
             };
+            context.update_pv(ply, chess_move);
         }
         alpha = alpha.max(score);
         if alpha >= beta {
@@ -578,35 +640,75 @@ fn generate_moves(board: &Board) -> Vec<Move> {
     moves
 }
 
-fn order_moves(board: &Board, moves: Vec<Move>, preferred: Option<Move>) -> Vec<Move> {
-    let mut scored = moves
-        .into_iter()
-        .map(|chess_move| {
-            let mut priority = 0;
-            if preferred == Some(chess_move) {
-                priority += 1_000_000;
-            }
-            if let Some(promotion) = chess_move.promotion {
-                priority += 100_000 + piece_value(promotion);
-            }
-            if let Some(captured) = captured_piece(board, chess_move) {
-                let attacker = board.piece_on(chess_move.from).unwrap_or(Piece::Pawn);
-                priority += 10_000 + piece_value(captured) * 10 - piece_value(attacker);
-            }
-            (
-                chess_move,
-                priority,
-                display_uci_move(board, chess_move).to_string(),
-            )
-        })
-        .collect::<Vec<_>>();
-    scored.sort_unstable_by(|left, right| right.1.cmp(&left.1).then_with(|| left.2.cmp(&right.2)));
-    scored
-        .into_iter()
-        .map(|(chess_move, _, _)| chess_move)
-        .collect()
+fn order_moves(
+    board: &Board,
+    mut moves: Vec<Move>,
+    preferred: Option<Move>,
+    ply: u32,
+    ordering: &MoveOrdering,
+) -> Vec<Move> {
+    moves.sort_unstable_by(|left, right| {
+        move_order_score(board, *right, preferred, ply, ordering)
+            .cmp(&move_order_score(board, *left, preferred, ply, ordering))
+            .then_with(|| move_key(*left).cmp(&move_key(*right)))
+    });
+    moves
 }
 
+fn move_order_score(
+    board: &Board,
+    chess_move: Move,
+    preferred: Option<Move>,
+    ply: u32,
+    ordering: &MoveOrdering,
+) -> i64 {
+    if preferred == Some(chess_move) {
+        return 6_000_000;
+    }
+
+    if let Some(promotion) = chess_move.promotion {
+        return 5_000_000 + i64::from(piece_value(promotion)) * 32;
+    }
+
+    if let Some(captured) = captured_piece(board, chess_move) {
+        let attacker = board.piece_on(chess_move.from).unwrap_or(Piece::King);
+        let captured_value = ordering_piece_value(captured);
+        let attacker_value = ordering_piece_value(attacker);
+        let exchange = i64::from(captured_value) * 32 - i64::from(attacker_value);
+        return if captured_value >= attacker_value {
+            4_000_000 + exchange
+        } else {
+            1_000_000 + exchange
+        };
+    }
+
+    let killers = ordering.killers(ply);
+    if killers[0] == Some(chess_move) {
+        return 3_000_000;
+    }
+    if killers[1] == Some(chess_move) {
+        return 2_900_000;
+    }
+
+    2_000_000 + i64::from(ordering.history_score(board.side_to_move(), chess_move))
+}
+
+fn move_key(chess_move: Move) -> u32 {
+    let promotion = chess_move.promotion.map_or(0, |piece| piece as u32 + 1);
+    (((chess_move.from as u32 * 64) + chess_move.to as u32) * 8) + promotion
+}
+
+fn ordering_piece_value(piece: Piece) -> Score {
+    if piece == Piece::King {
+        MATE_SCORE
+    } else {
+        piece_value(piece)
+    }
+}
+
+fn is_quiet(board: &Board, chess_move: Move) -> bool {
+    chess_move.promotion.is_none() && captured_piece(board, chess_move).is_none()
+}
 fn is_tactical(board: &Board, chess_move: Move) -> bool {
     chess_move.promotion.is_some() || captured_piece(board, chess_move).is_some()
 }
@@ -637,7 +739,9 @@ fn format_pv(root: &Board, pv: &[Move]) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{MATE_SCORE, RepetitionTracker, generate_moves, terminal_score};
+    use super::{
+        MATE_SCORE, MoveOrdering, RepetitionTracker, generate_moves, order_moves, terminal_score,
+    };
     use crate::engine::Position;
 
     #[test]
@@ -690,5 +794,75 @@ mod tests {
 
         assert_eq!(result.score, -MATE_SCORE + 7);
         assert!(!result.path_dependent);
+    }
+    fn find_move(position: &Position, notation: &str) -> cozy_chess::Move {
+        position
+            .search_moves()
+            .into_iter()
+            .find(|&chess_move| position.format_search_move(chess_move) == notation)
+            .unwrap_or_else(|| panic!("{notation} is not legal in {position}"))
+    }
+
+    #[test]
+    fn move_ordering_prefers_hash_moves_and_is_otherwise_numeric() {
+        let position = Position::default();
+        let ordering = MoveOrdering::new();
+        let preferred = find_move(&position, "e2e4");
+
+        let ordered = order_moves(
+            position.board(),
+            position.search_moves(),
+            Some(preferred),
+            0,
+            &ordering,
+        );
+        assert_eq!(ordered[0], preferred);
+
+        let numeric = order_moves(
+            position.board(),
+            position.search_moves(),
+            None,
+            0,
+            &ordering,
+        );
+        assert_eq!(position.format_search_move(numeric[0]), "b1a3");
+    }
+
+    #[test]
+    fn quiet_cutoffs_install_bounded_killer_and_history_scores() {
+        let position = Position::default();
+        let chess_move = find_move(&position, "d2d4");
+        let mut ordering = MoveOrdering::new();
+
+        ordering.record_quiet_cutoff(position.board().side_to_move(), chess_move, 3, 8);
+        let ordered = order_moves(
+            position.board(),
+            position.search_moves(),
+            None,
+            3,
+            &ordering,
+        );
+
+        assert_eq!(ordered[0], chess_move);
+        assert!(
+            ordering.history_score(position.board().side_to_move(), chess_move)
+                <= super::HISTORY_MAX
+        );
+    }
+
+    #[test]
+    fn equal_captures_are_ordered_before_losing_captures() {
+        let position = Position::from_fen("4k3/8/8/3q4/8/2p2p2/3P1Q2/4K3 w - - 0 1").unwrap();
+        let equal_capture = find_move(&position, "d2c3");
+        let losing_capture = find_move(&position, "f2f3");
+        let ordered = order_moves(
+            position.board(),
+            vec![losing_capture, equal_capture],
+            None,
+            4,
+            &MoveOrdering::new(),
+        );
+
+        assert_eq!(ordered, vec![equal_capture, losing_capture]);
     }
 }

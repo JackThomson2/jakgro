@@ -20,6 +20,7 @@ Legality, tactical soundness, and reproducible testing remain hard constraints. 
 ## Requirements
 
 - Rust 1.85 or newer
+- network access to fetch the optimized [`cozy-chess` fork](https://github.com/JackThomson2/cozy-chess/tree/board-state-save-restore) on the first build
 - Python 3 for the measurement helpers
 - `cutechess-cli` only when running paired match measurements
 
@@ -33,6 +34,8 @@ cargo clippy --all-targets -- -D warnings
 ```
 
 The release executable is written to `target/release/jakgro`.
+
+Jakgro resolves `cozy-chess` from the [`board-state-save-restore` branch](https://github.com/JackThomson2/cozy-chess/tree/board-state-save-restore). `Cargo.lock` pins the exact Git revision for reproducible builds.
 
 ## UCI usage
 

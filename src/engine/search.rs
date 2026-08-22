@@ -6,6 +6,8 @@ mod transposition;
 use std::time::Duration;
 
 pub use control::SearchControl;
+pub(crate) use time::TimeBudget;
+pub(super) use time::{DEFAULT_MOVE_OVERHEAD_MS, MAX_MOVE_OVERHEAD_MS, MIN_MOVE_OVERHEAD_MS};
 pub(super) use transposition::{DEFAULT_HASH_MIB, MAX_HASH_MIB, MIN_HASH_MIB, TranspositionTable};
 
 use super::Position;
@@ -186,6 +188,7 @@ where
         limits,
         control,
         EvaluationConfig::default(),
+        Duration::from_millis(DEFAULT_MOVE_OVERHEAD_MS),
         &mut table,
         report,
     )
@@ -196,17 +199,37 @@ pub(super) fn search_with_table<F>(
     limits: &SearchLimits,
     control: &SearchControl,
     evaluation: EvaluationConfig,
+    move_overhead: Duration,
     table: &mut TranspositionTable,
     report: F,
 ) -> SearchResult
 where
     F: FnMut(SearchInfo),
 {
-    algorithm::run(position, limits, control, evaluation, table, report)
+    algorithm::run(
+        position,
+        limits,
+        control,
+        evaluation,
+        move_overhead,
+        table,
+        report,
+    )
 }
 
-pub(super) fn ponder_time_budget(position: &Position, limits: &SearchLimits) -> Option<Duration> {
-    time::allocate_time_after_ponder(position.board().side_to_move(), limits)
+pub(super) fn time_budget(
+    position: &Position,
+    limits: &SearchLimits,
+    move_overhead: Duration,
+) -> Option<TimeBudget> {
+    time::allocate_time(position.board().side_to_move(), limits, move_overhead)
+}
+pub(super) fn ponder_time_budget(
+    position: &Position,
+    limits: &SearchLimits,
+    move_overhead: Duration,
+) -> Option<TimeBudget> {
+    time::allocate_time_after_ponder(position.board().side_to_move(), limits, move_overhead)
 }
 
 #[cfg(test)]
@@ -214,10 +237,11 @@ mod tests {
     use std::time::Duration;
 
     use super::{
-        EvaluationConfig, SearchControl, SearchInfo, SearchLimits, SearchScore, TranspositionTable,
-        search, search_with_reporter, search_with_table,
+        DEFAULT_MOVE_OVERHEAD_MS, EvaluationConfig, SearchControl, SearchInfo, SearchLimits,
+        SearchScore, TranspositionTable, search, search_with_reporter, search_with_table,
     };
     use crate::engine::Position;
+    const MOVE_OVERHEAD: Duration = Duration::from_millis(DEFAULT_MOVE_OVERHEAD_MS);
 
     #[test]
     fn iterative_search_is_deterministic() {
@@ -232,6 +256,25 @@ mod tests {
                 .legal_moves()
                 .contains(&first.best_move().unwrap().to_owned())
         );
+    }
+    #[test]
+    fn a_reached_soft_deadline_stops_after_a_stable_iteration() {
+        let position = Position::default();
+        let control = SearchControl::new();
+        control.set_time_budget_from_now(Duration::ZERO, Duration::from_secs(1));
+
+        let result = search_with_reporter(
+            &position,
+            &SearchLimits {
+                depth: Some(4),
+                ..SearchLimits::default()
+            },
+            &control,
+            |_| {},
+        );
+
+        assert_eq!(result.info().unwrap().depth(), 1);
+        assert!(!control.hard_deadline_reached());
     }
     #[test]
     fn root_style_preference_does_not_change_draw_scores() {
@@ -264,6 +307,7 @@ mod tests {
             &limits,
             &control,
             EvaluationConfig::default(),
+            MOVE_OVERHEAD,
             &mut table,
             |_| {},
         );
@@ -272,6 +316,7 @@ mod tests {
             &limits,
             &control,
             EvaluationConfig::default(),
+            MOVE_OVERHEAD,
             &mut table,
             |_| {},
         );
@@ -298,6 +343,7 @@ mod tests {
             &limits,
             &control,
             EvaluationConfig::new(0),
+            MOVE_OVERHEAD,
             &mut switched_table,
             |_| {},
         );
@@ -306,6 +352,7 @@ mod tests {
             &limits,
             &control,
             EvaluationConfig::new(100),
+            MOVE_OVERHEAD,
             &mut switched_table,
             |_| {},
         );
@@ -314,6 +361,7 @@ mod tests {
             &limits,
             &control,
             EvaluationConfig::new(100),
+            MOVE_OVERHEAD,
             &mut fresh_table,
             |_| {},
         );

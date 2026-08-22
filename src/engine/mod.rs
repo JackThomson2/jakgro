@@ -3,12 +3,14 @@
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::Duration;
 
 mod evaluation;
 mod position;
 mod search;
 
 pub use position::{Position, PositionError};
+pub(crate) use search::TimeBudget;
 pub use search::{SearchControl, SearchInfo, SearchLimits, SearchResult, SearchScore};
 
 /// Default transposition-table allocation in mebibytes.
@@ -23,6 +25,12 @@ pub const MIN_AGGRESSION: u8 = evaluation::MIN_AGGRESSION;
 pub const DEFAULT_AGGRESSION: u8 = evaluation::DEFAULT_AGGRESSION;
 /// Highest supported attacking-style percentage.
 pub const MAX_AGGRESSION: u8 = evaluation::MAX_AGGRESSION;
+/// Lowest supported UCI move-overhead setting in milliseconds.
+pub const MIN_MOVE_OVERHEAD_MS: u64 = search::MIN_MOVE_OVERHEAD_MS;
+/// Default UCI move-overhead setting in milliseconds.
+pub const DEFAULT_MOVE_OVERHEAD_MS: u64 = search::DEFAULT_MOVE_OVERHEAD_MS;
+/// Highest supported UCI move-overhead setting in milliseconds.
+pub const MAX_MOVE_OVERHEAD_MS: u64 = search::MAX_MOVE_OVERHEAD_MS;
 
 /// Failure to validate or allocate a requested transposition-table size.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -54,6 +62,7 @@ impl Error for HashResizeError {}
 pub struct Engine {
     position: Position,
     evaluation: evaluation::EvaluationConfig,
+    move_overhead: Duration,
     table: Arc<Mutex<search::TranspositionTable>>,
 }
 
@@ -64,6 +73,7 @@ impl Default for Engine {
         Self {
             position: Position::default(),
             evaluation: evaluation::EvaluationConfig::default(),
+            move_overhead: Duration::from_millis(DEFAULT_MOVE_OVERHEAD_MS),
             table: Arc::new(Mutex::new(table)),
         }
     }
@@ -97,6 +107,16 @@ impl Engine {
     /// Values above [`MAX_AGGRESSION`] are clamped to that limit.
     pub fn set_aggression(&mut self, aggression: u8) {
         self.evaluation = evaluation::EvaluationConfig::new(aggression);
+    }
+    /// Returns the time reserved for UCI and operating-system latency.
+    #[must_use]
+    pub fn move_overhead(&self) -> Duration {
+        self.move_overhead
+    }
+
+    /// Changes the latency reserve used by clock-managed searches.
+    pub fn set_move_overhead(&mut self, move_overhead: Duration) {
+        self.move_overhead = move_overhead.min(Duration::from_millis(MAX_MOVE_OVERHEAD_MS));
     }
 
     /// Resets game state while retaining configured resources.
@@ -153,15 +173,22 @@ impl Engine {
             limits,
             control,
             self.evaluation,
+            self.move_overhead,
             &mut table,
             report,
         )
     }
 
+    /// Computes the clock budget for a new search.
+    #[must_use]
+    pub(crate) fn time_budget(&self, limits: &SearchLimits) -> Option<TimeBudget> {
+        search::time_budget(&self.position, limits, self.move_overhead)
+    }
+
     /// Computes the normal time budget that should begin after `ponderhit`.
     #[must_use]
-    pub(crate) fn ponder_time_budget(&self, limits: &SearchLimits) -> Option<std::time::Duration> {
-        search::ponder_time_budget(&self.position, limits)
+    pub(crate) fn ponder_time_budget(&self, limits: &SearchLimits) -> Option<TimeBudget> {
+        search::ponder_time_budget(&self.position, limits, self.move_overhead)
     }
 
     fn lock_table(&self) -> MutexGuard<'_, search::TranspositionTable> {
@@ -171,7 +198,11 @@ impl Engine {
 
 #[cfg(test)]
 mod tests {
-    use super::{DEFAULT_AGGRESSION, Engine, MAX_AGGRESSION, Position};
+    use super::{
+        DEFAULT_AGGRESSION, DEFAULT_MOVE_OVERHEAD_MS, Engine, MAX_AGGRESSION, MAX_MOVE_OVERHEAD_MS,
+        Position,
+    };
+    use std::time::Duration;
 
     #[test]
     fn new_game_restores_the_starting_position() {
@@ -220,5 +251,25 @@ mod tests {
         assert_eq!(clone.aggression(), 37);
         engine.set_aggression(u8::MAX);
         assert_eq!(engine.aggression(), MAX_AGGRESSION);
+    }
+    #[test]
+    fn move_overhead_is_clamped_and_preserved_across_new_games() {
+        let mut engine = Engine::new();
+        assert_eq!(
+            engine.move_overhead(),
+            Duration::from_millis(DEFAULT_MOVE_OVERHEAD_MS),
+        );
+
+        engine.set_move_overhead(Duration::from_millis(250));
+        let clone = engine.clone();
+        engine.new_game();
+
+        assert_eq!(engine.move_overhead(), Duration::from_millis(250));
+        assert_eq!(clone.move_overhead(), Duration::from_millis(250));
+        engine.set_move_overhead(Duration::MAX);
+        assert_eq!(
+            engine.move_overhead(),
+            Duration::from_millis(MAX_MOVE_OVERHEAD_MS),
+        );
     }
 }

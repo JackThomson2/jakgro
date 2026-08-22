@@ -149,7 +149,7 @@ fn public_runner_handles_a_protocol_transcript() {
         concat!(
             "id name Jakgro ",
             env!("CARGO_PKG_VERSION"),
-            "\nid author Jakgro contributors\noption name Hash type spin default 16 min 1 max 1024\noption name Clear Hash type button\nuciok\nreadyok\n"
+            "\nid author Jakgro contributors\noption name Hash type spin default 16 min 1 max 1024\noption name Move Overhead type spin default 10 min 0 max 5000\noption name Clear Hash type button\nuciok\nreadyok\n"
         )
     );
 }
@@ -189,6 +189,7 @@ fn stop_interrupts_infinite_search_and_isready_stays_responsive() {
     assert!(progress.last().unwrap().contains(" pv "));
     engine.assert_no_bestmove(Duration::from_millis(30));
 
+    engine.send("setoption name Move Overhead value 250");
     engine.send("isready");
     let ready = engine.receive_until(TEST_TIMEOUT, |line| line == "readyok");
     assert!(ready.iter().all(|line| !line.starts_with("bestmove ")));
@@ -218,7 +219,7 @@ fn stop_interrupts_infinite_search_and_isready_stays_responsive() {
 fn ponder_result_is_withheld_until_ponderhit() {
     let mut engine = EngineProcess::spawn();
     engine.send("position startpos");
-    engine.send("go ponder searchmoves e2e4");
+    engine.send("go ponder searchmoves e2e4 movetime 50");
 
     engine.receive_until(TEST_TIMEOUT, |line| line.starts_with("info depth "));
     engine.assert_no_bestmove(Duration::from_millis(30));
@@ -255,6 +256,22 @@ fn movetime_search_finishes_without_another_command() {
     let result = engine.receive_until(TEST_TIMEOUT, |line| line.starts_with("bestmove "));
 
     assert!(result.last().unwrap().starts_with("bestmove e2e4"));
+    engine.send("quit");
+    assert!(engine.wait_for_exit(TEST_TIMEOUT).success());
+}
+#[test]
+fn clock_search_honors_persistent_move_overhead_and_hard_limit() {
+    let mut engine = EngineProcess::spawn();
+    engine.send("setoption name Move Overhead value 50");
+    engine.send("ucinewgame");
+    engine.send("position startpos");
+    let started = Instant::now();
+    engine.send("go searchmoves e2e4 wtime 500 btime 500 movestogo 30");
+
+    let result = engine.receive_until(TEST_TIMEOUT, |line| line.starts_with("bestmove "));
+
+    assert!(result.last().unwrap().starts_with("bestmove e2e4"));
+    assert!(started.elapsed() < Duration::from_secs(1));
     engine.send("quit");
     assert!(engine.wait_for_exit(TEST_TIMEOUT).success());
 }

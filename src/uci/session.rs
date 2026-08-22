@@ -2,10 +2,12 @@ use std::io::{self, BufRead, Write};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
+use std::time::Duration;
 
 use crate::engine::{
-    DEFAULT_HASH_MIB, Engine, MAX_HASH_MIB, MIN_HASH_MIB, Position, SearchInfo, SearchLimits,
-    SearchResult, SearchScore,
+    DEFAULT_HASH_MIB, DEFAULT_MOVE_OVERHEAD_MS, Engine, MAX_HASH_MIB, MAX_MOVE_OVERHEAD_MS,
+    MIN_HASH_MIB, MIN_MOVE_OVERHEAD_MS, Position, SearchInfo, SearchLimits, SearchResult,
+    SearchScore,
 };
 
 use super::command::{Command, PositionCommand, PositionSource, parse};
@@ -145,6 +147,10 @@ where
             self.output,
             "option name Hash type spin default {DEFAULT_HASH_MIB} min {MIN_HASH_MIB} max {MAX_HASH_MIB}",
         )?;
+        writeln!(
+            self.output,
+            "option name Move Overhead type spin default {DEFAULT_MOVE_OVERHEAD_MS} min {MIN_MOVE_OVERHEAD_MS} max {MAX_MOVE_OVERHEAD_MS}",
+        )?;
         writeln!(self.output, "option name Clear Hash type button")?;
         writeln!(self.output, "uciok")?;
         self.output.flush()
@@ -173,6 +179,22 @@ where
 
             self.cancel_active();
             self.engine.clear_hash();
+            return Ok(());
+        }
+
+        if name.eq_ignore_ascii_case("Move Overhead") {
+            let Some(value) = value.filter(|value| !value.is_empty()) else {
+                return self.debug_info("Move Overhead requires a value in milliseconds");
+            };
+            let Ok(milliseconds) = value.parse::<i128>() else {
+                return self.debug_info(&format!("invalid Move Overhead value: {value}"));
+            };
+            let milliseconds = milliseconds.clamp(
+                i128::from(MIN_MOVE_OVERHEAD_MS),
+                i128::from(MAX_MOVE_OVERHEAD_MS),
+            ) as u64;
+            self.engine
+                .set_move_overhead(Duration::from_millis(milliseconds));
             return Ok(());
         }
 
@@ -340,7 +362,7 @@ mod tests {
             concat!(
                 "id name Jakgro ",
                 env!("CARGO_PKG_VERSION"),
-                "\nid author Jakgro contributors\noption name Hash type spin default 16 min 1 max 1024\noption name Clear Hash type button\nuciok\nreadyok\n"
+                "\nid author Jakgro contributors\noption name Hash type spin default 16 min 1 max 1024\noption name Move Overhead type spin default 10 min 0 max 5000\noption name Clear Hash type button\nuciok\nreadyok\n"
             )
         );
     }
@@ -368,11 +390,20 @@ mod tests {
             "readyok\n",
         );
     }
+    #[test]
+    fn move_overhead_accepts_and_clamps_spin_values_without_protocol_noise() {
+        assert_eq!(
+            transcript(
+                "setoption name Move Overhead value 250\nsetoption name Move Overhead value -1\nsetoption name Move Overhead value 999999\nucinewgame\nisready\nquit\n",
+            ),
+            "readyok\n",
+        );
+    }
 
     #[test]
-    fn debug_mode_reports_invalid_hash_options() {
+    fn debug_mode_reports_invalid_options() {
         let output = transcript(
-            "debug on\nsetoption name Hash value 0\nsetoption name Hash value nope\nsetoption name Clear Hash value nope\nquit\n",
+            "debug on\nsetoption name Hash value 0\nsetoption name Hash value nope\nsetoption name Clear Hash value nope\nsetoption name Move Overhead value nope\nquit\n",
         );
 
         assert!(
@@ -380,6 +411,7 @@ mod tests {
         );
         assert!(output.contains("info string invalid Hash value: nope\n"));
         assert!(output.contains("info string Clear Hash does not accept a value\n"));
+        assert!(output.contains("info string invalid Move Overhead value: nope\n"));
     }
 
     #[test]

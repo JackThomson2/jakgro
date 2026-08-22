@@ -2,7 +2,7 @@
 
 Jakgro is a Rust chess engine aimed at playing aggressive, tactical, and interesting chess while remaining compatible with the Universal Chess Interface (UCI).
 
-> **Current status:** Jakgro now runs a cancellable, single-threaded iterative-deepening alpha-beta search with quiescence, principal variations, repetition and draw handling, a persistent fixed-size transposition table, tapered positional evaluation, a bounded attacking personality, and basic clock management. It is UCI-playable; personality tuning and UCI exposure are still under development.
+> **Current status:** Jakgro now runs a cancellable, single-threaded iterative-deepening alpha-beta search with quiescence, principal variations, repetition and draw handling, a persistent fixed-size transposition table, tapered positional evaluation, a bounded attacking personality, and volatility-aware soft/hard clock management. It is UCI-playable; personality tuning and UCI exposure are still under development.
 
 ## Goals
 
@@ -60,7 +60,7 @@ Jakgro currently handles these GUI commands:
 - `uci`
 - `debug on|off`
 - `isready`
-- `setoption name Hash value <MiB>` and `setoption name Clear Hash`
+- `setoption name Hash value <MiB>`, `setoption name Clear Hash`, and `setoption name Move Overhead value <milliseconds>`
 - `ucinewgame`
 - `position startpos ...`
 - `position fen <six FEN fields> ...`
@@ -85,7 +85,7 @@ To use Jakgro from a chess GUI, build the release binary and configure the GUI t
 - Every child still clones the `cozy-chess` board; there is no make/unmake layer yet. A persistent fixed-size transposition table reuses exact and bounded search results.
 - Move ordering consists of the previous principal variation, promotions, and MVV-LVA-style captures; there are no killer, history, hash-move, or aspiration-window heuristics.
 - A `go` command without an effective time, node, depth, mate, infinite, or ponder limit defaults to depth four so accidental limit-free searches terminate.
-- Clock allocation is intentionally basic and has no configurable move-overhead option.
+- Clock-managed searches use a normal soft budget and a reserved hard limit. Stable iterations stop at the soft limit; best-move changes or large score swings can spend toward the hard limit. `Move Overhead` reserves 0–5000 ms for GUI and operating-system latency, while an explicit `movetime` remains fixed.
 - Repetition history is retained for moves supplied after `position`; a standalone FEN cannot describe occurrences before that FEN.
 - No `Threads`, `MultiPV`, or aggression-related UCI options are advertised.
 
@@ -95,8 +95,8 @@ To use Jakgro from a chess GUI, build the release binary and configure the GUI t
 - `src/engine/evaluation.rs` and `src/engine/evaluation/` contain bounded tapered scoring, feature extraction, trace data, weights, and mate-score constants.
 - `src/engine/search/algorithm.rs` implements iterative deepening, negamax alpha-beta, quiescence, deterministic move ordering, draw detection, and principal-variation construction.
 - `src/engine/search/transposition.rs` owns the fixed-size, generation-aged search cache and mate-score normalization.
-- `src/engine/search/control.rs` provides shared cancellation and updateable deadlines.
-- `src/engine/search/time.rs` converts UCI clock fields into a basic move budget.
+- `src/engine/search/control.rs` provides shared cancellation and updateable soft/hard deadlines.
+- `src/engine/search/time.rs` converts UCI clock fields and move overhead into normal and emergency budgets.
 - `src/uci/session.rs` owns the serialized protocol event loop.
 - `src/uci/search_worker.rs` isolates search threads, generation IDs, pondering, and stale-result suppression.
 - `src/main.rs` is a thin adapter that reserves stdout exclusively for UCI traffic.
@@ -108,9 +108,10 @@ The initial protocol and search foundations now include:
 - legal standard-chess position handling with special-move coverage;
 - normalized repetition history and terminal draw detection;
 - iterative-deepening alpha-beta with bounded quiescence;
-- cancellation, depth, node, mate, clock, `movetime`, infinite, and ponder control;
+- cancellation, depth, node, mate, soft/hard clock, `movetime`, infinite, and ponder control;
 - principal-variation and UCI progress reporting;
 - a persistent transposition table with safe draw-state handling and UCI `Hash` controls;
+- volatility-aware time allocation with a persistent UCI `Move Overhead` control;
 - a bounded, color-symmetric attacking profile with isolated style weights; and
 - asynchronous `stop`, `ponderhit`, replacement-search, EOF, and shutdown behavior.
 
@@ -123,7 +124,7 @@ The initial protocol and search foundations now include:
    - Tune the bounded initiative, king-pressure, space, threat, and passer-urgency terms against stable fixtures.
    - Measure tactical soundness separately from style before expanding compensation terms.
 3. **Time and protocol refinement**
-   - Add configurable move overhead and more conservative panic-time handling.
+   - Tune soft/hard budget ratios and volatility thresholds through timed matches.
    - Evaluate thread-safe shared search structures before advertising a `Threads` option.
    - Expand ponder, mate-limit, and malformed-command regression suites.
 4. **Tuning and match testing**

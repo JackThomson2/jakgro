@@ -1,9 +1,8 @@
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::mpsc::Sender;
 use std::thread::{self, JoinHandle};
-use std::time::Duration;
 
-use crate::engine::{Engine, SearchControl, SearchInfo, SearchLimits, SearchResult};
+use crate::engine::{Engine, SearchControl, SearchInfo, SearchLimits, SearchResult, TimeBudget};
 
 use super::event::Event;
 
@@ -29,7 +28,7 @@ pub(super) struct SearchTask {
     pending: Option<SearchResult>,
     release_on_finish: bool,
     pondering: bool,
-    ponder_budget: Option<Duration>,
+    ponder_budget: Option<TimeBudget>,
     stop_on_ponder_hit: bool,
 }
 
@@ -41,6 +40,9 @@ impl SearchTask {
         sender: Sender<Event>,
     ) -> Self {
         let control = SearchControl::new();
+        if let Some(budget) = engine.time_budget(&limits) {
+            control.set_time_budget_from_now(budget.soft(), budget.hard());
+        }
         let worker_control = control.clone();
         let report_control = control.clone();
         let info_sender = sender.clone();
@@ -128,8 +130,9 @@ impl SearchTask {
         if let Some(result) = self.pending.take() {
             return Some(result);
         }
-        if let Some(duration) = self.ponder_budget {
-            self.control.set_deadline_from_now(duration);
+        if let Some(budget) = self.ponder_budget {
+            self.control
+                .set_time_budget_from_now(budget.soft(), budget.hard());
         } else if self.stop_on_ponder_hit {
             self.control.stop();
         }

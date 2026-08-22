@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use cozy_chess::util::display_uci_move;
 use cozy_chess::{BitBoard, Board, Color, Move, Piece};
@@ -20,9 +20,33 @@ const QUIESCENCE_DEPTH: u32 = 16;
 const ASPIRATION_INITIAL: Score = 50;
 const MAX_CHECK_EXTENSIONS: u8 = 2;
 const QUIESCENCE_CHECK_BUDGET: u8 = 1;
+const VOLATILE_HOLD_ITERATIONS: u8 = 2;
 
 #[derive(Debug)]
 struct Aborted;
+#[derive(Debug, Default)]
+struct IterationStability {
+    best_move: Option<Move>,
+    score: Option<Score>,
+    volatile_for: u8,
+}
+
+impl IterationStability {
+    fn observe(&mut self, best_move: Option<Move>, score: Score) -> bool {
+        let best_move_changed = self.best_move.is_some() && self.best_move != best_move;
+        let score_changed = self
+            .score
+            .is_some_and(|previous| previous.abs_diff(score) >= ASPIRATION_INITIAL as u32);
+        if best_move_changed || score_changed {
+            self.volatile_for = VOLATILE_HOLD_ITERATIONS;
+        } else {
+            self.volatile_for = self.volatile_for.saturating_sub(1);
+        }
+        self.best_move = best_move;
+        self.score = Some(score);
+        self.volatile_for != 0
+    }
+}
 
 #[derive(Debug)]
 struct RepetitionTracker {
@@ -153,7 +177,7 @@ impl SearchContext<'_> {
 
     fn should_stop(&self) -> bool {
         self.control.is_stopped()
-            || self.control.deadline_reached()
+            || self.control.hard_deadline_reached()
             || self.node_limit.is_some_and(|limit| self.nodes >= limit)
     }
 
@@ -187,18 +211,22 @@ pub(super) fn run<F>(
     limits: &SearchLimits,
     control: &SearchControl,
     evaluation: EvaluationConfig,
+    move_overhead: Duration,
     table: &mut TranspositionTable,
     mut report: F,
 ) -> SearchResult
 where
     F: FnMut(SearchInfo),
 {
-    let time_budget = allocate_time(position.board().side_to_move(), limits);
-    if let Some(duration) = time_budget {
-        control.set_deadline_from_now(duration);
-    }
-
     table.start_search(evaluation.aggression());
+    let time_budget = allocate_time(position.board().side_to_move(), limits, move_overhead);
+    if !control.has_time_budget()
+        && let Some(budget) = time_budget
+    {
+        control.set_time_budget_from_now(budget.soft(), budget.hard());
+    }
+    let has_time_budget = time_budget.is_some() || control.has_time_budget();
+
     let root_board = position.board().clone();
     let mut labeled_moves = generate_moves(&root_board)
         .into_iter()
@@ -257,8 +285,9 @@ where
     }
     let mut previous_pv = Vec::new();
     let mut previous_score = None;
+    let mut stability = IterationStability::default();
     let mut final_info = None;
-    let maximum_depth = maximum_depth(limits, time_budget.is_some());
+    let maximum_depth = maximum_depth(limits, has_time_budget);
 
     'iterative: for depth in 1..=maximum_depth {
         if context.should_stop() {
@@ -301,6 +330,7 @@ where
             }
         };
 
+        let is_volatile = stability.observe(context.pv(0).first().copied(), iteration.score);
         previous_score = Some(iteration.score);
         previous_pv.clear();
         previous_pv.extend_from_slice(context.pv(0));
@@ -316,7 +346,8 @@ where
         let found_mate = matches!(info.score(), SearchScore::Mate(_));
         final_info = Some(info);
 
-        if found_mate || context.should_stop() {
+        if found_mate || context.should_stop() || (control.soft_deadline_reached() && !is_volatile)
+        {
             break;
         }
     }
@@ -374,6 +405,9 @@ fn search_root(
 ) -> Result<NodeResult, Aborted> {
     let (mut alpha, beta) = window;
     context.clear_pv(0);
+    if context.should_stop() {
+        return Err(Aborted);
+    }
     let alpha_original = alpha;
     let hash_move = context
         .table
@@ -1096,6 +1130,20 @@ mod tests {
             super::mate_distance_bounds(7),
             (-super::MATE_SCORE + 7, super::MATE_SCORE - 8),
         );
+    }
+    #[test]
+    fn iteration_stability_holds_time_after_best_move_or_score_swings() {
+        let position = Position::default();
+        let e4 = find_move(&position, "e2e4");
+        let d4 = find_move(&position, "d2d4");
+        let mut stability = super::IterationStability::default();
+
+        assert!(!stability.observe(Some(e4), 0));
+        assert!(!stability.observe(Some(e4), 10));
+        assert!(stability.observe(Some(d4), 15));
+        assert!(stability.observe(Some(d4), 20));
+        assert!(!stability.observe(Some(d4), 25));
+        assert!(stability.observe(Some(d4), 80));
     }
     #[test]
     fn check_extensions_are_capped_per_line() {

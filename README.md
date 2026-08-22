@@ -111,7 +111,7 @@ python3 tools/analyze_match.py \
   --markdown artifacts/aggression-match.summary.md
 ```
 
-The analyzer verifies the PGN hash and completed game count against the manifest, requires consecutive color-reversed opening pairs, and reports W/D/L, score, color balance, pair outcomes, terminations, average length, and an approximate pair-aware 95% score and Elo interval. The interval is descriptive rather than an SPRT result.
+The analyzer verifies the PGN hash and completed game count against the manifest, requires consecutive color-reversed opening pairs, and reports W/D/L, score, color balance, pair outcomes, terminations, average length, and an approximate pair-aware 95% score and Elo interval. The interval is descriptive rather than an SPRT result. The first reproducible Aggression 100 versus 0 baseline is recorded in [`docs/tuning/aggression-100-vs-0.md`](docs/tuning/aggression-100-vs-0.md).
 
 ## Current search and protocol limitations
 
@@ -168,6 +168,7 @@ The initial protocol and search foundations now include:
    - Evaluate thread-safe shared search structures before advertising a `Threads` option.
    - Expand ponder, mate-limit, and malformed-command regression suites.
 4. **Tuning and match testing**
+   - Test Aggression 75 next; the initial Aggression 100 baseline scored 44.27% against Aggression 0 with a confidence interval crossing 50%.
    - Track Elo, decisive-game rate, color balance, and sacrifice quality against tagged versions.
    - Tune explicit style weights only when fixture gates and paired matches agree.
 

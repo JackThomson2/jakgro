@@ -1,0 +1,65 @@
+{
+  "average_plies": 102.229167,
+  "colors": {
+    "black": {
+      "draws": 8,
+      "losses": 24,
+      "score_percent": 41.666667,
+      "wins": 16
+    },
+    "score_gap_percentage_points": 5.208333,
+    "white": {
+      "draws": 7,
+      "losses": 22,
+      "score_percent": 46.875,
+      "wins": 19
+    }
+  },
+  "confidence": {
+    "elo": -39.985941,
+    "elo_ci95": [
+      -105.640394,
+      22.913431
+    ],
+    "method": "normal interval over color-reversed pair scores",
+    "score_percent_ci95": [
+      35.248931,
+      53.292735
+    ]
+  },
+  "engines": {
+    "baseline": "Aggression-0",
+    "candidate": "Aggression-100"
+  },
+  "games": 96,
+  "inputs": {
+    "manifest": "aggression-100-vs-0.manifest.json",
+    "manifest_sha256": "479bf5b0eb83e7be603cb265069252fa96fb8efbacc9c5f56bebc792adbe25d8",
+    "pgn": "aggression-100-vs-0.pgn",
+    "pgn_sha256": "db04f19fcc8713ad0bc1f541a05d5ec6ad72e7daaa3645a53b6621f35ae213db"
+  },
+  "pairs": {
+    "count": 48,
+    "decisive_splits": 17,
+    "double_draws": 0,
+    "point_distribution": {
+      "0.0": 10,
+      "0.5": 9,
+      "1.0": 17,
+      "1.5": 6,
+      "2.0": 6
+    }
+  },
+  "result": {
+    "decisive_percent": 84.375,
+    "draws": 15,
+    "losses": 46,
+    "score_percent": 44.270833,
+    "wins": 35
+  },
+  "schema_version": 1,
+  "terminations": {
+    "adjudication": 74,
+    "unknown": 22
+  }
+}

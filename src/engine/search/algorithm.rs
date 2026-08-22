@@ -151,6 +151,25 @@ struct NodeResult {
     path_dependent: bool,
 }
 
+#[derive(Debug)]
+struct RootSearchResult {
+    primary_score: Score,
+    selected: NodeResult,
+}
+
+impl RootSearchResult {
+    fn from_primary(selected: NodeResult) -> Self {
+        Self {
+            primary_score: selected.score,
+            selected,
+        }
+    }
+
+    fn primary_inside(&self, window: (Score, Score)) -> bool {
+        self.primary_score > window.0 && self.primary_score < window.1
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 enum SacrificeState {
     #[default]
@@ -822,7 +841,7 @@ where
                 break 'iterative;
             };
 
-            if iteration.score > alpha && iteration.score < beta {
+            if iteration.primary_inside((alpha, beta)) {
                 break iteration;
             }
             if alpha == NEG_INFINITY && beta == POS_INFINITY {
@@ -830,7 +849,7 @@ where
             }
 
             radius = radius.saturating_mul(2);
-            if iteration.score.abs() >= MATE_THRESHOLD || radius >= POS_INFINITY {
+            if iteration.primary_score.abs() >= MATE_THRESHOLD || radius >= POS_INFINITY {
                 alpha = NEG_INFINITY;
                 beta = POS_INFINITY;
             } else if let Some(score) = previous_score {
@@ -839,14 +858,15 @@ where
         };
         let iteration_duration = iteration_started.elapsed();
 
-        let is_volatile = stability.observe(context.pv(0).first().copied(), iteration.score);
-        previous_score = Some(iteration.score);
+        let is_volatile =
+            stability.observe(context.pv(0).first().copied(), iteration.primary_score);
+        previous_score = Some(iteration.primary_score);
         previous_pv.clear();
         previous_pv.extend_from_slice(context.pv(0));
         let pv = format_pv(&root_board, &previous_pv);
         let info = SearchInfo::new(
             depth,
-            SearchScore::from_internal(iteration.score),
+            SearchScore::from_internal(iteration.selected.score),
             context.nodes,
             context.started.elapsed(),
             pv,
@@ -925,9 +945,9 @@ fn search_root(
     window: (Score, Score),
     previous_pv: &[Move],
     context: &mut SearchContext<'_>,
-) -> Result<NodeResult, Aborted> {
+) -> Result<RootSearchResult, Aborted> {
     if context.evaluation.root_style_margin() == 0 {
-        return search_root_conventional(
+        let selected = search_root_conventional(
             board,
             root_moves,
             history,
@@ -935,7 +955,8 @@ fn search_root(
             window,
             previous_pv,
             context,
-        );
+        )?;
+        return Ok(RootSearchResult::from_primary(selected));
     }
     search_root_styled(
         board,
@@ -956,7 +977,7 @@ fn search_root_styled(
     window: (Score, Score),
     previous_pv: &[Move],
     context: &mut SearchContext<'_>,
-) -> Result<NodeResult, Aborted> {
+) -> Result<RootSearchResult, Aborted> {
     let objective_start_nodes = context.nodes;
     let objective = search_root_conventional(
         board,
@@ -970,14 +991,14 @@ fn search_root_styled(
     let objective_nodes = context.nodes.saturating_sub(objective_start_nodes);
     let objective_pv = context.pv(0).to_vec();
     let Some(objective_move) = objective_pv.first().copied() else {
-        return Ok(objective);
+        return Ok(RootSearchResult::from_primary(objective));
     };
     if objective.score.abs() >= MATE_THRESHOLD
         || objective.score <= window.0
         || objective.score >= window.1
         || context.should_stop()
     {
-        return Ok(objective);
+        return Ok(RootSearchResult::from_primary(objective));
     }
 
     let mover = board.side_to_move();
@@ -1018,7 +1039,7 @@ fn search_root_styled(
         }
         if context.control_stop_requested() {
             context.pv[0].clone_from(&objective_pv);
-            return Ok(objective);
+            return Ok(RootSearchResult::from_primary(objective));
         }
         let mut child = board.clone();
         child.play_unchecked(chess_move);
@@ -1222,14 +1243,17 @@ fn search_root_styled(
     context.node_limit = original_node_limit;
     if personality_exhausted || context.should_stop() {
         context.pv[0].clone_from(&objective_pv);
-        return Ok(objective);
+        return Ok(RootSearchResult::from_primary(objective));
     }
 
     let selected = choose_styled_candidate(&candidates, 0, context.evaluation);
     context.pv[0].clone_from(&candidates[selected].pv);
-    Ok(NodeResult {
-        score: candidates[selected].score,
-        path_dependent: candidates[selected].path_dependent,
+    Ok(RootSearchResult {
+        primary_score: objective.score,
+        selected: NodeResult {
+            score: candidates[selected].score,
+            path_dependent: candidates[selected].path_dependent,
+        },
     })
 }
 
@@ -2853,6 +2877,20 @@ mod tests {
             (-super::MATE_SCORE + 7, super::MATE_SCORE - 8),
         );
     }
+    #[test]
+    fn styled_scores_do_not_reopen_a_satisfied_primary_window() {
+        let result = super::RootSearchResult {
+            primary_score: 100,
+            selected: super::NodeResult {
+                score: 20,
+                path_dependent: false,
+            },
+        };
+
+        assert!(result.primary_inside((50, 150)));
+        assert!(!(50..150).contains(&result.selected.score));
+    }
+
     #[test]
     fn iteration_stability_holds_time_after_best_move_or_score_swings() {
         let position = Position::default();

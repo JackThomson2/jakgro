@@ -1,0 +1,8 @@
+id,category,bestmove,score,depth,nodes,node_milliseconds,node_nps,timed_milliseconds,timed_nps,timed_ratio,null_off_nodes,null_on_nodes,null_reduction_percent,null_attempts,null_cutoffs
+mate-in-one,tactical,f7g7,mate 1,1,26,1,18653,1,19540,1.048,44,44,0.000,0,0
+win-hanging-queen,tactical,e1e2,cp 586,4,14196,9,1449724,10,1379335,0.951,7164,5021,29.913,6,6
+punish-central-queen,tactical,d1d5,cp 1245,3,8980,32,275396,31,286159,1.039,227284,203112,10.635,31,29
+contain-lone-rook,defensive,a1a2,cp -592,5,8874,7,1121392,7,1119947,0.999,3703,3703,0.000,0,0
+starting-style,style,g1f3,cp 7,4,12421,51,242871,52,238313,0.981,42899,38245,10.849,13,13
+open-game-style,style,d1h5,cp 235,3,12607,43,288613,43,289958,1.005,103045,85167,17.350,23,22
+developed-open-game,transposition,f1c4,cp 31,3,15463,44,343789,45,342107,0.995,103568,83128,19.736,23,22

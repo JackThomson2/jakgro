@@ -1,0 +1,55 @@
+{
+  "average_plies": 76.125,
+  "colors": {
+    "black": {"draws": 9, "losses": 18, "score_percent": 53.125, "wins": 21},
+    "score_gap_percentage_points": -6.25,
+    "white": {"draws": 9, "losses": 21, "score_percent": 46.875, "wins": 18}
+  },
+  "confidence": {
+    "elo": 0.0,
+    "elo_ci95": [-143.914845, 143.914845],
+    "method": "95% Hoeffding bound over color-reversed pair scores",
+    "score_percent_ci95": [30.397493, 69.602507]
+  },
+  "engines": {"baseline": "Baseline-fca623cb-A100", "candidate": "NullOnly-03609acb-A100"},
+  "games": 96,
+  "inputs": {
+    "manifest": "null-only-strength.manifest.json",
+    "manifest_sha256": "75c20b5885c54ab632815d9b8a827e204c53baf6556ba42ec2128e50ce204585",
+    "pgn": "null-only-strength.pgn",
+    "pgn_sha256": "0b863a44224c09923c5e34fb56cde62178aea9b302f97706fa5c1bf63ceb9ffb"
+  },
+  "pairs": {
+    "count": 48,
+    "decisive_splits": 39,
+    "double_draws": 9,
+    "point_distribution": {"1.0": 48}
+  },
+  "result": {"decisive_percent": 81.25, "draws": 18, "losses": 39, "score_percent": 50.0, "wins": 39},
+  "schema_version": 2,
+  "style": {
+    "baseline": {
+      "captures": 803,
+      "captures_per_100_moves": 21.975917,
+      "checks": 579,
+      "checks_per_100_moves": 15.845649,
+      "forcing_moves": 1263,
+      "forcing_moves_per_100_moves": 34.56486,
+      "moves": 3654,
+      "promotions": 17,
+      "promotions_per_100_moves": 0.465244
+    },
+    "candidate": {
+      "captures": 805,
+      "captures_per_100_moves": 22.030651,
+      "checks": 561,
+      "checks_per_100_moves": 15.353038,
+      "forcing_moves": 1248,
+      "forcing_moves_per_100_moves": 34.154351,
+      "moves": 3654,
+      "promotions": 16,
+      "promotions_per_100_moves": 0.437876
+    }
+  },
+  "terminations": {"adjudication": 68, "unknown": 28}
+}

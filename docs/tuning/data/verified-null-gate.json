@@ -1,0 +1,24 @@
+{
+  "artifacts": {
+    "dual-channel-null-contract.json": "d9f17423afcdeaa9fc888d171d260657cb1037c2136f7f3aa3142be89e8baea5",
+    "null-only-bench.csv": "285afbfdd330889a8dc9ca16e2670976a1161345bb05feaab2be8aced0d52cd4",
+    "null-only-sacrifice.json": "6a23d4fb089521c21bf08f60555974f75b2e5862345946075333236b9d03f46c",
+    "null-only-strength.manifest.json": "75c20b5885c54ab632815d9b8a827e204c53baf6556ba42ec2128e50ce204585",
+    "null-only-strength.summary.json": "35697c96a69eea60ce34a20cb812eb0fa50336c8bae5bb3db23a97912abb2716",
+    "null-only-style.json": "6d24c14408622d0efdf0fdd01c1acd9efaa31c55d3068f4405a2a96ccadac860"
+  },
+  "baseline_sha256": "59ac6b9896fb80d1556623aae84ae64532185188766706926bbcf06825ea8a70",
+  "benchmark": {
+    "active_rows": 5,
+    "attempts": 96,
+    "cutoffs": 92,
+    "geometric_node_reduction_percent": 18.014131
+  },
+  "candidate_sha256": "08112f80df8612b5c02cfb0a8ce3bb90391cfa31407a03a62a97112985b15e0f",
+  "forcing_rate_retention_percent": 98.812352,
+  "passed": true,
+  "schema_version": 1,
+  "strength_elo": 0.0,
+  "strength_elo_floor": -35.0,
+  "strength_elo_interval": [-143.914845, 143.914845]
+}

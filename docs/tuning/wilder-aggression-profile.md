@@ -63,3 +63,5 @@ python3 tools/analyze_match.py \
 Checks, captures, promotions, forcing-move rates, verified-sacrifice choices, decisiveness, and game length must be reviewed together with complete games and the same-profile strength result. Higher spectacle counts alone are insufficient, and the paired 95% Elo lower bound must exceed zero before an Elo improvement is claimed.
 
 The completed result is recorded in [Verified aggression: style and strength result](verified-aggression-elo.md). The same-profile candidate scored 84.375% over 96 games and passed the conservative lower-bound gate while increasing all four forcing-play proxies. All sacrifice and control choices were preserved, but the frozen sacrifice hit delta was zero; broader sacrifice improvement therefore remains unconfirmed.
+
+A later [verified null-move result](verified-null-move.md) preserves every personality and sacrifice/control choice, retains 98.81% of complete-game forcing moves, scores exactly 50% against the accepted Aggression 100 baseline in its 96-game smoke test, and reduces active fixed-depth nodes by 18.01%. It changes search efficiency only and does not supersede the personality claims above.

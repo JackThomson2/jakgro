@@ -130,7 +130,7 @@ python3 tools/analyze_match.py \
   --min-elo-lower-bound 0
 ```
 
-The analyzer verifies the PGN hash and completed game count against the manifest, requires consecutive color-reversed opening pairs, and reports W/D/L, score, color balance, pair outcomes, terminations, average length, SAN-derived checks, captures, promotions, forcing-move rates, and a conservative pair-aware 95% score and Elo bound. `--min-elo-lower-bound` turns that bound into a strict acceptance gate. The style rates are descriptive proxies rather than move-quality judgments, and the interval is not an SPRT result. The historical Aggression 100 versus 0 baseline is recorded in [`docs/tuning/aggression-100-vs-0.md`](docs/tuning/aggression-100-vs-0.md); the current old-versus-new result is recorded in [`docs/tuning/verified-aggression-elo.md`](docs/tuning/verified-aggression-elo.md).
+The analyzer verifies the PGN hash and completed game count against the manifest, requires consecutive color-reversed opening pairs, and reports W/D/L, score, color balance, pair outcomes, terminations, average length, SAN-derived checks, captures, promotions, forcing-move rates, and a conservative pair-aware 95% score and Elo bound. `--min-elo-lower-bound` turns that bound into a strict acceptance gate. The style rates are descriptive proxies rather than move-quality judgments, and the interval is not an SPRT result. The historical Aggression 100 versus 0 baseline is recorded in [`docs/tuning/aggression-100-vs-0.md`](docs/tuning/aggression-100-vs-0.md); the current old-versus-new result is recorded in [`docs/tuning/verified-aggression-elo.md`](docs/tuning/verified-aggression-elo.md); and the accepted null-only search result is recorded in [`docs/tuning/verified-null-move.md`](docs/tuning/verified-null-move.md).
 
 ## Current search and protocol limitations
 
@@ -139,7 +139,7 @@ The analyzer verifies the PGN hash and completed game count against the manifest
 - High aggression spends additional search effort on checks and forcing continuations. Root personality work threshold-probes diverse alternatives, fully verifies at most two inside a deterministic node budget, and falls back to the conventional result when verification is incomplete. Every styled move remains inside the ordinary 120-centipawn searched-score guard.
 - Search is single-threaded internally and uses one worker per active UCI search.
 - Every child still clones the `cozy-chess` board; there is no make/unmake layer yet. A persistent fixed-size transposition table reuses exact and bounded search results.
-- Move ordering combines hash and previous-PV moves, promotions, legal static-exchange values, killers, and history scores. Principal-variation search, aspiration windows, tactical-aware late-move reductions, and conservative quiescence pruning reduce repeated work; null-move pruning and a make/unmake board layer are still deferred.
+- Move ordering combines hash and previous-PV moves, promotions, legal static-exchange values, killers, and history scores. Principal-variation search, aspiration windows, tactical-aware late-move reductions, always-verified null-move pruning, and conservative quiescence pruning reduce repeated work; a make/unmake board layer is still deferred. Null pruning is disabled in checks, PV and mate windows, rule-fifty boundaries, pawn-only and single-minor endings, and synthetic or verification searches; every fail-high is verified from the original legal board.
 - A `go` command without an effective time, node, depth, mate, infinite, or ponder limit defaults to depth four so accidental limit-free searches terminate.
 - Clock-managed searches use a normal soft budget and a reserved hard limit. Stable iterations stop at the soft limit; best-move changes or large score swings can spend toward the hard limit. `Move Overhead` reserves 0–5000 ms for GUI and operating-system latency, while an explicit `movetime` remains fixed.
 - Repetition history is retained for moves supplied after `position`; a standalone FEN cannot describe occurrences before that FEN.
@@ -149,7 +149,7 @@ The analyzer verifies the PGN hash and completed game count against the manifest
 
 - `src/engine/position.rs` isolates legal position and UCI-move handling from the board library and retains normalized repetition hashes.
 - `src/engine/evaluation.rs` and `src/engine/evaluation/` contain bounded tapered scoring, feature extraction, legal exchange settlement, mover-relative tactical snapshots, trace data, weights, and mate-score constants.
-- `src/engine/search/algorithm.rs` implements iterative deepening, negamax alpha-beta, quiescence, deterministic move ordering, draw detection, tactical-aware late-move reductions, sacrifice profiling after best defense, bounded root-risk selection, and principal-variation construction.
+- `src/engine/search/algorithm.rs` implements iterative deepening, negamax alpha-beta, quiescence, deterministic move ordering, draw detection, always-verified null-move pruning, tactical-aware late-move reductions, sacrifice profiling after best defense, bounded root-risk selection, null telemetry, and principal-variation construction.
 - `src/engine/search/see.rs` performs legal static-exchange analysis for ordering and conservative quiescence pruning.
 - `src/engine/search/transposition.rs` owns the fixed-size, generation-aged search cache and mate-score normalization.
 - `src/engine/search/control.rs` provides shared cancellation and updateable soft/hard deadlines.
@@ -173,15 +173,15 @@ The initial protocol and search foundations now include:
 - a persistent transposition table with safe draw-state handling and UCI `Hash` controls;
 - volatility-aware time allocation with a persistent UCI `Move Overhead` control;
 - a bounded, color-symmetric attacking profile with isolated style weights, settled best-defense sacrifice verification, one hard root-risk guard, draw and simplification aversion, and UCI `Aggression` control;
-- threshold-probed root personality work, tactical-aware late-move reductions, and legal static-exchange ordering/pruning;
-- fixed-node old-versus-new style gates, conservative Elo acceptance, and deterministic paired-match tooling; and
+- threshold-probed root personality work, tactical-aware late-move reductions, legal static-exchange ordering/pruning, and always-verified null pruning;
+- fixed-node old-versus-new style gates, conservative Elo acceptance, deterministic paired-match tooling, and null-on/null-off telemetry; and
 - asynchronous `stop`, `ponderhit`, replacement-search, EOF, and shutdown behavior.
 
 ## Roadmap
 
 1. **Search efficiency and repeatability**
-   - Add null-move pruning and a make/unmake board layer.
-   - Expand deterministic search and performance benchmarks.
+   - Add a make/unmake board layer and continuation-history ordering.
+   - Repeat verified-null differential benchmarks across more positions and platforms.
 2. **Aggressive evaluation**
    - Add held-out pawn-gambit, clearance-sacrifice, and exchange-sacrifice positions without weakening the anti-sacrifice controls.
    - Measure whether verified sacrifices survive deeper searches and human PGN review before changing the 120-centipawn hard guard.

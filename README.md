@@ -102,6 +102,17 @@ python3 tools/run_match.py \
 
 The match runner compares Aggression 100 with Aggression 0 using reversed colors, one unique sequential EPD opening per pair, one concurrent game, fixed nodes per move, and explicit draw, resignation, and maximum-move rules. Each completed run writes an atomic JSON sidecar containing binary and opening hashes, the cutechess version, the exact command, settings, timing, return status, game count, and PGN hash. Pass `--baseline-engine` to compare against another binary, `--openings` to supply a larger suite, `--manifest` to choose the sidecar path, or `--dry-run` to inspect the command without launching a match.
 
+Summarize a completed paired match with:
+
+```sh
+python3 tools/analyze_match.py \
+  --pgn artifacts/aggression-match.pgn \
+  --json artifacts/aggression-match.summary.json \
+  --markdown artifacts/aggression-match.summary.md
+```
+
+The analyzer verifies the PGN hash and completed game count against the manifest, requires consecutive color-reversed opening pairs, and reports W/D/L, score, color balance, pair outcomes, terminations, average length, and an approximate pair-aware 95% score and Elo interval. The interval is descriptive rather than an SPRT result.
+
 ## Current search and protocol limitations
 
 - Only standard chess is supported; Chess960 is deferred.
@@ -126,6 +137,7 @@ The match runner compares Aggression 100 with Aggression 0 using reversed colors
 - `src/uci/search_worker.rs` isolates search threads, generation IDs, pondering, and stale-result suppression.
 - `tools/measure_style.py` reports and gates fixed-node choices across Aggression profiles.
 - `tools/run_match.py` builds deterministic paired fixed-node matches for `cutechess-cli`.
+- `tools/analyze_match.py` validates paired PGNs and reports strength, confidence, and color balance.
 - `src/main.rs` is a thin adapter that reserves stdout exclusively for UCI traffic.
 
 ## Milestone status

@@ -23,6 +23,9 @@ class AnalyzeMatchTests(unittest.TestCase):
         ]
         blocks = []
         for index, (white, black, result, termination, plies, fen) in enumerate(games, 1):
+            movetext = " ".join(
+                f"{move}. e4 e5" for move in range(1, plies // 2 + 1)
+            )
             blocks.append(
                 f'[Event "game {index}"]\n'
                 f'[White "{white}"]\n'
@@ -31,7 +34,7 @@ class AnalyzeMatchTests(unittest.TestCase):
                 f'[Termination "{termination}"]\n'
                 f'[PlyCount "{plies}"]\n'
                 f'[FEN "{fen}"]\n\n'
-                f'1. e4 {result}\n'
+                f'{movetext} {result}\n'
             )
         pgn.write_text("\n".join(blocks), encoding="utf-8")
         manifest.write_text(
@@ -80,7 +83,7 @@ class AnalyzeMatchTests(unittest.TestCase):
             self.assertEqual(summary["colors"]["black"]["score_percent"], 75.0)
             self.assertEqual(summary["pairs"]["point_distribution"], {"1.0": 1, "1.5": 1})
             self.assertEqual(summary["pairs"]["decisive_splits"], 1)
-            self.assertEqual(summary["confidence"]["score_percent_ci95"], [38.0, 87.0])
+            self.assertEqual(summary["confidence"]["score_percent_ci95"], [0.0, 100.0])
             self.assertAlmostEqual(summary["confidence"]["elo"], 88.7395, places=3)
             self.assertEqual(summary["average_plies"], 55.0)
             self.assertIn("W/D/L: 2/1/1", analyze_match.markdown(summary))
@@ -154,6 +157,73 @@ class AnalyzeMatchTests(unittest.TestCase):
                 "Aggression paired-match summary",
                 summary_markdown.read_text(encoding="utf-8"),
             )
+
+
+class EloLowerBoundCliTests(unittest.TestCase):
+    def test_failing_gate_still_writes_auditable_outputs(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pgn, manifest = AnalyzeMatchTests().write_match(root)
+            summary_json = root / "summary.json"
+            summary_markdown = root / "summary.md"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(Path("tools/analyze_match.py").resolve()),
+                    "--pgn",
+                    str(pgn),
+                    "--manifest",
+                    str(manifest),
+                    "--json",
+                    str(summary_json),
+                    "--markdown",
+                    str(summary_markdown),
+                    "--min-elo-lower-bound",
+                    "0",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 1)
+            summary = json.loads(summary_json.read_text(encoding="utf-8"))
+            self.assertFalse(summary["gates"]["elo_lower_bound"]["passed"])
+            self.assertIn(
+                "Elo lower bound: **FAIL**",
+                summary_markdown.read_text(encoding="utf-8"),
+            )
+            self.assertIn("Elo lower-bound gate failed", result.stderr)
+
+
+class EloLowerBoundGateTests(unittest.TestCase):
+    def test_gate_requires_the_interval_to_clear_the_threshold(self) -> None:
+        summary = {
+            "confidence": {
+                "score_percent_ci95": [51.0, 57.0],
+                "elo_ci95": [7.0, 49.0],
+            }
+        }
+
+        gate = analyze_match.elo_lower_bound_gate(summary, 0.0)
+
+        self.assertTrue(gate["passed"])
+        self.assertEqual(gate["required_score_percent"], 50.0)
+        self.assertEqual(gate["observed_elo_lower"], 7.0)
+
+    def test_gate_is_strict_and_handles_nonzero_elo_thresholds(self) -> None:
+        threshold = 20.0
+        required = analyze_match.percentage(analyze_match.score_from_elo(threshold))
+        summary = {
+            "confidence": {
+                "score_percent_ci95": [required, 60.0],
+                "elo_ci95": [threshold, 70.0],
+            }
+        }
+
+        gate = analyze_match.elo_lower_bound_gate(summary, threshold)
+
+        self.assertFalse(gate["passed"])
 
 
 if __name__ == "__main__":

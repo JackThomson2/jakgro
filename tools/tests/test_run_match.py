@@ -59,7 +59,8 @@ class RunMatchTests(unittest.TestCase):
 
             manifest = run_match.build_manifest(args, command, 1, "cutechess-cli 1.3.1")
             pgn.write_text(
-                '[Event "game one"]\n\n[Event "game two"]\n',
+                '[Event "game one"]\n[Result "1-0"]\n\n1. e4 1-0\n\n'
+                '[Event "game two"]\n[Result "0-1"]\n\n1. d4 0-1\n',
                 encoding="utf-8",
             )
             started = datetime(2026, 1, 1, tzinfo=timezone.utc)
@@ -104,6 +105,8 @@ class RunMatchTests(unittest.TestCase):
                 encoding="utf-8",
             )
             self.assertEqual(run_match.count_pgn_games(path), 2)
+            path.write_text('[Event "unfinished"]\n[Result "1-0"]\n', encoding="utf-8")
+            self.assertEqual(run_match.count_pgn_games(path), 0)
 
     def test_cli_writes_completed_manifest_with_fake_cutechess(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -123,7 +126,7 @@ class RunMatchTests(unittest.TestCase):
                 "pgn = pathlib.Path(sys.argv[sys.argv.index('-pgnout') + 1])\n"
                 "rounds = int(sys.argv[sys.argv.index('-rounds') + 1])\n"
                 "games = int(sys.argv[sys.argv.index('-games') + 1])\n"
-                "pgn.write_text(''.join(f'[Event \\\"game {i}\\\"]\\n\\n' for i in range(rounds * games)))\n",
+                "pgn.write_text(''.join(f'[Event \\\"game {i}\\\"]\\n[Result \\\"1-0\\\"]\\n\\n1. e4 1-0\\n\\n' for i in range(rounds * games)))\n",
                 encoding="utf-8",
             )
             os.chmod(engine, 0o755)
@@ -181,6 +184,18 @@ class RunMatchTests(unittest.TestCase):
                     run_match.read_cutechess_version(executable),
                     "cutechess-cli 1.3.1",
                 )
+
+
+class BinaryComparisonValidationTests(unittest.TestCase):
+    def test_same_profile_requires_distinct_binary_hashes(self) -> None:
+        with self.assertRaisesRegex(ValueError, "different hashes"):
+            run_match.validate_binary_comparison("same", "same", 100, 100)
+
+    def test_profile_self_play_may_reuse_one_binary(self) -> None:
+        run_match.validate_binary_comparison("same", "same", 100, 0)
+
+    def test_same_profile_accepts_distinct_binary_hashes(self) -> None:
+        run_match.validate_binary_comparison("candidate", "baseline", 100, 100)
 
 
 if __name__ == "__main__":

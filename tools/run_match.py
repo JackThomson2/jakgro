@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import shlex
 import shutil
 import subprocess
@@ -95,6 +96,21 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def validate_binary_comparison(
+    candidate_hash: str,
+    baseline_hash: str,
+    candidate_aggression: int,
+    baseline_aggression: int,
+) -> None:
+    if (
+        candidate_aggression == baseline_aggression
+        and candidate_hash == baseline_hash
+    ):
+        raise ValueError(
+            "same-profile candidate and baseline binaries must have different hashes"
+        )
+
+
 def resolve_executable(path: Path) -> Path:
     resolved = shutil.which(str(path))
     if resolved is not None:
@@ -123,7 +139,40 @@ def read_cutechess_version(executable: Path) -> str:
 
 
 def count_pgn_games(path: Path) -> int:
-    return path.read_text(encoding="utf-8").count("[Event ")
+    text = path.read_text(encoding="utf-8")
+    completed = 0
+    for game in re.split(r"(?=^\[Event )", text, flags=re.MULTILINE):
+        if not game.strip():
+            continue
+        header_result = re.search(r'^\[Result "(1-0|0-1|1/2-1/2|\*)"\]$', game, re.MULTILINE)
+        movetext_result = re.search(r"(?:^|\s)(1-0|0-1|1/2-1/2|\*)\s*$", game)
+        if (
+            header_result is not None
+            and movetext_result is not None
+            and header_result.group(1) != "*"
+            and header_result.group(1) == movetext_result.group(1)
+        ):
+            completed += 1
+    return completed
+
+def changed_manifest_inputs(manifest: dict[str, object]) -> list[str]:
+    inputs = manifest.get("inputs")
+    if not isinstance(inputs, dict):
+        return ["manifest"]
+    changed: list[str] = []
+    for name, value in inputs.items():
+        if not isinstance(value, dict):
+            changed.append(str(name))
+            continue
+        path_value = value.get("path")
+        expected_hash = value.get("sha256")
+        if not isinstance(path_value, str) or not isinstance(expected_hash, str):
+            changed.append(str(name))
+            continue
+        path = Path(path_value)
+        if not path.is_file() or sha256_file(path) != expected_hash:
+            changed.append(str(name))
+    return changed
 
 
 def write_manifest(path: Path, manifest: dict[str, object]) -> None:
@@ -144,10 +193,30 @@ def build_manifest(
 ) -> dict[str, object]:
     baseline = args.baseline_engine or args.engine
     candidate_name, baseline_name = engine_names(args)
+    candidate_hash = sha256_file(args.engine)
+    baseline_hash = sha256_file(baseline)
+    validate_binary_comparison(
+        candidate_hash,
+        baseline_hash,
+        args.candidate_aggression,
+        args.baseline_aggression,
+    )
+    comparison = (
+        "same-profile-binaries"
+        if args.candidate_aggression == args.baseline_aggression
+        else "profile-self-play"
+    )
     return {
         "schema_version": 1,
         "created_utc": datetime.now(timezone.utc).isoformat(),
         "command": command,
+        "comparison": {
+            "mode": comparison,
+            "distinct_binaries_required": (
+                args.candidate_aggression == args.baseline_aggression
+            ),
+            "distinct_binary_hashes": candidate_hash != baseline_hash,
+        },
         "inputs": {
             "runner": {
                 "path": str(Path(__file__).resolve()),
@@ -156,13 +225,13 @@ def build_manifest(
             "candidate": {
                 "name": candidate_name,
                 "path": str(args.engine),
-                "sha256": sha256_file(args.engine),
+                "sha256": candidate_hash,
                 "aggression": args.candidate_aggression,
             },
             "baseline": {
                 "name": baseline_name,
                 "path": str(baseline),
-                "sha256": sha256_file(baseline),
+                "sha256": baseline_hash,
                 "aggression": args.baseline_aggression,
             },
             "openings": {
@@ -206,7 +275,14 @@ def record_execution(
     error_message: str | None,
 ) -> tuple[int, bool]:
     completed_games = count_pgn_games(args.pgn) if args.pgn.is_file() else 0
-    complete = return_code == 0 and completed_games == args.games
+    changed_inputs = changed_manifest_inputs(manifest)
+    if changed_inputs and error_message is None:
+        error_message = f"match inputs changed: {', '.join(changed_inputs)}"
+    complete = (
+        return_code == 0
+        and completed_games == args.games
+        and not changed_inputs
+    )
     manifest["execution"] = {
         "status": "complete" if complete else "failed",
         "started_utc": started.isoformat(),
@@ -216,6 +292,8 @@ def record_execution(
         "error": error_message,
         "expected_games": args.games,
         "completed_games": completed_games,
+        "inputs_unchanged": not changed_inputs,
+        "changed_inputs": changed_inputs,
         "pgn_sha256": sha256_file(args.pgn) if args.pgn.is_file() else None,
     }
     return completed_games, complete
@@ -352,7 +430,11 @@ def main() -> int:
 
     command = build_command(args)
     print(shlex.join(command))
-    manifest = build_manifest(args, command, opening_count, cutechess_version)
+    try:
+        manifest = build_manifest(args, command, opening_count, cutechess_version)
+    except ValueError as error:
+        print(f"run_match: {error}", file=sys.stderr)
+        return 2
     started = datetime.now(timezone.utc)
     error_message = None
     return_code = None

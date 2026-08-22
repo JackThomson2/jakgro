@@ -101,5 +101,120 @@ class FixedPositionSummaryTests(unittest.TestCase):
         self.assertEqual(profile["hit_rate_percent"], 50.0)
 
 
+class BinaryComparisonSummaryTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        root = Path(self.temporary.name)
+        self.candidate = root / "candidate"
+        self.baseline = root / "baseline"
+        self.suite = root / "suite.epd"
+        self.candidate.write_bytes(b"candidate")
+        self.baseline.write_bytes(b"baseline")
+        self.suite.write_text("suite\n", encoding="utf-8")
+
+    def test_comparison_records_hashes_and_category_deltas(self) -> None:
+        rows = [
+            {
+                "id": "sound-sacrifice",
+                "category": "sacrifice",
+                "aggression": 100,
+                "bestmove": "c4f7",
+                "expected": "c4f7",
+                "score": "cp 25",
+                "depth": 8,
+                "nodes": 20000,
+                "status": "pass",
+                "baseline_bestmove": "g5f7",
+                "baseline_score": "cp 31",
+                "baseline_depth": 8,
+                "baseline_nodes": 20000,
+                "baseline_status": "FAIL",
+                "move_changed": True,
+                "expected_hit_delta": 1,
+            },
+            {
+                "id": "unsound-sacrifice",
+                "category": "anti-sacrifice",
+                "aggression": 100,
+                "bestmove": "f1e1",
+                "expected": "f1e1",
+                "score": "cp 4",
+                "depth": 8,
+                "nodes": 20000,
+                "status": "pass",
+                "baseline_bestmove": "f1e1",
+                "baseline_score": "cp 4",
+                "baseline_depth": 8,
+                "baseline_nodes": 20000,
+                "baseline_status": "pass",
+                "move_changed": False,
+                "expected_hit_delta": 0,
+            },
+        ]
+
+        summary = measure_style.summarize_comparison(
+            rows, self.candidate, self.baseline, self.suite
+        )
+
+        sacrifice = summary["categories"]["sacrifice"]["100"]
+        self.assertEqual(sacrifice["hit_delta"], 1)
+        self.assertEqual(sacrifice["improvements"], 1)
+        self.assertTrue(summary["distinct_binaries"])
+        self.assertTrue(summary["gates"]["candidate_expected_moves"]["passed"])
+        self.assertTrue(summary["gates"]["controls_preserved"]["passed"])
+        self.assertTrue(summary["gates"]["sacrifice_improved"]["passed"])
+        self.assertEqual(
+            summary["inputs"]["candidate"]["sha256"],
+            measure_style.sha256_file(self.candidate),
+        )
+
+    def test_changed_control_move_fails_the_preservation_gate(self) -> None:
+        rows = [
+            {
+                "id": "control",
+                "category": "safety",
+                "aggression": 100,
+                "bestmove": "a1b1",
+                "expected": "a1a2",
+                "score": "cp -600",
+                "depth": 8,
+                "nodes": 20000,
+                "status": "FAIL",
+                "baseline_bestmove": "a1a2",
+                "baseline_score": "cp -590",
+                "baseline_depth": 8,
+                "baseline_nodes": 20000,
+                "baseline_status": "pass",
+                "move_changed": True,
+                "expected_hit_delta": -1,
+            }
+        ]
+
+        summary = measure_style.summarize_comparison(
+            rows, self.candidate, self.baseline, self.suite
+        )
+
+        gate = summary["gates"]["controls_preserved"]
+        self.assertFalse(gate["passed"])
+        self.assertEqual(gate["failed_positions"], ["control@100"])
+
+
+class FrozenSacrificeSuiteTests(unittest.TestCase):
+    def test_suite_contains_positive_and_control_positions(self) -> None:
+        fixtures = measure_style.parse_suite(Path("tests/data/sacrifice-gates.epd"))
+
+        self.assertEqual(len(fixtures), 4)
+        self.assertEqual(
+            {fixture.category for fixture in fixtures},
+            {"sacrifice", "anti-sacrifice", "safety"},
+        )
+        self.assertTrue(all(100 in fixture.expected for fixture in fixtures))
+        self.assertEqual(
+            measure_style.sha256_file(Path("tests/data/sacrifice-gates.epd")),
+            "2abb0a941162ed5157b44ac5e6a9c93f969b2a55d1c271c1e8a3a86e44622fbe",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

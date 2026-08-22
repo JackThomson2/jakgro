@@ -45,6 +45,13 @@ jobs:
       - name: Gate the tuned Aggression profile
         run: python3 tools/measure_style.py --engine target/release/jakgro --check
 
+      - name: Gate the frozen sacrifice controls
+        run: >-
+          python3 tools/measure_style.py
+          --engine target/release/jakgro
+          --suite tests/data/sacrifice-gates.epd
+          --check
+
       - name: Check the reproducible match command
         run: python3 tools/run_match.py --engine target/release/jakgro --dry-run
 

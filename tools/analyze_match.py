@@ -108,7 +108,7 @@ def parse_pgn(path: Path) -> list[Game]:
         if result not in VALID_RESULTS:
             raise ValueError(f"game {len(games) + 1} has incomplete result {result!r}")
         moves, movetext_result = parse_mainline_moves("\n".join(movetext), len(games) + 1)
-        if movetext_result not in (None, result):
+        if movetext_result != result:
             raise ValueError(f"game {len(games) + 1} has mismatched header and movetext results")
         ply_count = None
         if "PlyCount" in headers:
@@ -118,6 +118,11 @@ def parse_pgn(path: Path) -> list[Game]:
                 raise ValueError(f"game {len(games) + 1} has invalid PlyCount") from error
             if ply_count < 0:
                 raise ValueError(f"game {len(games) + 1} has negative PlyCount")
+            if ply_count != len(moves):
+                raise ValueError(
+                    f"game {len(games) + 1} has PlyCount {ply_count}, "
+                    f"but parsed {len(moves)} plies"
+                )
         games.append(
             Game(
                 event=headers["Event"],
@@ -171,6 +176,26 @@ def load_manifest(path: Path, pgn: Path) -> tuple[dict[str, object], str, str, i
         raise ValueError(f"invalid match manifest {path}: {error}") from error
     if manifest.get("schema_version") != 1:
         raise ValueError("unsupported match manifest schema")
+    comparison = manifest.get("comparison")
+    if comparison is not None:
+        if not isinstance(comparison, dict):
+            raise ValueError("manifest comparison must be an object")
+        for role, engine_input in (("candidate", candidate), ("baseline", baseline)):
+            name = engine_input.get("name")
+            digest = engine_input.get("sha256")
+            if not isinstance(name, str) or not name:
+                raise ValueError(f"manifest {role} name is missing")
+            if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+                raise ValueError(f"manifest {role} hash is invalid")
+        if candidate["name"] == baseline["name"]:
+            raise ValueError("candidate and baseline names must differ")
+        if (
+            comparison.get("distinct_binaries_required")
+            and candidate["sha256"] == baseline["sha256"]
+        ):
+            raise ValueError("same-profile manifest reuses one binary hash")
+        if execution.get("inputs_unchanged") is False:
+            raise ValueError("match inputs changed during execution")
     if execution.get("status") != "complete":
         raise ValueError("match manifest does not describe a completed run")
     if int(execution.get("completed_games", -1)) != expected_games:
@@ -206,6 +231,12 @@ def result_counts(points: list[float]) -> dict[str, int]:
 
 def percentage(value: float) -> float:
     return round(value * 100.0, 6)
+
+def finite_float(value: str) -> float:
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise argparse.ArgumentTypeError("value must be finite")
+    return parsed
 
 
 def style_indicators(
@@ -249,13 +280,29 @@ def elo_from_score(score: float) -> float | None:
     return round(400.0 * math.log10(score / (1.0 - score)), 6)
 
 
+def score_from_elo(elo: float) -> float:
+    return 1.0 / (1.0 + 10.0 ** (-elo / 400.0))
+
+
+def elo_lower_bound_gate(
+    summary: dict[str, Any], minimum_elo: float
+) -> dict[str, float | bool | None]:
+    score_lower = float(summary["confidence"]["score_percent_ci95"][0])
+    required_score = percentage(score_from_elo(minimum_elo))
+    return {
+        "minimum_elo": minimum_elo,
+        "required_score_percent": required_score,
+        "observed_score_percent_lower": score_lower,
+        "observed_elo_lower": summary["confidence"]["elo_ci95"][0],
+        "passed": score_lower > required_score,
+    }
+
+
 def paired_score_interval(pair_scores: list[float]) -> tuple[float, float]:
-    if len(pair_scores) < 2:
+    if not pair_scores:
         return 0.0, 1.0
     mean = sum(pair_scores) / len(pair_scores)
-    variance = sum((score - mean) ** 2 for score in pair_scores) / (len(pair_scores) - 1)
-    standard_error = math.sqrt(variance / len(pair_scores))
-    margin = 1.96 * standard_error
+    margin = math.sqrt(math.log(40.0) / (2.0 * len(pair_scores)))
     return max(0.0, mean - margin), min(1.0, mean + margin)
 
 
@@ -337,7 +384,7 @@ def summarize(
             ),
         },
         "confidence": {
-            "method": "normal interval over color-reversed pair scores",
+            "method": "95% Hoeffding bound over color-reversed pair scores",
             "score_percent_ci95": [percentage(low), percentage(high)],
             "elo": elo_from_score(score),
             "elo_ci95": [elo_from_score(low), elo_from_score(high)],
@@ -418,6 +465,21 @@ def markdown(summary: dict[str, Any]) -> str:
             f"| {summary['engines'][role]} | {indicators['moves']} | "
             f"{' | '.join(rendered_rates)} |"
         )
+    if "gates" in summary and "elo_lower_bound" in summary["gates"]:
+        gate = summary["gates"]["elo_lower_bound"]
+        result = "PASS" if gate["passed"] else "FAIL"
+        lines.extend(
+            [
+                "",
+                "## Acceptance gates",
+                "",
+                (
+                    f"- Elo lower bound: **{result}** "
+                    f"({gate['observed_score_percent_lower']:.2f}% observed; "
+                    f"> {gate['required_score_percent']:.2f}% required)"
+                ),
+            ]
+        )
     lines.extend(
         [
             "",
@@ -464,13 +526,23 @@ def main() -> int:
     parser.add_argument("--manifest", type=Path)
     parser.add_argument("--json", type=Path, help="write deterministic JSON summary")
     parser.add_argument("--markdown", type=Path, help="write Markdown summary")
+    parser.add_argument(
+        "--min-elo-lower-bound",
+        type=finite_float,
+        help="fail unless the paired 95%% Elo lower bound exceeds this value",
+    )
     args = parser.parse_args()
     manifest_path = args.manifest or args.pgn.with_suffix(".manifest.json")
+    gate_failed = False
 
     try:
         manifest, candidate, baseline, _ = load_manifest(manifest_path, args.pgn)
         games = parse_pgn(args.pgn)
         summary = summarize(games, manifest, candidate, baseline, args.pgn, manifest_path)
+        if args.min_elo_lower_bound is not None:
+            gate = elo_lower_bound_gate(summary, args.min_elo_lower_bound)
+            summary.setdefault("gates", {})["elo_lower_bound"] = gate
+            gate_failed = not bool(gate["passed"])
         rendered = markdown(summary)
         if args.json is not None:
             write_text(
@@ -484,6 +556,15 @@ def main() -> int:
     except (OSError, ValueError, json.JSONDecodeError) as error:
         print(f"analyze_match: {error}", file=sys.stderr)
         return 2
+    if gate_failed:
+        gate = summary["gates"]["elo_lower_bound"]
+        print(
+            "analyze_match: Elo lower-bound gate failed: "
+            f"{gate['observed_score_percent_lower']:.2f}% <= "
+            f"{gate['required_score_percent']:.2f}%",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 

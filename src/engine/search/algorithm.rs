@@ -139,6 +139,15 @@ struct NodeResult {
     path_dependent: bool,
 }
 
+#[derive(Debug)]
+struct RootCandidate {
+    chess_move: Move,
+    score: Score,
+    path_dependent: bool,
+    interest: i64,
+    pv: Vec<Move>,
+}
+
 const HISTORY_MAX: u32 = 900_000;
 
 #[derive(Debug)]
@@ -449,6 +458,168 @@ fn next_search_depth(
 }
 
 fn search_root(
+    board: &Board,
+    root_moves: &[Move],
+    history: &mut RepetitionTracker,
+    depth: u32,
+    window: (Score, Score),
+    previous_pv: &[Move],
+    context: &mut SearchContext<'_>,
+) -> Result<NodeResult, Aborted> {
+    if context.evaluation.root_style_margin() == 0 {
+        return search_root_conventional(
+            board,
+            root_moves,
+            history,
+            depth,
+            window,
+            previous_pv,
+            context,
+        );
+    }
+    search_root_styled(
+        board,
+        root_moves,
+        history,
+        depth,
+        window,
+        previous_pv,
+        context,
+    )
+}
+
+fn search_root_styled(
+    board: &Board,
+    root_moves: &[Move],
+    history: &mut RepetitionTracker,
+    depth: u32,
+    window: (Score, Score),
+    previous_pv: &[Move],
+    context: &mut SearchContext<'_>,
+) -> Result<NodeResult, Aborted> {
+    let objective = search_root_conventional(
+        board,
+        root_moves,
+        history,
+        depth,
+        window,
+        previous_pv,
+        context,
+    )?;
+    let objective_pv = context.pv(0).to_vec();
+    let Some(objective_move) = objective_pv.first().copied() else {
+        return Ok(objective);
+    };
+    if objective.score.abs() >= MATE_THRESHOLD
+        || objective.score <= window.0
+        || objective.score >= window.1
+        || context.should_stop()
+    {
+        return Ok(objective);
+    }
+
+    let mut objective_child = board.clone();
+    objective_child.play_unchecked(objective_move);
+    let mut candidates = vec![RootCandidate {
+        chess_move: objective_move,
+        score: objective.score,
+        path_dependent: objective.path_dependent,
+        interest: root_interest(board, &objective_child, objective_move, context.evaluation),
+        pv: objective_pv,
+    }];
+    let mut alternatives = root_moves
+        .iter()
+        .copied()
+        .filter(|&chess_move| chess_move != objective_move)
+        .map(|chess_move| {
+            let mut child = board.clone();
+            child.play_unchecked(chess_move);
+            let interest = root_interest(board, &child, chess_move, context.evaluation);
+            (chess_move, interest)
+        })
+        .collect::<Vec<_>>();
+    alternatives.sort_unstable_by(|(left_move, left_interest), (right_move, right_interest)| {
+        right_interest
+            .cmp(left_interest)
+            .then_with(|| move_key(*left_move).cmp(&move_key(*right_move)))
+    });
+    let (child_depth, child_extensions) = next_search_depth(
+        depth,
+        !board.checkers().is_empty(),
+        0,
+        context.evaluation.max_check_extensions(),
+    );
+
+    for (chess_move, interest) in alternatives.into_iter().take(6) {
+        if context.should_stop() {
+            break;
+        }
+        let mut child = board.clone();
+        child.play_unchecked(chess_move);
+        history.push(&child);
+        let child_result = negamax(
+            &child,
+            history,
+            child_depth,
+            1,
+            child_extensions,
+            NEG_INFINITY,
+            POS_INFINITY,
+            &[],
+            context,
+        );
+        history.pop();
+        let Ok(child_result) = child_result else {
+            break;
+        };
+        let mut pv = vec![chess_move];
+        pv.extend_from_slice(context.pv(1));
+        candidates.push(RootCandidate {
+            chess_move,
+            score: -child_result.score,
+            path_dependent: child_result.path_dependent,
+            interest,
+            pv,
+        });
+    }
+
+    let selected = choose_styled_candidate(&candidates, 0, context.evaluation.root_style_margin());
+    context.pv[0].clear();
+    context.pv[0].extend_from_slice(&candidates[selected].pv);
+    Ok(NodeResult {
+        score: candidates[selected].score,
+        path_dependent: candidates[selected].path_dependent,
+    })
+}
+
+fn choose_styled_candidate(
+    candidates: &[RootCandidate],
+    conventional: usize,
+    margin: Score,
+) -> usize {
+    let best = candidates[conventional].score;
+    if best.abs() >= MATE_THRESHOLD {
+        return conventional;
+    }
+    let mut selected = conventional;
+    for (index, candidate) in candidates.iter().enumerate() {
+        if candidate.score.abs() >= MATE_THRESHOLD || candidate.score < best - margin {
+            continue;
+        }
+        let current = &candidates[selected];
+        if candidate.interest > current.interest
+            || (candidate.interest == current.interest && candidate.score > current.score)
+            || (candidate.interest == current.interest
+                && candidate.score == current.score
+                && move_key(candidate.chess_move) < move_key(current.chess_move))
+        {
+            selected = index;
+        }
+    }
+    selected
+}
+
+fn search_root_conventional(
     board: &Board,
     root_moves: &[Move],
     history: &mut RepetitionTracker,
@@ -1029,6 +1200,50 @@ fn move_order_score(
     2_000_000 + history
 }
 
+fn root_interest(
+    board: &Board,
+    child: &Board,
+    chess_move: Move,
+    evaluation: EvaluationConfig,
+) -> i64 {
+    let mover = board.side_to_move();
+    let mut interest = i64::from(root_complexity_bonus(child, mover, evaluation)) * 10;
+    interest += i64::from(gives_check(board, chess_move)) * 120;
+    interest += i64::from(is_attacking_pawn_push(board, chess_move)) * 40;
+    interest += chess_move
+        .promotion
+        .map_or(0, |piece| i64::from(piece_value(piece)) / 5);
+    interest += i64::from(child.pieces(Piece::Queen).len()) * 20;
+    interest += i64::from(total_non_pawn_material(child)) / 100;
+    interest += i64::from(material_balance(child).abs()) / 25;
+    interest += i64::from(captured_piece(board, chess_move).is_none()) * 15;
+    interest
+}
+
+fn total_non_pawn_material(board: &Board) -> Score {
+    [Piece::Knight, Piece::Bishop, Piece::Rook, Piece::Queen]
+        .into_iter()
+        .map(|piece| piece_value(piece) * board.pieces(piece).len() as Score)
+        .sum()
+}
+
+fn material_balance(board: &Board) -> Score {
+    [
+        Piece::Pawn,
+        Piece::Knight,
+        Piece::Bishop,
+        Piece::Rook,
+        Piece::Queen,
+    ]
+    .into_iter()
+    .map(|piece| {
+        piece_value(piece)
+            * (board.colored_pieces(Color::White, piece).len() as Score
+                - board.colored_pieces(Color::Black, piece).len() as Score)
+    })
+    .sum()
+}
+
 fn forcing_order_bonus(board: &Board, chess_move: Move, evaluation: EvaluationConfig) -> i64 {
     let aggression = i64::from(evaluation.aggression());
     if aggression == 0 {
@@ -1387,6 +1602,43 @@ mod tests {
 
         assert!(super::gives_check(position.board(), ordered[0]));
         assert!(super::is_quiet(position.board(), ordered[0]));
+    }
+
+    #[test]
+    fn root_style_margin_scales_from_zero_to_a_pawn() {
+        assert_eq!(super::EvaluationConfig::new(0).root_style_margin(), 0);
+        assert_eq!(super::EvaluationConfig::new(50).root_style_margin(), 30);
+        assert_eq!(super::EvaluationConfig::new(100).root_style_margin(), 120);
+    }
+
+    #[test]
+    fn styled_root_choice_stays_inside_the_margin_and_preserves_mates() {
+        let position = Position::default();
+        let conventional_move = find_move(&position, "e2e4");
+        let exciting_move = find_move(&position, "g1f3");
+        let mut candidates = vec![
+            super::RootCandidate {
+                chess_move: conventional_move,
+                score: 50,
+                path_dependent: false,
+                interest: 10,
+                pv: vec![conventional_move],
+            },
+            super::RootCandidate {
+                chess_move: exciting_move,
+                score: -60,
+                path_dependent: false,
+                interest: 100,
+                pv: vec![exciting_move],
+            },
+        ];
+
+        assert_eq!(super::choose_styled_candidate(&candidates, 0, 120), 1);
+        candidates[1].score = -71;
+        assert_eq!(super::choose_styled_candidate(&candidates, 0, 120), 0);
+        candidates[0].score = super::MATE_SCORE - 1;
+        candidates[1].score = super::MATE_SCORE - 2;
+        assert_eq!(super::choose_styled_candidate(&candidates, 0, 120), 0);
     }
 
     #[test]

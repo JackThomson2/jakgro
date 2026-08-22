@@ -688,12 +688,19 @@ mod tests {
 
     #[test]
     fn depth_one_counts_pvs_researches_as_nodes() {
-        let result = search(
+        let control = SearchControl::new();
+        let mut table = TranspositionTable::new(1).unwrap();
+        let result = search_with_table(
             &Position::default(),
             &SearchLimits {
                 depth: Some(1),
                 ..SearchLimits::default()
             },
+            &control,
+            EvaluationConfig::new(0),
+            MOVE_OVERHEAD,
+            &mut table,
+            |_| {},
         );
 
         assert_eq!(result.info().unwrap().nodes(), 24);

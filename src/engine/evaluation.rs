@@ -92,6 +92,11 @@ impl EvaluationConfig {
     pub(super) const fn quiescence_check_budget(self) -> u8 {
         1 + self.aggression / 50
     }
+
+    pub(super) const fn root_style_margin(self) -> Score {
+        let aggression = self.aggression as Score;
+        aggression * aggression * 120 / 10_000
+    }
 }
 
 impl Default for EvaluationConfig {

@@ -53,13 +53,6 @@ pub(super) fn extract(board: &Board) -> EvalFeatures {
     } else {
         -1
     };
-    let material = features.pawns * 100
-        + features.knights * 320
-        + features.bishops * 330
-        + features.rooks * 500
-        + features.queens * 900;
-    let pressure = white_attack.compensation_pressure() - black_attack.compensation_pressure();
-    features.compensation = compensated_risk(material, pressure);
     features
 }
 
@@ -228,16 +221,6 @@ fn attacking_features(board: &Board, color: Color) -> AttackProfile {
     }
 
     result
-}
-
-fn compensated_risk(material: i32, pressure: i32) -> i32 {
-    if material < 0 && pressure > 20 {
-        (-material).min(500) * (pressure - 20).min(100) / 200
-    } else if material > 0 && pressure < -20 {
-        -material.min(500) * (-pressure - 20).min(100) / 200
-    } else {
-        0
-    }
 }
 
 fn piece_index(piece: Piece) -> u8 {

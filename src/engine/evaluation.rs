@@ -3,8 +3,7 @@ mod tactics;
 mod weights;
 
 pub(super) use tactics::{
-    TacticalSnapshot, exchange_risk_on, material_balance_after_exchange, style_snapshot,
-    tactical_snapshot,
+    TacticalSnapshot, exchange_outcome, exchange_risk_on, style_snapshot, tactical_snapshot,
 };
 
 use std::ops::{Add, Mul};
@@ -172,7 +171,6 @@ pub(super) struct EvalFeatures {
     pub(super) supported_threats: Score,
     pub(super) open_lines: Score,
     pub(super) pawn_breaks: Score,
-    pub(super) compensation: Score,
     pub(super) white_attack: AttackProfile,
     pub(super) black_attack: AttackProfile,
 }
@@ -262,9 +260,9 @@ pub(super) const fn piece_value(piece: Piece) -> Score {
 #[cfg(test)]
 mod tests {
     use super::{
-        DEFAULT_AGGRESSION, EvaluationConfig, MATE_THRESHOLD, MAX_AGGRESSION, MIN_AGGRESSION,
-        evaluate, evaluate_with_config, evaluate_with_trace, evaluate_with_trace_and_config,
-        root_complexity_bonus,
+        DEFAULT_AGGRESSION, EvalFeatures, EvaluationConfig, MATE_THRESHOLD, MAX_AGGRESSION,
+        MIN_AGGRESSION, evaluate, evaluate_with_config, evaluate_with_trace,
+        evaluate_with_trace_and_config, root_complexity_bonus, weights,
     };
     use crate::engine::Position;
     use cozy_chess::Color;
@@ -369,12 +367,23 @@ mod tests {
     }
 
     #[test]
-    fn coordinated_pressure_can_compensate_a_material_deficit() {
-        let position = Position::from_fen("qr4k1/5ppp/8/7Q/2B5/8/5PPP/6K1 w - - 0 1").unwrap();
-        let trace =
-            evaluate_with_trace_and_config(position.board(), EvaluationConfig::new(MAX_AGGRESSION));
+    fn attacking_style_does_not_refund_a_material_deficit() {
+        let pressure = EvalFeatures {
+            king_pressure: 40,
+            coordination: 2,
+            supported_threats: 1,
+            ..EvalFeatures::default()
+        };
+        let deficit = EvalFeatures {
+            pawns: -3,
+            rooks: -1,
+            ..pressure
+        };
 
-        assert!(trace.features.compensation > 0);
+        assert_eq!(
+            weights::attacking_style(pressure),
+            weights::attacking_style(deficit)
+        );
     }
 
     #[test]

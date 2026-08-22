@@ -11,8 +11,8 @@ use super::{SearchControl, SearchInfo, SearchLimits, SearchResult, SearchScore};
 use crate::engine::Position;
 use crate::engine::evaluation::{
     EvaluationConfig, MATE_SCORE, MATE_THRESHOLD, MAX_PLY, NEG_INFINITY, POS_INFINITY, Score,
-    TacticalSnapshot, evaluate_with_config, exchange_risk_on, material_balance_after_exchange,
-    piece_value, root_complexity_bonus, style_snapshot, tactical_snapshot,
+    TacticalSnapshot, evaluate_with_config, exchange_outcome, exchange_risk_on, piece_value,
+    root_complexity_bonus, style_snapshot, tactical_snapshot,
 };
 use crate::engine::position::repetition_key;
 
@@ -152,6 +152,7 @@ enum SacrificeState {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 struct SacrificeProfile {
     state: SacrificeState,
+    settled_exchange: bool,
     offered_cp: Score,
     accepted_cp: Score,
     remaining_offer_cp: Score,
@@ -704,13 +705,10 @@ fn choose_styled_candidate(
     evaluation: EvaluationConfig,
 ) -> usize {
     let best = candidates[conventional].score;
-    if best.abs() >= MATE_THRESHOLD {
-        return conventional;
-    }
     let mut selected = conventional;
     for (index, candidate) in candidates.iter().enumerate() {
         let margin = candidate_risk_margin(evaluation, best, &candidate.sacrifice);
-        if candidate.score.abs() >= MATE_THRESHOLD || candidate.score < best - margin {
+        if !candidate_within_score_guard(candidate.score, best, margin) {
             continue;
         }
         let current = &candidates[selected];
@@ -728,43 +726,42 @@ fn choose_styled_candidate(
     selected
 }
 
+fn candidate_within_score_guard(candidate: Score, best: Score, margin: Score) -> bool {
+    if candidate.abs() >= MATE_THRESHOLD || best.abs() >= MATE_THRESHOLD {
+        candidate >= best
+    } else {
+        candidate >= best - margin
+    }
+}
+
 fn candidate_risk_margin(
     evaluation: EvaluationConfig,
-    best_score: Score,
-    sacrifice: &SacrificeProfile,
+    _best_score: Score,
+    _sacrifice: &SacrificeProfile,
 ) -> Score {
-    let base = evaluation.root_style_margin();
-    let aggression = Score::from(evaluation.aggression());
-    if aggression < 75 || !is_compensated_sacrifice(sacrifice) {
-        return base;
-    }
-    let material = sacrifice_material(sacrifice);
-    let mut target = if material < 200 { 220 } else { 380 };
-    if best_score < -150 {
-        target = (target + 80).min(450);
-    } else if best_score > 300 {
-        target = target.min(200);
-    }
-    base.max(target * aggression / 100).min(450)
+    evaluation.root_style_margin().min(120)
 }
 
 fn is_compensated_sacrifice(sacrifice: &SacrificeProfile) -> bool {
-    sacrifice.verified_reply
-        && sacrifice_material(sacrifice) >= MIN_SACRIFICE_CP
+    sacrifice.state == SacrificeState::Accepted
+        && sacrifice.settled_exchange
+        && sacrifice.verified_reply
+        && sacrifice.offered_cp >= MIN_SACRIFICE_CP
+        && sacrifice.accepted_cp >= MIN_SACRIFICE_CP
         && sacrifice.compensation_signals >= 2
         && sacrifice.legal_checks > 0
-        && (sacrifice.attack_gain > 0 || sacrifice.compensation_signals >= 3)
+        && sacrifice.attack_gain > 0
         && sacrifice.position_stable
         && sacrifice.king_danger_delta <= 20
 }
 
 fn sacrifice_material(sacrifice: &SacrificeProfile) -> Score {
     match sacrifice.state {
-        SacrificeState::Accepted => sacrifice.accepted_cp,
-        SacrificeState::Declined if sacrifice.remaining_offer_cp >= MIN_SACRIFICE_CP => {
-            sacrifice.offered_cp.min(sacrifice.remaining_offer_cp)
-        }
-        SacrificeState::None | SacrificeState::Declined | SacrificeState::Unverified => 0,
+        SacrificeState::Accepted if sacrifice.settled_exchange => sacrifice.accepted_cp,
+        SacrificeState::None
+        | SacrificeState::Accepted
+        | SacrificeState::Declined
+        | SacrificeState::Unverified => 0,
     }
 }
 
@@ -918,10 +915,12 @@ fn sacrifice_profile(root: &Board, child: &Board, mover: Color, pv: &[Move]) -> 
     let before = tactical_snapshot(root, mover);
     let immediate = tactical_snapshot(child, mover);
     let reply_count = generate_moves(child).len();
-    let target = pv
-        .first()
-        .map_or_else(|| child.king(!mover), |chess_move| chess_move.to);
-    let offered_cp = exchange_risk_on(child, mover, target);
+    let Some(&root_move) = pv.first().filter(|&&chess_move| root.is_legal(chess_move)) else {
+        return SacrificeProfile::default();
+    };
+    let target = root_move.to;
+    let prior_risk = exchange_risk_on(root, mover, target);
+    let offered_cp = (exchange_risk_on(child, mover, target) - prior_risk).max(0);
     let Some(&reply) = pv.get(1).filter(|&&reply| child.is_legal(reply)) else {
         return SacrificeProfile {
             state: if offered_cp >= MIN_SACRIFICE_CP {
@@ -943,24 +942,52 @@ fn sacrifice_profile(root: &Board, child: &Board, mover: Color, pv: &[Move]) -> 
         };
     };
 
+    let reply_accepts_offer = reply.to == target
+        && child.color_on(target) == Some(mover)
+        && captured_piece(child, reply).is_some();
     let mut reply_board = child.clone();
     reply_board.play_unchecked(reply);
-    let after = tactical_snapshot(&reply_board, mover);
-    let settled_material = material_balance_after_exchange(&reply_board, mover, reply.to);
-    let accepted_cp = (before.style.material_balance - settled_material).max(0);
-    let state = if accepted_cp >= MIN_SACRIFICE_CP {
+    if !reply_accepts_offer {
+        let after = tactical_snapshot(&reply_board, mover);
+        return SacrificeProfile {
+            state: if offered_cp >= MIN_SACRIFICE_CP {
+                SacrificeState::Declined
+            } else {
+                SacrificeState::None
+            },
+            offered_cp,
+            remaining_offer_cp: exchange_risk_on(&reply_board, mover, target),
+            reply_count,
+            attack_gain: after.style.attack_momentum - before.style.attack_momentum,
+            king_danger_delta: after.style.own_king_danger - before.style.own_king_danger,
+            legal_checks: after.legal_checks,
+            compensation_signals: compensation_signals(&before, &after, reply_count),
+            queens_retained: after.style.mover_queens > 0
+                && after.style.total_queens >= before.style.total_queens,
+            position_stable: after.exchange_risk <= before.exchange_risk + MIN_SACRIFICE_CP,
+            verified_reply: true,
+            ..SacrificeProfile::default()
+        };
+    }
+
+    let outcome = exchange_outcome(&reply_board, mover, target);
+    debug_assert_eq!(outcome.target, target);
+    let after = tactical_snapshot(&outcome.final_board, mover);
+    let accepted_cp = (before.style.material_balance - outcome.material_balance).max(0);
+    let state = if outcome.truncated {
+        SacrificeState::Unverified
+    } else if offered_cp >= MIN_SACRIFICE_CP && accepted_cp >= MIN_SACRIFICE_CP {
         SacrificeState::Accepted
-    } else if offered_cp >= MIN_SACRIFICE_CP {
-        SacrificeState::Declined
     } else {
         SacrificeState::None
     };
 
     SacrificeProfile {
         state,
+        settled_exchange: !outcome.truncated,
         offered_cp,
         accepted_cp,
-        remaining_offer_cp: exchange_risk_on(&reply_board, mover, target),
+        remaining_offer_cp: exchange_risk_on(&outcome.final_board, mover, target),
         reply_count,
         attack_gain: after.style.attack_momentum - before.style.attack_momentum,
         king_danger_delta: after.style.own_king_danger - before.style.own_king_danger,
@@ -969,7 +996,7 @@ fn sacrifice_profile(root: &Board, child: &Board, mover: Color, pv: &[Move]) -> 
         queens_retained: after.style.mover_queens > 0
             && after.style.total_queens >= before.style.total_queens,
         position_stable: after.exchange_risk <= before.exchange_risk + MIN_SACRIFICE_CP,
-        verified_reply: true,
+        verified_reply: !outcome.truncated,
     }
 }
 
@@ -1988,6 +2015,7 @@ mod tests {
         );
 
         assert_eq!(profile.state, super::SacrificeState::Accepted);
+        assert!(profile.settled_exchange);
         assert!(profile.accepted_cp >= 200);
         assert!(profile.verified_reply);
     }
@@ -2020,7 +2048,9 @@ mod tests {
         assert_eq!(declined.accepted_cp, 0);
         assert!(declined.remaining_offer_cp >= 300);
         assert!(declined.verified_reply);
+        assert!(!declined.settled_exchange);
         assert_eq!(unverified.state, super::SacrificeState::Unverified);
+        assert!(!unverified.settled_exchange);
         assert!(!unverified.verified_reply);
     }
 
@@ -2070,6 +2100,40 @@ mod tests {
     }
 
     #[test]
+    fn objective_guard_compares_mate_sign_and_distance() {
+        assert!(super::candidate_within_score_guard(
+            super::MATE_SCORE - 1,
+            super::MATE_SCORE - 2,
+            120,
+        ));
+        assert!(!super::candidate_within_score_guard(
+            super::MATE_SCORE - 3,
+            super::MATE_SCORE - 2,
+            120,
+        ));
+        assert!(super::candidate_within_score_guard(
+            -super::MATE_SCORE + 3,
+            -super::MATE_SCORE + 2,
+            120,
+        ));
+        assert!(!super::candidate_within_score_guard(
+            -super::MATE_SCORE + 1,
+            -super::MATE_SCORE + 2,
+            120,
+        ));
+        assert!(super::candidate_within_score_guard(
+            super::MATE_SCORE - 4,
+            100,
+            120,
+        ));
+        assert!(!super::candidate_within_score_guard(
+            -super::MATE_SCORE + 4,
+            100,
+            120,
+        ));
+    }
+
+    #[test]
     fn sacrifice_profile_nets_immediate_recaptures() {
         let position = Position::from_fen(
             "r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8",
@@ -2094,10 +2158,12 @@ mod tests {
     }
 
     #[test]
-    fn compensated_sacrifices_receive_dynamic_risk_margins() {
-        let mut sacrifice = super::SacrificeProfile {
+    fn verified_sacrifices_obey_the_hard_root_margin() {
+        let sacrifice = super::SacrificeProfile {
             state: super::SacrificeState::Accepted,
-            accepted_cp: 150,
+            settled_exchange: true,
+            offered_cp: 330,
+            accepted_cp: 330,
             attack_gain: 10,
             legal_checks: 1,
             compensation_signals: 3,
@@ -2106,23 +2172,16 @@ mod tests {
             ..super::SacrificeProfile::default()
         };
 
-        assert_eq!(
-            super::candidate_risk_margin(super::EvaluationConfig::new(100), 0, &sacrifice),
-            220,
-        );
-        sacrifice.accepted_cp = 330;
-        assert_eq!(
-            super::candidate_risk_margin(super::EvaluationConfig::new(100), 0, &sacrifice),
-            380,
-        );
-        assert_eq!(
-            super::candidate_risk_margin(super::EvaluationConfig::new(100), -200, &sacrifice),
-            450,
-        );
-        assert_eq!(
-            super::candidate_risk_margin(super::EvaluationConfig::new(100), 400, &sacrifice),
-            200,
-        );
+        for best_score in [-200, 0, 400] {
+            assert_eq!(
+                super::candidate_risk_margin(
+                    super::EvaluationConfig::new(100),
+                    best_score,
+                    &sacrifice,
+                ),
+                120,
+            );
+        }
         assert_eq!(
             super::candidate_risk_margin(super::EvaluationConfig::new(50), 0, &sacrifice),
             30,
@@ -2130,12 +2189,14 @@ mod tests {
     }
 
     #[test]
-    fn compensated_sacrifice_can_beat_the_ordinary_root_margin() {
+    fn verified_sacrifice_cannot_cross_the_hard_root_margin() {
         let position = Position::default();
         let conventional_move = find_move(&position, "e2e4");
         let sacrifice_move = find_move(&position, "g1f3");
         let sacrifice = super::SacrificeProfile {
             state: super::SacrificeState::Accepted,
+            settled_exchange: true,
+            offered_cp: 330,
             accepted_cp: 330,
             attack_gain: 10,
             legal_checks: 1,
@@ -2167,6 +2228,11 @@ mod tests {
             },
         ];
 
+        assert_eq!(
+            super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
+            0,
+        );
+        candidates[1].score = -60;
         assert_eq!(
             super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
             1,

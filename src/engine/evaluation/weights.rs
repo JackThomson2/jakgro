@@ -23,7 +23,6 @@ const COORDINATION: ScorePair = ScorePair::new(16, 2);
 const SUPPORTED_THREAT: ScorePair = ScorePair::new(18, 5);
 const OPEN_LINE: ScorePair = ScorePair::new(14, 1);
 const PAWN_BREAK: ScorePair = ScorePair::new(12, 1);
-const COMPENSATION: ScorePair = ScorePair::new(1, 0);
 
 pub(super) fn score(features: EvalFeatures) -> ScorePair {
     PAWN * features.pawns
@@ -52,5 +51,4 @@ pub(super) fn attacking_style(features: EvalFeatures) -> ScorePair {
         + SUPPORTED_THREAT * features.supported_threats
         + OPEN_LINE * features.open_lines
         + PAWN_BREAK * features.pawn_breaks
-        + COMPENSATION * features.compensation
 }

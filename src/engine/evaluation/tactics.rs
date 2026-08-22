@@ -160,22 +160,6 @@ pub(in crate::engine) fn exchange_outcome(
     exchange_outcome_with_limit(board, mover, target, MAX_EXCHANGE_PLIES)
 }
 
-pub(in crate::engine) fn material_balance_after_exchange(
-    board: &Board,
-    mover: Color,
-    target: Square,
-) -> Score {
-    let outcome = exchange_outcome(board, mover, target);
-    debug_assert_eq!(outcome.target, target);
-    debug_assert_eq!(
-        outcome.material_balance,
-        material_balance(&outcome.final_board, mover)
-    );
-    debug_assert!(outcome.line.len() <= usize::from(MAX_EXCHANGE_PLIES));
-    debug_assert!(!outcome.truncated || outcome.line.len() == usize::from(MAX_EXCHANGE_PLIES));
-    outcome.material_balance
-}
-
 fn exchange_value(board: &Board, perspective: Color, target: Square, remaining: u8) -> Score {
     exchange_outcome_with_limit(board, perspective, target, remaining).material_balance
 }

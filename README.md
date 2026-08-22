@@ -2,7 +2,7 @@
 
 Jakgro is a Rust chess engine aimed at playing aggressive, tactical, and interesting chess while remaining compatible with the Universal Chess Interface (UCI).
 
-> **Current status:** Jakgro now runs a cancellable, single-threaded iterative-deepening alpha-beta search with quiescence, principal variations, repetition and draw handling, a persistent fixed-size transposition table, and basic clock management. It is UCI-playable but still deliberately weak because its static evaluation is material-only.
+> **Current status:** Jakgro now runs a cancellable, single-threaded iterative-deepening alpha-beta search with quiescence, principal variations, repetition and draw handling, a persistent fixed-size transposition table, tapered positional evaluation, and basic clock management. It is UCI-playable, but its dedicated attacking personality and tuning are still under development.
 
 ## Goals
 
@@ -80,7 +80,7 @@ To use Jakgro from a chess GUI, build the release binary and configure the GUI t
 ### Current search and protocol limitations
 
 - Only standard chess is supported; Chess960 is deferred.
-- Static evaluation uses material only. King safety, mobility, pawn structure, initiative, and the intended aggressive personality are not implemented yet.
+- Static evaluation tapers material, activity, mobility, bishop-pair, pawn-structure, passed-pawn, and king-shelter features between middlegame and endgame. Initiative, king-zone pressure, threats, and the intended aggressive personality are not implemented yet.
 - Search is single-threaded internally and uses one worker per active UCI search.
 - Every child still clones the `cozy-chess` board; there is no make/unmake layer yet. A persistent fixed-size transposition table reuses exact and bounded search results.
 - Move ordering consists of the previous principal variation, promotions, and MVV-LVA-style captures; there are no killer, history, hash-move, or aspiration-window heuristics.
@@ -92,7 +92,7 @@ To use Jakgro from a chess GUI, build the release binary and configure the GUI t
 ## Architecture
 
 - `src/engine/position.rs` isolates legal position and UCI-move handling from the board library and retains normalized repetition hashes.
-- `src/engine/evaluation.rs` contains bounded, side-to-move material scoring and mate-score constants.
+- `src/engine/evaluation.rs` and `src/engine/evaluation/` contain bounded tapered scoring, feature extraction, trace data, weights, and mate-score constants.
 - `src/engine/search/algorithm.rs` implements iterative deepening, negamax alpha-beta, quiescence, deterministic move ordering, draw detection, and principal-variation construction.
 - `src/engine/search/transposition.rs` owns the fixed-size, generation-aged search cache and mate-score normalization.
 - `src/engine/search/control.rs` provides shared cancellation and updateable deadlines.
@@ -119,8 +119,7 @@ The initial protocol and search foundations now include:
    - Add hash-move, killer, history, and improved tactical ordering.
    - Add aspiration windows and deterministic search benchmarks.
 2. **Aggressive evaluation**
-   - Extend the material base with piece-square activity, mobility, pawn structure, and king safety.
-   - Add initiative, king-zone pressure, space, passed-pawn, and compensation terms.
+   - Add initiative, king-zone pressure, space, passed-pawn urgency, and compensation terms.
    - Keep style weights explicit so tactical strength and aggression can be measured separately.
 3. **Time and protocol refinement**
    - Add configurable move overhead and more conservative panic-time handling.

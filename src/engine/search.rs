@@ -1,10 +1,12 @@
 mod algorithm;
 mod control;
 mod time;
+mod transposition;
 
 use std::time::Duration;
 
 pub use control::SearchControl;
+pub(super) use transposition::{DEFAULT_HASH_MIB, MAX_HASH_MIB, MIN_HASH_MIB, TranspositionTable};
 
 use super::Position;
 use super::evaluation::{MATE_SCORE, MATE_THRESHOLD, Score};
@@ -161,11 +163,13 @@ impl SearchResult {
     }
 }
 
+#[cfg(test)]
 pub(super) fn search(position: &Position, limits: &SearchLimits) -> SearchResult {
     let control = SearchControl::new();
     search_with_reporter(position, limits, &control, |_| {})
 }
 
+#[cfg(test)]
 pub(super) fn search_with_reporter<F>(
     position: &Position,
     limits: &SearchLimits,
@@ -175,8 +179,24 @@ pub(super) fn search_with_reporter<F>(
 where
     F: FnMut(SearchInfo),
 {
-    algorithm::run(position, limits, control, report)
+    let mut table = TranspositionTable::new(MIN_HASH_MIB)
+        .expect("the minimum transposition table must be allocatable");
+    search_with_table(position, limits, control, &mut table, report)
 }
+
+pub(super) fn search_with_table<F>(
+    position: &Position,
+    limits: &SearchLimits,
+    control: &SearchControl,
+    table: &mut TranspositionTable,
+    report: F,
+) -> SearchResult
+where
+    F: FnMut(SearchInfo),
+{
+    algorithm::run(position, limits, control, table, report)
+}
+
 pub(super) fn ponder_time_budget(position: &Position, limits: &SearchLimits) -> Option<Duration> {
     time::allocate_time_after_ponder(position.board().side_to_move(), limits)
 }
@@ -186,7 +206,8 @@ mod tests {
     use std::time::Duration;
 
     use super::{
-        SearchControl, SearchInfo, SearchLimits, SearchScore, search, search_with_reporter,
+        SearchControl, SearchInfo, SearchLimits, SearchScore, TranspositionTable, search,
+        search_with_reporter, search_with_table,
     };
     use crate::engine::Position;
 
@@ -203,6 +224,26 @@ mod tests {
                 .legal_moves()
                 .contains(&first.best_move().unwrap().to_owned())
         );
+    }
+
+    #[test]
+    fn a_warm_transposition_table_reduces_nodes_without_changing_the_result() {
+        let position =
+            Position::from_fen("r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3")
+                .unwrap();
+        let limits = SearchLimits {
+            depth: Some(5),
+            ..SearchLimits::default()
+        };
+        let control = SearchControl::new();
+        let mut table = TranspositionTable::new(1).unwrap();
+
+        let cold = search_with_table(&position, &limits, &control, &mut table, |_| {});
+        let warm = search_with_table(&position, &limits, &control, &mut table, |_| {});
+
+        assert_eq!(warm.best_move(), cold.best_move());
+        assert_eq!(warm.info().unwrap().score(), cold.info().unwrap().score());
+        assert!(warm.info().unwrap().nodes() < cold.info().unwrap().nodes());
     }
 
     #[test]

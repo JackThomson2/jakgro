@@ -2,7 +2,7 @@
 
 Jakgro is a Rust chess engine aimed at playing aggressive, tactical, and interesting chess while remaining compatible with the Universal Chess Interface (UCI).
 
-> **Current status:** Jakgro now runs a cancellable, single-threaded iterative-deepening alpha-beta search with quiescence, principal variations, repetition and draw handling, and basic clock management. It is UCI-playable but still deliberately weak because its static evaluation is material-only and it has no transposition table.
+> **Current status:** Jakgro now runs a cancellable, single-threaded iterative-deepening alpha-beta search with quiescence, principal variations, repetition and draw handling, a persistent fixed-size transposition table, and basic clock management. It is UCI-playable but still deliberately weak because its static evaluation is material-only.
 
 ## Goals
 
@@ -60,7 +60,7 @@ Jakgro currently handles these GUI commands:
 - `uci`
 - `debug on|off`
 - `isready`
-- `setoption` (recognized, but no options are advertised yet)
+- `setoption name Hash value <MiB>` and `setoption name Clear Hash`
 - `ucinewgame`
 - `position startpos ...`
 - `position fen <six FEN fields> ...`
@@ -82,18 +82,19 @@ To use Jakgro from a chess GUI, build the release binary and configure the GUI t
 - Only standard chess is supported; Chess960 is deferred.
 - Static evaluation uses material only. King safety, mobility, pawn structure, initiative, and the intended aggressive personality are not implemented yet.
 - Search is single-threaded internally and uses one worker per active UCI search.
-- Every child clones the `cozy-chess` board. There is no make/unmake layer or transposition table yet.
+- Every child still clones the `cozy-chess` board; there is no make/unmake layer yet. A persistent fixed-size transposition table reuses exact and bounded search results.
 - Move ordering consists of the previous principal variation, promotions, and MVV-LVA-style captures; there are no killer, history, hash-move, or aspiration-window heuristics.
 - A `go` command without an effective time, node, depth, mate, infinite, or ponder limit defaults to depth four so accidental limit-free searches terminate.
 - Clock allocation is intentionally basic and has no configurable move-overhead option.
 - Repetition history is retained for moves supplied after `position`; a standalone FEN cannot describe occurrences before that FEN.
-- No `Hash`, `Threads`, `MultiPV`, or aggression-related UCI options are advertised.
+- No `Threads`, `MultiPV`, or aggression-related UCI options are advertised.
 
 ## Architecture
 
 - `src/engine/position.rs` isolates legal position and UCI-move handling from the board library and retains normalized repetition hashes.
 - `src/engine/evaluation.rs` contains bounded, side-to-move material scoring and mate-score constants.
 - `src/engine/search/algorithm.rs` implements iterative deepening, negamax alpha-beta, quiescence, deterministic move ordering, draw detection, and principal-variation construction.
+- `src/engine/search/transposition.rs` owns the fixed-size, generation-aged search cache and mate-score normalization.
 - `src/engine/search/control.rs` provides shared cancellation and updateable deadlines.
 - `src/engine/search/time.rs` converts UCI clock fields into a basic move budget.
 - `src/uci/session.rs` owns the serialized protocol event loop.
@@ -108,13 +109,13 @@ The initial protocol and search foundations now include:
 - normalized repetition history and terminal draw detection;
 - iterative-deepening alpha-beta with bounded quiescence;
 - cancellation, depth, node, mate, clock, `movetime`, infinite, and ponder control;
-- principal-variation and UCI progress reporting; and
+- principal-variation and UCI progress reporting;
+- a persistent transposition table with safe draw-state handling and UCI `Hash` controls; and
 - asynchronous `stop`, `ponderhit`, replacement-search, EOF, and shutdown behavior.
 
 ## Roadmap
 
 1. **Search efficiency and repeatability**
-   - Add a fixed-size transposition table with mate-score normalization and a UCI `Hash` option.
    - Add hash-move, killer, history, and improved tactical ordering.
    - Add aspiration windows and deterministic search benchmarks.
 2. **Aggressive evaluation**

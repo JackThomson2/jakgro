@@ -5,6 +5,7 @@ use cozy_chess::util::display_uci_move;
 use cozy_chess::{BitBoard, Board, Move, Piece};
 
 use super::time::allocate_time;
+use super::transposition::{Bound, TranspositionTable};
 use super::{SearchControl, SearchInfo, SearchLimits, SearchResult, SearchScore};
 use crate::engine::Position;
 use crate::engine::evaluation::{
@@ -79,6 +80,7 @@ struct NodeResult {
 
 struct SearchContext<'a> {
     control: &'a SearchControl,
+    table: &'a mut TranspositionTable,
     node_limit: Option<u64>,
     nodes: u64,
     started: Instant,
@@ -114,6 +116,7 @@ pub(super) fn run<F>(
     position: &Position,
     limits: &SearchLimits,
     control: &SearchControl,
+    table: &mut TranspositionTable,
     mut report: F,
 ) -> SearchResult
 where
@@ -124,6 +127,7 @@ where
         control.set_deadline_from_now(duration);
     }
 
+    table.start_search();
     let root_board = position.board().clone();
     let mut labeled_moves = generate_moves(&root_board)
         .into_iter()
@@ -156,6 +160,7 @@ where
 
     let mut context = SearchContext {
         control,
+        table,
         node_limit: limits.nodes,
         nodes: 0,
         started: Instant::now(),
@@ -246,7 +251,11 @@ fn search_root(
     previous_pv: &[Move],
     context: &mut SearchContext<'_>,
 ) -> Result<NodeResult, Aborted> {
-    let preferred = previous_pv.first().copied();
+    let hash_move = context
+        .table
+        .probe(board)
+        .and_then(|entry| entry.best_move());
+    let preferred = previous_pv.first().copied().or(hash_move);
     let moves = order_moves(board, root_moves.to_vec(), preferred);
     let mut alpha = NEG_INFINITY;
     let beta = POS_INFINITY;
@@ -296,6 +305,16 @@ fn search_root(
         alpha = alpha.max(score);
     }
 
+    if !best.path_dependent {
+        context.table.store(
+            board,
+            depth,
+            0,
+            best.score,
+            Bound::Exact,
+            best.pv.first().copied(),
+        );
+    }
     Ok(best)
 }
 
@@ -331,7 +350,26 @@ fn negamax(
         });
     }
 
-    let preferred = previous_pv.first().copied();
+    let alpha_original = alpha;
+    let hash_entry = context.table.probe(board);
+    if let Some(entry) = hash_entry.filter(|entry| entry.depth() >= depth) {
+        let score = entry.score_at_ply(ply);
+        let cutoff = match entry.bound() {
+            Bound::Exact => true,
+            Bound::Lower => score >= beta,
+            Bound::Upper => score <= alpha,
+        };
+        if cutoff {
+            return Ok(NodeResult {
+                score,
+                pv: context.table.principal_variation(board, depth),
+                path_dependent: false,
+            });
+        }
+    }
+
+    let hash_move = hash_entry.and_then(|entry| entry.best_move());
+    let preferred = previous_pv.first().copied().or(hash_move);
     let moves = order_moves(board, moves, preferred);
     let mut best = NodeResult {
         score: NEG_INFINITY,
@@ -376,6 +414,24 @@ fn negamax(
         if alpha >= beta {
             break;
         }
+    }
+
+    if !best.path_dependent {
+        let bound = if best.score <= alpha_original {
+            Bound::Upper
+        } else if best.score >= beta {
+            Bound::Lower
+        } else {
+            Bound::Exact
+        };
+        context.table.store(
+            board,
+            depth,
+            ply,
+            best.score,
+            bound,
+            best.pv.first().copied(),
+        );
     }
 
     Ok(best)

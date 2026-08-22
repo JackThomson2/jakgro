@@ -149,7 +149,7 @@ fn public_runner_handles_a_protocol_transcript() {
         concat!(
             "id name Jakgro ",
             env!("CARGO_PKG_VERSION"),
-            "\nid author Jakgro contributors\nuciok\nreadyok\n"
+            "\nid author Jakgro contributors\noption name Hash type spin default 16 min 1 max 1024\noption name Clear Hash type button\nuciok\nreadyok\n"
         )
     );
 }

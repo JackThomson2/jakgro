@@ -3,7 +3,10 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 
-use crate::engine::{Engine, Position, SearchInfo, SearchLimits, SearchResult, SearchScore};
+use crate::engine::{
+    DEFAULT_HASH_MIB, Engine, MAX_HASH_MIB, MIN_HASH_MIB, Position, SearchInfo, SearchLimits,
+    SearchResult, SearchScore,
+};
 
 use super::command::{Command, PositionCommand, PositionSource, parse};
 use super::event::Event;
@@ -117,9 +120,7 @@ where
             Command::Uci => self.identify()?,
             Command::Debug(enabled) => self.debug = enabled,
             Command::IsReady => self.write_line("readyok")?,
-            Command::SetOption { name, value: _ } => {
-                self.debug_info(&format!("unsupported option: {name}"))?;
-            }
+            Command::SetOption { name, value } => self.set_option(&name, value.as_deref())?,
             Command::UciNewGame => {
                 self.cancel_active();
                 self.engine.new_game();
@@ -140,8 +141,42 @@ where
     fn identify(&mut self) -> io::Result<()> {
         writeln!(self.output, "id name {ENGINE_NAME}")?;
         writeln!(self.output, "id author {ENGINE_AUTHOR}")?;
+        writeln!(
+            self.output,
+            "option name Hash type spin default {DEFAULT_HASH_MIB} min {MIN_HASH_MIB} max {MAX_HASH_MIB}",
+        )?;
+        writeln!(self.output, "option name Clear Hash type button")?;
         writeln!(self.output, "uciok")?;
         self.output.flush()
+    }
+
+    fn set_option(&mut self, name: &str, value: Option<&str>) -> io::Result<()> {
+        if name.eq_ignore_ascii_case("Hash") {
+            let Some(value) = value.filter(|value| !value.is_empty()) else {
+                return self.debug_info("Hash requires a size in MiB");
+            };
+            let Ok(size_mib) = value.parse::<usize>() else {
+                return self.debug_info(&format!("invalid Hash value: {value}"));
+            };
+
+            self.cancel_active();
+            if let Err(error) = self.engine.set_hash_size_mib(size_mib) {
+                return self.debug_info(&format!("Hash rejected: {error}"));
+            }
+            return Ok(());
+        }
+
+        if name.eq_ignore_ascii_case("Clear Hash") {
+            if value.is_some_and(|value| !value.is_empty()) {
+                return self.debug_info("Clear Hash does not accept a value");
+            }
+
+            self.cancel_active();
+            self.engine.clear_hash();
+            return Ok(());
+        }
+
+        self.debug_info(&format!("unsupported option: {name}"))
     }
 
     fn set_position(&mut self, command: PositionCommand) -> io::Result<()> {
@@ -305,7 +340,7 @@ mod tests {
             concat!(
                 "id name Jakgro ",
                 env!("CARGO_PKG_VERSION"),
-                "\nid author Jakgro contributors\nuciok\nreadyok\n"
+                "\nid author Jakgro contributors\noption name Hash type spin default 16 min 1 max 1024\noption name Clear Hash type button\nuciok\nreadyok\n"
             )
         );
     }
@@ -324,6 +359,27 @@ mod tests {
 
         assert!(output.contains("info string ignored command: invalid depth value: nope\n"));
         assert!(output.contains("info string ignored unknown command: nonsense\n"));
+    }
+
+    #[test]
+    fn hash_options_resize_and_clear_without_protocol_noise() {
+        assert_eq!(
+            transcript("setoption name Hash value 2\nsetoption name Clear Hash\nisready\nquit\n",),
+            "readyok\n",
+        );
+    }
+
+    #[test]
+    fn debug_mode_reports_invalid_hash_options() {
+        let output = transcript(
+            "debug on\nsetoption name Hash value 0\nsetoption name Hash value nope\nsetoption name Clear Hash value nope\nquit\n",
+        );
+
+        assert!(
+            output.contains("info string Hash rejected: hash size 0 MiB is outside 1..=1024 MiB\n")
+        );
+        assert!(output.contains("info string invalid Hash value: nope\n"));
+        assert!(output.contains("info string Clear Hash does not accept a value\n"));
     }
 
     #[test]

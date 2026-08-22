@@ -95,7 +95,7 @@ For paired self-play, install `cutechess-cli` and run:
 ```sh
 python3 tools/run_match.py \
   --engine target/release/jakgro \
-  --games 12 \
+  --games 96 \
   --nodes 50000 \
   --pgn artifacts/aggression-match.pgn
 ```

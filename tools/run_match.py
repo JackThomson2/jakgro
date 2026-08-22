@@ -33,16 +33,29 @@ def hash_mib(value: str) -> int:
 
 def count_openings(path: Path) -> int:
     positions: set[str] = set()
+    identifiers: set[str] = set()
     for line_number, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
-        position = line.split(" id ", 1)[0].rstrip(";").strip()
+        try:
+            position, identifier = line.split(" id ", 1)
+        except ValueError as error:
+            raise ValueError(f"{path}:{line_number}: missing opening id") from error
+        position = position.rstrip(";").strip()
         if len(position.split()) != 4:
             raise ValueError(f"{path}:{line_number}: expected a four-field EPD position")
+        if not identifier.startswith('"') or not identifier.endswith('";'):
+            raise ValueError(f"{path}:{line_number}: malformed opening id")
+        identifier = identifier[1:-2]
+        if not identifier:
+            raise ValueError(f"{path}:{line_number}: empty opening id")
         if position in positions:
             raise ValueError(f"{path}:{line_number}: duplicate opening position")
+        if identifier in identifiers:
+            raise ValueError(f"{path}:{line_number}: duplicate opening id {identifier!r}")
         positions.add(position)
+        identifiers.add(identifier)
     if not positions:
         raise ValueError(f"{path}: no opening positions")
     return len(positions)
@@ -101,7 +114,7 @@ def main() -> int:
     )
     parser.add_argument("--candidate-aggression", type=aggression, default=100)
     parser.add_argument("--baseline-aggression", type=aggression, default=0)
-    parser.add_argument("--games", type=positive, default=12, help="even number of games")
+    parser.add_argument("--games", type=positive, default=96, help="even number of games")
     parser.add_argument("--nodes", type=positive, default=50_000, help="nodes per move")
     parser.add_argument("--hash", type=hash_mib, default=16, help="Hash MiB per engine")
     parser.add_argument(

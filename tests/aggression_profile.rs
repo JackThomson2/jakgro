@@ -1,3 +1,6 @@
+use std::collections::HashSet;
+
+use cozy_chess::{Board, GameStatus};
 use jakgro::engine::{Engine, Position, SearchLimits, SearchScore};
 
 const SUITE: &str = include_str!("data/personality.epd");
@@ -123,17 +126,41 @@ fn tuned_aggression_profile_is_reproducible_and_distinct() {
 }
 #[test]
 fn deterministic_match_openings_are_valid() {
-    let mut count = 0;
-    for raw in MATCH_OPENINGS.lines() {
+    let mut positions = HashSet::new();
+    let mut identifiers = HashSet::new();
+
+    for (index, raw) in MATCH_OPENINGS.lines().enumerate() {
         let line = raw.trim();
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        let epd = line
+        let line_number = index + 1;
+        let (epd, identifier) = line
             .split_once(" id ")
-            .map_or(line.trim_end_matches(';'), |(fen, _)| fen);
-        Position::from_fen(&format!("{epd} 0 1")).unwrap();
-        count += 1;
+            .unwrap_or_else(|| panic!("opening line {line_number} has no id"));
+        let identifier = identifier
+            .strip_prefix('"')
+            .and_then(|value| value.strip_suffix("\";"))
+            .unwrap_or_else(|| panic!("opening line {line_number} has a malformed id"));
+        let board = format!("{epd} 0 1")
+            .parse::<Board>()
+            .unwrap_or_else(|_| panic!("opening line {line_number} has an invalid position"));
+
+        assert_eq!(board.status(), GameStatus::Ongoing, "opening {identifier}");
+        assert!(
+            board.checkers().is_empty(),
+            "opening {identifier} leaves the side to move in check"
+        );
+        assert!(
+            positions.insert(epd),
+            "opening {identifier} duplicates a position"
+        );
+        assert!(
+            identifiers.insert(identifier),
+            "opening id {identifier} is duplicated"
+        );
     }
-    assert!(count >= 4);
+
+    assert_eq!(positions.len(), 48);
+    assert_eq!(identifiers.len(), 48);
 }

@@ -5,20 +5,23 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import queue
 import subprocess
 import sys
 import threading
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 
 @dataclass(frozen=True)
 class Fixture:
     identifier: str
+    category: str
     fen: str
     nodes: int
-    expected: dict[int, str]
+    expected: dict[int, frozenset[str]]
 
 
 @dataclass(frozen=True)
@@ -39,7 +42,7 @@ def parse_suite(path: Path) -> list[Fixture]:
         fields = [field.strip() for field in line.split(";")]
         fen = fields[0]
         values: dict[str, str] = {}
-        expected: dict[int, str] = {}
+        expected: dict[int, frozenset[str]] = {}
         for field in fields[1:]:
             if not field:
                 continue
@@ -49,10 +52,11 @@ def parse_suite(path: Path) -> list[Fixture]:
                 raise ValueError(f"{path}:{line_number}: malformed field {field!r}") from error
             if key.startswith("bm") and key[2:].isdigit():
                 profile = int(key[2:])
-                if profile in expected:
-                    raise ValueError(f"{path}:{line_number}: duplicate field {key!r}")
-                expected[profile] = value
-            elif key in {"id", "nodes"}:
+                moves = frozenset(move.strip() for move in value.split(",") if move.strip())
+                if profile in expected or not moves:
+                    raise ValueError(f"{path}:{line_number}: invalid field {key!r}")
+                expected[profile] = moves
+            elif key in {"id", "category", "nodes"}:
                 if key in values:
                     raise ValueError(f"{path}:{line_number}: duplicate field {key!r}")
                 values[key] = value
@@ -72,7 +76,9 @@ def parse_suite(path: Path) -> list[Fixture]:
             raise ValueError(
                 f"{path}:{line_number}: positive nodes plus bm0 and bm100 are required"
             )
-        fixtures.append(Fixture(identifier, fen, nodes, expected))
+        fixtures.append(
+            Fixture(identifier, values.get("category", "uncategorized"), fen, nodes, expected)
+        )
     if not fixtures:
         raise ValueError(f"{path}: no fixtures")
     return fixtures
@@ -102,6 +108,25 @@ def parse_search_info(line: str) -> tuple[str, int, int] | None:
     except (ValueError, IndexError):
         return None
     return score, depth, nodes
+
+
+def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    categories: dict[str, dict[str, dict[str, int | float]]] = {}
+    for row in rows:
+        category = str(row["category"])
+        profile = str(row["aggression"])
+        bucket = categories.setdefault(category, {}).setdefault(
+            profile, {"measured": 0, "rated": 0, "hits": 0}
+        )
+        bucket["measured"] += 1
+        if row["expected"]:
+            bucket["rated"] += 1
+            bucket["hits"] += int(row["status"] == "pass")
+    for profiles in categories.values():
+        for bucket in profiles.values():
+            rated = int(bucket["rated"])
+            bucket["hit_rate_percent"] = round(int(bucket["hits"]) * 100.0 / rated, 6) if rated else 0.0
+    return {"schema_version": 1, "categories": categories}
 
 
 class UciEngine:
@@ -134,7 +159,10 @@ class UciEngine:
 
     def _read_output(self) -> None:
         try:
-            for line in self.process.stdout:
+            stdout = self.process.stdout
+            if stdout is None:
+                return
+            for line in stdout:
                 self.lines.put(line.rstrip("\r\n"))
         finally:
             self.lines.put(None)
@@ -210,46 +238,65 @@ def main() -> int:
     parser.add_argument("--profiles", type=parse_profiles, default=parse_profiles("0,100"))
     parser.add_argument("--timeout", type=float, default=10.0, help="seconds per UCI response")
     parser.add_argument("--check", action="store_true", help="fail on expected-move mismatch")
+    parser.add_argument("--summary-json", type=Path, help="write categorized hit rates")
     args = parser.parse_args()
     if args.timeout <= 0:
         parser.error("--timeout must be positive")
 
     try:
         fixtures = parse_suite(args.suite)
-        rows: list[list[object]] = []
+        rows: list[dict[str, object]] = []
         failures = 0
         with UciEngine(args.engine, args.timeout) as engine:
             for fixture in fixtures:
                 for profile in args.profiles:
                     observation = engine.measure(fixture, profile)
-                    expected = fixture.expected.get(profile, "")
-                    mismatch = bool(expected) and observation.bestmove != expected
-                    missing = args.check and not expected
+                    expected_moves = fixture.expected.get(profile, frozenset())
+                    mismatch = bool(expected_moves) and observation.bestmove not in expected_moves
+                    missing = args.check and not expected_moves
                     passed = not mismatch and not missing
                     failures += int(mismatch or missing)
                     status = (
                         "unrated"
-                        if not expected and not args.check
+                        if not expected_moves and not args.check
                         else ("pass" if passed else "FAIL")
                     )
                     rows.append(
-                        [
-                            fixture.identifier,
-                            profile,
-                            observation.bestmove,
-                            expected,
-                            observation.score,
-                            observation.depth,
-                            observation.nodes,
-                            status,
-                        ]
+                        {
+                            "id": fixture.identifier,
+                            "category": fixture.category,
+                            "aggression": profile,
+                            "bestmove": observation.bestmove,
+                            "expected": ",".join(sorted(expected_moves)),
+                            "score": observation.score,
+                            "depth": observation.depth,
+                            "nodes": observation.nodes,
+                            "status": status,
+                        }
                     )
+        summary = summarize(rows)
+        if args.summary_json is not None:
+            args.summary_json.parent.mkdir(parents=True, exist_ok=True)
+            args.summary_json.write_text(
+                f"{json.dumps(summary, indent=2, sort_keys=True)}\n", encoding="utf-8"
+            )
     except (OSError, RuntimeError, TimeoutError, ValueError) as error:
         print(f"measure_style: {error}", file=sys.stderr)
         return 2
 
-    writer = csv.writer(sys.stdout, lineterminator="\n")
-    writer.writerow(["id", "aggression", "bestmove", "expected", "score", "depth", "nodes", "status"])
+    fieldnames = [
+        "id",
+        "category",
+        "aggression",
+        "bestmove",
+        "expected",
+        "score",
+        "depth",
+        "nodes",
+        "status",
+    ]
+    writer = csv.DictWriter(sys.stdout, fieldnames=fieldnames, lineterminator="\n")
+    writer.writeheader()
     writer.writerows(rows)
     print(f"measured {len(rows)} searches; mismatches={failures}", file=sys.stderr)
     return 1 if args.check and failures else 0

@@ -12,6 +12,7 @@ import sys
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 HEADER = re.compile(r'^\[([A-Za-z][A-Za-z0-9_]*) "((?:\\.|[^"\\])*)"\]$')
 VALID_RESULTS = {"1-0", "0-1", "1/2-1/2"}
@@ -26,6 +27,7 @@ class Game:
     termination: str
     fen: str | None
     ply_count: int | None
+    moves: tuple[str, ...] = ()
 
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
@@ -39,12 +41,64 @@ def unescape_header(value: str) -> str:
     return value.replace(r"\"", '"').replace(r"\\", "\\")
 
 
+def parse_mainline_moves(text: str, game_number: int) -> tuple[tuple[str, ...], str | None]:
+    mainline: list[str] = []
+    in_comment = False
+    in_line_comment = False
+    variation_depth = 0
+    for character in text:
+        if in_line_comment:
+            if character == "\n":
+                in_line_comment = False
+                mainline.append(" ")
+            continue
+        if in_comment:
+            if character == "}":
+                in_comment = False
+                mainline.append(" ")
+            continue
+        if character == "{":
+            in_comment = True
+        elif character == ";":
+            in_line_comment = True
+        elif character == "(":
+            variation_depth += 1
+        elif character == ")":
+            if variation_depth == 0:
+                raise ValueError(f"game {game_number} has an unmatched variation terminator")
+            variation_depth -= 1
+        elif variation_depth == 0:
+            mainline.append(character)
+    if in_comment:
+        raise ValueError(f"game {game_number} has an unterminated comment")
+    if variation_depth:
+        raise ValueError(f"game {game_number} has an unterminated variation")
+
+    moves: list[str] = []
+    result = None
+    for raw_token in "".join(mainline).split():
+        token = re.sub(r"^\d+\.(?:\.\.)?", "", raw_token)
+        if not token or token.startswith("$") or token == "e.p.":
+            continue
+        token = re.sub(r"[!?]+$", "", token)
+        if token in VALID_RESULTS or token == "*":
+            if result is not None and result != token:
+                raise ValueError(f"game {game_number} has conflicting movetext results")
+            result = token
+            continue
+        if result is not None:
+            raise ValueError(f"game {game_number} has moves after its result")
+        moves.append(token)
+    return tuple(moves), result
+
+
 def parse_pgn(path: Path) -> list[Game]:
     games: list[Game] = []
     headers: dict[str, str] = {}
+    movetext: list[str] = []
 
     def finish_game() -> None:
-        nonlocal headers
+        nonlocal headers, movetext
         if not headers:
             return
         missing = [key for key in ("Event", "White", "Black", "Result") if key not in headers]
@@ -53,6 +107,9 @@ def parse_pgn(path: Path) -> list[Game]:
         result = headers["Result"]
         if result not in VALID_RESULTS:
             raise ValueError(f"game {len(games) + 1} has incomplete result {result!r}")
+        moves, movetext_result = parse_mainline_moves("\n".join(movetext), len(games) + 1)
+        if movetext_result not in (None, result):
+            raise ValueError(f"game {len(games) + 1} has mismatched header and movetext results")
         ply_count = None
         if "PlyCount" in headers:
             try:
@@ -70,13 +127,17 @@ def parse_pgn(path: Path) -> list[Game]:
                 termination=headers.get("Termination", "unknown"),
                 fen=headers.get("FEN"),
                 ply_count=ply_count,
+                moves=moves,
             )
         )
         headers = {}
+        movetext = []
 
     for line_number, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         line = raw.strip()
         if not line.startswith("["):
+            if headers and line:
+                movetext.append(raw)
             continue
         match = HEADER.fullmatch(line)
         if match is None:
@@ -100,8 +161,12 @@ def load_manifest(path: Path, pgn: Path) -> tuple[dict[str, object], str, str, i
         baseline = manifest["inputs"]["baseline"]
         execution = manifest["execution"]
         expected_games = int(manifest["settings"]["games"])
-        candidate_name = f"Aggression-{int(candidate['aggression'])}"
-        baseline_name = f"Aggression-{int(baseline['aggression'])}"
+        candidate_name = str(
+            candidate.get("name") or f"Aggression-{int(candidate['aggression'])}"
+        )
+        baseline_name = str(
+            baseline.get("name") or f"Aggression-{int(baseline['aggression'])}"
+        )
     except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
         raise ValueError(f"invalid match manifest {path}: {error}") from error
     if manifest.get("schema_version") != 1:
@@ -143,6 +208,41 @@ def percentage(value: float) -> float:
     return round(value * 100.0, 6)
 
 
+def style_indicators(
+    games: list[Game], candidate: str, baseline: str
+) -> dict[str, dict[str, int | float | None]]:
+    counts = {
+        candidate: Counter(moves=0, checks=0, captures=0, promotions=0, forcing_moves=0),
+        baseline: Counter(moves=0, checks=0, captures=0, promotions=0, forcing_moves=0),
+    }
+    for game in games:
+        active = "black" if game.fen and game.fen.split()[1:2] == ["b"] else "white"
+        for san in game.moves:
+            player = game.black if active == "black" else game.white
+            active = "white" if active == "black" else "black"
+            if player not in counts:
+                raise ValueError(f"game uses unexpected player {player!r}")
+            check = "+" in san or "#" in san
+            capture = "x" in san
+            promotion = "=" in san
+            counts[player]["moves"] += 1
+            counts[player]["checks"] += int(check)
+            counts[player]["captures"] += int(capture)
+            counts[player]["promotions"] += int(promotion)
+            counts[player]["forcing_moves"] += int(check or capture or promotion)
+
+    indicators: dict[str, dict[str, int | float | None]] = {}
+    for role, name in (("candidate", candidate), ("baseline", baseline)):
+        moves = counts[name]["moves"]
+        values: dict[str, int | float | None] = dict(counts[name])
+        for metric in ("checks", "captures", "promotions", "forcing_moves"):
+            values[f"{metric}_per_100_moves"] = (
+                round(counts[name][metric] * 100.0 / moves, 6) if moves else None
+            )
+        indicators[role] = values
+    return indicators
+
+
 def elo_from_score(score: float) -> float | None:
     if score <= 0.0 or score >= 1.0:
         return None
@@ -161,12 +261,12 @@ def paired_score_interval(pair_scores: list[float]) -> tuple[float, float]:
 
 def summarize(
     games: list[Game],
-    manifest: dict[str, object],
+    manifest: dict[str, Any],
     candidate: str,
     baseline: str,
     pgn: Path,
     manifest_path: Path,
-) -> dict[str, object]:
+) -> dict[str, Any]:
     expected_games = int(manifest["settings"]["games"])
     if len(games) != expected_games:
         raise ValueError(f"expected {expected_games} games, found {len(games)}")
@@ -206,9 +306,10 @@ def summarize(
     black_score = sum(black_points) / len(black_points)
     plies = [game.ply_count for game in games if game.ply_count is not None]
     terminations = Counter(game.termination for game in games)
+    style = style_indicators(games, candidate, baseline)
 
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "inputs": {
             "pgn": pgn.name,
             "pgn_sha256": sha256_file(pgn),
@@ -241,6 +342,7 @@ def summarize(
             "elo": elo_from_score(score),
             "elo_ci95": [elo_from_score(low), elo_from_score(high)],
         },
+        "style": style,
         "terminations": dict(sorted(terminations.items())),
         "average_plies": round(sum(plies) / len(plies), 6) if plies else None,
     }
@@ -252,7 +354,7 @@ def format_elo(value: float | None, lower: bool = False) -> str:
     return f"{value:+.1f}"
 
 
-def markdown(summary: dict[str, object]) -> str:
+def markdown(summary: dict[str, Any]) -> str:
     result = summary["result"]
     colors = summary["colors"]
     confidence = summary["confidence"]
@@ -300,11 +402,33 @@ def markdown(summary: dict[str, object]) -> str:
         f"- Double draws: {pairs['double_draws']}",
         f"- Decisive splits: {pairs['decisive_splits']}",
         "",
-        "## Terminations",
+        "## Style indicators",
         "",
-        "| Termination | Games |",
-        "| --- | ---: |",
+        "| Engine | Moves | Checks/100 | Captures/100 | Promotions/100 | Forcing/100 |",
+        "| --- | ---: | ---: | ---: | ---: | ---: |",
     ]
+    for role in ("candidate", "baseline"):
+        indicators = summary["style"][role]
+        rates = [
+            indicators[f"{metric}_per_100_moves"]
+            for metric in ("checks", "captures", "promotions", "forcing_moves")
+        ]
+        rendered_rates = ["n/a" if rate is None else f"{rate:.2f}" for rate in rates]
+        lines.append(
+            f"| {summary['engines'][role]} | {indicators['moves']} | "
+            f"{' | '.join(rendered_rates)} |"
+        )
+    lines.extend(
+        [
+            "",
+            "These SAN-derived rates are descriptive proxies, not measures of move quality.",
+            "",
+            "## Terminations",
+            "",
+            "| Termination | Games |",
+            "| --- | ---: |",
+        ]
+    )
     lines.extend(
         f"| {termination} | {count} |"
         for termination, count in summary["terminations"].items()

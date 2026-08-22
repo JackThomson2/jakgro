@@ -37,6 +37,26 @@ def hash_mib(value: str) -> int:
     return parsed
 
 
+def engine_name(value: str) -> str:
+    name = value.strip()
+    if not name or any(character in name for character in "\r\n"):
+        raise argparse.ArgumentTypeError("engine name must be non-empty and single-line")
+    return name
+
+
+def engine_names(args: argparse.Namespace) -> tuple[str, str]:
+    candidate = getattr(args, "candidate_name", None)
+    baseline = getattr(args, "baseline_name", None)
+    candidate = candidate or f"Aggression-{args.candidate_aggression}"
+    baseline = baseline or f"Aggression-{args.baseline_aggression}"
+    if candidate == baseline:
+        if getattr(args, "candidate_name", None) or getattr(args, "baseline_name", None):
+            raise ValueError("candidate and baseline engine names must differ")
+        candidate = f"Candidate-{candidate}"
+        baseline = f"Baseline-{baseline}"
+    return candidate, baseline
+
+
 def count_openings(path: Path) -> int:
     positions: set[str] = set()
     identifiers: set[str] = set()
@@ -123,6 +143,7 @@ def build_manifest(
     cutechess_version: str,
 ) -> dict[str, object]:
     baseline = args.baseline_engine or args.engine
+    candidate_name, baseline_name = engine_names(args)
     return {
         "schema_version": 1,
         "created_utc": datetime.now(timezone.utc).isoformat(),
@@ -133,11 +154,13 @@ def build_manifest(
                 "sha256": sha256_file(Path(__file__).resolve()),
             },
             "candidate": {
+                "name": candidate_name,
                 "path": str(args.engine),
                 "sha256": sha256_file(args.engine),
                 "aggression": args.candidate_aggression,
             },
             "baseline": {
+                "name": baseline_name,
                 "path": str(baseline),
                 "sha256": sha256_file(baseline),
                 "aggression": args.baseline_aggression,
@@ -200,15 +223,16 @@ def record_execution(
 
 def build_command(args: argparse.Namespace) -> list[str]:
     baseline = args.baseline_engine or args.engine
+    candidate_name, baseline_name = engine_names(args)
     return [
         str(args.cutechess),
         "-engine",
         f"cmd={args.engine}",
-        f"name=Aggression-{args.candidate_aggression}",
+        f"name={candidate_name}",
         f"option.Aggression={args.candidate_aggression}",
         "-engine",
         f"cmd={baseline}",
-        f"name=Aggression-{args.baseline_aggression}",
+        f"name={baseline_name}",
         f"option.Aggression={args.baseline_aggression}",
         "-each",
         "proto=uci",
@@ -250,7 +274,17 @@ def main() -> int:
         help="baseline executable; defaults to --engine",
     )
     parser.add_argument("--candidate-aggression", type=aggression, default=100)
+    parser.add_argument(
+        "--candidate-name",
+        type=engine_name,
+        help="PGN name for the candidate; defaults from its Aggression value",
+    )
     parser.add_argument("--baseline-aggression", type=aggression, default=0)
+    parser.add_argument(
+        "--baseline-name",
+        type=engine_name,
+        help="PGN name for the baseline; defaults from its Aggression value",
+    )
     parser.add_argument("--games", type=positive, default=96, help="even number of games")
     parser.add_argument("--nodes", type=positive, default=50_000, help="nodes per move")
     parser.add_argument("--hash", type=hash_mib, default=16, help="Hash MiB per engine")
@@ -273,8 +307,10 @@ def main() -> int:
 
     if args.games % 2:
         parser.error("--games must be even so each opening is played with reversed colors")
-    if args.candidate_aggression == args.baseline_aggression:
-        parser.error("candidate and baseline Aggression values must differ")
+    try:
+        engine_names(args)
+    except ValueError as error:
+        parser.error(str(error))
     if not args.openings.is_file():
         parser.error(f"opening suite does not exist: {args.openings}")
     try:

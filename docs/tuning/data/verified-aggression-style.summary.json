@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "candidate": {
+    "commit": "67cc981f2e4c6b66222e6716e3dcbe9dc0cb4c9f",
+    "binary_sha256": "2b85f0e19c88880955cbab7e7d6ee1d72fe02413dac7542658f4e25187e2801d"
+  },
+  "baseline": {
+    "commit": "329e8de7d7a5410588441e53006d8c9a64f32722",
+    "binary_sha256": "d2092e6ab3354d04af83925a2c14ed0111a14fa9e524b4fe4825b35cfea5d656"
+  },
+  "fixed_node_style": {
+    "runner_sha256": "2753cc91ebbf29398c3b2d2d52ec4a9717397e02f702fcba932b1d8d877961e1",
+    "profile": 100,
+    "personality": {
+      "suite_sha256": "39b71686bf5085cb02c7ac95ced876a67ae65c95e0c2b3517ebeb87fbbd05df8",
+      "positions": 16,
+      "candidate_hits": 16,
+      "baseline_hits": 16,
+      "move_changes": 0,
+      "control_regressions": 0,
+      "sacrifice_hit_delta": 0,
+      "expected_move_gate_passed": true,
+      "control_gate_passed": true,
+      "sacrifice_improvement_gate_passed": false
+    },
+    "sacrifice_controls": {
+      "suite_sha256": "2abb0a941162ed5157b44ac5e6a9c93f969b2a55d1c271c1e8a3a86e44622fbe",
+      "positions": 4,
+      "candidate_hits": 4,
+      "baseline_hits": 4,
+      "move_changes": 0,
+      "control_regressions": 0,
+      "sacrifice_hit_delta": 0,
+      "expected_move_gate_passed": true,
+      "control_gate_passed": true,
+      "sacrifice_improvement_gate_passed": false
+    }
+  },
+  "match_style": {
+    "games": 96,
+    "nodes_per_move": 10000,
+    "candidate": {
+      "checks_per_100_moves": 15.916667,
+      "captures_per_100_moves": 30.333333,
+      "promotions_per_100_moves": 0.625,
+      "forcing_moves_per_100_moves": 41.291667
+    },
+    "baseline": {
+      "checks_per_100_moves": 9.068323,
+      "captures_per_100_moves": 19.917184,
+      "promotions_per_100_moves": 0.248447,
+      "forcing_moves_per_100_moves": 26.542443
+    }
+  },
+  "benchmark": {
+    "candidate": [
+      {"id": "win-hanging-queen", "depth": 4, "nodes": 14196, "milliseconds": 8},
+      {"id": "punish-central-queen", "depth": 3, "nodes": 8980, "milliseconds": 30},
+      {"id": "starting-style", "depth": 4, "nodes": 12421, "milliseconds": 47},
+      {"id": "open-game-style", "depth": 3, "nodes": 12607, "milliseconds": 43},
+      {"id": "developed-open-game", "depth": 3, "nodes": 15463, "milliseconds": 43}
+    ],
+    "baseline": [
+      {"id": "win-hanging-queen", "depth": 1, "nodes": 20000, "milliseconds": 7},
+      {"id": "punish-central-queen", "depth": 1, "nodes": 739, "milliseconds": 32},
+      {"id": "starting-style", "depth": 4, "nodes": 20000, "milliseconds": 52},
+      {"id": "open-game-style", "depth": 3, "nodes": 20000, "milliseconds": 52},
+      {"id": "developed-open-game", "depth": 1, "nodes": 41, "milliseconds": 50}
+    ]
+  }
+}

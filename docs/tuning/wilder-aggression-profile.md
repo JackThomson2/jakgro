@@ -6,14 +6,14 @@ This note defines the validation contract for the more adventurous high end of J
 
 Aggression 0 remains the conventional control. Aggression 100 now combines six deliberate biases:
 
-1. coordinated king attacks, supported threats, open lines, pawn breaks, and bounded compensation for material deficits in static evaluation;
+1. coordinated king attacks, supported threats, open lines, and pawn breaks without a generic static refund for material deficits;
 2. larger check-extension and quiet-check quiescence budgets;
 3. earlier ordering of checks and advanced pawns near the enemy king;
 4. legal exchange analysis that distinguishes a real material investment from an immediately recoverable trade;
-5. deterministic root selection with candidate-specific risk margins after the opponent's fully searched reply; and
+5. deterministic root selection after the opponent's fully searched reply, with compensation measured on the settled exchange position; and
 6. aversion to immediate draws and balanced major-piece simplification when an eligible live alternative exists.
 
-The ordinary root margin remains 120 centipawns. At Aggression 100, a verified pawn investment may receive about 220 centipawns, a verified piece or exchange investment about 380, and a candidate in an already worse position no more than the hard 450-centipawn ceiling. Clearly winning positions cap speculative risk near 200 centipawns. Unverified offers, unsafe kings, attacks without checking resources, and apparent sacrifices erased by a legal recapture receive no expanded margin.
+The root selector now applies one hard searched-score guard to every styled candidate. At Aggression 100 that guard is the ordinary 120-centipawn margin; verified sacrifices no longer receive the former 220/380/450-centipawn exceptions. Truncated exchanges, declined offers, unsafe kings, attacks without legal checking resources, and apparent sacrifices erased by recapture receive no sacrifice preference.
 
 The root selector never replaces a mate score with a centipawn score. Its entertainment value is not added to the UCI score, and the conventional result remains the root transposition-table value. If verification is interrupted, search keeps the completed conventional result.
 
@@ -56,9 +56,10 @@ python3 tools/run_match.py \
 python3 tools/analyze_match.py \
   --pgn artifacts/wilder-vs-previous.pgn \
   --json artifacts/wilder-vs-previous.summary.json \
-  --markdown artifacts/wilder-vs-previous.summary.md
+  --markdown artifacts/wilder-vs-previous.summary.md \
+  --min-elo-lower-bound 0
 ```
 
-Checks, captures, promotions, forcing-move rates, verified-sacrifice choices, decisiveness, and game length should be reviewed together with a fixed sample of complete games. The fixed-node sacrifice category proves only a reviewed motif choice; it does not establish that speculative sacrifices improve complete games. No Elo floor is required: reduced playing strength is an accepted tradeoff. Conversely, higher check, capture, or sacrifice counts alone are not sufficient evidence that the games are more interesting.
+Checks, captures, promotions, forcing-move rates, verified-sacrifice choices, decisiveness, and game length must be reviewed together with complete games and the same-profile strength result. Higher spectacle counts alone are insufficient, and the paired 95% Elo lower bound must exceed zero before an Elo improvement is claimed.
 
-No old-versus-new match result is recorded here. A result should only be added after the exact binaries, opening corpus, PGN, manifest, hashes, and complete analyzer output are available; placeholder or partial data must not be presented as validation.
+The completed result is recorded in [Verified aggression: style and strength result](verified-aggression-elo.md). The same-profile candidate scored 84.375% over 96 games and passed the conservative lower-bound gate while increasing all four forcing-play proxies. All sacrifice and control choices were preserved, but the frozen sacrifice hit delta was zero; broader sacrifice improvement therefore remains unconfirmed.

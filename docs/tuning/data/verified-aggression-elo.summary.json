@@ -1,0 +1,96 @@
+{
+  "average_plies": 50.15625,
+  "colors": {
+    "black": {
+      "draws": 11,
+      "losses": 2,
+      "score_percent": 84.375,
+      "wins": 35
+    },
+    "score_gap_percentage_points": 0.0,
+    "white": {
+      "draws": 15,
+      "losses": 0,
+      "score_percent": 84.375,
+      "wins": 33
+    }
+  },
+  "confidence": {
+    "elo": 292.957504,
+    "elo_ci95": [
+      105.803482,
+      null
+    ],
+    "method": "95% Hoeffding bound over color-reversed pair scores",
+    "score_percent_ci95": [
+      64.772493,
+      100.0
+    ]
+  },
+  "engines": {
+    "baseline": "Baseline-0b31c1bb-A100",
+    "candidate": "Candidate-67cc981f-A100"
+  },
+  "games": 96,
+  "gates": {
+    "elo_lower_bound": {
+      "minimum_elo": 0.0,
+      "observed_elo_lower": 105.803482,
+      "observed_score_percent_lower": 64.772493,
+      "passed": true,
+      "required_score_percent": 50.0
+    }
+  },
+  "inputs": {
+    "manifest": "same-profile-10000.manifest.json",
+    "manifest_sha256": "6248fd6917eb66201c01500ac5834bd96b509f56797c83a203169fc9589d5c1f",
+    "pgn": "same-profile-10000.pgn",
+    "pgn_sha256": "5175863f9fa2afd791c2cea8fa5cc93068e7fbe26f88236573b72c6514a38aeb"
+  },
+  "pairs": {
+    "count": 48,
+    "decisive_splits": 2,
+    "double_draws": 3,
+    "point_distribution": {
+      "1.0": 5,
+      "1.5": 20,
+      "2.0": 23
+    }
+  },
+  "result": {
+    "decisive_percent": 72.916667,
+    "draws": 26,
+    "losses": 2,
+    "score_percent": 84.375,
+    "wins": 68
+  },
+  "schema_version": 2,
+  "style": {
+    "baseline": {
+      "captures": 481,
+      "captures_per_100_moves": 19.917184,
+      "checks": 219,
+      "checks_per_100_moves": 9.068323,
+      "forcing_moves": 641,
+      "forcing_moves_per_100_moves": 26.542443,
+      "moves": 2415,
+      "promotions": 6,
+      "promotions_per_100_moves": 0.248447
+    },
+    "candidate": {
+      "captures": 728,
+      "captures_per_100_moves": 30.333333,
+      "checks": 382,
+      "checks_per_100_moves": 15.916667,
+      "forcing_moves": 991,
+      "forcing_moves_per_100_moves": 41.291667,
+      "moves": 2400,
+      "promotions": 15,
+      "promotions_per_100_moves": 0.625
+    }
+  },
+  "terminations": {
+    "adjudication": 51,
+    "unknown": 45
+  }
+}

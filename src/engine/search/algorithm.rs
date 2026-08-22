@@ -9,13 +9,14 @@ use super::transposition::{Bound, TranspositionTable};
 use super::{SearchControl, SearchInfo, SearchLimits, SearchResult, SearchScore};
 use crate::engine::Position;
 use crate::engine::evaluation::{
-    MATE_SCORE, MAX_PLY, NEG_INFINITY, POS_INFINITY, Score, evaluate, piece_value,
+    MATE_SCORE, MATE_THRESHOLD, MAX_PLY, NEG_INFINITY, POS_INFINITY, Score, evaluate, piece_value,
 };
 use crate::engine::position::repetition_key;
 
 const DEFAULT_DEPTH: u32 = 4;
 const MAX_DEPTH: u32 = 64;
 const QUIESCENCE_DEPTH: u32 = 16;
+const ASPIRATION_INITIAL: Score = 50;
 
 #[derive(Debug)]
 struct Aborted;
@@ -249,26 +250,52 @@ where
         return SearchResult::from_parts(fallback, Some(info));
     }
     let mut previous_pv = Vec::new();
+    let mut previous_score = None;
     let mut final_info = None;
     let maximum_depth = maximum_depth(limits, time_budget.is_some());
 
-    for depth in 1..=maximum_depth {
+    'iterative: for depth in 1..=maximum_depth {
         if context.should_stop() {
             break;
         }
 
-        let iteration = search_root(
-            &root_board,
-            &root_moves,
-            &mut history,
-            depth,
-            &previous_pv,
-            &mut context,
-        );
-        let Ok(iteration) = iteration else {
-            break;
+        let mut radius = ASPIRATION_INITIAL;
+        let (mut alpha, mut beta) = previous_score
+            .filter(|score: &Score| score.abs() < MATE_THRESHOLD)
+            .map_or((NEG_INFINITY, POS_INFINITY), |score| {
+                aspiration_bounds(score, radius)
+            });
+        let iteration = loop {
+            let iteration = search_root(
+                &root_board,
+                &root_moves,
+                &mut history,
+                depth,
+                (alpha, beta),
+                &previous_pv,
+                &mut context,
+            );
+            let Ok(iteration) = iteration else {
+                break 'iterative;
+            };
+
+            if iteration.score > alpha && iteration.score < beta {
+                break iteration;
+            }
+            if alpha == NEG_INFINITY && beta == POS_INFINITY {
+                break iteration;
+            }
+
+            radius = radius.saturating_mul(2);
+            if iteration.score.abs() >= MATE_THRESHOLD || radius >= POS_INFINITY {
+                alpha = NEG_INFINITY;
+                beta = POS_INFINITY;
+            } else if let Some(score) = previous_score {
+                (alpha, beta) = aspiration_bounds(score, radius);
+            }
         };
 
+        previous_score = Some(iteration.score);
         previous_pv.clear();
         previous_pv.extend_from_slice(context.pv(0));
         let pv = format_pv(&root_board, &previous_pv);
@@ -312,55 +339,87 @@ fn maximum_depth(limits: &SearchLimits, has_deadline: bool) -> u32 {
         (None, None) => DEFAULT_DEPTH,
     }
 }
+fn aspiration_bounds(center: Score, radius: Score) -> (Score, Score) {
+    (
+        center.saturating_sub(radius).max(NEG_INFINITY),
+        center.saturating_add(radius).min(POS_INFINITY),
+    )
+}
+
+fn mate_distance_bounds(ply: u32) -> (Score, Score) {
+    (-MATE_SCORE + ply as Score, MATE_SCORE - ply as Score - 1)
+}
 
 fn search_root(
     board: &Board,
     root_moves: &[Move],
     history: &mut RepetitionTracker,
     depth: u32,
+    window: (Score, Score),
     previous_pv: &[Move],
     context: &mut SearchContext<'_>,
 ) -> Result<NodeResult, Aborted> {
+    let (mut alpha, beta) = window;
     context.clear_pv(0);
+    let alpha_original = alpha;
     let hash_move = context
         .table
         .probe(board)
         .and_then(|entry| entry.best_move());
     let preferred = previous_pv.first().copied().or(hash_move);
     let moves = order_moves(board, root_moves.to_vec(), preferred, 0, &context.ordering);
-    let mut alpha = NEG_INFINITY;
-    let beta = POS_INFINITY;
     let mut best = NodeResult {
         score: NEG_INFINITY,
         path_dependent: false,
     };
 
-    for chess_move in moves {
+    for (index, chess_move) in moves.into_iter().enumerate() {
         if context.should_stop() {
             return Err(Aborted);
         }
 
         let mut child = board.clone();
         child.play_unchecked(chess_move);
-        history.push(&child);
         let expected_child_pv = if preferred == Some(chess_move) {
             previous_pv.get(1..).unwrap_or_default()
         } else {
             &[]
         };
-        let child_result = negamax(
+        history.push(&child);
+        let first_window = if index == 0 {
+            (-beta, -alpha)
+        } else {
+            (-alpha - 1, -alpha)
+        };
+        let mut child_result = negamax(
             &child,
             history,
             depth - 1,
             1,
-            -beta,
-            -alpha,
+            first_window.0,
+            first_window.1,
             expected_child_pv,
             context,
         );
         history.pop();
+        let mut score = -child_result.as_ref().map_err(|_| Aborted)?.score;
+
+        if index != 0 && score > alpha && score < beta {
+            history.push(&child);
+            child_result = negamax(
+                &child,
+                history,
+                depth - 1,
+                1,
+                -beta,
+                -alpha,
+                expected_child_pv,
+                context,
+            );
+            history.pop();
+            score = -child_result.as_ref().map_err(|_| Aborted)?.score;
+        }
         let child_result = child_result?;
-        let score = -child_result.score;
 
         if score > best.score {
             best = NodeResult {
@@ -370,15 +429,25 @@ fn search_root(
             context.update_pv(0, chess_move);
         }
         alpha = alpha.max(score);
+        if alpha >= beta {
+            break;
+        }
     }
 
     if !best.path_dependent {
+        let bound = if best.score <= alpha_original {
+            Bound::Upper
+        } else if best.score >= beta {
+            Bound::Lower
+        } else {
+            Bound::Exact
+        };
         context.table.store(
             board,
             depth,
             0,
             best.score,
-            Bound::Exact,
+            bound,
             context.pv(0).first().copied(),
         );
     }
@@ -392,7 +461,7 @@ fn negamax(
     depth: u32,
     ply: u32,
     mut alpha: Score,
-    beta: Score,
+    mut beta: Score,
     previous_pv: &[Move],
     context: &mut SearchContext<'_>,
 ) -> Result<NodeResult, Aborted> {
@@ -412,6 +481,16 @@ fn negamax(
     if ply >= MAX_PLY {
         return Ok(NodeResult {
             score: evaluate(board),
+            path_dependent: false,
+        });
+    }
+
+    let (mate_alpha, mate_beta) = mate_distance_bounds(ply);
+    alpha = alpha.max(mate_alpha);
+    beta = beta.min(mate_beta);
+    if alpha >= beta {
+        return Ok(NodeResult {
+            score: alpha,
             path_dependent: false,
         });
     }
@@ -442,28 +521,49 @@ fn negamax(
         path_dependent: false,
     };
 
-    for chess_move in moves {
+    for (index, chess_move) in moves.into_iter().enumerate() {
         let mut child = board.clone();
         child.play_unchecked(chess_move);
-        history.push(&child);
         let expected_child_pv = if preferred == Some(chess_move) {
             previous_pv.get(1..).unwrap_or_default()
         } else {
             &[]
         };
-        let child_result = negamax(
+        history.push(&child);
+        let first_window = if index == 0 {
+            (-beta, -alpha)
+        } else {
+            (-alpha - 1, -alpha)
+        };
+        let mut child_result = negamax(
             &child,
             history,
             depth - 1,
             ply + 1,
-            -beta,
-            -alpha,
+            first_window.0,
+            first_window.1,
             expected_child_pv,
             context,
         );
         history.pop();
+        let mut score = -child_result.as_ref().map_err(|_| Aborted)?.score;
+
+        if index != 0 && score > alpha && score < beta {
+            history.push(&child);
+            child_result = negamax(
+                &child,
+                history,
+                depth - 1,
+                ply + 1,
+                -beta,
+                -alpha,
+                expected_child_pv,
+                context,
+            );
+            history.pop();
+            score = -child_result.as_ref().map_err(|_| Aborted)?.score;
+        }
         let child_result = child_result?;
-        let score = -child_result.score;
 
         if score > best.score {
             best = NodeResult {
@@ -510,7 +610,7 @@ fn quiescence(
     history: &mut RepetitionTracker,
     ply: u32,
     mut alpha: Score,
-    beta: Score,
+    mut beta: Score,
     remaining: u32,
     context: &mut SearchContext<'_>,
 ) -> Result<NodeResult, Aborted> {
@@ -521,6 +621,16 @@ fn quiescence(
         return Ok(NodeResult {
             score: result.score,
             path_dependent: result.path_dependent,
+        });
+    }
+
+    let (mate_alpha, mate_beta) = mate_distance_bounds(ply);
+    alpha = alpha.max(mate_alpha);
+    beta = beta.min(mate_beta);
+    if alpha >= beta {
+        return Ok(NodeResult {
+            score: alpha,
+            path_dependent: false,
         });
     }
 
@@ -864,5 +974,17 @@ mod tests {
         );
 
         assert_eq!(ordered, vec![equal_capture, losing_capture]);
+    }
+    #[test]
+    fn aspiration_and_mate_windows_are_bounded() {
+        assert_eq!(super::aspiration_bounds(100, 50), (50, 150));
+        assert_eq!(
+            super::aspiration_bounds(super::POS_INFINITY, 50),
+            (super::POS_INFINITY - 50, super::POS_INFINITY),
+        );
+        assert_eq!(
+            super::mate_distance_bounds(7),
+            (-super::MATE_SCORE + 7, super::MATE_SCORE - 8),
+        );
     }
 }

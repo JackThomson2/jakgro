@@ -28,6 +28,11 @@ const STYLED_ROOT_BUDGET_DIVISOR: u64 = 1;
 const STYLED_ROOT_MIN_NODES: u64 = 256;
 const STYLED_ROOT_MAX_NODES: u64 = 8_192;
 const STYLED_ROOT_MAX_VERIFICATIONS: usize = 2;
+const LMR_MIN_CHILD_DEPTH: u32 = 3;
+const LMR_MIN_MOVE_INDEX: usize = 3;
+const LMR_DEEP_CHILD_DEPTH: u32 = 6;
+const LMR_DEEP_MOVE_INDEX: usize = 7;
+const LMR_HISTORY_EXEMPT: u32 = 1;
 
 fn should_poll_control(nodes: u64) -> bool {
     nodes % CONTROL_POLL_INTERVAL_NODES == 0
@@ -211,6 +216,8 @@ struct MoveMetadata {
     captured: Option<Piece>,
     gives_check: bool,
     attacking_pawn_push: bool,
+    castling: bool,
+    king_zone_move: bool,
 }
 
 impl MoveMetadata {
@@ -221,12 +228,19 @@ impl MoveMetadata {
     }
 
     fn classify_with_child(board: &Board, chess_move: Move, child: &Board) -> Self {
+        let attacker = board.piece_on(chess_move.from).unwrap_or(Piece::King);
+        let enemy_king = board.king(!board.side_to_move());
+        let king_zone_move = (chess_move.to.file() as i32 - enemy_king.file() as i32).abs() <= 1
+            && (chess_move.to.rank() as i32 - enemy_king.rank() as i32).abs() <= 1;
         Self {
             chess_move,
-            attacker: board.piece_on(chess_move.from).unwrap_or(Piece::King),
+            attacker,
             captured: captured_piece(board, chess_move),
             gives_check: !child.checkers().is_empty(),
             attacking_pawn_push: is_attacking_pawn_push(board, chess_move),
+            castling: attacker == Piece::King
+                && (chess_move.from.file() as i32 - chess_move.to.file() as i32).abs() > 1,
+            king_zone_move,
         }
     }
 
@@ -237,6 +251,37 @@ impl MoveMetadata {
     fn is_tactical(self) -> bool {
         self.chess_move.promotion.is_some() || self.captured.is_some()
     }
+}
+
+fn late_move_reduction(
+    child_depth: u32,
+    move_index: usize,
+    metadata: MoveMetadata,
+    protected: bool,
+    in_check: bool,
+    pv_node: bool,
+    history_score: u32,
+) -> u32 {
+    if child_depth < LMR_MIN_CHILD_DEPTH
+        || move_index < LMR_MIN_MOVE_INDEX
+        || !metadata.is_quiet()
+        || metadata.gives_check
+        || metadata.castling
+        || metadata.king_zone_move
+        || protected
+        || in_check
+        || pv_node
+        || history_score >= LMR_HISTORY_EXEMPT
+    {
+        return 0;
+    }
+    let reduction =
+        1 + u32::from(child_depth >= LMR_DEEP_CHILD_DEPTH && move_index >= LMR_DEEP_MOVE_INDEX);
+    reduction.min(child_depth.saturating_sub(2))
+}
+
+fn reduced_search_needs_research(reduction: u32, score: Score, alpha: Score) -> bool {
+    reduction > 0 && score > alpha
 }
 
 const HISTORY_MAX: u32 = 900_000;
@@ -1490,9 +1535,11 @@ fn negamax(
         &context.ordering,
         context.evaluation,
     );
+    let in_check = !board.checkers().is_empty();
+    let pv_node = beta.saturating_sub(alpha) > 1;
     let (child_depth, child_extensions) = next_search_depth(
         depth,
-        !board.checkers().is_empty(),
+        in_check,
         extensions_used,
         context.evaluation.max_check_extensions(),
     );
@@ -1500,6 +1547,7 @@ fn negamax(
         score: NEG_INFINITY,
         path_dependent: false,
     };
+    let mut selective_fail_low = false;
 
     for (index, metadata) in moves.into_iter().enumerate() {
         let chess_move = metadata.chess_move;
@@ -1510,6 +1558,27 @@ fn negamax(
         } else {
             &[]
         };
+        let protected = preferred == Some(chess_move)
+            || !expected_child_pv.is_empty()
+            || (context.evaluation.aggression() > 0 && metadata.attacking_pawn_push)
+            || context
+                .ordering
+                .killers(ply)
+                .into_iter()
+                .flatten()
+                .any(|killer| killer == chess_move);
+        let history_score = context
+            .ordering
+            .history_score(board.side_to_move(), chess_move);
+        let reduction = late_move_reduction(
+            child_depth,
+            index,
+            metadata,
+            protected,
+            in_check,
+            pv_node,
+            history_score,
+        );
         history.push(&child);
         let first_window = if index == 0 {
             (-beta, -alpha)
@@ -1519,7 +1588,7 @@ fn negamax(
         let mut child_result = negamax(
             &child,
             history,
-            child_depth,
+            child_depth.saturating_sub(reduction),
             ply + 1,
             child_extensions,
             first_window.0,
@@ -1529,6 +1598,25 @@ fn negamax(
         );
         history.pop();
         let mut score = -child_result.as_ref().map_err(|_| Aborted)?.score;
+
+        if reduced_search_needs_research(reduction, score, alpha) {
+            history.push(&child);
+            child_result = negamax(
+                &child,
+                history,
+                child_depth,
+                ply + 1,
+                child_extensions,
+                first_window.0,
+                first_window.1,
+                expected_child_pv,
+                context,
+            );
+            history.pop();
+            score = -child_result.as_ref().map_err(|_| Aborted)?.score;
+        } else if reduction > 0 {
+            selective_fail_low = true;
+        }
 
         if index != 0 && score > alpha && score < beta {
             history.push(&child);
@@ -1574,14 +1662,16 @@ fn negamax(
         } else {
             Bound::Exact
         };
-        context.table.store(
-            board,
-            depth,
-            ply,
-            best.score,
-            bound,
-            context.pv(ply).first().copied(),
-        );
+        if !selective_fail_low || bound == Bound::Lower {
+            context.table.store(
+                board,
+                depth,
+                ply,
+                best.score,
+                bound,
+                context.pv(ply).first().copied(),
+            );
+        }
     }
 
     Ok(best)
@@ -2021,7 +2111,7 @@ mod tests {
         MATE_SCORE, MoveOrdering, RepetitionTracker, generate_moves, order_moves, terminal_score,
     };
     use crate::engine::Position;
-    use cozy_chess::Move;
+    use cozy_chess::{Move, Piece};
 
     #[test]
     fn repetition_tracker_pushes_and_pops_in_constant_time() {
@@ -2282,6 +2372,98 @@ mod tests {
             ),
             (3, aggressive.max_check_extensions()),
         );
+    }
+
+    #[test]
+    fn late_move_reductions_exempt_tactical_and_aggressive_moves() {
+        let position = Position::default();
+        let quiet_move = find_move(&position, "a2a3");
+        let metadata = super::MoveMetadata::classify(position.board(), quiet_move);
+
+        assert_eq!(
+            super::late_move_reduction(3, 3, metadata, false, false, false, 0),
+            1,
+        );
+        assert_eq!(
+            super::late_move_reduction(6, 7, metadata, false, false, false, 0),
+            2,
+        );
+        assert_eq!(
+            super::late_move_reduction(2, 3, metadata, false, false, false, 0),
+            0,
+        );
+        assert_eq!(
+            super::late_move_reduction(3, 2, metadata, false, false, false, 0),
+            0,
+        );
+        assert_eq!(
+            super::late_move_reduction(3, 3, metadata, true, false, false, 0),
+            0,
+        );
+        assert_eq!(
+            super::late_move_reduction(3, 3, metadata, false, true, false, 0),
+            0,
+        );
+        assert_eq!(
+            super::late_move_reduction(3, 3, metadata, false, false, true, 0),
+            0,
+        );
+        assert_eq!(
+            super::late_move_reduction(
+                3,
+                3,
+                metadata,
+                false,
+                false,
+                false,
+                super::LMR_HISTORY_EXEMPT,
+            ),
+            0,
+        );
+
+        for forcing in [
+            super::MoveMetadata {
+                gives_check: true,
+                ..metadata
+            },
+            super::MoveMetadata {
+                castling: true,
+                ..metadata
+            },
+            super::MoveMetadata {
+                king_zone_move: true,
+                ..metadata
+            },
+            super::MoveMetadata {
+                captured: Some(Piece::Pawn),
+                ..metadata
+            },
+        ] {
+            assert_eq!(
+                super::late_move_reduction(6, 7, forcing, false, false, false, 0),
+                0,
+            );
+        }
+
+        let attacking_push = super::MoveMetadata {
+            attacking_pawn_push: true,
+            ..metadata
+        };
+        assert_eq!(
+            super::late_move_reduction(6, 7, attacking_push, true, false, false, 0),
+            0,
+        );
+        assert_eq!(
+            super::late_move_reduction(6, 7, attacking_push, false, false, false, 0),
+            2,
+        );
+    }
+
+    #[test]
+    fn reduced_alpha_raises_require_a_full_depth_research() {
+        assert!(super::reduced_search_needs_research(1, 11, 10));
+        assert!(!super::reduced_search_needs_research(1, 10, 10));
+        assert!(!super::reduced_search_needs_research(0, 11, 10));
     }
 
     #[test]

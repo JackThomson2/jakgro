@@ -79,16 +79,29 @@ Malformed and unknown commands do not terminate the process. With debug mode ena
 
 To use Jakgro from a chess GUI, build the release binary and configure the GUI to launch the resulting `target/release/jakgro` executable as a UCI engine.
 
+### Aggression semantics
+
+`Aggression` remains deterministic, but it now changes both what Jakgro values and how much searched score it will exchange for an interesting root move:
+
+- `0` disables style evaluation, retains the conventional forcing-search budgets, and uses the ordinary alpha-beta best move;
+- intermediate values gradually add coordinated attack terms, tactical search effort, and a nonlinear root-choice margin; and
+- `100` may choose a verified alternative up to 120 centipawns below the conventional result when that move creates substantially more king pressure, tension, material imbalance, or pawn-play complications.
+
+Mate scores always outrank centipawn style preferences, and clearly forced defenses fall outside the bounded margin. Jakgro reports the selected move's actual searched score and principal variation over UCI; it never adds the entertainment score to the reported chess score. High settings can deliberately play weaker chess, which is the intended tradeoff rather than a strength claim.
+
 ## Reproducible style and match measurement
 
 The style gate drives the public UCI interface at fixed node budgets and compares Aggression 0 and 100 against `tests/data/personality.epd`:
 
 ```sh
 cargo build --release --locked
-python3 tools/measure_style.py --engine target/release/jakgro --check
+python3 tools/measure_style.py \
+  --engine target/release/jakgro \
+  --check \
+  --summary-json artifacts/style-summary.json
 ```
 
-The command prints CSV observations containing each profile's move, score, completed depth, node count, and gate status. CI runs the same command, while `cargo test --test aggression_profile` independently checks both profiles through the engine API.
+The command prints CSV observations containing each fixture category, profile move, acceptable move set, score, completed depth, node count, and gate status. The optional JSON summary reports hit rates by category and profile. CI runs the same endpoint checks, while `cargo test --test aggression_profile` independently checks both profiles and the mandatory tactical and defensive controls through the engine API.
 
 For paired self-play, install `cutechess-cli` and run:
 
@@ -111,12 +124,13 @@ python3 tools/analyze_match.py \
   --markdown artifacts/aggression-match.summary.md
 ```
 
-The analyzer verifies the PGN hash and completed game count against the manifest, requires consecutive color-reversed opening pairs, and reports W/D/L, score, color balance, pair outcomes, terminations, average length, and an approximate pair-aware 95% score and Elo interval. The interval is descriptive rather than an SPRT result. The first reproducible Aggression 100 versus 0 baseline is recorded in [`docs/tuning/aggression-100-vs-0.md`](docs/tuning/aggression-100-vs-0.md).
+The analyzer verifies the PGN hash and completed game count against the manifest, requires consecutive color-reversed opening pairs, and reports W/D/L, score, color balance, pair outcomes, terminations, average length, SAN-derived checks, captures, promotions, forcing-move rates, and an approximate pair-aware 95% score and Elo interval. The style rates are descriptive proxies rather than move-quality judgments, and the interval is not an SPRT result. The first reproducible Aggression 100 versus 0 baseline is recorded in [`docs/tuning/aggression-100-vs-0.md`](docs/tuning/aggression-100-vs-0.md); the wilder profile's validation protocol is recorded in [`docs/tuning/wilder-aggression-profile.md`](docs/tuning/wilder-aggression-profile.md).
 
 ## Current search and protocol limitations
 
 - Only standard chess is supported; Chess960 is deferred.
-- Static evaluation tapers material, activity, mobility, bishop-pair, pawn-structure, passed-pawn, and king-shelter features between middlegame and endgame. A bounded profile adds initiative, king-zone pressure, pawn storms, favorable threats, space, passed-pawn urgency, and a small root complexity preference.
+- Static evaluation tapers material, activity, mobility, bishop-pair, pawn-structure, passed-pawn, and king-shelter features between middlegame and endgame. High aggression adds coordinated king-zone attackers, supported threats, open attacking lines, pawn breaks, and bounded compensation for material risk.
+- High aggression spends additional search effort on checks and forcing continuations, then fully verifies up to six high-interest root alternatives. This deliberately reduces conventional search depth and can select a move up to the documented root margin below the alpha-beta best score.
 - Search is single-threaded internally and uses one worker per active UCI search.
 - Every child still clones the `cozy-chess` board; there is no make/unmake layer yet. A persistent fixed-size transposition table reuses exact and bounded search results.
 - Move ordering combines hash and previous-PV moves, promotions, tactical capture values, killers, and history scores. Principal-variation search and aspiration windows reduce repeated work; null-move pruning, late-move reductions, and a make/unmake board layer are still deferred.
@@ -137,7 +151,7 @@ The analyzer verifies the PGN hash and completed game count against the manifest
 - `src/uci/search_worker.rs` isolates search threads, generation IDs, pondering, and stale-result suppression.
 - `tools/measure_style.py` reports and gates fixed-node choices across Aggression profiles.
 - `tools/run_match.py` builds deterministic paired fixed-node matches for `cutechess-cli`.
-- `tools/analyze_match.py` validates paired PGNs and reports strength, confidence, and color balance.
+- `tools/analyze_match.py` validates paired PGNs and reports strength, confidence, color balance, and descriptive forcing-play rates.
 - `src/main.rs` is a thin adapter that reserves stdout exclusively for UCI traffic.
 
 ## Milestone status

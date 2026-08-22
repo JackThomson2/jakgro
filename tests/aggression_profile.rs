@@ -9,10 +9,11 @@ const MATCH_OPENINGS: &str = include_str!("../tools/data/openings.epd");
 #[derive(Debug)]
 struct PersonalityFixture {
     id: String,
+    category: String,
     fen: String,
     nodes: u64,
-    base_move: String,
-    tuned_move: String,
+    base_moves: HashSet<String>,
+    tuned_moves: HashSet<String>,
 }
 
 fn parse_suite() -> Vec<PersonalityFixture> {
@@ -31,16 +32,17 @@ fn parse_suite() -> Vec<PersonalityFixture> {
                 .filter(|fen| !fen.is_empty())
                 .unwrap_or_else(|| panic!("personality fixture line {line_number} has no FEN"));
             let mut id = None;
+            let mut category = None;
             let mut nodes = None;
-            let mut base_move = None;
-            let mut tuned_move = None;
+            let mut base_moves = None;
+            let mut tuned_moves = None;
             for field in fields.filter(|field| !field.is_empty()) {
                 let (key, value) = field.split_once(' ').unwrap_or_else(|| {
                     panic!("personality fixture line {line_number} has malformed field `{field}`")
                 });
                 match key {
                     "id" => id = Some(value.to_owned()),
-                    "category" => {}
+                    "category" => category = Some(value.to_owned()),
                     "nodes" => {
                         nodes = Some(value.parse::<u64>().unwrap_or_else(|_| {
                             panic!(
@@ -48,8 +50,8 @@ fn parse_suite() -> Vec<PersonalityFixture> {
                             )
                         }));
                     }
-                    "bm0" => base_move = Some(value.to_owned()),
-                    "bm100" => tuned_move = Some(value.to_owned()),
+                    "bm0" => base_moves = Some(parse_move_set(value, line_number, key)),
+                    "bm100" => tuned_moves = Some(parse_move_set(value, line_number, key)),
                     _ => panic!(
                         "personality fixture line {line_number} has unsupported field `{key}`"
                     ),
@@ -58,19 +60,36 @@ fn parse_suite() -> Vec<PersonalityFixture> {
             Some(PersonalityFixture {
                 id: id
                     .unwrap_or_else(|| panic!("personality fixture line {line_number} has no id")),
+                category: category.unwrap_or_else(|| {
+                    panic!("personality fixture line {line_number} has no category")
+                }),
                 fen: fen.to_owned(),
                 nodes: nodes.unwrap_or_else(|| {
                     panic!("personality fixture line {line_number} has no node budget")
                 }),
-                base_move: base_move.unwrap_or_else(|| {
+                base_moves: base_moves.unwrap_or_else(|| {
                     panic!("personality fixture line {line_number} has no bm0 move")
                 }),
-                tuned_move: tuned_move.unwrap_or_else(|| {
+                tuned_moves: tuned_moves.unwrap_or_else(|| {
                     panic!("personality fixture line {line_number} has no bm100 move")
                 }),
             })
         })
         .collect()
+}
+
+fn parse_move_set(value: &str, line_number: usize, key: &str) -> HashSet<String> {
+    let moves = value
+        .split(',')
+        .map(str::trim)
+        .filter(|chess_move| !chess_move.is_empty())
+        .map(str::to_owned)
+        .collect::<HashSet<_>>();
+    assert!(
+        !moves.is_empty(),
+        "personality fixture line {line_number} has no moves in {key}"
+    );
+    moves
 }
 
 fn search_fixture(fixture: &PersonalityFixture, aggression: u8) -> (String, SearchScore) {
@@ -108,23 +127,35 @@ fn tuned_aggression_profile_is_reproducible_and_distinct() {
     let fixtures = parse_suite();
     assert!(!fixtures.is_empty());
     let mut changed = 0;
+    let mut safety_controls = 0;
 
     for fixture in &fixtures {
         let (base_move, _) = search_fixture(fixture, 0);
         let (tuned_move, _) = search_fixture(fixture, 100);
 
-        assert_eq!(base_move, fixture.base_move, "{} base profile", fixture.id);
-        assert_eq!(
-            tuned_move, fixture.tuned_move,
-            "{} tuned profile",
-            fixture.id
+        assert!(
+            fixture.base_moves.contains(&base_move),
+            "{} base profile chose {base_move}; expected one of {:?}",
+            fixture.id,
+            fixture.base_moves,
+        );
+        assert!(
+            fixture.tuned_moves.contains(&tuned_move),
+            "{} tuned profile chose {tuned_move}; expected one of {:?}",
+            fixture.id,
+            fixture.tuned_moves,
         );
         changed += usize::from(base_move != tuned_move);
+        if fixture.category == "safety" {
+            safety_controls += 1;
+            assert_eq!(base_move, tuned_move, "{} safety control", fixture.id);
+        }
     }
 
-    assert_eq!(changed, 3);
-    assert_eq!(fixtures.len() - changed, 3);
+    assert!(changed >= fixtures.len() / 2);
+    assert!(safety_controls >= 5);
 }
+
 #[test]
 fn deterministic_match_openings_are_valid() {
     let mut positions = HashSet::new();

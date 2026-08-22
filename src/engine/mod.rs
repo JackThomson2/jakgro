@@ -11,7 +11,9 @@ mod search;
 
 pub use position::{Position, PositionError};
 pub(crate) use search::TimeBudget;
-pub use search::{SearchControl, SearchInfo, SearchLimits, SearchResult, SearchScore};
+pub use search::{
+    SearchControl, SearchInfo, SearchLimits, SearchResult, SearchScore, SearchTelemetry,
+};
 
 /// Default transposition-table allocation in mebibytes.
 pub const DEFAULT_HASH_MIB: usize = search::DEFAULT_HASH_MIB;

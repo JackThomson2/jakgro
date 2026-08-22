@@ -8,7 +8,7 @@ use super::control::DeadlineWindow;
 use super::see::static_exchange_eval_after;
 use super::time::allocate_time;
 use super::transposition::{Bound, TranspositionTable};
-use super::{SearchControl, SearchInfo, SearchLimits, SearchResult, SearchScore};
+use super::{SearchControl, SearchInfo, SearchLimits, SearchResult, SearchScore, SearchTelemetry};
 use crate::engine::Position;
 use crate::engine::evaluation::{
     EvaluationConfig, MATE_SCORE, MATE_THRESHOLD, MAX_PLY, NEG_INFINITY, POS_INFINITY, Score,
@@ -34,6 +34,8 @@ const LMR_MIN_MOVE_INDEX: usize = 3;
 const LMR_DEEP_CHILD_DEPTH: u32 = 6;
 const LMR_DEEP_MOVE_INDEX: usize = 7;
 const LMR_HISTORY_EXEMPT: u32 = 1;
+const NULL_MOVE_MIN_DEPTH: u32 = 4;
+const NULL_MOVE_RULE_FIFTY_LIMIT: u8 = 99;
 
 fn should_poll_control(nodes: u64) -> bool {
     nodes % CONTROL_POLL_INTERVAL_NODES == 0
@@ -376,10 +378,112 @@ impl MoveOrdering {
 fn history_index(color: Color, chess_move: Move) -> usize {
     ((color as usize * 64 + chess_move.from as usize) * 64) + chess_move.to as usize
 }
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+enum SearchMode {
+    #[default]
+    Normal,
+    NullProbe,
+    Verification,
+}
+
+impl SearchMode {
+    const fn tracks_legal_draws(self) -> bool {
+        !matches!(self, Self::NullProbe)
+    }
+
+    const fn reads_tt(self) -> bool {
+        !matches!(self, Self::NullProbe)
+    }
+
+    const fn writes_tt(self) -> bool {
+        !matches!(self, Self::NullProbe)
+    }
+
+    const fn updates_ordering(self) -> bool {
+        matches!(self, Self::Normal)
+    }
+
+    const fn allows_null(self) -> bool {
+        matches!(self, Self::Normal)
+    }
+}
+
+const fn null_search_modes() -> (SearchMode, SearchMode) {
+    (SearchMode::NullProbe, SearchMode::Verification)
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum NullMoveBlock {
+    Mode,
+    Depth,
+    PvNode,
+    InCheck,
+    MateWindow,
+    RuleFifty,
+    Material,
+    StaticEvaluation,
+    Unavailable,
+}
+
+fn null_move_block(
+    board: &Board,
+    depth: u32,
+    beta: Score,
+    pv_node: bool,
+    static_evaluation: Score,
+    mode: SearchMode,
+) -> Option<NullMoveBlock> {
+    if !mode.allows_null() {
+        return Some(NullMoveBlock::Mode);
+    }
+    if depth < NULL_MOVE_MIN_DEPTH {
+        return Some(NullMoveBlock::Depth);
+    }
+    if pv_node {
+        return Some(NullMoveBlock::PvNode);
+    }
+    if !board.checkers().is_empty() {
+        return Some(NullMoveBlock::InCheck);
+    }
+    if beta.abs() >= MATE_THRESHOLD {
+        return Some(NullMoveBlock::MateWindow);
+    }
+    if board.halfmove_clock() >= NULL_MOVE_RULE_FIFTY_LIMIT {
+        return Some(NullMoveBlock::RuleFifty);
+    }
+    if !null_move_material_ok(board) {
+        return Some(NullMoveBlock::Material);
+    }
+    if static_evaluation < beta {
+        return Some(NullMoveBlock::StaticEvaluation);
+    }
+    if board.null_move().is_none() {
+        return Some(NullMoveBlock::Unavailable);
+    }
+    None
+}
+
+fn null_move_material_ok(board: &Board) -> bool {
+    let color = board.side_to_move();
+    let heavy =
+        board.colored_pieces(color, Piece::Rook) | board.colored_pieces(color, Piece::Queen);
+    let minors = (board.colored_pieces(color, Piece::Knight)
+        | board.colored_pieces(color, Piece::Bishop))
+    .len();
+    !heavy.is_empty() || minors >= 2
+}
+
+fn null_move_reduction(depth: u32) -> u32 {
+    (2 + depth / 4).min(depth.saturating_sub(1))
+}
+
 struct SearchContext<'a> {
     control: &'a SearchControl,
     table: &'a mut TranspositionTable,
     evaluation: EvaluationConfig,
+    mode: SearchMode,
+    telemetry: SearchTelemetry,
+    null_move_enabled: bool,
     node_limit: Option<u64>,
     nodes: u64,
     started: Instant,
@@ -395,6 +499,11 @@ impl SearchContext<'_> {
             return Err(Aborted);
         }
         self.nodes += 1;
+        match self.mode {
+            SearchMode::NullProbe => self.telemetry.null_probe_nodes += 1,
+            SearchMode::Verification => self.telemetry.null_verification_nodes += 1,
+            SearchMode::Normal => {}
+        }
         Ok(())
     }
 
@@ -479,7 +588,7 @@ where
         .first()
         .map(|(move_text, _)| move_text.clone());
     if labeled_moves.is_empty() {
-        return SearchResult::from_parts(None, None);
+        return SearchResult::from_parts(None, None, SearchTelemetry::default());
     }
     let root_moves = labeled_moves
         .into_iter()
@@ -490,6 +599,9 @@ where
         control,
         table,
         evaluation,
+        mode: SearchMode::Normal,
+        telemetry: SearchTelemetry::default(),
+        null_move_enabled: limits.null_move.unwrap_or(false),
         node_limit: limits.nodes,
         nodes: 0,
         started: Instant::now(),
@@ -510,7 +622,7 @@ where
             vec![fallback.clone().expect("root moves are non-empty")],
         );
         report(info.clone());
-        return SearchResult::from_parts(fallback, Some(info));
+        return SearchResult::from_parts(fallback, Some(info), context.telemetry);
     }
     let mut previous_pv = Vec::new();
     let mut previous_score = None;
@@ -597,7 +709,7 @@ where
         .as_ref()
         .and_then(|info| info.pv().first().cloned())
         .or(fallback);
-    SearchResult::from_parts(best_move, final_info)
+    SearchResult::from_parts(best_move, final_info, context.telemetry)
 }
 
 fn maximum_depth(limits: &SearchLimits, has_deadline: bool) -> u32 {
@@ -1462,7 +1574,7 @@ fn search_root_conventional(
         }
     }
 
-    if !best.path_dependent {
+    if context.mode.writes_tt() && !best.path_dependent {
         let bound = if best.score <= alpha_original {
             Bound::Upper
         } else if best.score >= beta {
@@ -1510,9 +1622,11 @@ fn negamax(
 
     context.clear_pv(ply);
     context.visit_node()?;
-    if draw_state_pending(board, history) || ply >= MAX_PLY {
+    if draw_state_pending(board, history, context.mode) || ply >= MAX_PLY {
         let moves = generate_moves(board);
-        if let Some(result) = terminal_score(board, history, ply, moves.is_empty()) {
+        if let Some(result) =
+            terminal_score_for_mode(board, history, ply, moves.is_empty(), context.mode)
+        {
             return Ok(NodeResult {
                 score: result.score,
                 path_dependent: result.path_dependent,
@@ -1527,13 +1641,17 @@ fn negamax(
     let (mate_alpha, mate_beta) = mate_distance_bounds(ply);
     alpha = alpha.max(mate_alpha);
     beta = beta.min(mate_beta);
-    let hash_entry = context.table.probe(board);
+    let hash_entry = context
+        .mode
+        .reads_tt()
+        .then(|| context.table.probe(board))
+        .flatten();
     let hash_move = hash_entry
         .and_then(|entry| entry.best_move())
         .filter(|&chess_move| board.is_legal(chess_move));
     if alpha >= beta {
         if hash_move.is_none()
-            && let Some(result) = terminal_without_legal_moves(board, history, ply)
+            && let Some(result) = terminal_without_legal_moves(board, history, ply, context.mode)
         {
             return Ok(result);
         }
@@ -1553,7 +1671,8 @@ fn negamax(
         };
         if cutoff {
             if hash_move.is_none()
-                && let Some(result) = terminal_without_legal_moves(board, history, ply)
+                && let Some(result) =
+                    terminal_without_legal_moves(board, history, ply, context.mode)
             {
                 return Ok(result);
             }
@@ -1565,9 +1684,20 @@ fn negamax(
         }
     }
 
+    if context.null_move_enabled {
+        let (probe_mode, verification_mode) = null_search_modes();
+        debug_assert!(!probe_mode.tracks_legal_draws());
+        debug_assert!(verification_mode.tracks_legal_draws());
+        let static_evaluation = evaluate_with_config(board, context.evaluation);
+        let pv_node = beta.saturating_sub(alpha) > 1;
+        if null_move_block(board, depth, beta, pv_node, static_evaluation, context.mode).is_none() {
+            let _ = null_move_reduction(depth);
+        }
+    }
+
     let moves = generate_moves(board);
     if moves.is_empty() {
-        let result = terminal_score(board, history, ply, true)
+        let result = terminal_score_for_mode(board, history, ply, true, context.mode)
             .expect("a position without legal moves is terminal");
         return Ok(NodeResult {
             score: result.score,
@@ -1693,7 +1823,7 @@ fn negamax(
         }
         alpha = alpha.max(score);
         if alpha >= beta {
-            if metadata.is_quiet() {
+            if context.mode.updates_ordering() && metadata.is_quiet() {
                 context
                     .ordering
                     .record_quiet_cutoff(board.side_to_move(), chess_move, ply, depth);
@@ -1702,7 +1832,7 @@ fn negamax(
         }
     }
 
-    if !best.path_dependent {
+    if context.mode.writes_tt() && !best.path_dependent {
         let bound = if best.score <= alpha_original {
             Bound::Upper
         } else if best.score >= beta {
@@ -1740,7 +1870,9 @@ fn quiescence(
     context.clear_pv(ply);
     context.visit_node()?;
     let moves = generate_moves(board);
-    if let Some(result) = terminal_score(board, history, ply, moves.is_empty()) {
+    if let Some(result) =
+        terminal_score_for_mode(board, history, ply, moves.is_empty(), context.mode)
+    {
         return Ok(NodeResult {
             score: result.score,
             path_dependent: result.path_dependent,
@@ -1858,6 +1990,16 @@ fn terminal_score(
     ply: u32,
     no_legal_moves: bool,
 ) -> Option<TerminalResult> {
+    terminal_score_for_mode(board, history, ply, no_legal_moves, SearchMode::Normal)
+}
+
+fn terminal_score_for_mode(
+    board: &Board,
+    history: &RepetitionTracker,
+    ply: u32,
+    no_legal_moves: bool,
+    mode: SearchMode,
+) -> Option<TerminalResult> {
     if no_legal_moves {
         return Some(TerminalResult {
             score: if board.checkers().is_empty() {
@@ -1868,34 +2010,35 @@ fn terminal_score(
             path_dependent: false,
         });
     }
-
-    if history.occurrences(board) >= 3 {
+    if mode.tracks_legal_draws() && history.occurrences(board) >= 3 {
         return Some(TerminalResult {
             score: 0,
             path_dependent: true,
         });
     }
-    if board.halfmove_clock() >= 100 || is_dead_material(board) {
+    if (mode.tracks_legal_draws() && board.halfmove_clock() >= 100) || is_dead_material(board) {
         return Some(TerminalResult {
             score: 0,
             path_dependent: false,
         });
     }
-
     None
 }
 
-fn draw_state_pending(board: &Board, history: &RepetitionTracker) -> bool {
-    history.occurrences(board) >= 3 || board.halfmove_clock() >= 100 || is_dead_material(board)
+fn draw_state_pending(board: &Board, history: &RepetitionTracker, mode: SearchMode) -> bool {
+    (mode.tracks_legal_draws()
+        && (history.occurrences(board) >= 3 || board.halfmove_clock() >= 100))
+        || is_dead_material(board)
 }
 
 fn terminal_without_legal_moves(
     board: &Board,
     history: &RepetitionTracker,
     ply: u32,
+    mode: SearchMode,
 ) -> Option<NodeResult> {
     let moves = generate_moves(board);
-    terminal_score(board, history, ply, moves.is_empty()).map(|result| NodeResult {
+    terminal_score_for_mode(board, history, ply, moves.is_empty(), mode).map(|result| NodeResult {
         score: result.score,
         path_dependent: result.path_dependent,
     })
@@ -2555,6 +2698,133 @@ mod tests {
             ),
             (3, aggressive.max_check_extensions()),
         );
+    }
+
+    #[test]
+    fn null_move_policy_rejects_unsafe_search_states() {
+        let rich = Position::default();
+        let rich_static =
+            super::evaluate_with_config(rich.board(), super::EvaluationConfig::new(0));
+        assert_eq!(
+            super::null_move_block(
+                rich.board(),
+                4,
+                rich_static,
+                false,
+                rich_static,
+                super::SearchMode::Normal,
+            ),
+            None,
+        );
+        assert_eq!(
+            super::null_move_block(
+                rich.board(),
+                4,
+                rich_static,
+                false,
+                rich_static,
+                super::SearchMode::NullProbe,
+            ),
+            Some(super::NullMoveBlock::Mode),
+        );
+        assert_eq!(
+            super::null_move_block(
+                rich.board(),
+                3,
+                rich_static,
+                false,
+                rich_static,
+                super::SearchMode::Normal,
+            ),
+            Some(super::NullMoveBlock::Depth),
+        );
+        assert_eq!(
+            super::null_move_block(
+                rich.board(),
+                4,
+                rich_static,
+                true,
+                rich_static,
+                super::SearchMode::Normal,
+            ),
+            Some(super::NullMoveBlock::PvNode),
+        );
+        let checked = Position::from_fen("4k3/8/8/8/8/8/4r3/3QK3 w - - 0 1").unwrap();
+        assert_eq!(
+            super::null_move_block(checked.board(), 4, 0, false, 0, super::SearchMode::Normal,),
+            Some(super::NullMoveBlock::InCheck),
+        );
+        let halfmove = Position::from_fen("4k3/8/8/8/8/8/Q7/4K3 w - - 99 50").unwrap();
+        assert_eq!(
+            super::null_move_block(
+                halfmove.board(),
+                4,
+                0,
+                false,
+                100,
+                super::SearchMode::Normal,
+            ),
+            Some(super::NullMoveBlock::RuleFifty),
+        );
+        let pawns = Position::from_fen("8/8/8/8/8/2k5/2p5/2K5 w - - 0 1").unwrap();
+        assert_eq!(
+            super::null_move_block(pawns.board(), 4, 0, false, 100, super::SearchMode::Normal,),
+            Some(super::NullMoveBlock::Material),
+        );
+    }
+
+    #[test]
+    fn null_move_reduction_is_bounded_by_remaining_depth() {
+        assert_eq!(super::null_move_reduction(1), 0);
+        assert_eq!(super::null_move_reduction(4), 3);
+        assert_eq!(super::null_move_reduction(8), 4);
+        assert_eq!(super::null_move_reduction(20), 7);
+    }
+
+    #[test]
+    fn synthetic_null_mode_ignores_legal_history_draws_only() {
+        let position = Position::from_fen("4k3/8/8/8/8/8/Q7/4K3 w - - 100 50").unwrap();
+        let mut tracker = RepetitionTracker::new(position.hash_history());
+        tracker.push(position.board());
+        tracker.push(position.board());
+
+        assert!(
+            super::terminal_score_for_mode(
+                position.board(),
+                &tracker,
+                0,
+                false,
+                super::SearchMode::Normal,
+            )
+            .is_some()
+        );
+        assert!(
+            super::terminal_score_for_mode(
+                position.board(),
+                &tracker,
+                0,
+                false,
+                super::SearchMode::Verification,
+            )
+            .is_some()
+        );
+        assert!(
+            super::terminal_score_for_mode(
+                position.board(),
+                &tracker,
+                0,
+                false,
+                super::SearchMode::NullProbe,
+            )
+            .is_none()
+        );
+        assert!(!super::SearchMode::NullProbe.reads_tt());
+        assert!(!super::SearchMode::NullProbe.writes_tt());
+        assert!(!super::SearchMode::NullProbe.updates_ordering());
+        assert!(!super::SearchMode::NullProbe.allows_null());
+        assert!(super::SearchMode::Verification.tracks_legal_draws());
+        assert!(super::SearchMode::Verification.writes_tt());
+        assert!(!super::SearchMode::Verification.allows_null());
     }
 
     #[test]

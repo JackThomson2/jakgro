@@ -319,6 +319,7 @@ mod tests {
                 nodes: Some(900),
                 mate: Some(3),
                 move_time: Some(Duration::from_millis(50)),
+                null_move: None,
                 infinite: true,
             })
         );

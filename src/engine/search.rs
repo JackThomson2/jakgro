@@ -39,6 +39,8 @@ pub struct SearchLimits {
     pub mate: Option<u32>,
     /// Exact time allocated to this move.
     pub move_time: Option<Duration>,
+    /// Overrides verified null-move pruning for controlled comparisons.
+    pub null_move: Option<bool>,
     /// Whether to search until explicitly stopped.
     pub infinite: bool,
 }
@@ -127,16 +129,64 @@ impl SearchInfo {
     }
 }
 
+/// Verified null-move work performed by a search.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SearchTelemetry {
+    pub(super) null_move_attempts: u64,
+    pub(super) null_move_fail_highs: u64,
+    pub(super) null_move_verifications: u64,
+    pub(super) null_move_cutoffs: u64,
+    pub(super) null_probe_nodes: u64,
+    pub(super) null_verification_nodes: u64,
+}
+
+impl SearchTelemetry {
+    #[must_use]
+    pub const fn null_move_attempts(self) -> u64 {
+        self.null_move_attempts
+    }
+
+    #[must_use]
+    pub const fn null_move_fail_highs(self) -> u64 {
+        self.null_move_fail_highs
+    }
+
+    #[must_use]
+    pub const fn null_move_verifications(self) -> u64 {
+        self.null_move_verifications
+    }
+
+    #[must_use]
+    pub const fn null_move_cutoffs(self) -> u64 {
+        self.null_move_cutoffs
+    }
+
+    #[must_use]
+    pub const fn null_probe_nodes(self) -> u64 {
+        self.null_probe_nodes
+    }
+
+    #[must_use]
+    pub const fn null_verification_nodes(self) -> u64 {
+        self.null_verification_nodes
+    }
+}
+
 /// The principal result produced by a search.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SearchResult {
     best_move: Option<String>,
     ponder: Option<String>,
     info: Option<SearchInfo>,
+    telemetry: SearchTelemetry,
 }
 
 impl SearchResult {
-    fn from_parts(best_move: Option<String>, info: Option<SearchInfo>) -> Self {
+    fn from_parts(
+        best_move: Option<String>,
+        info: Option<SearchInfo>,
+        telemetry: SearchTelemetry,
+    ) -> Self {
         let ponder = info
             .as_ref()
             .and_then(|search_info| search_info.pv().get(1).cloned());
@@ -144,6 +194,7 @@ impl SearchResult {
             best_move,
             ponder,
             info,
+            telemetry,
         }
     }
 
@@ -163,6 +214,11 @@ impl SearchResult {
     #[must_use]
     pub fn info(&self) -> Option<&SearchInfo> {
         self.info.as_ref()
+    }
+
+    #[must_use]
+    pub const fn telemetry(&self) -> SearchTelemetry {
+        self.telemetry
     }
 }
 

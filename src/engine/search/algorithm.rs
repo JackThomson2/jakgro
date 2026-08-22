@@ -33,7 +33,6 @@ const LMR_MIN_CHILD_DEPTH: u32 = 3;
 const LMR_MIN_MOVE_INDEX: usize = 3;
 const LMR_DEEP_CHILD_DEPTH: u32 = 6;
 const LMR_DEEP_MOVE_INDEX: usize = 7;
-const LMR_HISTORY_EXEMPT: u32 = 1;
 const NULL_MOVE_MIN_DEPTH: u32 = 4;
 const NULL_MOVE_RULE_FIFTY_LIMIT: u8 = 99;
 
@@ -279,7 +278,7 @@ fn late_move_reduction(
     protected: bool,
     in_check: bool,
     pv_node: bool,
-    history_score: u32,
+    history_score: i32,
 ) -> u32 {
     if child_depth < LMR_MIN_CHILD_DEPTH
         || move_index < LMR_MIN_MOVE_INDEX
@@ -290,12 +289,16 @@ fn late_move_reduction(
         || protected
         || in_check
         || pv_node
-        || history_score >= LMR_HISTORY_EXEMPT
     {
         return 0;
     }
-    let reduction =
+    let mut reduction =
         1 + u32::from(child_depth >= LMR_DEEP_CHILD_DEPTH && move_index >= LMR_DEEP_MOVE_INDEX);
+    if history_score >= LMR_HISTORY_THRESHOLD {
+        reduction = reduction.saturating_sub(1);
+    } else if history_score <= -LMR_HISTORY_THRESHOLD {
+        reduction = reduction.saturating_add(1);
+    }
     reduction.min(child_depth.saturating_sub(2))
 }
 
@@ -333,12 +336,14 @@ fn should_prune_quiescence_capture(
         && material_ceiling <= alpha
 }
 
-const HISTORY_MAX: u32 = 900_000;
+const HISTORY_MAX: i32 = 16_384;
+const HISTORY_BONUS_SCALE: u32 = 64;
+const LMR_HISTORY_THRESHOLD: i32 = HISTORY_MAX / 3;
 
 #[derive(Debug)]
 struct MoveOrdering {
     killers: Vec<[Option<Move>; 2]>,
-    history: Vec<u32>,
+    history: Vec<i32>,
 }
 
 impl MoveOrdering {
@@ -353,31 +358,49 @@ impl MoveOrdering {
         self.killers.get(ply as usize).copied().unwrap_or([None; 2])
     }
 
-    fn history_score(&self, color: Color, chess_move: Move) -> u32 {
+    fn history_score(&self, color: Color, chess_move: Move) -> i32 {
         self.history[history_index(color, chess_move)]
     }
 
-    fn record_quiet_cutoff(&mut self, color: Color, chess_move: Move, ply: u32, depth: u32) {
+    fn record_quiet_cutoff(
+        &mut self,
+        color: Color,
+        chess_move: Move,
+        failed_quiets: &[MoveMetadata],
+        ply: u32,
+        depth: u32,
+    ) {
         let killers = &mut self.killers[ply.min(MAX_PLY) as usize];
         if killers[0] != Some(chess_move) {
             killers[1] = killers[0];
             killers[0] = Some(chess_move);
         }
 
-        let bonus = depth.saturating_mul(depth).min(HISTORY_MAX / 4);
-        let index = history_index(color, chess_move);
-        if self.history[index] > HISTORY_MAX - bonus {
-            for score in &mut self.history {
-                *score /= 2;
-            }
+        let bonus = history_bonus(depth);
+        self.update_history(color, chess_move, bonus);
+        for failed in failed_quiets.iter().filter(|metadata| metadata.is_quiet()) {
+            self.update_history(color, failed.chess_move, -bonus);
         }
-        self.history[index] = self.history[index].saturating_add(bonus).min(HISTORY_MAX);
+    }
+
+    fn update_history(&mut self, color: Color, chess_move: Move, bonus: i32) {
+        let score = &mut self.history[history_index(color, chess_move)];
+        let bounded_bonus = bonus.clamp(-HISTORY_MAX, HISTORY_MAX);
+        let gravity = *score * bounded_bonus.abs() / HISTORY_MAX;
+        *score = (*score + bounded_bonus - gravity).clamp(-HISTORY_MAX, HISTORY_MAX);
     }
 }
 
 fn history_index(color: Color, chess_move: Move) -> usize {
     ((color as usize * 64 + chess_move.from as usize) * 64) + chess_move.to as usize
 }
+fn history_bonus(depth: u32) -> i32 {
+    depth
+        .saturating_mul(depth)
+        .saturating_mul(HISTORY_BONUS_SCALE)
+        .min((HISTORY_MAX / 2) as u32) as i32
+}
+
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 enum SearchMode {
     #[default]
@@ -1801,7 +1824,7 @@ fn negamax(
     };
     let mut selective_fail_low = false;
 
-    for (index, metadata) in moves.into_iter().enumerate() {
+    for (index, metadata) in moves.iter().copied().enumerate() {
         let chess_move = metadata.chess_move;
         let mut child = board.clone();
         child.play_unchecked(chess_move);
@@ -1898,9 +1921,13 @@ fn negamax(
         alpha = alpha.max(score);
         if alpha >= beta {
             if context.mode.updates_ordering() && metadata.is_quiet() {
-                context
-                    .ordering
-                    .record_quiet_cutoff(board.side_to_move(), chess_move, ply, depth);
+                context.ordering.record_quiet_cutoff(
+                    board.side_to_move(),
+                    chess_move,
+                    &moves[..index],
+                    ply,
+                    depth,
+                );
             }
             break;
         }
@@ -2522,12 +2549,20 @@ mod tests {
     }
 
     #[test]
-    fn quiet_cutoffs_install_bounded_killer_and_history_scores() {
+    fn quiet_cutoffs_reward_winners_and_penalize_failed_quiets() {
         let position = Position::default();
-        let chess_move = find_move(&position, "d2d4");
+        let winner = find_move(&position, "d2d4");
+        let failed = find_move(&position, "e2e4");
+        let failed_metadata = super::MoveMetadata::classify(position.board(), failed);
         let mut ordering = MoveOrdering::new();
 
-        ordering.record_quiet_cutoff(position.board().side_to_move(), chess_move, 3, 8);
+        ordering.record_quiet_cutoff(
+            position.board().side_to_move(),
+            winner,
+            &[failed_metadata],
+            3,
+            8,
+        );
         let ordered = order_moves(
             position.board(),
             position.search_moves(),
@@ -2536,10 +2571,23 @@ mod tests {
             &ordering,
         );
 
-        assert_eq!(ordered[0], chess_move);
+        assert_eq!(ordered[0], winner);
+        assert!(ordering.history_score(position.board().side_to_move(), winner) > 0);
+        assert!(ordering.history_score(position.board().side_to_move(), failed) < 0);
+        for _ in 0..100 {
+            ordering.record_quiet_cutoff(
+                position.board().side_to_move(),
+                winner,
+                &[failed_metadata],
+                3,
+                64,
+            );
+        }
         assert!(
-            ordering.history_score(position.board().side_to_move(), chess_move)
-                <= super::HISTORY_MAX
+            ordering.history_score(position.board().side_to_move(), winner) <= super::HISTORY_MAX
+        );
+        assert!(
+            ordering.history_score(position.board().side_to_move(), failed) >= -super::HISTORY_MAX
         );
     }
 
@@ -2902,7 +2950,7 @@ mod tests {
     }
 
     #[test]
-    fn late_move_reductions_exempt_tactical_and_aggressive_moves() {
+    fn late_move_reductions_protect_tactics_and_use_bounded_history() {
         let position = Position::default();
         let quiet_move = find_move(&position, "a2a3");
         let metadata = super::MoveMetadata::classify(position.board(), quiet_move);
@@ -2914,6 +2962,30 @@ mod tests {
         assert_eq!(
             super::late_move_reduction(6, 7, metadata, false, false, false, 0),
             2,
+        );
+        assert_eq!(
+            super::late_move_reduction(
+                6,
+                7,
+                metadata,
+                false,
+                false,
+                false,
+                super::LMR_HISTORY_THRESHOLD,
+            ),
+            1,
+        );
+        assert_eq!(
+            super::late_move_reduction(
+                6,
+                7,
+                metadata,
+                false,
+                false,
+                false,
+                -super::LMR_HISTORY_THRESHOLD,
+            ),
+            3,
         );
         assert_eq!(
             super::late_move_reduction(2, 3, metadata, false, false, false, 0),
@@ -2933,18 +3005,6 @@ mod tests {
         );
         assert_eq!(
             super::late_move_reduction(3, 3, metadata, false, false, true, 0),
-            0,
-        );
-        assert_eq!(
-            super::late_move_reduction(
-                3,
-                3,
-                metadata,
-                false,
-                false,
-                false,
-                super::LMR_HISTORY_EXEMPT,
-            ),
             0,
         );
 

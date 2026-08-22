@@ -12,7 +12,7 @@ use crate::engine::Position;
 use crate::engine::evaluation::{
     EvaluationConfig, MATE_SCORE, MATE_THRESHOLD, MAX_PLY, NEG_INFINITY, POS_INFINITY, Score,
     TacticalSnapshot, evaluate_with_config, exchange_risk_on, material_balance_after_exchange,
-    piece_value, root_complexity_bonus, tactical_snapshot,
+    piece_value, root_complexity_bonus, style_snapshot, tactical_snapshot,
 };
 use crate::engine::position::repetition_key;
 
@@ -83,7 +83,7 @@ impl IterationStability {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct RepetitionTracker {
     keys: Vec<u64>,
     counts: HashMap<u64, usize>,
@@ -165,6 +165,15 @@ struct SacrificeProfile {
     verified_reply: bool,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+enum RootLineOutcome {
+    #[default]
+    Live,
+    ImmediateDraw,
+    RepetitionDraw,
+    SearchedDraw,
+}
+
 #[derive(Debug)]
 struct RootCandidate {
     chess_move: Move,
@@ -173,6 +182,8 @@ struct RootCandidate {
     interest: i64,
     pv: Vec<Move>,
     sacrifice: SacrificeProfile,
+    outcome: RootLineOutcome,
+    sterile_simplification: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -557,6 +568,15 @@ fn search_root_styled(
     let mut objective_child = board.clone();
     objective_child.play_unchecked(objective_move);
     let objective_sacrifice = sacrifice_profile(board, &objective_child, mover, &objective_pv);
+    let objective_outcome = root_line_outcome(
+        board,
+        history,
+        &objective_pv,
+        objective.score,
+        objective.path_dependent,
+    );
+    let objective_sterile =
+        sterile_simplification(board, &objective_pv, mover, objective_sacrifice.attack_gain);
     let mut candidates = vec![RootCandidate {
         chess_move: objective_move,
         score: objective.score,
@@ -564,6 +584,8 @@ fn search_root_styled(
         interest: root_interest(board, &objective_child, objective_move, context.evaluation),
         pv: objective_pv,
         sacrifice: objective_sacrifice,
+        outcome: objective_outcome,
+        sterile_simplification: objective_sterile,
     }];
     let seeds = root_moves
         .iter()
@@ -653,6 +675,8 @@ fn search_root_styled(
             }
         }
 
+        let outcome = root_line_outcome(board, history, &pv, score, path_dependent);
+        let sterile = sterile_simplification(board, &pv, mover, sacrifice.attack_gain);
         candidates.push(RootCandidate {
             chess_move: seed.chess_move,
             score,
@@ -660,6 +684,8 @@ fn search_root_styled(
             interest: seed.interest,
             pv,
             sacrifice,
+            outcome,
+            sterile_simplification: sterile,
         });
     }
 
@@ -688,8 +714,8 @@ fn choose_styled_candidate(
             continue;
         }
         let current = &candidates[selected];
-        let candidate_interest = selection_interest(candidate);
-        let current_interest = selection_interest(current);
+        let candidate_interest = selection_interest(candidate, evaluation);
+        let current_interest = selection_interest(current, evaluation);
         if candidate_interest > current_interest
             || (candidate_interest == current_interest && candidate.score > current.score)
             || (candidate_interest == current_interest
@@ -742,19 +768,87 @@ fn sacrifice_material(sacrifice: &SacrificeProfile) -> Score {
     }
 }
 
-fn selection_interest(candidate: &RootCandidate) -> i64 {
-    if !is_compensated_sacrifice(&candidate.sacrifice) {
-        return candidate.interest;
+fn selection_interest(candidate: &RootCandidate, evaluation: EvaluationConfig) -> i64 {
+    let mut interest = candidate.interest;
+    if is_compensated_sacrifice(&candidate.sacrifice) {
+        interest += 1_000_000
+            + i64::from(sacrifice_material(&candidate.sacrifice)) * 100
+            + i64::from(candidate.sacrifice.compensation_signals) * 10_000
+            + i64::from(candidate.sacrifice.legal_checks) * 2_000
+            + i64::from(candidate.sacrifice.attack_gain.max(0)) * 100
+            + i64::from(candidate.sacrifice.queens_retained) * 5_000
+            + (20_i64 - candidate.sacrifice.reply_count.min(20) as i64) * 500
+            - i64::from(candidate.sacrifice.king_danger_delta.max(0)) * 100;
     }
-    candidate.interest
-        + 1_000_000
-        + i64::from(sacrifice_material(&candidate.sacrifice)) * 100
-        + i64::from(candidate.sacrifice.compensation_signals) * 10_000
-        + i64::from(candidate.sacrifice.legal_checks) * 2_000
-        + i64::from(candidate.sacrifice.attack_gain.max(0)) * 100
-        + i64::from(candidate.sacrifice.queens_retained) * 5_000
-        + (20_i64 - candidate.sacrifice.reply_count.min(20) as i64) * 500
-        - i64::from(candidate.sacrifice.king_danger_delta.max(0)) * 100
+    if evaluation.aggression() >= 75 {
+        if candidate.outcome != RootLineOutcome::Live {
+            interest -= i64::from(evaluation.aggression()) * 20_000;
+        }
+        if candidate.sterile_simplification {
+            interest -= i64::from(evaluation.aggression()) * 2_000;
+        }
+    }
+    interest
+}
+
+fn root_line_outcome(
+    root: &Board,
+    history: &RepetitionTracker,
+    pv: &[Move],
+    score: Score,
+    path_dependent: bool,
+) -> RootLineOutcome {
+    if score == 0 && path_dependent {
+        return RootLineOutcome::RepetitionDraw;
+    }
+    let mut board = root.clone();
+    let mut tracker = history.clone();
+    for (index, &chess_move) in pv.iter().enumerate() {
+        if !board.is_legal(chess_move) {
+            return RootLineOutcome::Live;
+        }
+        board.play_unchecked(chess_move);
+        tracker.push(&board);
+        let no_legal_moves = generate_moves(&board).is_empty();
+        if let Some(result) = terminal_score(&board, &tracker, index as u32 + 1, no_legal_moves)
+            && result.score == 0
+        {
+            return if result.path_dependent {
+                RootLineOutcome::RepetitionDraw
+            } else if index == 0 {
+                RootLineOutcome::ImmediateDraw
+            } else {
+                RootLineOutcome::SearchedDraw
+            };
+        }
+    }
+    RootLineOutcome::Live
+}
+
+fn sterile_simplification(root: &Board, pv: &[Move], mover: Color, attack_gain: Score) -> bool {
+    if pv.len() < 2 || attack_gain > 0 {
+        return false;
+    }
+    let before = style_snapshot(root, mover);
+    if before.material_balance.abs() > 200 {
+        return false;
+    }
+    let mut board = root.clone();
+    for &chess_move in pv.iter().take(2) {
+        if !board.is_legal(chess_move) {
+            return false;
+        }
+        board.play_unchecked(chess_move);
+    }
+    let after = style_snapshot(&board, mover);
+    let equal_trade = (after.material_balance - before.material_balance).abs() <= 50;
+    let removed_major_material = total_major_material(root) - total_major_material(&board);
+    equal_trade && removed_major_material >= 1_000
+}
+
+fn total_major_material(board: &Board) -> Score {
+    piece_value(Piece::Queen) * board.pieces(Piece::Queen).len() as Score
+        + piece_value(Piece::Rook) * board.pieces(Piece::Rook).len() as Score
 }
 
 fn sacrifice_hint_score(
@@ -1943,6 +2037,8 @@ mod tests {
                 interest: 10,
                 pv: vec![conventional_move],
                 sacrifice: super::SacrificeProfile::default(),
+                outcome: super::RootLineOutcome::Live,
+                sterile_simplification: false,
             },
             super::RootCandidate {
                 chess_move: exciting_move,
@@ -1951,22 +2047,24 @@ mod tests {
                 interest: 100,
                 pv: vec![exciting_move],
                 sacrifice: super::SacrificeProfile::default(),
+                outcome: super::RootLineOutcome::Live,
+                sterile_simplification: false,
             },
         ];
 
         assert_eq!(
-            super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100),),
+            super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
             1
         );
         candidates[1].score = -71;
         assert_eq!(
-            super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100),),
+            super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
             0
         );
         candidates[0].score = super::MATE_SCORE - 1;
         candidates[1].score = super::MATE_SCORE - 2;
         assert_eq!(
-            super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100),),
+            super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
             0
         );
     }
@@ -2054,6 +2152,8 @@ mod tests {
                 interest: 10,
                 pv: vec![conventional_move],
                 sacrifice: super::SacrificeProfile::default(),
+                outcome: super::RootLineOutcome::Live,
+                sterile_simplification: false,
             },
             super::RootCandidate {
                 chess_move: sacrifice_move,
@@ -2062,16 +2162,18 @@ mod tests {
                 interest: 0,
                 pv: vec![sacrifice_move],
                 sacrifice,
+                outcome: super::RootLineOutcome::Live,
+                sterile_simplification: false,
             },
         ];
 
         assert_eq!(
-            super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100),),
+            super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
             1,
         );
         candidates[1].sacrifice.king_danger_delta = 21;
         assert_eq!(
-            super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100),),
+            super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
             0,
         );
     }
@@ -2097,6 +2199,85 @@ mod tests {
 
         assert_eq!(selected.len(), 6);
         assert!(selected.iter().any(|seed| seed.chess_move == hinted));
+    }
+
+    #[test]
+    fn high_aggression_prefers_a_live_candidate_inside_the_margin() {
+        let position = Position::default();
+        let draw_move = find_move(&position, "e2e4");
+        let live_move = find_move(&position, "g1f3");
+        let mut candidates = vec![
+            super::RootCandidate {
+                chess_move: draw_move,
+                score: 0,
+                path_dependent: false,
+                interest: 1_000,
+                pv: vec![draw_move],
+                sacrifice: super::SacrificeProfile::default(),
+                outcome: super::RootLineOutcome::ImmediateDraw,
+                sterile_simplification: false,
+            },
+            super::RootCandidate {
+                chess_move: live_move,
+                score: -100,
+                path_dependent: false,
+                interest: 0,
+                pv: vec![live_move],
+                sacrifice: super::SacrificeProfile::default(),
+                outcome: super::RootLineOutcome::Live,
+                sterile_simplification: false,
+            },
+        ];
+
+        assert_eq!(
+            super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
+            1,
+        );
+        candidates[1].score = -121;
+        assert_eq!(
+            super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
+            0,
+        );
+    }
+
+    #[test]
+    fn root_line_outcome_recognizes_rule_fifty_and_repetition_draws() {
+        let position = Position::from_fen("6k1/5ppp/8/7Q/2B5/8/5PPP/6K1 w - - 99 1").unwrap();
+        let chess_move = find_move(&position, "h5g5");
+        let history = super::RepetitionTracker::new(position.hash_history());
+
+        assert_eq!(
+            super::root_line_outcome(position.board(), &history, &[chess_move], 0, false),
+            super::RootLineOutcome::ImmediateDraw,
+        );
+        assert_eq!(
+            super::root_line_outcome(position.board(), &history, &[], 0, true),
+            super::RootLineOutcome::RepetitionDraw,
+        );
+    }
+
+    #[test]
+    fn equal_major_exchange_is_sterile_but_a_clean_win_is_not() {
+        let position = Position::from_fen("4k3/3q4/8/8/8/8/3Q4/4K3 w - - 0 1").unwrap();
+        let trade: Move = "d2d7".parse().unwrap();
+        let recapture: Move = "e8d7".parse().unwrap();
+        assert!(position.board().is_legal(trade));
+        let mut child = position.board().clone();
+        child.play_unchecked(trade);
+        assert!(child.is_legal(recapture));
+
+        assert!(super::sterile_simplification(
+            position.board(),
+            &[trade, recapture],
+            position.board().side_to_move(),
+            0,
+        ));
+        assert!(!super::sterile_simplification(
+            position.board(),
+            &[trade],
+            position.board().side_to_move(),
+            0,
+        ));
     }
 
     #[test]

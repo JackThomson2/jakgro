@@ -17,6 +17,8 @@ const DEFAULT_DEPTH: u32 = 4;
 const MAX_DEPTH: u32 = 64;
 const QUIESCENCE_DEPTH: u32 = 16;
 const ASPIRATION_INITIAL: Score = 50;
+const MAX_CHECK_EXTENSIONS: u8 = 2;
+const QUIESCENCE_CHECK_BUDGET: u8 = 1;
 
 #[derive(Debug)]
 struct Aborted;
@@ -349,6 +351,13 @@ fn aspiration_bounds(center: Score, radius: Score) -> (Score, Score) {
 fn mate_distance_bounds(ply: u32) -> (Score, Score) {
     (-MATE_SCORE + ply as Score, MATE_SCORE - ply as Score - 1)
 }
+fn next_search_depth(depth: u32, in_check: bool, extensions_used: u8) -> (u32, u8) {
+    let extend = in_check && extensions_used < MAX_CHECK_EXTENSIONS;
+    (
+        depth.saturating_sub(1) + u32::from(extend),
+        extensions_used + u8::from(extend),
+    )
+}
 
 fn search_root(
     board: &Board,
@@ -368,6 +377,7 @@ fn search_root(
         .and_then(|entry| entry.best_move());
     let preferred = previous_pv.first().copied().or(hash_move);
     let moves = order_moves(board, root_moves.to_vec(), preferred, 0, &context.ordering);
+    let (child_depth, child_extensions) = next_search_depth(depth, !board.checkers().is_empty(), 0);
     let mut best = NodeResult {
         score: NEG_INFINITY,
         path_dependent: false,
@@ -394,8 +404,9 @@ fn search_root(
         let mut child_result = negamax(
             &child,
             history,
-            depth - 1,
+            child_depth,
             1,
+            child_extensions,
             first_window.0,
             first_window.1,
             expected_child_pv,
@@ -409,8 +420,9 @@ fn search_root(
             child_result = negamax(
                 &child,
                 history,
-                depth - 1,
+                child_depth,
                 1,
+                child_extensions,
                 -beta,
                 -alpha,
                 expected_child_pv,
@@ -460,13 +472,23 @@ fn negamax(
     history: &mut RepetitionTracker,
     depth: u32,
     ply: u32,
+    extensions_used: u8,
     mut alpha: Score,
     mut beta: Score,
     previous_pv: &[Move],
     context: &mut SearchContext<'_>,
 ) -> Result<NodeResult, Aborted> {
     if depth == 0 {
-        return quiescence(board, history, ply, alpha, beta, QUIESCENCE_DEPTH, context);
+        return quiescence(
+            board,
+            history,
+            ply,
+            alpha,
+            beta,
+            QUIESCENCE_DEPTH,
+            QUIESCENCE_CHECK_BUDGET,
+            context,
+        );
     }
 
     context.clear_pv(ply);
@@ -516,6 +538,8 @@ fn negamax(
     let hash_move = hash_entry.and_then(|entry| entry.best_move());
     let preferred = previous_pv.first().copied().or(hash_move);
     let moves = order_moves(board, moves, preferred, ply, &context.ordering);
+    let (child_depth, child_extensions) =
+        next_search_depth(depth, !board.checkers().is_empty(), extensions_used);
     let mut best = NodeResult {
         score: NEG_INFINITY,
         path_dependent: false,
@@ -538,8 +562,9 @@ fn negamax(
         let mut child_result = negamax(
             &child,
             history,
-            depth - 1,
+            child_depth,
             ply + 1,
+            child_extensions,
             first_window.0,
             first_window.1,
             expected_child_pv,
@@ -553,8 +578,9 @@ fn negamax(
             child_result = negamax(
                 &child,
                 history,
-                depth - 1,
+                child_depth,
                 ply + 1,
+                child_extensions,
                 -beta,
                 -alpha,
                 expected_child_pv,
@@ -612,6 +638,7 @@ fn quiescence(
     mut alpha: Score,
     mut beta: Score,
     remaining: u32,
+    check_budget: u8,
     context: &mut SearchContext<'_>,
 ) -> Result<NodeResult, Aborted> {
     context.clear_pv(ply);
@@ -652,11 +679,20 @@ fn quiescence(
             return Ok(best);
         }
         alpha = alpha.max(stand_pat);
-        moves.retain(|&chess_move| is_tactical(board, chess_move));
+        moves.retain(|&chess_move| {
+            is_tactical(board, chess_move)
+                || (check_budget > 0
+                    && is_quiet(board, chess_move)
+                    && gives_check(board, chess_move))
+        });
     }
     moves = order_moves(board, moves, None, ply, &context.ordering);
 
     for chess_move in moves {
+        let uses_quiet_check = !in_check
+            && check_budget > 0
+            && is_quiet(board, chess_move)
+            && gives_check(board, chess_move);
         let mut child = board.clone();
         child.play_unchecked(chess_move);
         history.push(&child);
@@ -667,6 +703,7 @@ fn quiescence(
             -beta,
             -alpha,
             remaining.saturating_sub(1),
+            check_budget.saturating_sub(u8::from(uses_quiet_check)),
             context,
         );
         history.pop();
@@ -818,6 +855,11 @@ fn ordering_piece_value(piece: Piece) -> Score {
 
 fn is_quiet(board: &Board, chess_move: Move) -> bool {
     chess_move.promotion.is_none() && captured_piece(board, chess_move).is_none()
+}
+fn gives_check(board: &Board, chess_move: Move) -> bool {
+    let mut child = board.clone();
+    child.play_unchecked(chess_move);
+    !child.checkers().is_empty()
 }
 fn is_tactical(board: &Board, chess_move: Move) -> bool {
     chess_move.promotion.is_some() || captured_piece(board, chess_move).is_some()
@@ -986,5 +1028,24 @@ mod tests {
             super::mate_distance_bounds(7),
             (-super::MATE_SCORE + 7, super::MATE_SCORE - 8),
         );
+    }
+    #[test]
+    fn check_extensions_are_capped_per_line() {
+        assert_eq!(super::next_search_depth(4, false, 0), (3, 0));
+        assert_eq!(super::next_search_depth(4, true, 0), (4, 1));
+        assert_eq!(
+            super::next_search_depth(4, true, super::MAX_CHECK_EXTENSIONS),
+            (3, super::MAX_CHECK_EXTENSIONS),
+        );
+    }
+
+    #[test]
+    fn quiet_checks_are_recognized_without_being_tactical_captures() {
+        let position = Position::from_fen("7k/8/8/8/8/8/4Q3/4K3 w - - 0 1").unwrap();
+        let quiet_check = find_move(&position, "e2e8");
+
+        assert!(super::is_quiet(position.board(), quiet_check));
+        assert!(super::gives_check(position.board(), quiet_check));
+        assert!(!super::is_tactical(position.board(), quiet_check));
     }
 }

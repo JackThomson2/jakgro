@@ -503,10 +503,7 @@ def markdown(summary: dict[str, Any]) -> str:
             f"- PGN SHA-256: `{summary['inputs']['pgn_sha256']}`",
             f"- Manifest SHA-256: `{summary['inputs']['manifest_sha256']}`",
             "",
-            (
-                "The confidence interval is an approximate normal interval over paired opening "
-                "scores, not an SPRT result."
-            ),
+            f"Confidence method: {confidence['method']}. This is not an SPRT result.",
             "",
         ]
     )

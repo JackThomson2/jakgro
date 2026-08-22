@@ -87,6 +87,12 @@ class AnalyzeMatchTests(unittest.TestCase):
             self.assertAlmostEqual(summary["confidence"]["elo"], 88.7395, places=3)
             self.assertEqual(summary["average_plies"], 55.0)
             self.assertIn("W/D/L: 2/1/1", analyze_match.markdown(summary))
+            rendered = analyze_match.markdown(summary)
+            self.assertIn(
+                "Confidence method: 95% Hoeffding bound over color-reversed pair scores.",
+                rendered,
+            )
+            self.assertNotIn("normal interval", rendered)
 
     def test_manifest_hash_and_pairing_are_enforced(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

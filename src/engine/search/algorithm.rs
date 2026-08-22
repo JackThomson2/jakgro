@@ -204,6 +204,41 @@ struct ProbedCandidate {
     child_pv: Vec<Move>,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct MoveMetadata {
+    chess_move: Move,
+    attacker: Piece,
+    captured: Option<Piece>,
+    gives_check: bool,
+    attacking_pawn_push: bool,
+}
+
+impl MoveMetadata {
+    fn classify(board: &Board, chess_move: Move) -> Self {
+        let mut child = board.clone();
+        child.play_unchecked(chess_move);
+        Self::classify_with_child(board, chess_move, &child)
+    }
+
+    fn classify_with_child(board: &Board, chess_move: Move, child: &Board) -> Self {
+        Self {
+            chess_move,
+            attacker: board.piece_on(chess_move.from).unwrap_or(Piece::King),
+            captured: captured_piece(board, chess_move),
+            gives_check: !child.checkers().is_empty(),
+            attacking_pawn_push: is_attacking_pawn_push(board, chess_move),
+        }
+    }
+
+    fn is_quiet(self) -> bool {
+        self.chess_move.promotion.is_none() && self.captured.is_none()
+    }
+
+    fn is_tactical(self) -> bool {
+        self.chess_move.promotion.is_some() || self.captured.is_some()
+    }
+}
+
 const HISTORY_MAX: u32 = 900_000;
 
 #[derive(Debug)]
@@ -590,11 +625,18 @@ fn search_root_styled(
     );
     let objective_sterile =
         sterile_simplification(board, &objective_pv, mover, objective_sacrifice.attack_gain);
+    let objective_metadata =
+        MoveMetadata::classify_with_child(board, objective_move, &objective_child);
     let mut candidates = vec![RootCandidate {
         chess_move: objective_move,
         score: objective.score,
         path_dependent: objective.path_dependent,
-        interest: root_interest(board, &objective_child, objective_move, context.evaluation),
+        interest: root_interest(
+            board,
+            &objective_child,
+            objective_metadata,
+            context.evaluation,
+        ),
         pv: objective_pv.clone(),
         sacrifice: objective_sacrifice,
         outcome: objective_outcome,
@@ -611,15 +653,12 @@ fn search_root_styled(
         }
         let mut child = board.clone();
         child.play_unchecked(chess_move);
-        let interest = root_interest(board, &child, chess_move, context.evaluation);
+        let metadata = MoveMetadata::classify_with_child(board, chess_move, &child);
+        let interest = root_interest(board, &child, metadata, context.evaluation);
         let immediate = tactical_snapshot(&child, mover);
         let offered_cp = exchange_risk_on(&child, mover, chess_move.to);
-        let sacrifice_hint = sacrifice_hint_score(
-            &root_snapshot,
-            &immediate,
-            offered_cp,
-            gives_check(board, chess_move),
-        );
+        let sacrifice_hint =
+            sacrifice_hint_score(&root_snapshot, &immediate, offered_cp, metadata.gives_check);
         seeds.push(CandidateSeed {
             chess_move,
             interest,
@@ -1378,14 +1417,14 @@ fn negamax(
 
     context.clear_pv(ply);
     context.visit_node()?;
-    let moves = generate_moves(board);
-    if let Some(result) = terminal_score(board, history, ply, moves.is_empty()) {
-        return Ok(NodeResult {
-            score: result.score,
-            path_dependent: result.path_dependent,
-        });
-    }
-    if ply >= MAX_PLY {
+    if draw_state_pending(board, history) || ply >= MAX_PLY {
+        let moves = generate_moves(board);
+        if let Some(result) = terminal_score(board, history, ply, moves.is_empty()) {
+            return Ok(NodeResult {
+                score: result.score,
+                path_dependent: result.path_dependent,
+            });
+        }
         return Ok(NodeResult {
             score: evaluate_with_config(board, context.evaluation),
             path_dependent: false,
@@ -1395,7 +1434,16 @@ fn negamax(
     let (mate_alpha, mate_beta) = mate_distance_bounds(ply);
     alpha = alpha.max(mate_alpha);
     beta = beta.min(mate_beta);
+    let hash_entry = context.table.probe(board);
+    let hash_move = hash_entry
+        .and_then(|entry| entry.best_move())
+        .filter(|&chess_move| board.is_legal(chess_move));
     if alpha >= beta {
+        if hash_move.is_none()
+            && let Some(result) = terminal_without_legal_moves(board, history, ply)
+        {
+            return Ok(result);
+        }
         return Ok(NodeResult {
             score: alpha,
             path_dependent: false,
@@ -1403,7 +1451,6 @@ fn negamax(
     }
 
     let alpha_original = alpha;
-    let hash_entry = context.table.probe(board);
     if let Some(entry) = hash_entry.filter(|entry| entry.depth() >= depth) {
         let score = entry.score_at_ply(ply);
         let cutoff = match entry.bound() {
@@ -1412,6 +1459,11 @@ fn negamax(
             Bound::Upper => score <= alpha,
         };
         if cutoff {
+            if hash_move.is_none()
+                && let Some(result) = terminal_without_legal_moves(board, history, ply)
+            {
+                return Ok(result);
+            }
             context.write_hash_pv(board, depth, ply);
             return Ok(NodeResult {
                 score,
@@ -1420,9 +1472,17 @@ fn negamax(
         }
     }
 
-    let hash_move = hash_entry.and_then(|entry| entry.best_move());
+    let moves = generate_moves(board);
+    if moves.is_empty() {
+        let result = terminal_score(board, history, ply, true)
+            .expect("a position without legal moves is terminal");
+        return Ok(NodeResult {
+            score: result.score,
+            path_dependent: result.path_dependent,
+        });
+    }
     let preferred = previous_pv.first().copied().or(hash_move);
-    let moves = order_moves_with_evaluation(
+    let moves = order_move_metadata(
         board,
         moves,
         preferred,
@@ -1441,7 +1501,8 @@ fn negamax(
         path_dependent: false,
     };
 
-    for (index, chess_move) in moves.into_iter().enumerate() {
+    for (index, metadata) in moves.into_iter().enumerate() {
+        let chess_move = metadata.chess_move;
         let mut child = board.clone();
         child.play_unchecked(chess_move);
         let expected_child_pv = if preferred == Some(chess_move) {
@@ -1496,7 +1557,7 @@ fn negamax(
         }
         alpha = alpha.max(score);
         if alpha >= beta {
-            if is_quiet(board, chess_move) {
+            if metadata.is_quiet() {
                 context
                     .ordering
                     .record_quiet_cutoff(board.side_to_move(), chess_move, ply, depth);
@@ -1539,7 +1600,7 @@ fn quiescence(
 ) -> Result<NodeResult, Aborted> {
     context.clear_pv(ply);
     context.visit_node()?;
-    let mut moves = generate_moves(board);
+    let moves = generate_moves(board);
     if let Some(result) = terminal_score(board, history, ply, moves.is_empty()) {
         return Ok(NodeResult {
             score: result.score,
@@ -1558,31 +1619,38 @@ fn quiescence(
     }
 
     let in_check = !board.checkers().is_empty();
-    let stand_pat = evaluate_with_config(board, context.evaluation);
     if (remaining == 0 && !in_check) || ply >= MAX_PLY {
         return Ok(NodeResult {
-            score: stand_pat,
+            score: evaluate_with_config(board, context.evaluation),
             path_dependent: false,
         });
     }
 
+    let stand_pat = if in_check {
+        None
+    } else {
+        Some(evaluate_with_config(board, context.evaluation))
+    };
     let mut best = NodeResult {
-        score: if in_check { NEG_INFINITY } else { stand_pat },
+        score: stand_pat.unwrap_or(NEG_INFINITY),
         path_dependent: false,
     };
-    if !in_check {
+    if let Some(stand_pat) = stand_pat {
         if stand_pat >= beta {
             return Ok(best);
         }
         alpha = alpha.max(stand_pat);
-        moves.retain(|&chess_move| {
-            is_tactical(board, chess_move)
-                || (check_budget > 0
-                    && is_quiet(board, chess_move)
-                    && gives_check(board, chess_move))
-        });
     }
-    moves = order_moves_with_evaluation(
+    let moves = moves
+        .into_iter()
+        .map(|chess_move| MoveMetadata::classify(board, chess_move))
+        .filter(|metadata| {
+            in_check
+                || metadata.is_tactical()
+                || (check_budget > 0 && metadata.is_quiet() && metadata.gives_check)
+        })
+        .collect::<Vec<_>>();
+    let moves = order_classified_moves(
         board,
         moves,
         None,
@@ -1591,11 +1659,10 @@ fn quiescence(
         context.evaluation,
     );
 
-    for chess_move in moves {
-        let uses_quiet_check = !in_check
-            && check_budget > 0
-            && is_quiet(board, chess_move)
-            && gives_check(board, chess_move);
+    for metadata in moves {
+        let chess_move = metadata.chess_move;
+        let uses_quiet_check = !in_check && metadata.is_quiet() && metadata.gives_check;
+        let next_check_budget = check_budget.saturating_sub(u8::from(uses_quiet_check));
         let mut child = board.clone();
         child.play_unchecked(chess_move);
         history.push(&child);
@@ -1606,7 +1673,7 @@ fn quiescence(
             -beta,
             -alpha,
             remaining.saturating_sub(1),
-            check_budget.saturating_sub(u8::from(uses_quiet_check)),
+            next_check_budget,
             context,
         );
         history.pop();
@@ -1662,6 +1729,22 @@ fn terminal_score(
     None
 }
 
+fn draw_state_pending(board: &Board, history: &RepetitionTracker) -> bool {
+    history.occurrences(board) >= 3 || board.halfmove_clock() >= 100 || is_dead_material(board)
+}
+
+fn terminal_without_legal_moves(
+    board: &Board,
+    history: &RepetitionTracker,
+    ply: u32,
+) -> Option<NodeResult> {
+    let moves = generate_moves(board);
+    terminal_score(board, history, ply, moves.is_empty()).map(|result| NodeResult {
+        score: result.score,
+        path_dependent: result.path_dependent,
+    })
+}
+
 fn is_dead_material(board: &Board) -> bool {
     if !board.pieces(Piece::Pawn).is_empty()
         || !board.pieces(Piece::Rook).is_empty()
@@ -1715,22 +1798,48 @@ fn order_moves_with_evaluation(
     ordering: &MoveOrdering,
     evaluation: EvaluationConfig,
 ) -> Vec<Move> {
+    order_move_metadata(board, moves, preferred, ply, ordering, evaluation)
+        .into_iter()
+        .map(|metadata| metadata.chess_move)
+        .collect()
+}
+
+fn order_move_metadata(
+    board: &Board,
+    moves: Vec<Move>,
+    preferred: Option<Move>,
+    ply: u32,
+    ordering: &MoveOrdering,
+    evaluation: EvaluationConfig,
+) -> Vec<MoveMetadata> {
+    let metadata = moves
+        .into_iter()
+        .map(|chess_move| MoveMetadata::classify(board, chess_move))
+        .collect();
+    order_classified_moves(board, metadata, preferred, ply, ordering, evaluation)
+}
+
+fn order_classified_moves(
+    board: &Board,
+    moves: Vec<MoveMetadata>,
+    preferred: Option<Move>,
+    ply: u32,
+    ordering: &MoveOrdering,
+    evaluation: EvaluationConfig,
+) -> Vec<MoveMetadata> {
     let mut ranked = moves
         .into_iter()
-        .map(|chess_move| {
-            let score = move_order_score(board, chess_move, preferred, ply, ordering, evaluation);
-            (chess_move, score)
+        .map(|metadata| {
+            let score = move_order_score(board, metadata, preferred, ply, ordering, evaluation);
+            (metadata, score)
         })
         .collect::<Vec<_>>();
     ranked.sort_unstable_by(|(left, left_score), (right, right_score)| {
         right_score
             .cmp(left_score)
-            .then_with(|| move_key(*left).cmp(&move_key(*right)))
+            .then_with(|| move_key(left.chess_move).cmp(&move_key(right.chess_move)))
     });
-    ranked
-        .into_iter()
-        .map(|(chess_move, _)| chess_move)
-        .collect()
+    ranked.into_iter().map(|(metadata, _)| metadata).collect()
 }
 fn order_root_moves(
     board: &Board,
@@ -1748,32 +1857,35 @@ fn order_root_moves(
         .map(|chess_move| {
             let mut child = board.clone();
             child.play_unchecked(chess_move);
+            let metadata = MoveMetadata::classify_with_child(board, chess_move, &child);
+            let order_score = move_order_score(board, metadata, preferred, 0, ordering, evaluation);
             let complexity = root_complexity_bonus(&child, mover, evaluation);
-            (chess_move, complexity)
+            (metadata, order_score, complexity)
         })
         .collect::<Vec<_>>();
-    ranked.sort_unstable_by(|(left, left_complexity), (right, right_complexity)| {
-        move_order_score(board, *right, preferred, 0, ordering, evaluation)
-            .cmp(&move_order_score(
-                board, *left, preferred, 0, ordering, evaluation,
-            ))
-            .then_with(|| right_complexity.cmp(left_complexity))
-            .then_with(|| move_key(*left).cmp(&move_key(*right)))
-    });
+    ranked.sort_unstable_by(
+        |(left, left_score, left_complexity), (right, right_score, right_complexity)| {
+            right_score
+                .cmp(left_score)
+                .then_with(|| right_complexity.cmp(left_complexity))
+                .then_with(|| move_key(left.chess_move).cmp(&move_key(right.chess_move)))
+        },
+    );
     ranked
         .into_iter()
-        .map(|(chess_move, _)| chess_move)
+        .map(|(metadata, _, _)| metadata.chess_move)
         .collect()
 }
 
 fn move_order_score(
     board: &Board,
-    chess_move: Move,
+    metadata: MoveMetadata,
     preferred: Option<Move>,
     ply: u32,
     ordering: &MoveOrdering,
     evaluation: EvaluationConfig,
 ) -> i64 {
+    let chess_move = metadata.chess_move;
     if preferred == Some(chess_move) {
         return 6_000_000;
     }
@@ -1782,10 +1894,9 @@ fn move_order_score(
         return 5_000_000 + i64::from(piece_value(promotion)) * 32;
     }
 
-    if let Some(captured) = captured_piece(board, chess_move) {
-        let attacker = board.piece_on(chess_move.from).unwrap_or(Piece::King);
+    if let Some(captured) = metadata.captured {
         let captured_value = ordering_piece_value(captured);
-        let attacker_value = ordering_piece_value(attacker);
+        let attacker_value = ordering_piece_value(metadata.attacker);
         let exchange = i64::from(captured_value) * 32 - i64::from(attacker_value);
         return if captured_value >= attacker_value {
             4_000_000 + exchange
@@ -1795,7 +1906,7 @@ fn move_order_score(
     }
 
     let history = i64::from(ordering.history_score(board.side_to_move(), chess_move));
-    let forcing = forcing_order_bonus(board, chess_move, evaluation);
+    let forcing = forcing_order_bonus(metadata, evaluation);
     if forcing > 0 {
         return 2_000_000 + history + forcing;
     }
@@ -1814,19 +1925,20 @@ fn move_order_score(
 fn root_interest(
     board: &Board,
     child: &Board,
-    chess_move: Move,
+    metadata: MoveMetadata,
     evaluation: EvaluationConfig,
 ) -> i64 {
+    let chess_move = metadata.chess_move;
     let mover = board.side_to_move();
     let mut interest = i64::from(root_complexity_bonus(child, mover, evaluation)) * 10;
-    interest += i64::from(gives_check(board, chess_move)) * 120;
-    interest += i64::from(is_attacking_pawn_push(board, chess_move)) * 40;
+    interest += i64::from(metadata.gives_check) * 120;
+    interest += i64::from(metadata.attacking_pawn_push) * 40;
     interest += chess_move
         .promotion
         .map_or(0, |piece| i64::from(piece_value(piece)) / 5);
     interest += i64::from(child.pieces(Piece::Queen).len()) * 20;
     interest += i64::from(total_non_pawn_material(child)) / 100;
-    interest += i64::from(captured_piece(board, chess_move).is_none()) * 15;
+    interest += i64::from(metadata.captured.is_none()) * 15;
     interest
 }
 
@@ -1837,15 +1949,15 @@ fn total_non_pawn_material(board: &Board) -> Score {
         .sum()
 }
 
-fn forcing_order_bonus(board: &Board, chess_move: Move, evaluation: EvaluationConfig) -> i64 {
+fn forcing_order_bonus(metadata: MoveMetadata, evaluation: EvaluationConfig) -> i64 {
     let aggression = i64::from(evaluation.aggression());
     if aggression == 0 {
         return 0;
     }
-    if gives_check(board, chess_move) {
+    if metadata.gives_check {
         return 800_000 + aggression * 3_000;
     }
-    if is_attacking_pawn_push(board, chess_move) {
+    if metadata.attacking_pawn_push {
         return aggression * 1_500;
     }
     0
@@ -1877,18 +1989,6 @@ fn ordering_piece_value(piece: Piece) -> Score {
     } else {
         piece_value(piece)
     }
-}
-
-fn is_quiet(board: &Board, chess_move: Move) -> bool {
-    chess_move.promotion.is_none() && captured_piece(board, chess_move).is_none()
-}
-fn gives_check(board: &Board, chess_move: Move) -> bool {
-    let mut child = board.clone();
-    child.play_unchecked(chess_move);
-    !child.checkers().is_empty()
-}
-fn is_tactical(board: &Board, chess_move: Move) -> bool {
-    chess_move.promotion.is_some() || captured_piece(board, chess_move).is_some()
 }
 
 fn captured_piece(board: &Board, chess_move: Move) -> Option<Piece> {
@@ -2011,7 +2111,9 @@ mod tests {
         let position = Position::from_fen("6k1/5ppp/8/7Q/2B5/8/5PPP/6K1 w - - 0 1").unwrap();
         let quiet_moves = generate_moves(position.board())
             .into_iter()
-            .filter(|&chess_move| super::is_quiet(position.board(), chess_move))
+            .filter(|&chess_move| {
+                super::MoveMetadata::classify(position.board(), chess_move).is_quiet()
+            })
             .collect::<Vec<_>>();
         let config = super::EvaluationConfig::default();
         let complexity = |chess_move| {
@@ -2193,9 +2295,10 @@ mod tests {
             &MoveOrdering::new(),
             super::EvaluationConfig::new(100),
         );
+        let first = super::MoveMetadata::classify(position.board(), ordered[0]);
 
-        assert!(super::gives_check(position.board(), ordered[0]));
-        assert!(super::is_quiet(position.board(), ordered[0]));
+        assert!(first.gives_check);
+        assert!(first.is_quiet());
     }
 
     #[test]
@@ -2613,9 +2716,10 @@ mod tests {
     fn quiet_checks_are_recognized_without_being_tactical_captures() {
         let position = Position::from_fen("7k/8/8/8/8/8/4Q3/4K3 w - - 0 1").unwrap();
         let quiet_check = find_move(&position, "e2e8");
+        let metadata = super::MoveMetadata::classify(position.board(), quiet_check);
 
-        assert!(super::is_quiet(position.board(), quiet_check));
-        assert!(super::gives_check(position.board(), quiet_check));
-        assert!(!super::is_tactical(position.board(), quiet_check));
+        assert!(metadata.is_quiet());
+        assert!(metadata.gives_check);
+        assert!(!metadata.is_tactical());
     }
 }

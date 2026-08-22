@@ -39,6 +39,9 @@ jobs:
       - name: Test match tooling
         run: python3 -m unittest discover -s tools/tests -p 'test_*.py'
 
+      - name: Validate search acceptance contracts
+        run: python3 tools/validate_acceptance_contract.py
+
       - name: Build release binary
         run: cargo build --release --locked
 

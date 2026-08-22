@@ -1,0 +1,9 @@
+# Frozen null-move safety contract. Six-field FEN; id; class; null; depth; reason.
+rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 ; id null-rich-start ; class middlegame ; null allow ; depth 4 ; reason rich-material
+4k3/8/8/8/8/8/4r3/3QK3 w - - 0 1 ; id null-in-check ; class check ; null forbid ; depth 4 ; reason in-check
+8/8/8/8/8/2k5/2p5/2K5 w - - 0 1 ; id null-pawn-zugzwang ; class zugzwang ; null forbid ; depth 4 ; reason pawn-only
+8/8/8/8/8/2k5/2p5/N1K5 w - - 0 1 ; id null-single-minor ; class zugzwang ; null forbid ; depth 4 ; reason single-minor
+8/8/8/8/8/2k5/2p5/NBK5 w - - 0 1 ; id null-two-minors ; class endgame ; null allow ; depth 4 ; reason two-minors
+8/8/8/8/8/2k5/2p5/R1K5 w - - 0 1 ; id null-rook-ending ; class endgame ; null allow ; depth 4 ; reason rook-material
+4k3/8/8/8/8/8/Q7/4K3 w - - 99 50 ; id null-halfmove-99 ; class draw-boundary ; null forbid ; depth 4 ; reason rule-fifty
+r3k3/8/8/8/3pP3/8/8/4K3 b - e3 0 1 ; id null-clears-en-passant ; class state ; null allow ; depth 4 ; reason en-passant

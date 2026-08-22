@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "baseline_commit": "bc51beaa7e13ea47a9090168589e788984a90da7",
+  "suites": [
+    {
+      "path": "tests/data/objective-personality-contract.epd",
+      "sha256": "3532dd90cd894bb434e7e3a39f588cb3f11afefc6e7565f2fc805ceefbca1322",
+      "records": 16,
+      "kind": "objective-personality"
+    },
+    {
+      "path": "tests/data/sacrifice-acceptance-contract.epd",
+      "sha256": "0b33c5d9d37c28e711f13549426f5bf0f0a796d10784157ecf36ad1a91a0b3e7",
+      "records": 4,
+      "kind": "sacrifice"
+    },
+    {
+      "path": "tests/data/null-move-contract.epd",
+      "sha256": "ddbe8d72b5ab8748f86b597b4924b4a439eb398b949ad612b57ad84720b85559",
+      "records": 8,
+      "kind": "null-move"
+    },
+    {
+      "path": "tests/data/personality.epd",
+      "sha256": "39b71686bf5085cb02c7ac95ced876a67ae65c95e0c2b3517ebeb87fbbd05df8",
+      "records": 16,
+      "kind": "legacy-personality"
+    },
+    {
+      "path": "tools/data/openings.epd",
+      "sha256": "8f67f7bdb3c659140516e9f692694ca8513633ee0d9302374dccef927eaa0cde",
+      "records": 48,
+      "kind": "openings"
+    }
+  ],
+  "acceptance": {
+    "root_loss_cap_cp": 120,
+    "personality_required_hits": 16,
+    "sacrifice_required_positive_hits": 1,
+    "sacrifice_required_control_hits": 3,
+    "null_forbidden_attempts": 0,
+    "forcing_rate_retention_percent": 90,
+    "same_profile_elo_floor": -35,
+    "personality_cost_elo_floor": -75
+  }
+}

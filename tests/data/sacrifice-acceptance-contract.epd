@@ -1,0 +1,5 @@
+# Frozen sacrifice acceptance contract. Six-field FEN; id; category; nodes; obm; bm100; maxloss; gate; motif.
+r1bq1rk1/ppp2ppp/2n2n2/2b1p1NQ/2B1P3/2NP4/PPP2PPP/R4RK1 w - - 0 10 ; id acceptance-bishop-f7-sacrifice ; category sacrifice ; nodes 20000 ; obm g5f7 ; bm100 c4f7 ; maxloss 120 ; gate positive ; motif bishop-sacrifice
+r1bq1rk1/ppp2ppp/2n2n2/3p4/3P4/2PB4/PP3PPP/RNBQ1RK1 w - - 0 8 ; id acceptance-unsupported-greek-gift ; category anti-sacrifice ; nodes 20000 ; obm f1e1 ; bm100 f1e1 ; maxloss 0 ; gate control ; motif unsound-bishop-sacrifice
+r4rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP4/PPP3PP/R4RK1 w - - 0 10 ; id acceptance-unsupported-rook-f7 ; category anti-sacrifice ; nodes 20000 ; obm g1h1 ; bm100 g1h1 ; maxloss 0 ; gate control ; motif unsound-rook-sacrifice
+6k1/5ppp/8/7Q/2B5/8/5PPP/6K1 w - - 0 1 ; id acceptance-forcing-mate-safety ; category safety ; nodes 20000 ; obm h5f7 ; bm100 h5f7 ; maxloss 0 ; gate control ; motif forced-mate

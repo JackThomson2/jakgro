@@ -2,10 +2,7 @@ mod features;
 mod tactics;
 mod weights;
 
-#[allow(unused_imports)]
-pub(super) use tactics::{
-    StyleSnapshot, TacticalSnapshot, material_balance, style_snapshot, tactical_snapshot,
-};
+pub(super) use tactics::{TacticalSnapshot, style_snapshot, tactical_snapshot};
 
 use std::ops::{Add, Mul};
 

@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use cozy_chess::{Board, Color, Move, Piece};
 
 use super::{Score, features, piece_value};

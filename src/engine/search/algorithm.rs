@@ -11,7 +11,7 @@ use super::{SearchControl, SearchInfo, SearchLimits, SearchResult, SearchScore};
 use crate::engine::Position;
 use crate::engine::evaluation::{
     EvaluationConfig, MATE_SCORE, MATE_THRESHOLD, MAX_PLY, NEG_INFINITY, POS_INFINITY, Score,
-    evaluate_with_config, piece_value, root_complexity_bonus,
+    TacticalSnapshot, evaluate_with_config, piece_value, root_complexity_bonus, tactical_snapshot,
 };
 use crate::engine::position::repetition_key;
 
@@ -139,6 +139,30 @@ struct NodeResult {
     path_dependent: bool,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+enum SacrificeState {
+    #[default]
+    None,
+    Accepted,
+    Declined,
+    Unverified,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+struct SacrificeProfile {
+    state: SacrificeState,
+    offered_cp: Score,
+    accepted_cp: Score,
+    remaining_offer_cp: Score,
+    reply_count: usize,
+    attack_gain: Score,
+    king_danger_delta: Score,
+    legal_checks: Score,
+    compensation_signals: u8,
+    verified_reply: bool,
+}
+
 #[derive(Debug)]
 struct RootCandidate {
     chess_move: Move,
@@ -146,6 +170,8 @@ struct RootCandidate {
     path_dependent: bool,
     interest: i64,
     pv: Vec<Move>,
+    #[allow(dead_code)]
+    sacrifice: SacrificeProfile,
 }
 
 const HISTORY_MAX: u32 = 900_000;
@@ -520,12 +546,15 @@ fn search_root_styled(
 
     let mut objective_child = board.clone();
     objective_child.play_unchecked(objective_move);
+    let objective_sacrifice =
+        sacrifice_profile(board, &objective_child, board.side_to_move(), &objective_pv);
     let mut candidates = vec![RootCandidate {
         chess_move: objective_move,
         score: objective.score,
         path_dependent: objective.path_dependent,
         interest: root_interest(board, &objective_child, objective_move, context.evaluation),
         pv: objective_pv,
+        sacrifice: objective_sacrifice,
     }];
     let mut alternatives = root_moves
         .iter()
@@ -574,12 +603,14 @@ fn search_root_styled(
         };
         let mut pv = vec![chess_move];
         pv.extend_from_slice(context.pv(1));
+        let sacrifice = sacrifice_profile(board, &child, board.side_to_move(), &pv);
         candidates.push(RootCandidate {
             chess_move,
             score: -child_result.score,
             path_dependent: child_result.path_dependent,
             interest,
             pv,
+            sacrifice,
         });
     }
 
@@ -617,6 +648,76 @@ fn choose_styled_candidate(
         }
     }
     selected
+}
+
+const MIN_SACRIFICE_CP: Score = 80;
+
+fn sacrifice_profile(root: &Board, child: &Board, mover: Color, pv: &[Move]) -> SacrificeProfile {
+    let before = tactical_snapshot(root, mover);
+    let immediate = tactical_snapshot(child, mover);
+    let reply_count = generate_moves(child).len();
+    let offered_cp = immediate.exchange_risk;
+    let Some(&reply) = pv.get(1).filter(|&&reply| child.is_legal(reply)) else {
+        return SacrificeProfile {
+            state: if offered_cp >= MIN_SACRIFICE_CP {
+                SacrificeState::Unverified
+            } else {
+                SacrificeState::None
+            },
+            offered_cp,
+            remaining_offer_cp: offered_cp,
+            reply_count,
+            attack_gain: immediate.style.attack_momentum - before.style.attack_momentum,
+            king_danger_delta: immediate.style.own_king_danger - before.style.own_king_danger,
+            legal_checks: immediate.legal_checks,
+            compensation_signals: compensation_signals(&before, &immediate, reply_count),
+            ..SacrificeProfile::default()
+        };
+    };
+
+    let mut reply_board = child.clone();
+    reply_board.play_unchecked(reply);
+    let after = tactical_snapshot(&reply_board, mover);
+    let accepted_cp = (before.style.material_balance - after.style.material_balance).max(0);
+    let state = if accepted_cp >= MIN_SACRIFICE_CP {
+        SacrificeState::Accepted
+    } else if offered_cp >= MIN_SACRIFICE_CP {
+        SacrificeState::Declined
+    } else {
+        SacrificeState::None
+    };
+
+    SacrificeProfile {
+        state,
+        offered_cp,
+        accepted_cp,
+        remaining_offer_cp: after.exchange_risk,
+        reply_count,
+        attack_gain: after.style.attack_momentum - before.style.attack_momentum,
+        king_danger_delta: after.style.own_king_danger - before.style.own_king_danger,
+        legal_checks: after.legal_checks,
+        compensation_signals: compensation_signals(&before, &after, reply_count),
+        verified_reply: true,
+    }
+}
+
+fn compensation_signals(
+    before: &TacticalSnapshot,
+    after: &TacticalSnapshot,
+    reply_count: usize,
+) -> u8 {
+    let mut signals = 0;
+    signals += u8::from(after.style.attackers >= 2);
+    signals += u8::from(after.style.attacker_variety >= 2);
+    signals += u8::from(after.style.coordination > before.style.coordination);
+    signals += u8::from(after.style.supported_threats > 0);
+    signals += u8::from(after.style.open_lines > before.style.open_lines);
+    signals += u8::from(after.style.defender_shortage > 0);
+    signals += u8::from(after.style.pawn_breaks > before.style.pawn_breaks);
+    signals += u8::from(after.style.attack_momentum > before.style.attack_momentum);
+    signals += u8::from(after.legal_checks > 0);
+    signals += u8::from(reply_count <= 6);
+    signals
 }
 
 fn search_root_conventional(
@@ -1328,6 +1429,7 @@ mod tests {
         MATE_SCORE, MoveOrdering, RepetitionTracker, generate_moves, order_moves, terminal_score,
     };
     use crate::engine::Position;
+    use cozy_chess::Move;
 
     #[test]
     fn repetition_tracker_pushes_and_pops_in_constant_time() {
@@ -1612,6 +1714,63 @@ mod tests {
     }
 
     #[test]
+    fn sacrifice_profile_marks_material_accepted_after_the_best_reply() {
+        let position = Position::from_fen(
+            "r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8",
+        )
+        .unwrap();
+        let root_move: Move = "c4f7".parse().unwrap();
+        let reply: Move = "g8f7".parse().unwrap();
+        assert!(position.board().is_legal(root_move));
+        let mut child = position.board().clone();
+        child.play_unchecked(root_move);
+        assert!(child.is_legal(reply));
+
+        let profile = super::sacrifice_profile(
+            position.board(),
+            &child,
+            position.board().side_to_move(),
+            &[root_move, reply],
+        );
+
+        assert_eq!(profile.state, super::SacrificeState::Accepted);
+        assert!(profile.accepted_cp >= 200);
+        assert!(profile.verified_reply);
+    }
+
+    #[test]
+    fn sacrifice_profile_distinguishes_declined_and_unverified_offers() {
+        let position = Position::from_fen("4k3/8/p7/8/2B5/8/8/4K3 w - - 0 1").unwrap();
+        let root_move: Move = "c4b5".parse().unwrap();
+        let reply: Move = "e8f8".parse().unwrap();
+        assert!(position.board().is_legal(root_move));
+        let mut child = position.board().clone();
+        child.play_unchecked(root_move);
+        assert!(child.is_legal(reply));
+
+        let declined = super::sacrifice_profile(
+            position.board(),
+            &child,
+            position.board().side_to_move(),
+            &[root_move, reply],
+        );
+        let unverified = super::sacrifice_profile(
+            position.board(),
+            &child,
+            position.board().side_to_move(),
+            &[root_move],
+        );
+
+        assert_eq!(declined.state, super::SacrificeState::Declined);
+        assert_eq!(declined.offered_cp, 330);
+        assert_eq!(declined.accepted_cp, 0);
+        assert!(declined.remaining_offer_cp >= 300);
+        assert!(declined.verified_reply);
+        assert_eq!(unverified.state, super::SacrificeState::Unverified);
+        assert!(!unverified.verified_reply);
+    }
+
+    #[test]
     fn styled_root_choice_stays_inside_the_margin_and_preserves_mates() {
         let position = Position::default();
         let conventional_move = find_move(&position, "e2e4");
@@ -1623,6 +1782,7 @@ mod tests {
                 path_dependent: false,
                 interest: 10,
                 pv: vec![conventional_move],
+                sacrifice: super::SacrificeProfile::default(),
             },
             super::RootCandidate {
                 chess_move: exciting_move,
@@ -1630,6 +1790,7 @@ mod tests {
                 path_dependent: false,
                 interest: 100,
                 pv: vec![exciting_move],
+                sacrifice: super::SacrificeProfile::default(),
             },
         ];
 

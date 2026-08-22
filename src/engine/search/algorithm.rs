@@ -5,6 +5,7 @@ use cozy_chess::util::display_uci_move;
 use cozy_chess::{BitBoard, Board, Color, Move, Piece};
 
 use super::control::DeadlineWindow;
+use super::see::static_exchange_eval_after;
 use super::time::allocate_time;
 use super::transposition::{Bound, TranspositionTable};
 use super::{SearchControl, SearchInfo, SearchLimits, SearchResult, SearchScore};
@@ -218,29 +219,45 @@ struct MoveMetadata {
     attacking_pawn_push: bool,
     castling: bool,
     king_zone_move: bool,
+    see: Option<Score>,
 }
 
 impl MoveMetadata {
+    #[cfg(test)]
     fn classify(board: &Board, chess_move: Move) -> Self {
-        let mut child = board.clone();
-        child.play_unchecked(chess_move);
-        Self::classify_with_child(board, chess_move, &child)
+        Self::classify_for_search(board, chess_move, true)
     }
 
-    fn classify_with_child(board: &Board, chess_move: Move, child: &Board) -> Self {
+    fn classify_for_search(board: &Board, chess_move: Move, compute_see: bool) -> Self {
+        let mut child = board.clone();
+        child.play_unchecked(chess_move);
+        Self::classify_with_child(board, chess_move, &child, compute_see)
+    }
+
+    fn classify_with_child(
+        board: &Board,
+        chess_move: Move,
+        child: &Board,
+        compute_see: bool,
+    ) -> Self {
         let attacker = board.piece_on(chess_move.from).unwrap_or(Piece::King);
+        let captured = captured_piece(board, chess_move);
         let enemy_king = board.king(!board.side_to_move());
         let king_zone_move = (chess_move.to.file() as i32 - enemy_king.file() as i32).abs() <= 1
             && (chess_move.to.rank() as i32 - enemy_king.rank() as i32).abs() <= 1;
+        let see = captured
+            .filter(|&piece| compute_see && piece_value(piece) < piece_value(attacker))
+            .map(|_| static_exchange_eval_after(board, chess_move, child));
         Self {
             chess_move,
             attacker,
-            captured: captured_piece(board, chess_move),
+            captured,
             gives_check: !child.checkers().is_empty(),
             attacking_pawn_push: is_attacking_pawn_push(board, chess_move),
             castling: attacker == Piece::King
                 && (chess_move.from.file() as i32 - chess_move.to.file() as i32).abs() > 1,
             king_zone_move,
+            see,
         }
     }
 
@@ -282,6 +299,36 @@ fn late_move_reduction(
 
 fn reduced_search_needs_research(reduction: u32, score: Score, alpha: Score) -> bool {
     reduction > 0 && score > alpha
+}
+
+fn should_prune_quiescence_capture(
+    metadata: MoveMetadata,
+    in_check: bool,
+    recapture_square: Option<cozy_chess::Square>,
+    aggression: u8,
+    stand_pat: Score,
+    alpha: Score,
+) -> bool {
+    let delta_margin = 50 + Score::from(aggression);
+    let material_ceiling = metadata
+        .captured
+        .map_or(stand_pat, |piece| {
+            stand_pat.saturating_add(piece_value(piece))
+        })
+        .saturating_add(delta_margin);
+    aggression > 0
+        && !in_check
+        && recapture_square.is_some()
+        && metadata.captured.is_some()
+        && metadata.chess_move.promotion.is_none()
+        && !metadata.gives_check
+        && !metadata.king_zone_move
+        && !metadata.attacking_pawn_push
+        && Some(metadata.chess_move.to) != recapture_square
+        && metadata
+            .see
+            .is_some_and(|see| see < -piece_value(Piece::Pawn))
+        && material_ceiling <= alpha
 }
 
 const HISTORY_MAX: u32 = 900_000;
@@ -671,7 +718,7 @@ fn search_root_styled(
     let objective_sterile =
         sterile_simplification(board, &objective_pv, mover, objective_sacrifice.attack_gain);
     let objective_metadata =
-        MoveMetadata::classify_with_child(board, objective_move, &objective_child);
+        MoveMetadata::classify_with_child(board, objective_move, &objective_child, true);
     let mut candidates = vec![RootCandidate {
         chess_move: objective_move,
         score: objective.score,
@@ -698,7 +745,7 @@ fn search_root_styled(
         }
         let mut child = board.clone();
         child.play_unchecked(chess_move);
-        let metadata = MoveMetadata::classify_with_child(board, chess_move, &child);
+        let metadata = MoveMetadata::classify_with_child(board, chess_move, &child, true);
         let interest = root_interest(board, &child, metadata, context.evaluation);
         let immediate = tactical_snapshot(&child, mover);
         let offered_cp = exchange_risk_on(&child, mover, chess_move.to);
@@ -1456,6 +1503,7 @@ fn negamax(
             beta,
             QUIESCENCE_DEPTH,
             context.evaluation.quiescence_check_budget(),
+            None,
             context,
         );
     }
@@ -1686,6 +1734,7 @@ fn quiescence(
     mut beta: Score,
     remaining: u32,
     check_budget: u8,
+    recapture_square: Option<cozy_chess::Square>,
     context: &mut SearchContext<'_>,
 ) -> Result<NodeResult, Aborted> {
     context.clear_pv(ply);
@@ -1733,7 +1782,13 @@ fn quiescence(
     }
     let moves = moves
         .into_iter()
-        .map(|chess_move| MoveMetadata::classify(board, chess_move))
+        .map(|chess_move| {
+            MoveMetadata::classify_for_search(
+                board,
+                chess_move,
+                context.evaluation.aggression() > 0,
+            )
+        })
         .filter(|metadata| {
             in_check
                 || metadata.is_tactical()
@@ -1750,6 +1805,16 @@ fn quiescence(
     );
 
     for metadata in moves {
+        if should_prune_quiescence_capture(
+            metadata,
+            in_check,
+            recapture_square,
+            context.evaluation.aggression(),
+            stand_pat.unwrap_or(NEG_INFINITY),
+            alpha,
+        ) {
+            continue;
+        }
         let chess_move = metadata.chess_move;
         let uses_quiet_check = !in_check && metadata.is_quiet() && metadata.gives_check;
         let next_check_budget = check_budget.saturating_sub(u8::from(uses_quiet_check));
@@ -1764,6 +1829,7 @@ fn quiescence(
             -alpha,
             remaining.saturating_sub(1),
             next_check_budget,
+            Some(chess_move.to),
             context,
         );
         history.pop();
@@ -1904,7 +1970,9 @@ fn order_move_metadata(
 ) -> Vec<MoveMetadata> {
     let metadata = moves
         .into_iter()
-        .map(|chess_move| MoveMetadata::classify(board, chess_move))
+        .map(|chess_move| {
+            MoveMetadata::classify_for_search(board, chess_move, evaluation.aggression() > 0)
+        })
         .collect();
     order_classified_moves(board, metadata, preferred, ply, ordering, evaluation)
 }
@@ -1947,7 +2015,7 @@ fn order_root_moves(
         .map(|chess_move| {
             let mut child = board.clone();
             child.play_unchecked(chess_move);
-            let metadata = MoveMetadata::classify_with_child(board, chess_move, &child);
+            let metadata = MoveMetadata::classify_with_child(board, chess_move, &child, true);
             let order_score = move_order_score(board, metadata, preferred, 0, ordering, evaluation);
             let complexity = root_complexity_bonus(&child, mover, evaluation);
             (metadata, order_score, complexity)
@@ -1988,6 +2056,16 @@ fn move_order_score(
         let captured_value = ordering_piece_value(captured);
         let attacker_value = ordering_piece_value(metadata.attacker);
         let exchange = i64::from(captured_value) * 32 - i64::from(attacker_value);
+        if evaluation.aggression() > 0
+            && let Some(see_score) = metadata.see
+        {
+            let see = i64::from(see_score) * 64;
+            return if see_score >= 0 {
+                4_000_000 + see + exchange
+            } else {
+                1_000_000 + see + exchange
+            };
+        }
         return if captured_value >= attacker_value {
             4_000_000 + exchange
         } else {
@@ -2262,6 +2340,111 @@ mod tests {
         );
 
         assert_eq!(ordered, vec![equal_capture, losing_capture]);
+    }
+
+    #[test]
+    fn see_orders_equivalent_captures_by_the_settled_exchange() {
+        let position = Position::from_fen("3r3k/8/8/3p4/p7/8/8/3Q3K w - - 0 1").unwrap();
+        let safe_capture = find_move(&position, "d1a4");
+        let poisoned_capture = find_move(&position, "d1d5");
+        let safe = super::MoveMetadata::classify(position.board(), safe_capture);
+        let poisoned = super::MoveMetadata::classify(position.board(), poisoned_capture);
+        let ordered = super::order_moves_with_evaluation(
+            position.board(),
+            vec![poisoned_capture, safe_capture],
+            None,
+            4,
+            &MoveOrdering::new(),
+            super::EvaluationConfig::new(100),
+        );
+
+        assert!(safe.see.is_some_and(|see| see > 0));
+        assert!(poisoned.see.is_some_and(|see| see < 0));
+        assert_eq!(ordered, vec![safe_capture, poisoned_capture]);
+    }
+
+    #[test]
+    fn qsearch_see_pruning_preserves_forcing_and_recapture_cases() {
+        let position = Position::from_fen("3r3k/8/8/3p4/8/8/8/3Q3K w - - 0 1").unwrap();
+        let poisoned_capture = find_move(&position, "d1d5");
+        let metadata = super::MoveMetadata::classify(position.board(), poisoned_capture);
+
+        assert!(metadata.see.is_some_and(|see| see < 0));
+        assert!(!super::should_prune_quiescence_capture(
+            metadata, false, None, 100, 0, 300,
+        ));
+        assert!(!super::should_prune_quiescence_capture(
+            metadata,
+            false,
+            Some(cozy_chess::Square::E5),
+            0,
+            0,
+            300,
+        ));
+        assert!(super::should_prune_quiescence_capture(
+            metadata,
+            false,
+            Some(cozy_chess::Square::E5),
+            100,
+            0,
+            300,
+        ));
+        assert!(!super::should_prune_quiescence_capture(
+            metadata,
+            false,
+            Some(poisoned_capture.to),
+            100,
+            0,
+            300,
+        ));
+        assert!(!super::should_prune_quiescence_capture(
+            metadata,
+            true,
+            Some(cozy_chess::Square::E5),
+            100,
+            0,
+            300,
+        ));
+
+        for forcing in [
+            super::MoveMetadata {
+                gives_check: true,
+                ..metadata
+            },
+            super::MoveMetadata {
+                king_zone_move: true,
+                ..metadata
+            },
+            super::MoveMetadata {
+                chess_move: Move {
+                    promotion: Some(Piece::Queen),
+                    ..metadata.chess_move
+                },
+                ..metadata
+            },
+        ] {
+            assert!(!super::should_prune_quiescence_capture(
+                forcing,
+                false,
+                Some(cozy_chess::Square::E5),
+                100,
+                0,
+                300,
+            ));
+        }
+
+        let aggressive = super::MoveMetadata {
+            attacking_pawn_push: true,
+            ..metadata
+        };
+        assert!(!super::should_prune_quiescence_capture(
+            aggressive,
+            false,
+            Some(cozy_chess::Square::E5),
+            100,
+            0,
+            300,
+        ));
     }
     #[test]
     fn aspiration_and_mate_windows_are_bounded() {

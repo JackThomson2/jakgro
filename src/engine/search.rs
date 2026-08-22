@@ -1,5 +1,6 @@
 mod algorithm;
 mod control;
+mod see;
 mod time;
 mod transposition;
 

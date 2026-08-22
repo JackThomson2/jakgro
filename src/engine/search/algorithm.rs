@@ -24,6 +24,10 @@ const VOLATILE_HOLD_ITERATIONS: u8 = 2;
 const CONTROL_POLL_INTERVAL_NODES: u64 = 256;
 const ITERATION_TIME_MULTIPLIER: u32 = 2;
 const ITERATION_TIME_MARGIN: Duration = Duration::from_millis(5);
+const STYLED_ROOT_BUDGET_DIVISOR: u64 = 1;
+const STYLED_ROOT_MIN_NODES: u64 = 256;
+const STYLED_ROOT_MAX_NODES: u64 = 8_192;
+const STYLED_ROOT_MAX_VERIFICATIONS: usize = 2;
 
 fn should_poll_control(nodes: u64) -> bool {
     nodes % CONTROL_POLL_INTERVAL_NODES == 0
@@ -192,6 +196,12 @@ struct CandidateSeed {
     chess_move: Move,
     interest: i64,
     sacrifice_hint: Score,
+}
+
+#[derive(Clone, Debug)]
+struct ProbedCandidate {
+    seed: CandidateSeed,
+    child_pv: Vec<Move>,
 }
 
 const HISTORY_MAX: u32 = 900_000;
@@ -543,6 +553,7 @@ fn search_root_styled(
     previous_pv: &[Move],
     context: &mut SearchContext<'_>,
 ) -> Result<NodeResult, Aborted> {
+    let objective_start_nodes = context.nodes;
     let objective = search_root_conventional(
         board,
         root_moves,
@@ -552,6 +563,7 @@ fn search_root_styled(
         previous_pv,
         context,
     )?;
+    let objective_nodes = context.nodes.saturating_sub(objective_start_nodes);
     let objective_pv = context.pv(0).to_vec();
     let Some(objective_move) = objective_pv.first().copied() else {
         return Ok(objective);
@@ -583,97 +595,196 @@ fn search_root_styled(
         score: objective.score,
         path_dependent: objective.path_dependent,
         interest: root_interest(board, &objective_child, objective_move, context.evaluation),
-        pv: objective_pv,
+        pv: objective_pv.clone(),
         sacrifice: objective_sacrifice,
         outcome: objective_outcome,
         sterile_simplification: objective_sterile,
     }];
-    let seeds = root_moves
-        .iter()
-        .copied()
-        .filter(|&chess_move| chess_move != objective_move)
-        .map(|chess_move| {
-            let mut child = board.clone();
-            child.play_unchecked(chess_move);
-            let interest = root_interest(board, &child, chess_move, context.evaluation);
-            let immediate = tactical_snapshot(&child, mover);
-            let offered_cp = exchange_risk_on(&child, mover, chess_move.to);
-            let sacrifice_hint = sacrifice_hint_score(
-                &root_snapshot,
-                &immediate,
-                offered_cp,
-                gives_check(board, chess_move),
-            );
-            CandidateSeed {
-                chess_move,
-                interest,
-                sacrifice_hint,
-            }
-        })
-        .collect::<Vec<_>>();
-    let alternatives = select_candidate_seeds(seeds);
+    let mut seeds = Vec::with_capacity(root_moves.len().saturating_sub(1));
+    for &chess_move in root_moves {
+        if chess_move == objective_move {
+            continue;
+        }
+        if context.control_stop_requested() {
+            context.pv[0].clone_from(&objective_pv);
+            return Ok(objective);
+        }
+        let mut child = board.clone();
+        child.play_unchecked(chess_move);
+        let interest = root_interest(board, &child, chess_move, context.evaluation);
+        let immediate = tactical_snapshot(&child, mover);
+        let offered_cp = exchange_risk_on(&child, mover, chess_move.to);
+        let sacrifice_hint = sacrifice_hint_score(
+            &root_snapshot,
+            &immediate,
+            offered_cp,
+            gives_check(board, chess_move),
+        );
+        seeds.push(CandidateSeed {
+            chess_move,
+            interest,
+            sacrifice_hint,
+        });
+    }
+    let alternatives = prioritize_probe_seeds(select_candidate_seeds(seeds));
     let (child_depth, child_extensions) = next_search_depth(
         depth,
         !board.checkers().is_empty(),
         0,
         context.evaluation.max_check_extensions(),
     );
+    let original_node_limit = context.node_limit;
+    let personality_node_limit =
+        styled_root_node_limit(context.nodes, objective_nodes, original_node_limit);
+    context.node_limit = Some(personality_node_limit);
+    let threshold = objective
+        .score
+        .saturating_sub(context.evaluation.root_style_margin().min(120));
+    let mut probe_passers = Vec::new();
+    let mut personality_exhausted = false;
 
     for seed in alternatives {
         if context.should_stop() {
+            personality_exhausted = true;
             break;
         }
         let mut child = board.clone();
         child.play_unchecked(seed.chess_move);
         history.push(&child);
-        let child_result = negamax(
+        let probe = negamax(
             &child,
             history,
             child_depth,
             1,
             child_extensions,
-            NEG_INFINITY,
-            POS_INFINITY,
+            -threshold,
+            -threshold + 1,
             &[],
             context,
         );
         history.pop();
+        let Ok(probe) = probe else {
+            personality_exhausted = true;
+            break;
+        };
+        if -probe.score >= threshold {
+            probe_passers.push(ProbedCandidate {
+                seed,
+                child_pv: context.pv(1).to_vec(),
+            });
+            if probe_passers.len() == STYLED_ROOT_MAX_VERIFICATIONS {
+                break;
+            }
+        }
+    }
+
+    for probed in select_verification_candidates(probe_passers) {
+        if context.should_stop() {
+            personality_exhausted = true;
+            break;
+        }
+        let seed = probed.seed;
+        let mut child = board.clone();
+        child.play_unchecked(seed.chess_move);
+        let verification_alpha = threshold.saturating_sub(1).max(NEG_INFINITY);
+        let verification_beta = objective.score.saturating_add(1).min(POS_INFINITY);
+        history.push(&child);
+        let mut child_result = negamax(
+            &child,
+            history,
+            child_depth,
+            1,
+            child_extensions,
+            -verification_beta,
+            -verification_alpha,
+            &probed.child_pv,
+            context,
+        );
+        if matches!(&child_result, Ok(result) if -result.score >= verification_beta) {
+            child_result = negamax(
+                &child,
+                history,
+                child_depth,
+                1,
+                child_extensions,
+                NEG_INFINITY,
+                POS_INFINITY,
+                &probed.child_pv,
+                context,
+            );
+        }
+        history.pop();
         let Ok(child_result) = child_result else {
+            personality_exhausted = true;
             break;
         };
         let mut score = -child_result.score;
+        if !candidate_within_score_guard(
+            score,
+            objective.score,
+            context.evaluation.root_style_margin().min(120),
+        ) {
+            continue;
+        }
         let mut path_dependent = child_result.path_dependent;
+        let mut verified_child_pv = context.pv(1).to_vec();
         let mut pv = vec![seed.chess_move];
-        pv.extend_from_slice(context.pv(1));
+        pv.extend_from_slice(&verified_child_pv);
         let mut sacrifice = sacrifice_profile(board, &child, mover, &pv);
 
         let should_extend = context.evaluation.aggression() >= 75
             && seed.sacrifice_hint >= MIN_SACRIFICE_CP
-            && score >= objective.score - 450
             && is_compensated_sacrifice(&sacrifice)
             && !context.should_stop();
         if should_extend {
             history.push(&child);
-            let extended = negamax(
+            let mut extended = negamax(
                 &child,
                 history,
                 child_depth + 1,
                 1,
                 child_extensions,
-                NEG_INFINITY,
-                POS_INFINITY,
-                &[],
+                -verification_beta,
+                -verification_alpha,
+                &verified_child_pv,
                 context,
             );
-            history.pop();
-            if let Ok(extended) = extended {
-                score = -extended.score;
-                path_dependent = extended.path_dependent;
-                pv.clear();
-                pv.push(seed.chess_move);
-                pv.extend_from_slice(context.pv(1));
-                sacrifice = sacrifice_profile(board, &child, mover, &pv);
+            if matches!(&extended, Ok(result) if -result.score >= verification_beta) {
+                extended = negamax(
+                    &child,
+                    history,
+                    child_depth + 1,
+                    1,
+                    child_extensions,
+                    NEG_INFINITY,
+                    POS_INFINITY,
+                    &verified_child_pv,
+                    context,
+                );
             }
+            history.pop();
+            match extended {
+                Ok(extended) => {
+                    score = -extended.score;
+                    path_dependent = extended.path_dependent;
+                    verified_child_pv = context.pv(1).to_vec();
+                    pv.clear();
+                    pv.push(seed.chess_move);
+                    pv.extend_from_slice(&verified_child_pv);
+                    sacrifice = sacrifice_profile(board, &child, mover, &pv);
+                }
+                Err(_) => {
+                    personality_exhausted = true;
+                    break;
+                }
+            }
+        }
+        if !candidate_within_score_guard(
+            score,
+            objective.score,
+            context.evaluation.root_style_margin().min(120),
+        ) {
+            continue;
         }
 
         let outcome = root_line_outcome(board, history, &pv, score, path_dependent);
@@ -690,9 +801,17 @@ fn search_root_styled(
         });
     }
 
+    if context.nodes >= personality_node_limit {
+        personality_exhausted = true;
+    }
+    context.node_limit = original_node_limit;
+    if personality_exhausted || context.should_stop() {
+        context.pv[0].clone_from(&objective_pv);
+        return Ok(objective);
+    }
+
     let selected = choose_styled_candidate(&candidates, 0, context.evaluation);
-    context.pv[0].clear();
-    context.pv[0].extend_from_slice(&candidates[selected].pv);
+    context.pv[0].clone_from(&candidates[selected].pv);
     Ok(NodeResult {
         score: candidates[selected].score,
         path_dependent: candidates[selected].path_dependent,
@@ -898,6 +1017,98 @@ fn select_candidate_seeds(seeds: Vec<CandidateSeed>) -> Vec<CandidateSeed> {
         push_unique_seed(&mut selected, seed);
     }
     selected
+}
+
+fn styled_root_node_limit(
+    current_nodes: u64,
+    objective_nodes: u64,
+    global_limit: Option<u64>,
+) -> u64 {
+    let budget = (objective_nodes / STYLED_ROOT_BUDGET_DIVISOR)
+        .clamp(STYLED_ROOT_MIN_NODES, STYLED_ROOT_MAX_NODES);
+    let local_limit = current_nodes.saturating_add(budget);
+    global_limit.map_or(local_limit, |limit| local_limit.min(limit))
+}
+
+fn prioritize_probe_seeds(seeds: Vec<CandidateSeed>) -> Vec<CandidateSeed> {
+    let mut ordinary = seeds.clone();
+    ordinary.sort_unstable_by(|left, right| {
+        right
+            .interest
+            .cmp(&left.interest)
+            .then_with(|| move_key(left.chess_move).cmp(&move_key(right.chess_move)))
+    });
+    let mut sacrifices = seeds
+        .iter()
+        .copied()
+        .filter(|seed| seed.sacrifice_hint >= MIN_SACRIFICE_CP)
+        .collect::<Vec<_>>();
+    sacrifices.sort_unstable_by(|left, right| {
+        right
+            .sacrifice_hint
+            .cmp(&left.sacrifice_hint)
+            .then_with(|| right.interest.cmp(&left.interest))
+            .then_with(|| move_key(left.chess_move).cmp(&move_key(right.chess_move)))
+    });
+
+    let mut prioritized = Vec::with_capacity(seeds.len());
+    if let Some(seed) = ordinary.first().copied() {
+        push_unique_seed(&mut prioritized, seed);
+    }
+    if let Some(seed) = sacrifices.first().copied() {
+        push_unique_seed(&mut prioritized, seed);
+    }
+    for seed in seeds {
+        push_unique_seed(&mut prioritized, seed);
+    }
+    prioritized
+}
+
+fn select_verification_candidates(candidates: Vec<ProbedCandidate>) -> Vec<ProbedCandidate> {
+    let mut ordinary = candidates.clone();
+    ordinary.sort_unstable_by(|left, right| {
+        right
+            .seed
+            .interest
+            .cmp(&left.seed.interest)
+            .then_with(|| move_key(left.seed.chess_move).cmp(&move_key(right.seed.chess_move)))
+    });
+    let mut sacrifices = candidates
+        .into_iter()
+        .filter(|candidate| candidate.seed.sacrifice_hint >= MIN_SACRIFICE_CP)
+        .collect::<Vec<_>>();
+    sacrifices.sort_unstable_by(|left, right| {
+        right
+            .seed
+            .sacrifice_hint
+            .cmp(&left.seed.sacrifice_hint)
+            .then_with(|| right.seed.interest.cmp(&left.seed.interest))
+            .then_with(|| move_key(left.seed.chess_move).cmp(&move_key(right.seed.chess_move)))
+    });
+
+    let mut selected = Vec::with_capacity(STYLED_ROOT_MAX_VERIFICATIONS);
+    if let Some(candidate) = ordinary.first().cloned() {
+        push_unique_verification(&mut selected, candidate);
+    }
+    if let Some(candidate) = sacrifices.first().cloned() {
+        push_unique_verification(&mut selected, candidate);
+    }
+    for candidate in ordinary {
+        if selected.len() == STYLED_ROOT_MAX_VERIFICATIONS {
+            break;
+        }
+        push_unique_verification(&mut selected, candidate);
+    }
+    selected
+}
+
+fn push_unique_verification(selected: &mut Vec<ProbedCandidate>, candidate: ProbedCandidate) {
+    if !selected
+        .iter()
+        .any(|entry| entry.seed.chess_move == candidate.seed.chess_move)
+    {
+        selected.push(candidate);
+    }
 }
 
 fn push_unique_seed(selected: &mut Vec<CandidateSeed>, seed: CandidateSeed) {
@@ -2265,6 +2476,58 @@ mod tests {
 
         assert_eq!(selected.len(), 6);
         assert!(selected.iter().any(|seed| seed.chess_move == hinted));
+    }
+
+    #[test]
+    fn styled_root_budget_is_bounded_and_respects_the_global_limit() {
+        assert_eq!(super::styled_root_node_limit(1_000, 4, None), 1_256);
+        assert_eq!(super::styled_root_node_limit(1_000, 400, None), 1_400);
+        assert_eq!(super::styled_root_node_limit(1_000, 100_000, None), 9_192);
+        assert_eq!(
+            super::styled_root_node_limit(1_000, 100_000, Some(1_500)),
+            1_500,
+        );
+    }
+
+    #[test]
+    fn full_verification_keeps_one_high_interest_and_one_sacrifice_seed() {
+        let position = Position::default();
+        let moves = position.search_moves();
+        let candidates = moves
+            .iter()
+            .copied()
+            .take(5)
+            .enumerate()
+            .map(|(index, chess_move)| super::ProbedCandidate {
+                seed: super::CandidateSeed {
+                    chess_move,
+                    interest: 1_000 - index as i64,
+                    sacrifice_hint: if index == 4 { 300 } else { 0 },
+                },
+                child_pv: Vec::new(),
+            })
+            .collect::<Vec<_>>();
+        let ordinary = candidates[0].seed.chess_move;
+        let sacrifice = candidates[4].seed.chess_move;
+
+        let prioritized = super::prioritize_probe_seeds(
+            candidates.iter().map(|candidate| candidate.seed).collect(),
+        );
+        assert_eq!(prioritized[0].chess_move, ordinary);
+        assert_eq!(prioritized[1].chess_move, sacrifice);
+        let selected = super::select_verification_candidates(candidates);
+
+        assert_eq!(selected.len(), 2);
+        assert!(
+            selected
+                .iter()
+                .any(|candidate| candidate.seed.chess_move == ordinary)
+        );
+        assert!(
+            selected
+                .iter()
+                .any(|candidate| candidate.seed.chess_move == sacrifice)
+        );
     }
 
     #[test]

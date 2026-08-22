@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use cozy_chess::util::display_uci_move;
-use cozy_chess::{BitBoard, Board, Color, Move, Piece};
+use cozy_chess::{BitBoard, Board, Color, Move, Piece, Square};
 
 use super::control::DeadlineWindow;
 use super::see::static_exchange_eval_after;
@@ -339,11 +339,28 @@ fn should_prune_quiescence_capture(
 const HISTORY_MAX: i32 = 16_384;
 const HISTORY_BONUS_SCALE: u32 = 64;
 const LMR_HISTORY_THRESHOLD: i32 = HISTORY_MAX / 3;
+const CONTINUATION_BUCKETS: usize = 6 * 64;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct HistoryMove {
+    piece: Piece,
+    to: Square,
+}
+
+impl HistoryMove {
+    fn from_board(board: &Board, chess_move: Move) -> Self {
+        Self {
+            piece: board.piece_on(chess_move.from).unwrap_or(Piece::King),
+            to: chess_move.to,
+        }
+    }
+}
 
 #[derive(Debug)]
 struct MoveOrdering {
     killers: Vec<[Option<Move>; 2]>,
     history: Vec<i32>,
+    continuation: Vec<i32>,
 }
 
 impl MoveOrdering {
@@ -351,6 +368,7 @@ impl MoveOrdering {
         Self {
             killers: vec![[None; 2]; MAX_PLY as usize + 1],
             history: vec![0; 2 * 64 * 64],
+            continuation: vec![0; CONTINUATION_BUCKETS * CONTINUATION_BUCKETS],
         }
     }
 
@@ -362,9 +380,32 @@ impl MoveOrdering {
         self.history[history_index(color, chess_move)]
     }
 
+    fn continuation_score(&self, previous: HistoryMove, current: HistoryMove) -> i32 {
+        self.continuation[continuation_index(previous, current)]
+    }
+
+    fn quiet_history_score(
+        &self,
+        board: &Board,
+        chess_move: Move,
+        previous: Option<HistoryMove>,
+    ) -> i32 {
+        let butterfly = self.history_score(board.side_to_move(), chess_move);
+        let Some(previous) = previous else {
+            return butterfly;
+        };
+        let continuation =
+            self.continuation_score(previous, HistoryMove::from_board(board, chess_move));
+        if butterfly == 0 || butterfly.signum() != continuation.signum() {
+            return butterfly;
+        }
+        (butterfly + continuation / 8).clamp(-HISTORY_MAX, HISTORY_MAX)
+    }
+
     fn record_quiet_cutoff(
         &mut self,
-        color: Color,
+        board: &Board,
+        previous: Option<HistoryMove>,
         chess_move: Move,
         failed_quiets: &[MoveMetadata],
         ply: u32,
@@ -377,23 +418,49 @@ impl MoveOrdering {
         }
 
         let bonus = history_bonus(depth);
-        self.update_history(color, chess_move, bonus);
+        self.update_history(board.side_to_move(), chess_move, bonus);
+        if let Some(previous) = previous {
+            self.update_continuation(previous, HistoryMove::from_board(board, chess_move), bonus);
+        }
         for failed in failed_quiets.iter().filter(|metadata| metadata.is_quiet()) {
-            self.update_history(color, failed.chess_move, -bonus);
+            self.update_history(board.side_to_move(), failed.chess_move, -bonus);
+            if let Some(previous) = previous {
+                self.update_continuation(
+                    previous,
+                    HistoryMove::from_board(board, failed.chess_move),
+                    -bonus,
+                );
+            }
         }
     }
 
     fn update_history(&mut self, color: Color, chess_move: Move, bonus: i32) {
-        let score = &mut self.history[history_index(color, chess_move)];
-        let bounded_bonus = bonus.clamp(-HISTORY_MAX, HISTORY_MAX);
-        let gravity = *score * bounded_bonus.abs() / HISTORY_MAX;
-        *score = (*score + bounded_bonus - gravity).clamp(-HISTORY_MAX, HISTORY_MAX);
+        update_gravity(&mut self.history[history_index(color, chess_move)], bonus);
+    }
+
+    fn update_continuation(&mut self, previous: HistoryMove, current: HistoryMove, bonus: i32) {
+        update_gravity(
+            &mut self.continuation[continuation_index(previous, current)],
+            bonus,
+        );
     }
 }
 
 fn history_index(color: Color, chess_move: Move) -> usize {
     ((color as usize * 64 + chess_move.from as usize) * 64) + chess_move.to as usize
 }
+fn continuation_index(previous: HistoryMove, current: HistoryMove) -> usize {
+    let previous = previous.piece as usize * 64 + previous.to as usize;
+    let current = current.piece as usize * 64 + current.to as usize;
+    previous * CONTINUATION_BUCKETS + current
+}
+
+fn update_gravity(score: &mut i32, bonus: i32) {
+    let bounded_bonus = bonus.clamp(-HISTORY_MAX, HISTORY_MAX);
+    let gravity = *score * bounded_bonus.abs() / HISTORY_MAX;
+    *score = (*score + bounded_bonus - gravity).clamp(-HISTORY_MAX, HISTORY_MAX);
+}
+
 fn history_bonus(depth: u32) -> i32 {
     depth
         .saturating_mul(depth)
@@ -509,6 +576,7 @@ fn verified_null_move_cutoff(
     extensions_used: u8,
     alpha: Score,
     beta: Score,
+    previous_move: Option<HistoryMove>,
     context: &mut SearchContext<'_>,
 ) -> Result<Option<NodeResult>, Aborted> {
     if !context.null_move_enabled {
@@ -536,6 +604,7 @@ fn verified_null_move_cutoff(
         extensions_used,
         -beta,
         -beta + 1,
+        None,
         &[],
         context,
     );
@@ -556,6 +625,7 @@ fn verified_null_move_cutoff(
         extensions_used,
         beta - 1,
         beta,
+        previous_move,
         &[],
         context,
     );
@@ -986,6 +1056,7 @@ fn search_root_styled(
             personality_exhausted = true;
             break;
         }
+        let current_move = HistoryMove::from_board(board, seed.chess_move);
         let mut child = board.clone();
         child.play_unchecked(seed.chess_move);
         history.push(&child);
@@ -997,6 +1068,7 @@ fn search_root_styled(
             child_extensions,
             -threshold,
             -threshold + 1,
+            Some(current_move),
             &[],
             context,
         );
@@ -1022,6 +1094,7 @@ fn search_root_styled(
             break;
         }
         let seed = probed.seed;
+        let current_move = HistoryMove::from_board(board, seed.chess_move);
         let mut child = board.clone();
         child.play_unchecked(seed.chess_move);
         let verification_alpha = threshold.saturating_sub(1).max(NEG_INFINITY);
@@ -1035,6 +1108,7 @@ fn search_root_styled(
             child_extensions,
             -verification_beta,
             -verification_alpha,
+            Some(current_move),
             &probed.child_pv,
             context,
         );
@@ -1047,6 +1121,7 @@ fn search_root_styled(
                 child_extensions,
                 NEG_INFINITY,
                 POS_INFINITY,
+                Some(current_move),
                 &probed.child_pv,
                 context,
             );
@@ -1084,6 +1159,7 @@ fn search_root_styled(
                 child_extensions,
                 -verification_beta,
                 -verification_alpha,
+                Some(current_move),
                 &verified_child_pv,
                 context,
             );
@@ -1096,6 +1172,7 @@ fn search_root_styled(
                     child_extensions,
                     NEG_INFINITY,
                     POS_INFINITY,
+                    Some(current_move),
                     &verified_child_pv,
                     context,
                 );
@@ -1611,6 +1688,7 @@ fn search_root_conventional(
             return Err(Aborted);
         }
 
+        let current_move = HistoryMove::from_board(board, chess_move);
         let mut child = board.clone();
         child.play_unchecked(chess_move);
         let expected_child_pv = if preferred == Some(chess_move) {
@@ -1632,6 +1710,7 @@ fn search_root_conventional(
             child_extensions,
             first_window.0,
             first_window.1,
+            Some(current_move),
             expected_child_pv,
             context,
         );
@@ -1648,6 +1727,7 @@ fn search_root_conventional(
                 child_extensions,
                 -beta,
                 -alpha,
+                Some(current_move),
                 expected_child_pv,
                 context,
             );
@@ -1698,6 +1778,7 @@ fn negamax(
     extensions_used: u8,
     mut alpha: Score,
     mut beta: Score,
+    previous_move: Option<HistoryMove>,
     previous_pv: &[Move],
     context: &mut SearchContext<'_>,
 ) -> Result<NodeResult, Aborted> {
@@ -1796,6 +1877,7 @@ fn negamax(
         extensions_used,
         alpha,
         beta,
+        previous_move,
         context,
     )? {
         return Ok(result);
@@ -1807,6 +1889,7 @@ fn negamax(
         moves,
         preferred,
         ply,
+        previous_move,
         &context.ordering,
         context.evaluation,
     );
@@ -1826,6 +1909,7 @@ fn negamax(
 
     for (index, metadata) in moves.iter().copied().enumerate() {
         let chess_move = metadata.chess_move;
+        let current_move = HistoryMove::from_board(board, chess_move);
         let mut child = board.clone();
         child.play_unchecked(chess_move);
         let expected_child_pv = if preferred == Some(chess_move) {
@@ -1844,7 +1928,7 @@ fn negamax(
                 .any(|killer| killer == chess_move);
         let history_score = context
             .ordering
-            .history_score(board.side_to_move(), chess_move);
+            .quiet_history_score(board, chess_move, previous_move);
         let reduction = late_move_reduction(
             child_depth,
             index,
@@ -1868,6 +1952,7 @@ fn negamax(
             child_extensions,
             first_window.0,
             first_window.1,
+            Some(current_move),
             expected_child_pv,
             context,
         );
@@ -1884,6 +1969,7 @@ fn negamax(
                 child_extensions,
                 first_window.0,
                 first_window.1,
+                Some(current_move),
                 expected_child_pv,
                 context,
             );
@@ -1903,6 +1989,7 @@ fn negamax(
                 child_extensions,
                 -beta,
                 -alpha,
+                Some(current_move),
                 expected_child_pv,
                 context,
             );
@@ -1922,7 +2009,8 @@ fn negamax(
         if alpha >= beta {
             if context.mode.updates_ordering() && metadata.is_quiet() {
                 context.ordering.record_quiet_cutoff(
-                    board.side_to_move(),
+                    board,
+                    previous_move,
                     chess_move,
                     &moves[..index],
                     ply,
@@ -2033,6 +2121,7 @@ fn quiescence(
         moves,
         None,
         ply,
+        None,
         &context.ordering,
         context.evaluation,
     );
@@ -2198,7 +2287,7 @@ fn order_moves_with_evaluation(
     ordering: &MoveOrdering,
     evaluation: EvaluationConfig,
 ) -> Vec<Move> {
-    order_move_metadata(board, moves, preferred, ply, ordering, evaluation)
+    order_move_metadata(board, moves, preferred, ply, None, ordering, evaluation)
         .into_iter()
         .map(|metadata| metadata.chess_move)
         .collect()
@@ -2209,6 +2298,7 @@ fn order_move_metadata(
     moves: Vec<Move>,
     preferred: Option<Move>,
     ply: u32,
+    previous: Option<HistoryMove>,
     ordering: &MoveOrdering,
     evaluation: EvaluationConfig,
 ) -> Vec<MoveMetadata> {
@@ -2218,7 +2308,9 @@ fn order_move_metadata(
             MoveMetadata::classify_for_search(board, chess_move, evaluation.aggression() > 0)
         })
         .collect();
-    order_classified_moves(board, metadata, preferred, ply, ordering, evaluation)
+    order_classified_moves(
+        board, metadata, preferred, ply, previous, ordering, evaluation,
+    )
 }
 
 fn order_classified_moves(
@@ -2226,13 +2318,16 @@ fn order_classified_moves(
     moves: Vec<MoveMetadata>,
     preferred: Option<Move>,
     ply: u32,
+    previous: Option<HistoryMove>,
     ordering: &MoveOrdering,
     evaluation: EvaluationConfig,
 ) -> Vec<MoveMetadata> {
     let mut ranked = moves
         .into_iter()
         .map(|metadata| {
-            let score = move_order_score(board, metadata, preferred, ply, ordering, evaluation);
+            let score = move_order_score(
+                board, metadata, preferred, ply, previous, ordering, evaluation,
+            );
             (metadata, score)
         })
         .collect::<Vec<_>>();
@@ -2260,7 +2355,8 @@ fn order_root_moves(
             let mut child = board.clone();
             child.play_unchecked(chess_move);
             let metadata = MoveMetadata::classify_with_child(board, chess_move, &child, true);
-            let order_score = move_order_score(board, metadata, preferred, 0, ordering, evaluation);
+            let order_score =
+                move_order_score(board, metadata, preferred, 0, None, ordering, evaluation);
             let complexity = root_complexity_bonus(&child, mover, evaluation);
             (metadata, order_score, complexity)
         })
@@ -2284,6 +2380,7 @@ fn move_order_score(
     metadata: MoveMetadata,
     preferred: Option<Move>,
     ply: u32,
+    previous: Option<HistoryMove>,
     ordering: &MoveOrdering,
     evaluation: EvaluationConfig,
 ) -> i64 {
@@ -2317,7 +2414,7 @@ fn move_order_score(
         };
     }
 
-    let history = i64::from(ordering.history_score(board.side_to_move(), chess_move));
+    let history = i64::from(ordering.quiet_history_score(board, chess_move, previous));
     let forcing = forcing_order_bonus(metadata, evaluation);
     if forcing > 0 {
         return 2_000_000 + history + forcing;
@@ -2430,10 +2527,11 @@ fn format_pv(root: &Board, pv: &[Move]) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        MATE_SCORE, MoveOrdering, RepetitionTracker, generate_moves, order_moves, terminal_score,
+        HistoryMove, MATE_SCORE, MoveOrdering, RepetitionTracker, generate_moves, order_moves,
+        terminal_score,
     };
     use crate::engine::Position;
-    use cozy_chess::{Move, Piece};
+    use cozy_chess::{Move, Piece, Square};
 
     #[test]
     fn repetition_tracker_pushes_and_pops_in_constant_time() {
@@ -2556,13 +2654,7 @@ mod tests {
         let failed_metadata = super::MoveMetadata::classify(position.board(), failed);
         let mut ordering = MoveOrdering::new();
 
-        ordering.record_quiet_cutoff(
-            position.board().side_to_move(),
-            winner,
-            &[failed_metadata],
-            3,
-            8,
-        );
+        ordering.record_quiet_cutoff(position.board(), None, winner, &[failed_metadata], 3, 8);
         let ordered = order_moves(
             position.board(),
             position.search_moves(),
@@ -2575,19 +2667,57 @@ mod tests {
         assert!(ordering.history_score(position.board().side_to_move(), winner) > 0);
         assert!(ordering.history_score(position.board().side_to_move(), failed) < 0);
         for _ in 0..100 {
-            ordering.record_quiet_cutoff(
-                position.board().side_to_move(),
-                winner,
-                &[failed_metadata],
-                3,
-                64,
-            );
+            ordering.record_quiet_cutoff(position.board(), None, winner, &[failed_metadata], 3, 64);
         }
         assert!(
             ordering.history_score(position.board().side_to_move(), winner) <= super::HISTORY_MAX
         );
         assert!(
             ordering.history_score(position.board().side_to_move(), failed) >= -super::HISTORY_MAX
+        );
+    }
+    #[test]
+    fn continuation_history_distinguishes_predecessors() {
+        let position = Position::default();
+        let winner = find_move(&position, "d2d4");
+        let failed = find_move(&position, "e2e4");
+        let failed_metadata = super::MoveMetadata::classify(position.board(), failed);
+        let predecessor = HistoryMove {
+            piece: Piece::Knight,
+            to: Square::F3,
+        };
+        let unrelated = HistoryMove {
+            piece: Piece::Knight,
+            to: Square::C3,
+        };
+        let current = HistoryMove::from_board(position.board(), winner);
+        let failed_current = HistoryMove::from_board(position.board(), failed);
+        let mut ordering = MoveOrdering::new();
+
+        ordering.record_quiet_cutoff(
+            position.board(),
+            Some(predecessor),
+            winner,
+            &[failed_metadata],
+            3,
+            8,
+        );
+
+        assert!(ordering.continuation_score(predecessor, current) > 0);
+        assert!(ordering.continuation_score(predecessor, failed_current) < 0);
+        assert_eq!(ordering.continuation_score(unrelated, current), 0);
+        assert!(
+            ordering.quiet_history_score(position.board(), winner, Some(predecessor))
+                > ordering.quiet_history_score(position.board(), winner, Some(unrelated))
+        );
+        ordering.update_continuation(unrelated, current, -super::HISTORY_MAX);
+        assert_eq!(
+            ordering.quiet_history_score(position.board(), winner, Some(unrelated)),
+            ordering.history_score(position.board().side_to_move(), winner),
+        );
+        assert_eq!(
+            ordering.quiet_history_score(position.board(), winner, None),
+            ordering.history_score(position.board().side_to_move(), winner),
         );
     }
 

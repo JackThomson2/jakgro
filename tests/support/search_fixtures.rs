@@ -35,15 +35,23 @@ pub fn parse_fixtures(input: &str) -> Vec<SearchFixture> {
 }
 
 pub fn run_fixture(fixture: &SearchFixture) -> SearchObservation {
+    let limits = SearchLimits {
+        nodes: Some(fixture.nodes),
+        ..SearchLimits::default()
+    };
+    run_fixture_with_limits(fixture, &limits)
+}
+
+pub fn run_fixture_with_limits(
+    fixture: &SearchFixture,
+    limits: &SearchLimits,
+) -> SearchObservation {
     let mut engine = Engine::new();
     engine.set_position(
         Position::from_fen(&fixture.fen)
             .unwrap_or_else(|error| panic!("{} has an invalid FEN: {error}", fixture.id)),
     );
-    let result = engine.search(&SearchLimits {
-        nodes: Some(fixture.nodes),
-        ..SearchLimits::default()
-    });
+    let result = engine.search(limits);
     let info = result
         .info()
         .unwrap_or_else(|| panic!("{} completed no iteration", fixture.id));

@@ -100,7 +100,7 @@ python3 tools/run_match.py \
   --pgn artifacts/aggression-match.pgn
 ```
 
-The match runner compares Aggression 100 with Aggression 0 using reversed colors, one unique sequential EPD opening per pair, one concurrent game, fixed nodes per move, and explicit draw, resignation, and maximum-move rules. Pass `--baseline-engine` to compare against another binary, `--openings` to supply a larger suite, or `--dry-run` to inspect the exact cutechess command without launching a match.
+The match runner compares Aggression 100 with Aggression 0 using reversed colors, one unique sequential EPD opening per pair, one concurrent game, fixed nodes per move, and explicit draw, resignation, and maximum-move rules. Each completed run writes an atomic JSON sidecar containing binary and opening hashes, the cutechess version, the exact command, settings, timing, return status, game count, and PGN hash. Pass `--baseline-engine` to compare against another binary, `--openings` to supply a larger suite, `--manifest` to choose the sidecar path, or `--dry-run` to inspect the command without launching a match.
 
 ## Current search and protocol limitations
 

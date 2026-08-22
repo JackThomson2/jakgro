@@ -40,6 +40,7 @@ fn parse_suite() -> Vec<PersonalityFixture> {
                 });
                 match key {
                     "id" => id = Some(value.to_owned()),
+                    "category" => {}
                     "nodes" => {
                         nodes = Some(value.parse::<u64>().unwrap_or_else(|_| {
                             panic!(

@@ -93,6 +93,43 @@ impl Default for EvaluationConfig {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct AttackProfile {
+    pub(super) king_pressure: Score,
+    pub(super) attackers: Score,
+    pub(super) attacker_variety: Score,
+    pub(super) supported_threats: Score,
+    pub(super) open_lines: Score,
+    pub(super) pawn_breaks: Score,
+    pub(super) pawn_storm: Score,
+    pub(super) threats: Score,
+    pub(super) space: Score,
+    pub(super) defender_shortage: Score,
+}
+
+impl AttackProfile {
+    pub(super) fn coordination(self) -> Score {
+        if self.attackers < 2 {
+            return 0;
+        }
+        (self.attackers - 1) * 3
+            + self.attacker_variety * 2
+            + self.open_lines * 2
+            + self.supported_threats
+            + self.defender_shortage * 2
+    }
+
+    fn compensation_pressure(self) -> Score {
+        if self.attackers < 2 {
+            return 0;
+        }
+        self.king_pressure
+            + self.coordination() * 4
+            + self.supported_threats * 5
+            + self.pawn_breaks * 3
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) struct EvalFeatures {
     pub(super) pawns: Score,
     pub(super) knights: Score,
@@ -112,6 +149,13 @@ pub(super) struct EvalFeatures {
     pub(super) pawn_storm: Score,
     pub(super) threats: Score,
     pub(super) space: Score,
+    pub(super) coordination: Score,
+    pub(super) supported_threats: Score,
+    pub(super) open_lines: Score,
+    pub(super) pawn_breaks: Score,
+    pub(super) compensation: Score,
+    pub(super) white_attack: AttackProfile,
+    pub(super) black_attack: AttackProfile,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -166,7 +210,7 @@ pub(super) fn evaluate_with_trace_and_config(
     let features = features::extract(board);
     let base = weights::score(features);
     let style = weights::attacking_style(features)
-        .clamped(300, 180)
+        .clamped(450, 220)
         .scaled(config.aggression());
     let score = base + style;
     let phase = features::phase(board);
@@ -285,10 +329,32 @@ mod tests {
         assert_eq!(quiet.style_middle_game, 0);
         assert_eq!(quiet.style_end_game, 0);
         assert!(aggressive.style_middle_game > 0);
-        assert!(aggressive.style_middle_game.abs() <= 300);
-        assert!(aggressive.style_end_game.abs() <= 180);
+        assert!(aggressive.style_middle_game.abs() <= 450);
+        assert!(aggressive.style_end_game.abs() <= 220);
         assert_eq!(aggressive, clamped);
         assert!(aggressive.blended > quiet.blended);
+    }
+
+    #[test]
+    fn coordinated_attack_scores_more_style_than_a_lone_attacker() {
+        let lone = Position::from_fen("6k1/5ppp/8/7Q/8/8/5PPP/6K1 w - - 0 1").unwrap();
+        let coordinated = Position::from_fen("6k1/5ppp/8/7Q/2B5/8/5PPP/6K1 w - - 0 1").unwrap();
+        let config = EvaluationConfig::new(MAX_AGGRESSION);
+        let lone_trace = evaluate_with_trace_and_config(lone.board(), config);
+        let coordinated_trace = evaluate_with_trace_and_config(coordinated.board(), config);
+
+        assert_eq!(lone_trace.features.white_attack.coordination(), 0);
+        assert!(coordinated_trace.features.white_attack.coordination() > 0);
+        assert!(coordinated_trace.style_middle_game > lone_trace.style_middle_game);
+    }
+
+    #[test]
+    fn coordinated_pressure_can_compensate_a_material_deficit() {
+        let position = Position::from_fen("qr4k1/5ppp/8/7Q/2B5/8/5PPP/6K1 w - - 0 1").unwrap();
+        let trace =
+            evaluate_with_trace_and_config(position.board(), EvaluationConfig::new(MAX_AGGRESSION));
+
+        assert!(trace.features.compensation > 0);
     }
 
     #[test]

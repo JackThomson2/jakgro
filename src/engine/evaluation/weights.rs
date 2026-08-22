@@ -19,6 +19,11 @@ const PAWN_STORM: ScorePair = ScorePair::new(7, 1);
 const THREAT: ScorePair = ScorePair::new(11, 7);
 const SPACE: ScorePair = ScorePair::new(2, 0);
 const PASSER_URGENCY: ScorePair = ScorePair::new(3, 6);
+const COORDINATION: ScorePair = ScorePair::new(16, 2);
+const SUPPORTED_THREAT: ScorePair = ScorePair::new(18, 5);
+const OPEN_LINE: ScorePair = ScorePair::new(14, 1);
+const PAWN_BREAK: ScorePair = ScorePair::new(12, 1);
+const COMPENSATION: ScorePair = ScorePair::new(1, 0);
 
 pub(super) fn score(features: EvalFeatures) -> ScorePair {
     PAWN * features.pawns
@@ -43,4 +48,9 @@ pub(super) fn attacking_style(features: EvalFeatures) -> ScorePair {
         + THREAT * features.threats
         + SPACE * features.space
         + PASSER_URGENCY * features.passed_pawns
+        + COORDINATION * features.coordination
+        + SUPPORTED_THREAT * features.supported_threats
+        + OPEN_LINE * features.open_lines
+        + PAWN_BREAK * features.pawn_breaks
+        + COMPENSATION * features.compensation
 }

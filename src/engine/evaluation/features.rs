@@ -3,10 +3,14 @@ use cozy_chess::{
     get_pawn_attacks, get_rook_moves,
 };
 
-use super::{EvalFeatures, piece_value};
+use super::{AttackProfile, EvalFeatures, piece_value};
 
 pub(super) fn extract(board: &Board) -> EvalFeatures {
     let mut features = EvalFeatures::default();
+    let white_attack = attacking_features(board, Color::White);
+    let black_attack = attacking_features(board, Color::Black);
+    features.white_attack = white_attack;
+    features.black_attack = black_attack;
 
     for color in [Color::White, Color::Black] {
         let sign = if color == Color::White { 1 } else { -1 };
@@ -20,11 +24,19 @@ pub(super) fn extract(board: &Board) -> EvalFeatures {
         features.bishop_pair += sign * i32::from(bishops >= 2);
         features.activity += sign * activity(board, color);
         features.mobility += sign * mobility(board, color);
-        let attack = attacking_features(board, color);
+        let attack = if color == Color::White {
+            white_attack
+        } else {
+            black_attack
+        };
         features.king_pressure += sign * attack.king_pressure;
         features.pawn_storm += sign * attack.pawn_storm;
         features.threats += sign * attack.threats;
         features.space += sign * attack.space;
+        features.coordination += sign * attack.coordination();
+        features.supported_threats += sign * attack.supported_threats;
+        features.open_lines += sign * attack.open_lines;
+        features.pawn_breaks += sign * attack.pawn_breaks;
 
         let pawns = pawn_features(board, color);
         features.doubled_pawns += sign * pawns.doubled;
@@ -41,6 +53,13 @@ pub(super) fn extract(board: &Board) -> EvalFeatures {
     } else {
         -1
     };
+    let material = features.pawns * 100
+        + features.knights * 320
+        + features.bishops * 330
+        + features.rooks * 500
+        + features.queens * 900;
+    let pressure = white_attack.compensation_pressure() - black_attack.compensation_pressure();
+    features.compensation = compensated_risk(material, pressure);
     features
 }
 
@@ -108,22 +127,15 @@ fn mobility(board: &Board, color: Color) -> i32 {
 
     total
 }
-#[derive(Clone, Copy, Debug, Default)]
-struct AttackFeatures {
-    king_pressure: i32,
-    pawn_storm: i32,
-    threats: i32,
-    space: i32,
-}
 
-fn attacking_features(board: &Board, color: Color) -> AttackFeatures {
+fn attacking_features(board: &Board, color: Color) -> AttackProfile {
     let occupied = board.occupied();
     let enemy = !color;
     let enemy_king = board.king(enemy);
     let king_zone = get_king_moves(enemy_king) | board.colored_pieces(enemy, Piece::King);
     let enemy_pieces = board.colors(enemy);
-    let mut result = AttackFeatures::default();
-    let mut attackers = 0;
+    let mut result = AttackProfile::default();
+    let mut attacker_mask = 0_u8;
 
     for piece in [
         Piece::Pawn,
@@ -137,7 +149,8 @@ fn attacking_features(board: &Board, color: Color) -> AttackFeatures {
             let attacks = attacks_from(piece, square, color, occupied) & !board.colors(color);
             let zone_hits = (attacks & king_zone).len() as i32;
             if zone_hits > 0 && piece != Piece::King {
-                attackers += 1;
+                result.attackers += 1;
+                attacker_mask |= 1 << piece_index(piece);
                 let weight = match piece {
                     Piece::Pawn => 3,
                     Piece::Knight | Piece::Bishop => 4,
@@ -146,6 +159,9 @@ fn attacking_features(board: &Board, color: Color) -> AttackFeatures {
                     Piece::King => 0,
                 };
                 result.king_pressure += zone_hits * weight;
+                if matches!(piece, Piece::Bishop | Piece::Rook | Piece::Queen) {
+                    result.open_lines += 1;
+                }
             }
 
             for target in attacks & enemy_pieces {
@@ -174,9 +190,26 @@ fn attacking_features(board: &Board, color: Color) -> AttackFeatures {
         }
     }
 
-    result.king_pressure += attackers * attackers * 2;
+    result.attacker_variety = attacker_mask.count_ones() as i32;
+    let defenders = zone_defenders(board, enemy, king_zone, occupied);
+    result.defender_shortage = (result.attackers - defenders).max(0);
+    result.king_pressure += result.attackers * result.attackers * 2;
+    for target in enemy_pieces {
+        let Some(target_piece) = board.piece_on(target) else {
+            continue;
+        };
+        if target_piece == Piece::King {
+            continue;
+        }
+        let attackers = attackers_to(board, color, target, occupied);
+        if attackers >= 2 {
+            result.supported_threats += (attackers - 1) * (1 + piece_value(target_piece) / 300);
+        }
+    }
+
     let king_file = enemy_king.file() as i32;
     let king_rank = enemy_king.rank() as i32;
+    let enemy_pawns = board.colored_pieces(enemy, Piece::Pawn);
     for pawn in board.colored_pieces(color, Piece::Pawn) {
         if (pawn.file() as i32 - king_file).abs() <= 1 {
             let distance = if color == Color::White {
@@ -188,9 +221,81 @@ fn attacking_features(board: &Board, color: Color) -> AttackFeatures {
                 result.pawn_storm += 5 - distance;
             }
         }
+        result.pawn_breaks += (get_pawn_attacks(pawn, color) & enemy_pawns)
+            .into_iter()
+            .filter(|target| (target.file() as i32 - king_file).abs() <= 1)
+            .count() as i32;
     }
 
     result
+}
+
+fn compensated_risk(material: i32, pressure: i32) -> i32 {
+    if material < 0 && pressure > 20 {
+        (-material).min(500) * (pressure - 20).min(100) / 200
+    } else if material > 0 && pressure < -20 {
+        -material.min(500) * (-pressure - 20).min(100) / 200
+    } else {
+        0
+    }
+}
+
+fn piece_index(piece: Piece) -> u8 {
+    match piece {
+        Piece::Pawn => 0,
+        Piece::Knight => 1,
+        Piece::Bishop => 2,
+        Piece::Rook => 3,
+        Piece::Queen => 4,
+        Piece::King => 5,
+    }
+}
+
+fn attackers_to(
+    board: &Board,
+    color: Color,
+    target: Square,
+    occupied: cozy_chess::BitBoard,
+) -> i32 {
+    let mut attackers = 0;
+    for piece in [
+        Piece::Pawn,
+        Piece::Knight,
+        Piece::Bishop,
+        Piece::Rook,
+        Piece::Queen,
+    ] {
+        for square in board.colored_pieces(color, piece) {
+            attackers += i32::from(
+                attacks_from(piece, square, color, occupied)
+                    .into_iter()
+                    .any(|attacked| attacked == target),
+            );
+        }
+    }
+    attackers
+}
+
+fn zone_defenders(
+    board: &Board,
+    color: Color,
+    king_zone: cozy_chess::BitBoard,
+    occupied: cozy_chess::BitBoard,
+) -> i32 {
+    let mut defenders = 0;
+    for piece in [
+        Piece::Pawn,
+        Piece::Knight,
+        Piece::Bishop,
+        Piece::Rook,
+        Piece::Queen,
+    ] {
+        for square in board.colored_pieces(color, piece) {
+            defenders +=
+                i32::from(!(attacks_from(piece, square, color, occupied) & king_zone).is_empty());
+        }
+    }
+    defenders
 }
 
 fn attacks_from(

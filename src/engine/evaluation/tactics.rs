@@ -257,4 +257,20 @@ mod tests {
 
         assert_eq!(snapshot.exchange_risk, 100);
     }
+
+    #[test]
+    fn exchange_risk_values_promotion_captures() {
+        let board: Board = "4k3/8/8/8/8/8/6p1/K6R b - - 0 1".parse().unwrap();
+        let snapshot = tactical_snapshot(&board, Color::White);
+
+        assert_eq!(snapshot.exchange_risk, 1_300);
+    }
+
+    #[test]
+    fn exchange_risk_ignores_pinned_attackers() {
+        let board: Board = "4k3/4p3/3Q4/8/8/8/8/K3R3 b - - 0 1".parse().unwrap();
+        let snapshot = tactical_snapshot(&board, Color::White);
+
+        assert_eq!(snapshot.exchange_risk, 0);
+    }
 }

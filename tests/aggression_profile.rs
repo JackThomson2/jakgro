@@ -128,6 +128,9 @@ fn tuned_aggression_profile_is_reproducible_and_distinct() {
     assert!(!fixtures.is_empty());
     let mut changed = 0;
     let mut safety_controls = 0;
+    let mut sacrifice_controls = 0;
+    let mut anti_sacrifice_controls = 0;
+    let mut simplification_controls = 0;
 
     for fixture in &fixtures {
         let (base_move, _) = search_fixture(fixture, 0);
@@ -146,14 +149,40 @@ fn tuned_aggression_profile_is_reproducible_and_distinct() {
             fixture.tuned_moves,
         );
         changed += usize::from(base_move != tuned_move);
-        if fixture.category == "safety" {
-            safety_controls += 1;
-            assert_eq!(base_move, tuned_move, "{} safety control", fixture.id);
+        match fixture.category.as_str() {
+            "safety" => {
+                safety_controls += 1;
+                assert_eq!(base_move, tuned_move, "{} safety control", fixture.id);
+            }
+            "sacrifice" => {
+                sacrifice_controls += 1;
+                assert_ne!(base_move, tuned_move, "{} sacrifice control", fixture.id);
+            }
+            "anti-sacrifice" => {
+                anti_sacrifice_controls += 1;
+                assert_eq!(
+                    base_move, tuned_move,
+                    "{} anti-sacrifice control",
+                    fixture.id,
+                );
+            }
+            "simplification" => {
+                simplification_controls += 1;
+                assert_ne!(
+                    base_move, tuned_move,
+                    "{} simplification control",
+                    fixture.id,
+                );
+            }
+            _ => {}
         }
     }
 
     assert!(changed >= fixtures.len() / 2);
     assert!(safety_controls >= 5);
+    assert!(sacrifice_controls >= 1);
+    assert!(anti_sacrifice_controls >= 2);
+    assert!(simplification_controls >= 1);
 }
 
 #[test]

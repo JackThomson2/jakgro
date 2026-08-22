@@ -85,9 +85,11 @@ To use Jakgro from a chess GUI, build the release binary and configure the GUI t
 
 - `0` disables style evaluation, retains the conventional forcing-search budgets, and uses the ordinary alpha-beta best move;
 - intermediate values gradually add coordinated attack terms, tactical search effort, and a nonlinear root-choice margin; and
-- `100` may choose a verified alternative up to 120 centipawns below the conventional result when that move creates substantially more king pressure, tension, material imbalance, or pawn-play complications.
+- `100` uses the ordinary 120-centipawn margin for interesting alternatives, but may widen it to about 220 centipawns for a verified pawn investment, 380 for a verified piece or exchange investment, or a hard 450 ceiling when already clearly worse. Speculative risk is capped near 200 centipawns when clearly winning.
 
-Mate scores always outrank centipawn style preferences, and clearly forced defenses fall outside the bounded margin. Jakgro reports the selected move's actual searched score and principal variation over UCI; it never adds the entertainment score to the reported chess score. High settings can deliberately play weaker chess, which is the intended tradeoff rather than a strength claim.
+A larger margin requires a full opponent reply, legal recapture settlement, multiple attacking compensation signals, retained king safety, and at least one checking resource. Unverified offers and apparent sacrifices that are immediately recovered use the ordinary margin. At high aggression, an eligible live line also outranks immediate repetition, terminal draws, and balanced queen or rook exchanges that do not increase the attack.
+
+Mate scores always outrank centipawn style preferences, and clearly forced defenses fall outside the bounded margins. Jakgro reports the selected move's actual searched score and principal variation over UCI; it never adds the entertainment score to the reported chess score. High settings can deliberately play weaker chess, which is the intended tradeoff rather than a strength claim.
 
 ## Reproducible style and match measurement
 
@@ -142,8 +144,8 @@ The analyzer verifies the PGN hash and completed game count against the manifest
 ## Architecture
 
 - `src/engine/position.rs` isolates legal position and UCI-move handling from the board library and retains normalized repetition hashes.
-- `src/engine/evaluation.rs` and `src/engine/evaluation/` contain bounded tapered scoring, feature extraction, trace data, weights, and mate-score constants.
-- `src/engine/search/algorithm.rs` implements iterative deepening, negamax alpha-beta, quiescence, deterministic move ordering, draw detection, and principal-variation construction.
+- `src/engine/evaluation.rs` and `src/engine/evaluation/` contain bounded tapered scoring, feature extraction, legal exchange settlement, mover-relative tactical snapshots, trace data, weights, and mate-score constants.
+- `src/engine/search/algorithm.rs` implements iterative deepening, negamax alpha-beta, quiescence, deterministic move ordering, draw detection, sacrifice profiling after best defense, bounded root-risk selection, and principal-variation construction.
 - `src/engine/search/transposition.rs` owns the fixed-size, generation-aged search cache and mate-score normalization.
 - `src/engine/search/control.rs` provides shared cancellation and updateable soft/hard deadlines.
 - `src/engine/search/time.rs` converts UCI clock fields and move overhead into normal and emergency budgets.
@@ -165,7 +167,7 @@ The initial protocol and search foundations now include:
 - principal-variation and UCI progress reporting;
 - a persistent transposition table with safe draw-state handling and UCI `Hash` controls;
 - volatility-aware time allocation with a persistent UCI `Move Overhead` control;
-- a bounded, color-symmetric attacking profile with isolated style weights and UCI `Aggression` control;
+- a bounded, color-symmetric attacking profile with isolated style weights, best-defense sacrifice verification, draw and simplification aversion, and UCI `Aggression` control;
 - fixed-node style gates and deterministic paired-match tooling; and
 - asynchronous `stop`, `ponderhit`, replacement-search, EOF, and shutdown behavior.
 
@@ -175,15 +177,15 @@ The initial protocol and search foundations now include:
    - Add null-move pruning, late-move reductions, and a make/unmake board layer.
    - Expand deterministic search and performance benchmarks.
 2. **Aggressive evaluation**
-   - Expand the gated suite with compensation, pawn-race, and defensive-resource positions.
-   - Measure tactical soundness separately from style before adding sacrifice-specific terms.
+   - Add held-out pawn-gambit and exchange-sacrifice positions without weakening the anti-sacrifice controls.
+   - Measure whether verified sacrifices survive deeper searches and human PGN review before widening the 450-centipawn hard ceiling.
 3. **Time and protocol refinement**
    - Tune soft/hard budget ratios and volatility thresholds through timed matches.
    - Evaluate thread-safe shared search structures before advertising a `Threads` option.
    - Expand ponder, mate-limit, and malformed-command regression suites.
 4. **Tuning and match testing**
    - Test Aggression 75 next; the initial Aggression 100 baseline scored 44.27% against Aggression 0 with a confidence interval crossing 50%.
-   - Track Elo, decisive-game rate, color balance, and sacrifice quality against tagged versions.
+   - Track Elo, decisive-game rate, color balance, verified-sacrifice frequency, and manual sacrifice quality against tagged versions.
    - Tune explicit style weights only when fixture gates and paired matches agree.
 
 ## License

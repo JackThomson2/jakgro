@@ -20,6 +20,9 @@ const SUITES: &[&str] = &[
 const SAMPLES: usize = 7;
 const ARMED_DEADLINE: Duration = Duration::from_secs(60);
 
+#[global_allocator]
+static GLOBAL_ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 fn main() {
     println!(
         "id,category,bestmove,score,depth,nodes,node_milliseconds,node_nps,\

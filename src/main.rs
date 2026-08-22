@@ -1,3 +1,6 @@
+#[global_allocator]
+static GLOBAL_ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 fn main() -> std::process::ExitCode {
     let input = std::io::BufReader::new(std::io::stdin());
     let stdout = std::io::stdout();

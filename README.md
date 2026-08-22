@@ -35,7 +35,7 @@ cargo clippy --all-targets -- -D warnings
 
 The release executable is written to `target/release/jakgro`.
 
-Jakgro resolves `cozy-chess` from the [`board-state-save-restore` branch](https://github.com/JackThomson2/cozy-chess/tree/board-state-save-restore). `Cargo.lock` pins the exact Git revision for reproducible builds.
+Jakgro resolves `cozy-chess` from the [`board-state-save-restore` branch](https://github.com/JackThomson2/cozy-chess/tree/board-state-save-restore). `Cargo.lock` pins the exact Git revision for reproducible builds. The UCI executable and standalone search benchmark select mimalloc globally; the reusable library does not force an allocator on downstream binaries.
 
 ## UCI usage
 

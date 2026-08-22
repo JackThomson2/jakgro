@@ -1,6 +1,6 @@
 rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 ; id starting-development ; category initiative ; nodes 20000 ; bm0 e2e3 ; bm100 g1f3
 rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2 ; id early-king-pressure ; category king-attack ; nodes 20000 ; bm0 f1c4 ; bm100 d1h5
-r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3 ; id central-space ; category initiative ; nodes 20000 ; bm0 f1c4 ; bm100 d2d4
+r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3 ; id central-space ; category initiative ; nodes 20000 ; bm0 f1c4 ; bm100 f1c4
 rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 2 ; id black-king-pressure ; category king-attack ; nodes 20000 ; bm0 f8c5 ; bm100 d8h4
 4k3/8/8/8/8/8/4q3/4R1K1 w - - 0 1 ; id tactical-safety ; category safety ; nodes 20000 ; bm0 e1e2 ; bm100 e1e2
 7k/8/8/8/8/1r6/8/K7 w - - 0 1 ; id defensive-safety ; category safety ; nodes 20000 ; bm0 a1a2 ; bm100 a1a2

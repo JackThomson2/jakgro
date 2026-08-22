@@ -19,8 +19,6 @@ const DEFAULT_DEPTH: u32 = 4;
 const MAX_DEPTH: u32 = 64;
 const QUIESCENCE_DEPTH: u32 = 16;
 const ASPIRATION_INITIAL: Score = 50;
-const MAX_CHECK_EXTENSIONS: u8 = 2;
-const QUIESCENCE_CHECK_BUDGET: u8 = 1;
 const VOLATILE_HOLD_ITERATIONS: u8 = 2;
 const CONTROL_POLL_INTERVAL_NODES: u64 = 256;
 const ITERATION_TIME_MULTIPLIER: u32 = 2;
@@ -437,8 +435,13 @@ fn aspiration_bounds(center: Score, radius: Score) -> (Score, Score) {
 fn mate_distance_bounds(ply: u32) -> (Score, Score) {
     (-MATE_SCORE + ply as Score, MATE_SCORE - ply as Score - 1)
 }
-fn next_search_depth(depth: u32, in_check: bool, extensions_used: u8) -> (u32, u8) {
-    let extend = in_check && extensions_used < MAX_CHECK_EXTENSIONS;
+fn next_search_depth(
+    depth: u32,
+    in_check: bool,
+    extensions_used: u8,
+    max_extensions: u8,
+) -> (u32, u8) {
+    let extend = in_check && extensions_used < max_extensions;
     (
         depth.saturating_sub(1) + u32::from(extend),
         extensions_used + u8::from(extend),
@@ -472,7 +475,12 @@ fn search_root(
         &context.ordering,
         context.evaluation,
     );
-    let (child_depth, child_extensions) = next_search_depth(depth, !board.checkers().is_empty(), 0);
+    let (child_depth, child_extensions) = next_search_depth(
+        depth,
+        !board.checkers().is_empty(),
+        0,
+        context.evaluation.max_check_extensions(),
+    );
     let mut best = NodeResult {
         score: NEG_INFINITY,
         path_dependent: false,
@@ -581,7 +589,7 @@ fn negamax(
             alpha,
             beta,
             QUIESCENCE_DEPTH,
-            QUIESCENCE_CHECK_BUDGET,
+            context.evaluation.quiescence_check_budget(),
             context,
         );
     }
@@ -632,9 +640,20 @@ fn negamax(
 
     let hash_move = hash_entry.and_then(|entry| entry.best_move());
     let preferred = previous_pv.first().copied().or(hash_move);
-    let moves = order_moves(board, moves, preferred, ply, &context.ordering);
-    let (child_depth, child_extensions) =
-        next_search_depth(depth, !board.checkers().is_empty(), extensions_used);
+    let moves = order_moves_with_evaluation(
+        board,
+        moves,
+        preferred,
+        ply,
+        &context.ordering,
+        context.evaluation,
+    );
+    let (child_depth, child_extensions) = next_search_depth(
+        depth,
+        !board.checkers().is_empty(),
+        extensions_used,
+        context.evaluation.max_check_extensions(),
+    );
     let mut best = NodeResult {
         score: NEG_INFINITY,
         path_dependent: false,
@@ -781,7 +800,14 @@ fn quiescence(
                     && gives_check(board, chess_move))
         });
     }
-    moves = order_moves(board, moves, None, ply, &context.ordering);
+    moves = order_moves_with_evaluation(
+        board,
+        moves,
+        None,
+        ply,
+        &context.ordering,
+        context.evaluation,
+    );
 
     for chess_move in moves {
         let uses_quiet_check = !in_check
@@ -884,17 +910,45 @@ fn generate_moves(board: &Board) -> Vec<Move> {
 
 fn order_moves(
     board: &Board,
-    mut moves: Vec<Move>,
+    moves: Vec<Move>,
     preferred: Option<Move>,
     ply: u32,
     ordering: &MoveOrdering,
 ) -> Vec<Move> {
-    moves.sort_unstable_by(|left, right| {
-        move_order_score(board, *right, preferred, ply, ordering)
-            .cmp(&move_order_score(board, *left, preferred, ply, ordering))
+    order_moves_with_evaluation(
+        board,
+        moves,
+        preferred,
+        ply,
+        ordering,
+        EvaluationConfig::new(0),
+    )
+}
+
+fn order_moves_with_evaluation(
+    board: &Board,
+    moves: Vec<Move>,
+    preferred: Option<Move>,
+    ply: u32,
+    ordering: &MoveOrdering,
+    evaluation: EvaluationConfig,
+) -> Vec<Move> {
+    let mut ranked = moves
+        .into_iter()
+        .map(|chess_move| {
+            let score = move_order_score(board, chess_move, preferred, ply, ordering, evaluation);
+            (chess_move, score)
+        })
+        .collect::<Vec<_>>();
+    ranked.sort_unstable_by(|(left, left_score), (right, right_score)| {
+        right_score
+            .cmp(left_score)
             .then_with(|| move_key(*left).cmp(&move_key(*right)))
     });
-    moves
+    ranked
+        .into_iter()
+        .map(|(chess_move, _)| chess_move)
+        .collect()
 }
 fn order_root_moves(
     board: &Board,
@@ -917,8 +971,10 @@ fn order_root_moves(
         })
         .collect::<Vec<_>>();
     ranked.sort_unstable_by(|(left, left_complexity), (right, right_complexity)| {
-        move_order_score(board, *right, preferred, 0, ordering)
-            .cmp(&move_order_score(board, *left, preferred, 0, ordering))
+        move_order_score(board, *right, preferred, 0, ordering, evaluation)
+            .cmp(&move_order_score(
+                board, *left, preferred, 0, ordering, evaluation,
+            ))
             .then_with(|| right_complexity.cmp(left_complexity))
             .then_with(|| move_key(*left).cmp(&move_key(*right)))
     });
@@ -934,6 +990,7 @@ fn move_order_score(
     preferred: Option<Move>,
     ply: u32,
     ordering: &MoveOrdering,
+    evaluation: EvaluationConfig,
 ) -> i64 {
     if preferred == Some(chess_move) {
         return 6_000_000;
@@ -955,6 +1012,12 @@ fn move_order_score(
         };
     }
 
+    let history = i64::from(ordering.history_score(board.side_to_move(), chess_move));
+    let forcing = forcing_order_bonus(board, chess_move, evaluation);
+    if forcing > 0 {
+        return 2_000_000 + history + forcing;
+    }
+
     let killers = ordering.killers(ply);
     if killers[0] == Some(chess_move) {
         return 3_000_000;
@@ -963,7 +1026,36 @@ fn move_order_score(
         return 2_900_000;
     }
 
-    2_000_000 + i64::from(ordering.history_score(board.side_to_move(), chess_move))
+    2_000_000 + history
+}
+
+fn forcing_order_bonus(board: &Board, chess_move: Move, evaluation: EvaluationConfig) -> i64 {
+    let aggression = i64::from(evaluation.aggression());
+    if aggression == 0 {
+        return 0;
+    }
+    if gives_check(board, chess_move) {
+        return 800_000 + aggression * 3_000;
+    }
+    if is_attacking_pawn_push(board, chess_move) {
+        return aggression * 1_500;
+    }
+    0
+}
+
+fn is_attacking_pawn_push(board: &Board, chess_move: Move) -> bool {
+    if board.piece_on(chess_move.from) != Some(Piece::Pawn) {
+        return false;
+    }
+    let color = board.side_to_move();
+    let enemy_king = board.king(!color);
+    let near_king = (chess_move.to.file() as i32 - enemy_king.file() as i32).abs() <= 1;
+    let advanced = if color == Color::White {
+        chess_move.to.rank() as i32 >= 4
+    } else {
+        chess_move.to.rank() as i32 <= 3
+    };
+    near_king && advanced
 }
 
 fn move_key(chess_move: Move) -> u32 {
@@ -1255,12 +1347,46 @@ mod tests {
     }
     #[test]
     fn check_extensions_are_capped_per_line() {
-        assert_eq!(super::next_search_depth(4, false, 0), (3, 0));
-        assert_eq!(super::next_search_depth(4, true, 0), (4, 1));
+        let quiet = super::EvaluationConfig::new(0);
+        let aggressive = super::EvaluationConfig::new(100);
+
+        assert_eq!(quiet.max_check_extensions(), 2);
+        assert_eq!(quiet.quiescence_check_budget(), 1);
+        assert_eq!(aggressive.max_check_extensions(), 4);
+        assert_eq!(aggressive.quiescence_check_budget(), 3);
         assert_eq!(
-            super::next_search_depth(4, true, super::MAX_CHECK_EXTENSIONS),
-            (3, super::MAX_CHECK_EXTENSIONS),
+            super::next_search_depth(4, false, 0, aggressive.max_check_extensions()),
+            (3, 0),
         );
+        assert_eq!(
+            super::next_search_depth(4, true, 0, aggressive.max_check_extensions()),
+            (4, 1),
+        );
+        assert_eq!(
+            super::next_search_depth(
+                4,
+                true,
+                aggressive.max_check_extensions(),
+                aggressive.max_check_extensions()
+            ),
+            (3, aggressive.max_check_extensions()),
+        );
+    }
+
+    #[test]
+    fn aggressive_ordering_prioritizes_quiet_checks() {
+        let position = Position::from_fen("7k/8/8/8/8/8/4Q3/4K3 w - - 0 1").unwrap();
+        let ordered = super::order_moves_with_evaluation(
+            position.board(),
+            generate_moves(position.board()),
+            None,
+            0,
+            &MoveOrdering::new(),
+            super::EvaluationConfig::new(100),
+        );
+
+        assert!(super::gives_check(position.board(), ordered[0]));
+        assert!(super::is_quiet(position.board(), ordered[0]));
     }
 
     #[test]

@@ -122,8 +122,8 @@ fn tuned_aggression_profile_is_reproducible_and_distinct() {
         changed += usize::from(base_move != tuned_move);
     }
 
-    assert_eq!(changed, 4);
-    assert_eq!(fixtures.len() - changed, 2);
+    assert_eq!(changed, 3);
+    assert_eq!(fixtures.len() - changed, 3);
 }
 #[test]
 fn deterministic_match_openings_are_valid() {

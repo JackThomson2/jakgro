@@ -84,6 +84,14 @@ impl EvaluationConfig {
     pub(super) const fn aggression(self) -> u8 {
         self.aggression
     }
+
+    pub(super) const fn max_check_extensions(self) -> u8 {
+        2 + self.aggression / 50
+    }
+
+    pub(super) const fn quiescence_check_budget(self) -> u8 {
+        1 + self.aggression / 50
+    }
 }
 
 impl Default for EvaluationConfig {

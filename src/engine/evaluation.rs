@@ -1,5 +1,11 @@
 mod features;
+mod tactics;
 mod weights;
+
+#[allow(unused_imports)]
+pub(super) use tactics::{
+    StyleSnapshot, TacticalSnapshot, material_balance, style_snapshot, tactical_snapshot,
+};
 
 use std::ops::{Add, Mul};
 
@@ -131,7 +137,7 @@ impl AttackProfile {
             + self.defender_shortage * 2
     }
 
-    fn compensation_pressure(self) -> Score {
+    pub(super) fn compensation_pressure(self) -> Score {
         if self.attackers < 2 {
             return 0;
         }
@@ -205,9 +211,10 @@ pub(super) fn root_complexity_bonus(
     if config.aggression() == 0 {
         return 0;
     }
-    let features = features::extract(board);
-    let sign = if mover == Color::White { 1 } else { -1 };
-    let forcing = sign * (features.king_pressure + features.pawn_storm + features.threats * 2);
+    let snapshot = style_snapshot(board, mover);
+    let forcing = snapshot.king_pressure_advantage
+        + snapshot.pawn_storm_advantage
+        + snapshot.threat_advantage * 2;
     (forcing.max(0) / 4).min(12) * Score::from(config.aggression()) / 100
 }
 

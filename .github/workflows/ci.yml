@@ -39,6 +39,12 @@ jobs:
       - name: Build release binary
         run: cargo build --release --locked
 
+      - name: Gate the tuned Aggression profile
+        run: python3 tools/measure_style.py --engine target/release/jakgro --check
+
+      - name: Check the reproducible match command
+        run: python3 tools/run_match.py --engine target/release/jakgro --dry-run
+
   msrv:
     name: Check Rust 1.85 compatibility
     runs-on: ubuntu-latest

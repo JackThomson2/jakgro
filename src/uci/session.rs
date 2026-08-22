@@ -5,9 +5,9 @@ use std::thread;
 use std::time::Duration;
 
 use crate::engine::{
-    DEFAULT_HASH_MIB, DEFAULT_MOVE_OVERHEAD_MS, Engine, MAX_HASH_MIB, MAX_MOVE_OVERHEAD_MS,
-    MIN_HASH_MIB, MIN_MOVE_OVERHEAD_MS, Position, SearchInfo, SearchLimits, SearchResult,
-    SearchScore,
+    DEFAULT_AGGRESSION, DEFAULT_HASH_MIB, DEFAULT_MOVE_OVERHEAD_MS, Engine, MAX_AGGRESSION,
+    MAX_HASH_MIB, MAX_MOVE_OVERHEAD_MS, MIN_AGGRESSION, MIN_HASH_MIB, MIN_MOVE_OVERHEAD_MS,
+    Position, SearchInfo, SearchLimits, SearchResult, SearchScore,
 };
 
 use super::command::{Command, PositionCommand, PositionSource, parse};
@@ -16,6 +16,32 @@ use super::search_worker::{SearchEvent, SearchTask};
 
 const ENGINE_NAME: &str = concat!("Jakgro ", env!("CARGO_PKG_VERSION"));
 const ENGINE_AUTHOR: &str = "Jakgro contributors";
+fn parse_clamped_spin(value: &str, minimum: u64, maximum: u64) -> Option<u64> {
+    let value = value.trim();
+    let (negative, digits) = if let Some(digits) = value.strip_prefix('-') {
+        (true, digits)
+    } else {
+        (false, value.strip_prefix('+').unwrap_or(value))
+    };
+    if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    if negative {
+        return Some(minimum);
+    }
+    let digits = digits.trim_start_matches('0');
+    if digits.is_empty() {
+        return Some(minimum);
+    }
+    let upper = maximum.to_string();
+    if digits.len() > upper.len() || (digits.len() == upper.len() && digits > upper.as_str()) {
+        return Some(maximum);
+    }
+    digits
+        .parse::<u64>()
+        .ok()
+        .map(|value| value.clamp(minimum, maximum))
+}
 
 /// Runs a UCI session until `quit` or end of input.
 ///
@@ -149,6 +175,10 @@ where
         )?;
         writeln!(
             self.output,
+            "option name Aggression type spin default {DEFAULT_AGGRESSION} min {MIN_AGGRESSION} max {MAX_AGGRESSION}",
+        )?;
+        writeln!(
+            self.output,
             "option name Move Overhead type spin default {DEFAULT_MOVE_OVERHEAD_MS} min {MIN_MOVE_OVERHEAD_MS} max {MAX_MOVE_OVERHEAD_MS}",
         )?;
         writeln!(self.output, "option name Clear Hash type button")?;
@@ -182,17 +212,28 @@ where
             return Ok(());
         }
 
+        if name.eq_ignore_ascii_case("Aggression") {
+            let Some(value) = value.filter(|value| !value.is_empty()) else {
+                return self.debug_info("Aggression requires a value from 0 to 100");
+            };
+            let Some(aggression) =
+                parse_clamped_spin(value, u64::from(MIN_AGGRESSION), u64::from(MAX_AGGRESSION))
+            else {
+                return self.debug_info(&format!("invalid Aggression value: {value}"));
+            };
+            let aggression = aggression as u8;
+            self.engine.set_aggression(aggression);
+            return Ok(());
+        }
         if name.eq_ignore_ascii_case("Move Overhead") {
             let Some(value) = value.filter(|value| !value.is_empty()) else {
                 return self.debug_info("Move Overhead requires a value in milliseconds");
             };
-            let Ok(milliseconds) = value.parse::<i128>() else {
+            let Some(milliseconds) =
+                parse_clamped_spin(value, MIN_MOVE_OVERHEAD_MS, MAX_MOVE_OVERHEAD_MS)
+            else {
                 return self.debug_info(&format!("invalid Move Overhead value: {value}"));
             };
-            let milliseconds = milliseconds.clamp(
-                i128::from(MIN_MOVE_OVERHEAD_MS),
-                i128::from(MAX_MOVE_OVERHEAD_MS),
-            ) as u64;
             self.engine
                 .set_move_overhead(Duration::from_millis(milliseconds));
             return Ok(());
@@ -347,7 +388,7 @@ where
 mod tests {
     use std::io::{self, BufRead, Cursor, Read};
 
-    use super::run;
+    use super::{parse_clamped_spin, run};
 
     fn transcript(input: &str) -> String {
         let mut output = Vec::new();
@@ -362,9 +403,22 @@ mod tests {
             concat!(
                 "id name Jakgro ",
                 env!("CARGO_PKG_VERSION"),
-                "\nid author Jakgro contributors\noption name Hash type spin default 16 min 1 max 1024\noption name Move Overhead type spin default 10 min 0 max 5000\noption name Clear Hash type button\nuciok\nreadyok\n"
+                "\nid author Jakgro contributors\noption name Hash type spin default 16 min 1 max 1024\noption name Aggression type spin default 100 min 0 max 100\noption name Move Overhead type spin default 10 min 0 max 5000\noption name Clear Hash type button\nuciok\nreadyok\n"
             )
         );
+    }
+    #[test]
+    fn spin_values_clamp_without_fixed_width_integer_overflow() {
+        assert_eq!(parse_clamped_spin("+00037", 0, 100), Some(37));
+        assert_eq!(
+            parse_clamped_spin("999999999999999999999999999999", 0, 100),
+            Some(100),
+        );
+        assert_eq!(
+            parse_clamped_spin("-999999999999999999999999999999", 0, 100),
+            Some(0),
+        );
+        assert_eq!(parse_clamped_spin("nope", 0, 100), None);
     }
 
     #[test]
@@ -391,10 +445,10 @@ mod tests {
         );
     }
     #[test]
-    fn move_overhead_accepts_and_clamps_spin_values_without_protocol_noise() {
+    fn persistent_spin_options_accept_and_clamp_values_without_protocol_noise() {
         assert_eq!(
             transcript(
-                "setoption name Move Overhead value 250\nsetoption name Move Overhead value -1\nsetoption name Move Overhead value 999999\nucinewgame\nisready\nquit\n",
+                "setoption name Aggression value 37\nsetoption name Aggression value -1\nsetoption name Aggression value 999999\nsetoption name Move Overhead value 250\nsetoption name Move Overhead value -1\nsetoption name Move Overhead value 999999\nucinewgame\nisready\nquit\n",
             ),
             "readyok\n",
         );
@@ -403,7 +457,7 @@ mod tests {
     #[test]
     fn debug_mode_reports_invalid_options() {
         let output = transcript(
-            "debug on\nsetoption name Hash value 0\nsetoption name Hash value nope\nsetoption name Clear Hash value nope\nsetoption name Move Overhead value nope\nquit\n",
+            "debug on\nsetoption name Hash value 0\nsetoption name Hash value nope\nsetoption name Clear Hash value nope\nsetoption name Aggression value nope\nsetoption name Move Overhead value nope\nquit\n",
         );
 
         assert!(
@@ -411,6 +465,7 @@ mod tests {
         );
         assert!(output.contains("info string invalid Hash value: nope\n"));
         assert!(output.contains("info string Clear Hash does not accept a value\n"));
+        assert!(output.contains("info string invalid Aggression value: nope\n"));
         assert!(output.contains("info string invalid Move Overhead value: nope\n"));
     }
 

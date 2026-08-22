@@ -2,7 +2,7 @@
 
 Jakgro is a Rust chess engine aimed at playing aggressive, tactical, and interesting chess while remaining compatible with the Universal Chess Interface (UCI).
 
-> **Current status:** Jakgro now runs a cancellable, single-threaded iterative-deepening alpha-beta search with quiescence, principal variations, repetition and draw handling, a persistent fixed-size transposition table, tapered positional evaluation, a bounded attacking personality, and volatility-aware soft/hard clock management. It is UCI-playable; personality tuning and UCI exposure are still under development.
+> **Current status:** Jakgro runs a cancellable, single-threaded iterative-deepening alpha-beta search with quiescence, principal variations, repetition and draw handling, a persistent fixed-size transposition table, tapered positional evaluation, a bounded attacking personality, and volatility-aware soft/hard clock management. It is UCI-playable and exposes a reproducibly gated `Aggression` profile from 0 to 100.
 
 ## Goals
 
@@ -15,11 +15,13 @@ Jakgro will favor initiative and practical winning chances without replacing che
 - tactically justified material investment; and
 - bounded draw aversion when a position offers winning chances.
 
-Legality, tactical soundness, and reproducible testing remain hard constraints. The engine API bounds the attacking profile from 0 to 100; no UCI `Aggression` option is advertised until its behavior is tuned and regression-tested.
+Legality, tactical soundness, and reproducible testing remain hard constraints. The engine and UCI APIs bound `Aggression` from 0 to 100 and default to the tuned attacking profile at 100. Fixed-node fixtures gate both endpoints so style changes remain deliberate and reviewable.
 
 ## Requirements
 
 - Rust 1.85 or newer
+- Python 3 for the measurement helpers
+- `cutechess-cli` only when running paired match measurements
 
 ## Build and test
 
@@ -60,7 +62,7 @@ Jakgro currently handles these GUI commands:
 - `uci`
 - `debug on|off`
 - `isready`
-- `setoption name Hash value <MiB>`, `setoption name Clear Hash`, and `setoption name Move Overhead value <milliseconds>`
+- `setoption name Hash value <MiB>`, `setoption name Clear Hash`, `setoption name Aggression value <0..100>`, and `setoption name Move Overhead value <milliseconds>`
 - `ucinewgame`
 - `position startpos ...`
 - `position fen <six FEN fields> ...`
@@ -77,17 +79,40 @@ Malformed and unknown commands do not terminate the process. With debug mode ena
 
 To use Jakgro from a chess GUI, build the release binary and configure the GUI to launch the resulting `target/release/jakgro` executable as a UCI engine.
 
-### Current search and protocol limitations
+## Reproducible style and match measurement
+
+The style gate drives the public UCI interface at fixed node budgets and compares Aggression 0 and 100 against `tests/data/personality.epd`:
+
+```sh
+cargo build --release --locked
+python3 tools/measure_style.py --engine target/release/jakgro --check
+```
+
+The command prints CSV observations containing each profile's move, score, completed depth, node count, and gate status. CI runs the same command, while `cargo test --test aggression_profile` independently checks both profiles through the engine API.
+
+For paired self-play, install `cutechess-cli` and run:
+
+```sh
+python3 tools/run_match.py \
+  --engine target/release/jakgro \
+  --games 12 \
+  --nodes 50000 \
+  --pgn artifacts/aggression-match.pgn
+```
+
+The match runner compares Aggression 100 with Aggression 0 using reversed colors, one unique sequential EPD opening per pair, one concurrent game, fixed nodes per move, and explicit draw, resignation, and maximum-move rules. Pass `--baseline-engine` to compare against another binary, `--openings` to supply a larger suite, or `--dry-run` to inspect the exact cutechess command without launching a match.
+
+## Current search and protocol limitations
 
 - Only standard chess is supported; Chess960 is deferred.
 - Static evaluation tapers material, activity, mobility, bishop-pair, pawn-structure, passed-pawn, and king-shelter features between middlegame and endgame. A bounded profile adds initiative, king-zone pressure, pawn storms, favorable threats, space, passed-pawn urgency, and a small root complexity preference.
 - Search is single-threaded internally and uses one worker per active UCI search.
 - Every child still clones the `cozy-chess` board; there is no make/unmake layer yet. A persistent fixed-size transposition table reuses exact and bounded search results.
-- Move ordering consists of the previous principal variation, promotions, and MVV-LVA-style captures; there are no killer, history, hash-move, or aspiration-window heuristics.
+- Move ordering combines hash and previous-PV moves, promotions, tactical capture values, killers, and history scores. Principal-variation search and aspiration windows reduce repeated work; null-move pruning, late-move reductions, and a make/unmake board layer are still deferred.
 - A `go` command without an effective time, node, depth, mate, infinite, or ponder limit defaults to depth four so accidental limit-free searches terminate.
 - Clock-managed searches use a normal soft budget and a reserved hard limit. Stable iterations stop at the soft limit; best-move changes or large score swings can spend toward the hard limit. `Move Overhead` reserves 0–5000 ms for GUI and operating-system latency, while an explicit `movetime` remains fixed.
 - Repetition history is retained for moves supplied after `position`; a standalone FEN cannot describe occurrences before that FEN.
-- No `Threads`, `MultiPV`, or aggression-related UCI options are advertised.
+- No `Threads` or `MultiPV` UCI options are advertised.
 
 ## Architecture
 
@@ -99,6 +124,8 @@ To use Jakgro from a chess GUI, build the release binary and configure the GUI t
 - `src/engine/search/time.rs` converts UCI clock fields and move overhead into normal and emergency budgets.
 - `src/uci/session.rs` owns the serialized protocol event loop.
 - `src/uci/search_worker.rs` isolates search threads, generation IDs, pondering, and stale-result suppression.
+- `tools/measure_style.py` reports and gates fixed-node choices across Aggression profiles.
+- `tools/run_match.py` builds deterministic paired fixed-node matches for `cutechess-cli`.
 - `src/main.rs` is a thin adapter that reserves stdout exclusively for UCI traffic.
 
 ## Milestone status
@@ -112,25 +139,25 @@ The initial protocol and search foundations now include:
 - principal-variation and UCI progress reporting;
 - a persistent transposition table with safe draw-state handling and UCI `Hash` controls;
 - volatility-aware time allocation with a persistent UCI `Move Overhead` control;
-- a bounded, color-symmetric attacking profile with isolated style weights; and
+- a bounded, color-symmetric attacking profile with isolated style weights and UCI `Aggression` control;
+- fixed-node style gates and deterministic paired-match tooling; and
 - asynchronous `stop`, `ponderhit`, replacement-search, EOF, and shutdown behavior.
 
 ## Roadmap
 
 1. **Search efficiency and repeatability**
-   - Add hash-move, killer, history, and improved tactical ordering.
-   - Add aspiration windows and deterministic search benchmarks.
+   - Add null-move pruning, late-move reductions, and a make/unmake board layer.
+   - Expand deterministic search and performance benchmarks.
 2. **Aggressive evaluation**
-   - Tune the bounded initiative, king-pressure, space, threat, and passer-urgency terms against stable fixtures.
-   - Measure tactical soundness separately from style before expanding compensation terms.
+   - Expand the gated suite with compensation, pawn-race, and defensive-resource positions.
+   - Measure tactical soundness separately from style before adding sacrifice-specific terms.
 3. **Time and protocol refinement**
    - Tune soft/hard budget ratios and volatility thresholds through timed matches.
    - Evaluate thread-safe shared search structures before advertising a `Threads` option.
    - Expand ponder, mate-limit, and malformed-command regression suites.
 4. **Tuning and match testing**
-   - Tune against curated tactical and attacking positions.
-   - Measure Elo, decisive-game rate, sacrifice quality, and regressions against stable engine versions.
-   - Expose aggression-related UCI options only after their behavior is measurable and tested.
+   - Track Elo, decisive-game rate, color balance, and sacrifice quality against tagged versions.
+   - Tune explicit style weights only when fixture gates and paired matches agree.
 
 ## License
 

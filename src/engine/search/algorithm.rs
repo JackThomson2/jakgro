@@ -21,6 +21,11 @@ const ASPIRATION_INITIAL: Score = 50;
 const MAX_CHECK_EXTENSIONS: u8 = 2;
 const QUIESCENCE_CHECK_BUDGET: u8 = 1;
 const VOLATILE_HOLD_ITERATIONS: u8 = 2;
+const CONTROL_POLL_INTERVAL_NODES: u64 = 256;
+
+fn should_poll_control(nodes: u64) -> bool {
+    nodes % CONTROL_POLL_INTERVAL_NODES == 0
+}
 
 #[derive(Debug)]
 struct Aborted;
@@ -163,11 +168,8 @@ struct SearchContext<'a> {
 
 impl SearchContext<'_> {
     fn visit_node(&mut self) -> Result<(), Aborted> {
-        if self.should_stop() {
-            return Err(Aborted);
-        }
-        if let Some(limit) = self.node_limit
-            && self.nodes >= limit
+        if self.node_limit_reached()
+            || (should_poll_control(self.nodes) && self.control_stop_requested())
         {
             return Err(Aborted);
         }
@@ -176,9 +178,15 @@ impl SearchContext<'_> {
     }
 
     fn should_stop(&self) -> bool {
-        self.control.is_stopped()
-            || self.control.hard_deadline_reached()
-            || self.node_limit.is_some_and(|limit| self.nodes >= limit)
+        self.node_limit_reached() || self.control_stop_requested()
+    }
+
+    fn control_stop_requested(&self) -> bool {
+        self.control.is_stopped() || self.control.hard_deadline_reached()
+    }
+
+    fn node_limit_reached(&self) -> bool {
+        self.node_limit.is_some_and(|limit| self.nodes >= limit)
     }
 
     fn clear_pv(&mut self, ply: u32) {
@@ -1144,6 +1152,17 @@ mod tests {
         assert!(stability.observe(Some(d4), 20));
         assert!(!stability.observe(Some(d4), 25));
         assert!(stability.observe(Some(d4), 80));
+    }
+    #[test]
+    fn control_polling_has_a_bounded_interval() {
+        let interval = super::CONTROL_POLL_INTERVAL_NODES;
+
+        assert!(super::should_poll_control(0));
+        assert!(!super::should_poll_control(1));
+        assert!(!super::should_poll_control(interval - 1));
+        assert!(super::should_poll_control(interval));
+        assert!(!super::should_poll_control(interval + 1));
+        assert!(super::should_poll_control(interval * 2));
     }
     #[test]
     fn check_extensions_are_capped_per_line() {

@@ -1,4 +1,4 @@
-use cozy_chess::{Board, Color, Move, Piece};
+use cozy_chess::{Board, Color, Move, Piece, Square};
 
 use super::{Score, features, piece_value};
 
@@ -28,6 +28,15 @@ pub(in crate::engine) struct TacticalSnapshot {
     pub(in crate::engine) style: StyleSnapshot,
     pub(in crate::engine) legal_checks: Score,
     pub(in crate::engine) exchange_risk: Score,
+}
+
+#[derive(Clone, Debug)]
+pub(in crate::engine) struct ExchangeOutcome {
+    pub(in crate::engine) target: Square,
+    pub(in crate::engine) line: Vec<Move>,
+    pub(in crate::engine) final_board: Board,
+    pub(in crate::engine) material_balance: Score,
+    pub(in crate::engine) truncated: bool,
 }
 
 pub(in crate::engine) fn style_snapshot(board: &Board, mover: Color) -> StyleSnapshot {
@@ -143,47 +152,80 @@ pub(in crate::engine) fn exchange_risk_on(
     (before - worst).max(0)
 }
 
+pub(in crate::engine) fn exchange_outcome(
+    board: &Board,
+    mover: Color,
+    target: Square,
+) -> ExchangeOutcome {
+    exchange_outcome_with_limit(board, mover, target, MAX_EXCHANGE_PLIES)
+}
+
 pub(in crate::engine) fn material_balance_after_exchange(
     board: &Board,
     mover: Color,
-    target: cozy_chess::Square,
+    target: Square,
 ) -> Score {
-    exchange_value(board, mover, target, MAX_EXCHANGE_PLIES)
+    let outcome = exchange_outcome(board, mover, target);
+    debug_assert_eq!(outcome.target, target);
+    debug_assert_eq!(
+        outcome.material_balance,
+        material_balance(&outcome.final_board, mover)
+    );
+    debug_assert!(outcome.line.len() <= usize::from(MAX_EXCHANGE_PLIES));
+    debug_assert!(!outcome.truncated || outcome.line.len() == usize::from(MAX_EXCHANGE_PLIES));
+    outcome.material_balance
 }
 
-fn exchange_value(
+fn exchange_value(board: &Board, perspective: Color, target: Square, remaining: u8) -> Score {
+    exchange_outcome_with_limit(board, perspective, target, remaining).material_balance
+}
+
+fn exchange_outcome_with_limit(
     board: &Board,
     perspective: Color,
-    target: cozy_chess::Square,
+    target: Square,
     remaining: u8,
-) -> Score {
+) -> ExchangeOutcome {
     let current = material_balance(board, perspective);
-    if remaining == 0 {
-        return current;
-    }
     let captures = generate_moves(board)
         .into_iter()
         .filter(|chess_move| {
             chess_move.to == target && captured_piece(board, *chess_move).is_some()
         })
         .collect::<Vec<_>>();
-    if captures.is_empty() {
-        return current;
+    if remaining == 0 || captures.is_empty() {
+        return ExchangeOutcome {
+            target,
+            line: Vec::new(),
+            final_board: board.clone(),
+            material_balance: current,
+            truncated: remaining == 0 && !captures.is_empty(),
+        };
     }
 
-    if board.side_to_move() == perspective {
-        captures.into_iter().fold(current, |best, chess_move| {
-            let mut child = board.clone();
-            child.play_unchecked(chess_move);
-            best.max(exchange_value(&child, perspective, target, remaining - 1))
-        })
-    } else {
-        captures.into_iter().fold(current, |best, chess_move| {
-            let mut child = board.clone();
-            child.play_unchecked(chess_move);
-            best.min(exchange_value(&child, perspective, target, remaining - 1))
-        })
+    let maximizing = board.side_to_move() == perspective;
+    let mut best = ExchangeOutcome {
+        target,
+        line: Vec::new(),
+        final_board: board.clone(),
+        material_balance: current,
+        truncated: false,
+    };
+    for chess_move in captures {
+        let mut child = board.clone();
+        child.play_unchecked(chess_move);
+        let mut candidate = exchange_outcome_with_limit(&child, perspective, target, remaining - 1);
+        candidate.line.insert(0, chess_move);
+        let improves = if maximizing {
+            candidate.material_balance > best.material_balance
+        } else {
+            candidate.material_balance < best.material_balance
+        };
+        if improves {
+            best = candidate;
+        }
     }
+    best
 }
 
 fn orient_to(board: &Board, color: Color) -> Option<Board> {
@@ -213,9 +255,11 @@ fn captured_piece(board: &Board, chess_move: Move) -> Option<Piece> {
 
 #[cfg(test)]
 mod tests {
-    use cozy_chess::{Board, Color};
+    use cozy_chess::{Board, Color, Piece, Square};
 
-    use super::{material_balance, tactical_snapshot};
+    use super::{
+        exchange_outcome, exchange_outcome_with_limit, material_balance, tactical_snapshot,
+    };
 
     #[test]
     fn material_balance_is_mover_relative() {
@@ -272,5 +316,76 @@ mod tests {
         let snapshot = tactical_snapshot(&board, Color::White);
 
         assert_eq!(snapshot.exchange_risk, 0);
+    }
+
+    #[test]
+    fn exchange_outcome_keeps_the_selected_line_and_board_together() {
+        let board: Board = "4k3/8/8/3r4/8/8/3Q4/4K3 b - - 0 1".parse().unwrap();
+
+        let outcome = exchange_outcome(&board, Color::White, Square::D2);
+
+        assert_eq!(outcome.target, Square::D2);
+        assert_eq!(outcome.material_balance, 0);
+        assert_eq!(outcome.line.len(), 2);
+        assert_eq!(outcome.line[0].from, Square::D5);
+        assert_eq!(outcome.line[0].to, Square::D2);
+        assert_eq!(outcome.line[1].from, Square::E1);
+        assert_eq!(outcome.line[1].to, Square::D2);
+        assert_eq!(outcome.final_board.piece_on(Square::D2), Some(Piece::King));
+        assert_eq!(outcome.final_board.color_on(Square::D2), Some(Color::White));
+        assert!(!outcome.truncated);
+    }
+
+    #[test]
+    fn exchange_outcome_records_en_passant_on_the_destination_square() {
+        let board: Board = "4k3/8/8/8/3pP3/8/8/4K3 b - e3 0 1".parse().unwrap();
+
+        let outcome = exchange_outcome(&board, Color::White, Square::E3);
+
+        assert_eq!(outcome.material_balance, -100);
+        assert_eq!(outcome.line.len(), 1);
+        assert_eq!(outcome.final_board.piece_on(Square::E3), Some(Piece::Pawn));
+        assert_eq!(outcome.final_board.color_on(Square::E3), Some(Color::Black));
+        assert_eq!(outcome.final_board.piece_on(Square::E4), None);
+        assert!(!outcome.truncated);
+    }
+
+    #[test]
+    fn exchange_outcome_keeps_the_best_promotion() {
+        let board: Board = "4k3/8/8/8/8/8/6p1/4K2R b - - 0 1".parse().unwrap();
+
+        let outcome = exchange_outcome(&board, Color::White, Square::H1);
+
+        assert_eq!(outcome.material_balance, -900);
+        assert_eq!(outcome.line.len(), 1);
+        assert_eq!(outcome.line[0].promotion, Some(Piece::Queen));
+        assert_eq!(outcome.final_board.piece_on(Square::H1), Some(Piece::Queen));
+        assert_eq!(outcome.final_board.color_on(Square::H1), Some(Color::Black));
+        assert!(!outcome.truncated);
+    }
+
+    #[test]
+    fn exchange_outcome_marks_an_unresolved_depth_boundary() {
+        let board: Board = "3r3k/8/8/8/3Q4/8/8/3R3K b - - 0 1".parse().unwrap();
+
+        let truncated = exchange_outcome_with_limit(&board, Color::White, Square::D4, 1);
+        assert!(truncated.truncated);
+        assert_eq!(truncated.line.len(), 1);
+        assert_eq!(truncated.line[0].from, Square::D8);
+        assert_eq!(truncated.line[0].to, Square::D4);
+        assert_eq!(
+            truncated.final_board.piece_on(Square::D4),
+            Some(Piece::Rook)
+        );
+        assert_eq!(truncated.material_balance, 0);
+
+        let settled = exchange_outcome(&board, Color::White, Square::D4);
+        assert!(!settled.truncated);
+        assert_eq!(settled.line.len(), 2);
+        assert_eq!(settled.line[1].from, Square::D1);
+        assert_eq!(settled.line[1].to, Square::D4);
+        assert_eq!(settled.final_board.piece_on(Square::D4), Some(Piece::Rook));
+        assert_eq!(settled.final_board.color_on(Square::D4), Some(Color::White));
+        assert_eq!(settled.material_balance, 500);
     }
 }

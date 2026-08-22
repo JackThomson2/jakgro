@@ -10,6 +10,12 @@ pub struct SearchControl {
     shared: Arc<SharedControl>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) struct DeadlineWindow {
+    pub(super) soft: Duration,
+    pub(super) hard: Duration,
+}
+
 #[derive(Debug)]
 struct SharedControl {
     epoch: Instant,
@@ -68,8 +74,22 @@ impl SearchControl {
         self.write_deadlines(NO_DEADLINE, NO_DEADLINE);
     }
 
-    pub(super) fn soft_deadline_reached(&self) -> bool {
-        self.deadline_reached(self.deadline_snapshot().0)
+    pub(super) fn deadline_window(&self) -> Option<DeadlineWindow> {
+        let (soft, hard) = self.deadline_snapshot();
+        if soft == NO_DEADLINE || hard == NO_DEADLINE {
+            return None;
+        }
+
+        let now = self
+            .shared
+            .epoch
+            .elapsed()
+            .as_nanos()
+            .min(u128::from(u64::MAX)) as u64;
+        Some(DeadlineWindow {
+            soft: Duration::from_nanos(soft.saturating_sub(now)),
+            hard: Duration::from_nanos(hard.saturating_sub(now)),
+        })
     }
 
     pub(super) fn hard_deadline_reached(&self) -> bool {
@@ -144,18 +164,31 @@ mod tests {
     fn soft_and_hard_deadlines_can_be_set_and_cleared() {
         let control = SearchControl::new();
         assert!(!control.has_time_budget());
+        assert_eq!(control.deadline_window(), None);
 
         control.set_time_budget_from_now(Duration::ZERO, Duration::from_secs(1));
+        let active = control.deadline_window().unwrap();
         assert!(control.has_time_budget());
-        assert!(control.soft_deadline_reached());
+        assert_eq!(active.soft, Duration::ZERO);
+        assert!(active.hard <= Duration::from_secs(1));
         assert!(!control.hard_deadline_reached());
 
+        control.set_time_budget_from_now(Duration::from_secs(10), Duration::from_secs(20));
+        let original = control.deadline_window().unwrap();
+        control.set_time_budget_from_now(Duration::from_secs(20), Duration::from_secs(30));
+        let replacement = control.deadline_window().unwrap();
+        assert!(replacement.soft > original.soft);
+        assert!(replacement.hard > original.hard);
+
         control.set_deadline_from_now(Duration::ZERO);
+        let expired = control.deadline_window().unwrap();
+        assert_eq!(expired.soft, expired.hard);
+        assert!(expired.hard <= Duration::from_nanos(1));
         assert!(control.hard_deadline_reached());
 
         control.clear_deadline();
         assert!(!control.has_time_budget());
-        assert!(!control.soft_deadline_reached());
+        assert_eq!(control.deadline_window(), None);
         assert!(!control.hard_deadline_reached());
     }
     #[test]

@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 use cozy_chess::util::display_uci_move;
 use cozy_chess::{BitBoard, Board, Color, Move, Piece};
 
+use super::control::DeadlineWindow;
 use super::time::allocate_time;
 use super::transposition::{Bound, TranspositionTable};
 use super::{SearchControl, SearchInfo, SearchLimits, SearchResult, SearchScore};
@@ -22,9 +23,39 @@ const MAX_CHECK_EXTENSIONS: u8 = 2;
 const QUIESCENCE_CHECK_BUDGET: u8 = 1;
 const VOLATILE_HOLD_ITERATIONS: u8 = 2;
 const CONTROL_POLL_INTERVAL_NODES: u64 = 256;
+const ITERATION_TIME_MULTIPLIER: u32 = 2;
+const ITERATION_TIME_MARGIN: Duration = Duration::from_millis(5);
 
 fn should_poll_control(nodes: u64) -> bool {
     nodes % CONTROL_POLL_INTERVAL_NODES == 0
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum IterationDecision {
+    Stop,
+    Continue,
+    Extend,
+}
+
+fn next_iteration_decision(
+    deadline: Option<DeadlineWindow>,
+    iteration_duration: Duration,
+    is_volatile: bool,
+    extension_used: bool,
+) -> IterationDecision {
+    let Some(deadline) = deadline else {
+        return IterationDecision::Continue;
+    };
+    let forecast = iteration_duration
+        .saturating_mul(ITERATION_TIME_MULTIPLIER)
+        .saturating_add(ITERATION_TIME_MARGIN);
+
+    if forecast <= deadline.soft {
+        IterationDecision::Continue
+    } else if is_volatile && !extension_used && forecast <= deadline.hard {
+        IterationDecision::Extend
+    } else {
+        IterationDecision::Stop
+    }
 }
 
 #[derive(Debug)]
@@ -294,6 +325,7 @@ where
     let mut previous_pv = Vec::new();
     let mut previous_score = None;
     let mut stability = IterationStability::default();
+    let mut extension_used = false;
     let mut final_info = None;
     let maximum_depth = maximum_depth(limits, has_time_budget);
 
@@ -302,6 +334,7 @@ where
             break;
         }
 
+        let iteration_started = Instant::now();
         let mut radius = ASPIRATION_INITIAL;
         let (mut alpha, mut beta) = previous_score
             .filter(|score: &Score| score.abs() < MATE_THRESHOLD)
@@ -337,6 +370,7 @@ where
                 (alpha, beta) = aspiration_bounds(score, radius);
             }
         };
+        let iteration_duration = iteration_started.elapsed();
 
         let is_volatile = stability.observe(context.pv(0).first().copied(), iteration.score);
         previous_score = Some(iteration.score);
@@ -354,9 +388,18 @@ where
         let found_mate = matches!(info.score(), SearchScore::Mate(_));
         final_info = Some(info);
 
-        if found_mate || context.should_stop() || (control.soft_deadline_reached() && !is_volatile)
-        {
+        if found_mate || context.should_stop() {
             break;
+        }
+        match next_iteration_decision(
+            control.deadline_window(),
+            iteration_duration,
+            is_volatile,
+            extension_used,
+        ) {
+            IterationDecision::Stop => break,
+            IterationDecision::Continue => {}
+            IterationDecision::Extend => extension_used = true,
         }
     }
 
@@ -1163,6 +1206,52 @@ mod tests {
         assert!(super::should_poll_control(interval));
         assert!(!super::should_poll_control(interval + 1));
         assert!(super::should_poll_control(interval * 2));
+    }
+    #[test]
+    fn iteration_forecasts_respect_soft_and_hard_windows() {
+        use std::time::Duration;
+
+        use super::{DeadlineWindow, IterationDecision};
+
+        let iteration = Duration::from_millis(10);
+        let ample_soft_time = DeadlineWindow {
+            soft: Duration::from_millis(25),
+            hard: Duration::from_millis(100),
+        };
+        assert_eq!(
+            super::next_iteration_decision(Some(ample_soft_time), iteration, false, false),
+            IterationDecision::Continue
+        );
+        assert_eq!(
+            super::next_iteration_decision(None, iteration, false, false),
+            IterationDecision::Continue
+        );
+
+        let extension_time = DeadlineWindow {
+            soft: Duration::from_millis(24),
+            hard: Duration::from_millis(25),
+        };
+        assert_eq!(
+            super::next_iteration_decision(Some(extension_time), iteration, true, false),
+            IterationDecision::Extend
+        );
+        assert_eq!(
+            super::next_iteration_decision(Some(extension_time), iteration, false, false),
+            IterationDecision::Stop
+        );
+        assert_eq!(
+            super::next_iteration_decision(Some(extension_time), iteration, true, true),
+            IterationDecision::Stop
+        );
+
+        let fixed_time = DeadlineWindow {
+            soft: Duration::from_millis(24),
+            hard: Duration::from_millis(24),
+        };
+        assert_eq!(
+            super::next_iteration_decision(Some(fixed_time), iteration, true, false),
+            IterationDecision::Stop
+        );
     }
     #[test]
     fn check_extensions_are_capped_per_line() {

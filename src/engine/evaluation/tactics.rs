@@ -118,6 +118,39 @@ fn exchange_risk(board: &Board, mover: Color) -> Score {
     (before - worst).max(0)
 }
 
+pub(in crate::engine) fn exchange_risk_on(
+    board: &Board,
+    mover: Color,
+    target: cozy_chess::Square,
+) -> Score {
+    let Some(oriented) = orient_to(board, !mover) else {
+        return 0;
+    };
+    let before = material_balance(&oriented, mover);
+    let mut worst = before;
+    for chess_move in generate_moves(&oriented).into_iter().filter(|&chess_move| {
+        chess_move.to == target && captured_piece(&oriented, chess_move).is_some()
+    }) {
+        let mut child = oriented.clone();
+        child.play_unchecked(chess_move);
+        worst = worst.min(exchange_value(
+            &child,
+            mover,
+            target,
+            MAX_EXCHANGE_PLIES - 1,
+        ));
+    }
+    (before - worst).max(0)
+}
+
+pub(in crate::engine) fn material_balance_after_exchange(
+    board: &Board,
+    mover: Color,
+    target: cozy_chess::Square,
+) -> Score {
+    exchange_value(board, mover, target, MAX_EXCHANGE_PLIES)
+}
+
 fn exchange_value(
     board: &Board,
     perspective: Color,

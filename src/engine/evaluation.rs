@@ -2,7 +2,10 @@ mod features;
 mod tactics;
 mod weights;
 
-pub(super) use tactics::{TacticalSnapshot, style_snapshot, tactical_snapshot};
+pub(super) use tactics::{
+    TacticalSnapshot, exchange_risk_on, material_balance_after_exchange, style_snapshot,
+    tactical_snapshot,
+};
 
 use std::ops::{Add, Mul};
 

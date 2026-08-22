@@ -11,7 +11,8 @@ use super::{SearchControl, SearchInfo, SearchLimits, SearchResult, SearchScore};
 use crate::engine::Position;
 use crate::engine::evaluation::{
     EvaluationConfig, MATE_SCORE, MATE_THRESHOLD, MAX_PLY, NEG_INFINITY, POS_INFINITY, Score,
-    TacticalSnapshot, evaluate_with_config, piece_value, root_complexity_bonus, tactical_snapshot,
+    TacticalSnapshot, evaluate_with_config, exchange_risk_on, material_balance_after_exchange,
+    piece_value, root_complexity_bonus, tactical_snapshot,
 };
 use crate::engine::position::repetition_key;
 
@@ -148,7 +149,6 @@ enum SacrificeState {
     Unverified,
 }
 
-#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 struct SacrificeProfile {
     state: SacrificeState,
@@ -160,6 +160,8 @@ struct SacrificeProfile {
     king_danger_delta: Score,
     legal_checks: Score,
     compensation_signals: u8,
+    queens_retained: bool,
+    position_stable: bool,
     verified_reply: bool,
 }
 
@@ -170,8 +172,14 @@ struct RootCandidate {
     path_dependent: bool,
     interest: i64,
     pv: Vec<Move>,
-    #[allow(dead_code)]
     sacrifice: SacrificeProfile,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct CandidateSeed {
+    chess_move: Move,
+    interest: i64,
+    sacrifice_hint: Score,
 }
 
 const HISTORY_MAX: u32 = 900_000;
@@ -544,10 +552,11 @@ fn search_root_styled(
         return Ok(objective);
     }
 
+    let mover = board.side_to_move();
+    let root_snapshot = tactical_snapshot(board, mover);
     let mut objective_child = board.clone();
     objective_child.play_unchecked(objective_move);
-    let objective_sacrifice =
-        sacrifice_profile(board, &objective_child, board.side_to_move(), &objective_pv);
+    let objective_sacrifice = sacrifice_profile(board, &objective_child, mover, &objective_pv);
     let mut candidates = vec![RootCandidate {
         chess_move: objective_move,
         score: objective.score,
@@ -556,7 +565,7 @@ fn search_root_styled(
         pv: objective_pv,
         sacrifice: objective_sacrifice,
     }];
-    let mut alternatives = root_moves
+    let seeds = root_moves
         .iter()
         .copied()
         .filter(|&chess_move| chess_move != objective_move)
@@ -564,14 +573,22 @@ fn search_root_styled(
             let mut child = board.clone();
             child.play_unchecked(chess_move);
             let interest = root_interest(board, &child, chess_move, context.evaluation);
-            (chess_move, interest)
+            let immediate = tactical_snapshot(&child, mover);
+            let offered_cp = exchange_risk_on(&child, mover, chess_move.to);
+            let sacrifice_hint = sacrifice_hint_score(
+                &root_snapshot,
+                &immediate,
+                offered_cp,
+                gives_check(board, chess_move),
+            );
+            CandidateSeed {
+                chess_move,
+                interest,
+                sacrifice_hint,
+            }
         })
         .collect::<Vec<_>>();
-    alternatives.sort_unstable_by(|(left_move, left_interest), (right_move, right_interest)| {
-        right_interest
-            .cmp(left_interest)
-            .then_with(|| move_key(*left_move).cmp(&move_key(*right_move)))
-    });
+    let alternatives = select_candidate_seeds(seeds);
     let (child_depth, child_extensions) = next_search_depth(
         depth,
         !board.checkers().is_empty(),
@@ -579,12 +596,12 @@ fn search_root_styled(
         context.evaluation.max_check_extensions(),
     );
 
-    for (chess_move, interest) in alternatives.into_iter().take(6) {
+    for seed in alternatives {
         if context.should_stop() {
             break;
         }
         let mut child = board.clone();
-        child.play_unchecked(chess_move);
+        child.play_unchecked(seed.chess_move);
         history.push(&child);
         let child_result = negamax(
             &child,
@@ -601,20 +618,52 @@ fn search_root_styled(
         let Ok(child_result) = child_result else {
             break;
         };
-        let mut pv = vec![chess_move];
+        let mut score = -child_result.score;
+        let mut path_dependent = child_result.path_dependent;
+        let mut pv = vec![seed.chess_move];
         pv.extend_from_slice(context.pv(1));
-        let sacrifice = sacrifice_profile(board, &child, board.side_to_move(), &pv);
+        let mut sacrifice = sacrifice_profile(board, &child, mover, &pv);
+
+        let should_extend = context.evaluation.aggression() >= 75
+            && seed.sacrifice_hint >= MIN_SACRIFICE_CP
+            && score >= objective.score - 450
+            && is_compensated_sacrifice(&sacrifice)
+            && !context.should_stop();
+        if should_extend {
+            history.push(&child);
+            let extended = negamax(
+                &child,
+                history,
+                child_depth + 1,
+                1,
+                child_extensions,
+                NEG_INFINITY,
+                POS_INFINITY,
+                &[],
+                context,
+            );
+            history.pop();
+            if let Ok(extended) = extended {
+                score = -extended.score;
+                path_dependent = extended.path_dependent;
+                pv.clear();
+                pv.push(seed.chess_move);
+                pv.extend_from_slice(context.pv(1));
+                sacrifice = sacrifice_profile(board, &child, mover, &pv);
+            }
+        }
+
         candidates.push(RootCandidate {
-            chess_move,
-            score: -child_result.score,
-            path_dependent: child_result.path_dependent,
-            interest,
+            chess_move: seed.chess_move,
+            score,
+            path_dependent,
+            interest: seed.interest,
             pv,
             sacrifice,
         });
     }
 
-    let selected = choose_styled_candidate(&candidates, 0, context.evaluation.root_style_margin());
+    let selected = choose_styled_candidate(&candidates, 0, context.evaluation);
     context.pv[0].clear();
     context.pv[0].extend_from_slice(&candidates[selected].pv);
     Ok(NodeResult {
@@ -626,7 +675,7 @@ fn search_root_styled(
 fn choose_styled_candidate(
     candidates: &[RootCandidate],
     conventional: usize,
-    margin: Score,
+    evaluation: EvaluationConfig,
 ) -> usize {
     let best = candidates[conventional].score;
     if best.abs() >= MATE_THRESHOLD {
@@ -634,13 +683,16 @@ fn choose_styled_candidate(
     }
     let mut selected = conventional;
     for (index, candidate) in candidates.iter().enumerate() {
+        let margin = candidate_risk_margin(evaluation, best, &candidate.sacrifice);
         if candidate.score.abs() >= MATE_THRESHOLD || candidate.score < best - margin {
             continue;
         }
         let current = &candidates[selected];
-        if candidate.interest > current.interest
-            || (candidate.interest == current.interest && candidate.score > current.score)
-            || (candidate.interest == current.interest
+        let candidate_interest = selection_interest(candidate);
+        let current_interest = selection_interest(current);
+        if candidate_interest > current_interest
+            || (candidate_interest == current_interest && candidate.score > current.score)
+            || (candidate_interest == current_interest
                 && candidate.score == current.score
                 && move_key(candidate.chess_move) < move_key(current.chess_move))
         {
@@ -650,13 +702,132 @@ fn choose_styled_candidate(
     selected
 }
 
+fn candidate_risk_margin(
+    evaluation: EvaluationConfig,
+    best_score: Score,
+    sacrifice: &SacrificeProfile,
+) -> Score {
+    let base = evaluation.root_style_margin();
+    let aggression = Score::from(evaluation.aggression());
+    if aggression < 75 || !is_compensated_sacrifice(sacrifice) {
+        return base;
+    }
+    let material = sacrifice_material(sacrifice);
+    let mut target = if material < 200 { 220 } else { 380 };
+    if best_score < -150 {
+        target = (target + 80).min(450);
+    } else if best_score > 300 {
+        target = target.min(200);
+    }
+    base.max(target * aggression / 100).min(450)
+}
+
+fn is_compensated_sacrifice(sacrifice: &SacrificeProfile) -> bool {
+    sacrifice.verified_reply
+        && sacrifice_material(sacrifice) >= MIN_SACRIFICE_CP
+        && sacrifice.compensation_signals >= 2
+        && sacrifice.legal_checks > 0
+        && (sacrifice.attack_gain > 0 || sacrifice.compensation_signals >= 3)
+        && sacrifice.position_stable
+        && sacrifice.king_danger_delta <= 20
+}
+
+fn sacrifice_material(sacrifice: &SacrificeProfile) -> Score {
+    match sacrifice.state {
+        SacrificeState::Accepted => sacrifice.accepted_cp,
+        SacrificeState::Declined if sacrifice.remaining_offer_cp >= MIN_SACRIFICE_CP => {
+            sacrifice.offered_cp.min(sacrifice.remaining_offer_cp)
+        }
+        SacrificeState::None | SacrificeState::Declined | SacrificeState::Unverified => 0,
+    }
+}
+
+fn selection_interest(candidate: &RootCandidate) -> i64 {
+    if !is_compensated_sacrifice(&candidate.sacrifice) {
+        return candidate.interest;
+    }
+    candidate.interest
+        + 1_000_000
+        + i64::from(sacrifice_material(&candidate.sacrifice)) * 100
+        + i64::from(candidate.sacrifice.compensation_signals) * 10_000
+        + i64::from(candidate.sacrifice.legal_checks) * 2_000
+        + i64::from(candidate.sacrifice.attack_gain.max(0)) * 100
+        + i64::from(candidate.sacrifice.queens_retained) * 5_000
+        + (20_i64 - candidate.sacrifice.reply_count.min(20) as i64) * 500
+        - i64::from(candidate.sacrifice.king_danger_delta.max(0)) * 100
+}
+
+fn sacrifice_hint_score(
+    before: &TacticalSnapshot,
+    immediate: &TacticalSnapshot,
+    offered_cp: Score,
+    gives_check: bool,
+) -> Score {
+    if offered_cp < MIN_SACRIFICE_CP {
+        return 0;
+    }
+    offered_cp
+        + (immediate.style.attack_momentum - before.style.attack_momentum).max(0) * 4
+        + immediate.style.coordination * 20
+        + Score::from(gives_check) * 150
+        - (immediate.style.own_king_danger - before.style.own_king_danger).max(0) * 2
+}
+
+fn select_candidate_seeds(seeds: Vec<CandidateSeed>) -> Vec<CandidateSeed> {
+    let mut ordinary = seeds.clone();
+    ordinary.sort_unstable_by(|left, right| {
+        right
+            .interest
+            .cmp(&left.interest)
+            .then_with(|| move_key(left.chess_move).cmp(&move_key(right.chess_move)))
+    });
+    let mut sacrifices = seeds
+        .into_iter()
+        .filter(|seed| seed.sacrifice_hint >= MIN_SACRIFICE_CP)
+        .collect::<Vec<_>>();
+    sacrifices.sort_unstable_by(|left, right| {
+        right
+            .sacrifice_hint
+            .cmp(&left.sacrifice_hint)
+            .then_with(|| right.interest.cmp(&left.interest))
+            .then_with(|| move_key(left.chess_move).cmp(&move_key(right.chess_move)))
+    });
+
+    let mut selected = Vec::with_capacity(6);
+    for seed in ordinary.iter().copied().take(3) {
+        push_unique_seed(&mut selected, seed);
+    }
+    for seed in sacrifices.into_iter().take(3) {
+        push_unique_seed(&mut selected, seed);
+    }
+    for seed in ordinary {
+        if selected.len() == 6 {
+            break;
+        }
+        push_unique_seed(&mut selected, seed);
+    }
+    selected
+}
+
+fn push_unique_seed(selected: &mut Vec<CandidateSeed>, seed: CandidateSeed) {
+    if !selected
+        .iter()
+        .any(|candidate| candidate.chess_move == seed.chess_move)
+    {
+        selected.push(seed);
+    }
+}
+
 const MIN_SACRIFICE_CP: Score = 80;
 
 fn sacrifice_profile(root: &Board, child: &Board, mover: Color, pv: &[Move]) -> SacrificeProfile {
     let before = tactical_snapshot(root, mover);
     let immediate = tactical_snapshot(child, mover);
     let reply_count = generate_moves(child).len();
-    let offered_cp = immediate.exchange_risk;
+    let target = pv
+        .first()
+        .map_or_else(|| child.king(!mover), |chess_move| chess_move.to);
+    let offered_cp = exchange_risk_on(child, mover, target);
     let Some(&reply) = pv.get(1).filter(|&&reply| child.is_legal(reply)) else {
         return SacrificeProfile {
             state: if offered_cp >= MIN_SACRIFICE_CP {
@@ -671,6 +842,9 @@ fn sacrifice_profile(root: &Board, child: &Board, mover: Color, pv: &[Move]) -> 
             king_danger_delta: immediate.style.own_king_danger - before.style.own_king_danger,
             legal_checks: immediate.legal_checks,
             compensation_signals: compensation_signals(&before, &immediate, reply_count),
+            queens_retained: immediate.style.mover_queens > 0
+                && immediate.style.total_queens >= before.style.total_queens,
+            position_stable: immediate.exchange_risk <= before.exchange_risk + offered_cp,
             ..SacrificeProfile::default()
         };
     };
@@ -678,7 +852,8 @@ fn sacrifice_profile(root: &Board, child: &Board, mover: Color, pv: &[Move]) -> 
     let mut reply_board = child.clone();
     reply_board.play_unchecked(reply);
     let after = tactical_snapshot(&reply_board, mover);
-    let accepted_cp = (before.style.material_balance - after.style.material_balance).max(0);
+    let settled_material = material_balance_after_exchange(&reply_board, mover, reply.to);
+    let accepted_cp = (before.style.material_balance - settled_material).max(0);
     let state = if accepted_cp >= MIN_SACRIFICE_CP {
         SacrificeState::Accepted
     } else if offered_cp >= MIN_SACRIFICE_CP {
@@ -691,12 +866,15 @@ fn sacrifice_profile(root: &Board, child: &Board, mover: Color, pv: &[Move]) -> 
         state,
         offered_cp,
         accepted_cp,
-        remaining_offer_cp: after.exchange_risk,
+        remaining_offer_cp: exchange_risk_on(&reply_board, mover, target),
         reply_count,
         attack_gain: after.style.attack_momentum - before.style.attack_momentum,
         king_danger_delta: after.style.own_king_danger - before.style.own_king_danger,
         legal_checks: after.legal_checks,
         compensation_signals: compensation_signals(&before, &after, reply_count),
+        queens_retained: after.style.mover_queens > 0
+            && after.style.total_queens >= before.style.total_queens,
+        position_stable: after.exchange_risk <= before.exchange_risk + MIN_SACRIFICE_CP,
         verified_reply: true,
     }
 }
@@ -1316,7 +1494,6 @@ fn root_interest(
         .map_or(0, |piece| i64::from(piece_value(piece)) / 5);
     interest += i64::from(child.pieces(Piece::Queen).len()) * 20;
     interest += i64::from(total_non_pawn_material(child)) / 100;
-    interest += i64::from(material_balance(child).abs()) / 25;
     interest += i64::from(captured_piece(board, chess_move).is_none()) * 15;
     interest
 }
@@ -1326,23 +1503,6 @@ fn total_non_pawn_material(board: &Board) -> Score {
         .into_iter()
         .map(|piece| piece_value(piece) * board.pieces(piece).len() as Score)
         .sum()
-}
-
-fn material_balance(board: &Board) -> Score {
-    [
-        Piece::Pawn,
-        Piece::Knight,
-        Piece::Bishop,
-        Piece::Rook,
-        Piece::Queen,
-    ]
-    .into_iter()
-    .map(|piece| {
-        piece_value(piece)
-            * (board.colored_pieces(Color::White, piece).len() as Score
-                - board.colored_pieces(Color::Black, piece).len() as Score)
-    })
-    .sum()
 }
 
 fn forcing_order_bonus(board: &Board, chess_move: Move, evaluation: EvaluationConfig) -> i64 {
@@ -1794,12 +1954,149 @@ mod tests {
             },
         ];
 
-        assert_eq!(super::choose_styled_candidate(&candidates, 0, 120), 1);
+        assert_eq!(
+            super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100),),
+            1
+        );
         candidates[1].score = -71;
-        assert_eq!(super::choose_styled_candidate(&candidates, 0, 120), 0);
+        assert_eq!(
+            super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100),),
+            0
+        );
         candidates[0].score = super::MATE_SCORE - 1;
         candidates[1].score = super::MATE_SCORE - 2;
-        assert_eq!(super::choose_styled_candidate(&candidates, 0, 120), 0);
+        assert_eq!(
+            super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100),),
+            0
+        );
+    }
+
+    #[test]
+    fn sacrifice_profile_nets_immediate_recaptures() {
+        let position = Position::from_fen(
+            "r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8",
+        )
+        .unwrap();
+        let root_move: Move = "c1e3".parse().unwrap();
+        let reply: Move = "c5e3".parse().unwrap();
+        assert!(position.board().is_legal(root_move));
+        let mut child = position.board().clone();
+        child.play_unchecked(root_move);
+        assert!(child.is_legal(reply));
+
+        let profile = super::sacrifice_profile(
+            position.board(),
+            &child,
+            position.board().side_to_move(),
+            &[root_move, reply],
+        );
+
+        assert_eq!(profile.state, super::SacrificeState::None);
+        assert_eq!(profile.accepted_cp, 0);
+    }
+
+    #[test]
+    fn compensated_sacrifices_receive_dynamic_risk_margins() {
+        let mut sacrifice = super::SacrificeProfile {
+            state: super::SacrificeState::Accepted,
+            accepted_cp: 150,
+            attack_gain: 10,
+            legal_checks: 1,
+            compensation_signals: 3,
+            position_stable: true,
+            verified_reply: true,
+            ..super::SacrificeProfile::default()
+        };
+
+        assert_eq!(
+            super::candidate_risk_margin(super::EvaluationConfig::new(100), 0, &sacrifice),
+            220,
+        );
+        sacrifice.accepted_cp = 330;
+        assert_eq!(
+            super::candidate_risk_margin(super::EvaluationConfig::new(100), 0, &sacrifice),
+            380,
+        );
+        assert_eq!(
+            super::candidate_risk_margin(super::EvaluationConfig::new(100), -200, &sacrifice),
+            450,
+        );
+        assert_eq!(
+            super::candidate_risk_margin(super::EvaluationConfig::new(100), 400, &sacrifice),
+            200,
+        );
+        assert_eq!(
+            super::candidate_risk_margin(super::EvaluationConfig::new(50), 0, &sacrifice),
+            30,
+        );
+    }
+
+    #[test]
+    fn compensated_sacrifice_can_beat_the_ordinary_root_margin() {
+        let position = Position::default();
+        let conventional_move = find_move(&position, "e2e4");
+        let sacrifice_move = find_move(&position, "g1f3");
+        let sacrifice = super::SacrificeProfile {
+            state: super::SacrificeState::Accepted,
+            accepted_cp: 330,
+            attack_gain: 10,
+            legal_checks: 1,
+            compensation_signals: 3,
+            position_stable: true,
+            verified_reply: true,
+            ..super::SacrificeProfile::default()
+        };
+        let mut candidates = vec![
+            super::RootCandidate {
+                chess_move: conventional_move,
+                score: 50,
+                path_dependent: false,
+                interest: 10,
+                pv: vec![conventional_move],
+                sacrifice: super::SacrificeProfile::default(),
+            },
+            super::RootCandidate {
+                chess_move: sacrifice_move,
+                score: -300,
+                path_dependent: false,
+                interest: 0,
+                pv: vec![sacrifice_move],
+                sacrifice,
+            },
+        ];
+
+        assert_eq!(
+            super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100),),
+            1,
+        );
+        candidates[1].sacrifice.king_danger_delta = 21;
+        assert_eq!(
+            super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100),),
+            0,
+        );
+    }
+
+    #[test]
+    fn verification_pool_keeps_sacrifice_hints() {
+        let position = Position::default();
+        let moves = position.search_moves();
+        let seeds = moves
+            .iter()
+            .copied()
+            .take(9)
+            .enumerate()
+            .map(|(index, chess_move)| super::CandidateSeed {
+                chess_move,
+                interest: 1_000 - index as i64,
+                sacrifice_hint: if index == 8 { 300 } else { 0 },
+            })
+            .collect::<Vec<_>>();
+        let hinted = seeds[8].chess_move;
+
+        let selected = super::select_candidate_seeds(seeds);
+
+        assert_eq!(selected.len(), 6);
+        assert!(selected.iter().any(|seed| seed.chess_move == hinted));
     }
 
     #[test]

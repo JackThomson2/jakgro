@@ -97,6 +97,54 @@ fn static_pruning_is_exercised_in_a_rich_position() {
     assert!(telemetry.reverse_futility_cutoffs() + telemetry.futility_pruned_moves() > 0);
 }
 
+#[test]
+fn selective_search_telemetry_attributes_objective_work() {
+    let mut engine = jakgro::engine::Engine::new();
+    engine.set_aggression(0);
+    engine.set_position(
+        jakgro::engine::Position::from_fen(
+            "r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8",
+        )
+        .unwrap(),
+    );
+    let result = engine.search(&jakgro::engine::SearchLimits {
+        depth: Some(5),
+        ..jakgro::engine::SearchLimits::default()
+    });
+    let telemetry = result.telemetry();
+
+    assert!(telemetry.lmr_attempts() > 0);
+    assert!(telemetry.lmr_reductions() > 0);
+    assert!(telemetry.lmr_attempts() >= telemetry.lmr_reductions());
+    assert!(telemetry.lmr_reductions() >= telemetry.lmr_researches());
+    assert!(telemetry.lmr_researches() >= telemetry.lmr_research_fail_highs());
+    assert!(telemetry.objective_root_nodes() > 0);
+    assert_eq!(telemetry.personality_root_nodes(), 0);
+    assert_eq!(telemetry.personality_verifications(), 0);
+}
+
+#[test]
+fn selective_search_telemetry_attributes_personality_work() {
+    let mut engine = jakgro::engine::Engine::new();
+    engine.set_aggression(100);
+    engine.set_position(
+        jakgro::engine::Position::from_fen(
+            "r1bq1rk1/ppp2ppp/2n2n2/2b1p1NQ/2B1P3/2NP4/PPP2PPP/R4RK1 w - - 0 10",
+        )
+        .unwrap(),
+    );
+    let result = engine.search(&jakgro::engine::SearchLimits {
+        nodes: Some(20_000),
+        ..jakgro::engine::SearchLimits::default()
+    });
+    let telemetry = result.telemetry();
+
+    assert!(telemetry.objective_root_nodes() > 0);
+    assert!(telemetry.personality_root_nodes() > 0);
+    assert!(telemetry.personality_verifications() > 0);
+    assert!(result.info().is_some());
+}
+
 fn fixtures() -> Vec<SearchFixture> {
     SUITES
         .iter()

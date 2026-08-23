@@ -141,6 +141,13 @@ pub struct SearchTelemetry {
     pub(super) static_pruning_attempts: u64,
     pub(super) reverse_futility_cutoffs: u64,
     pub(super) futility_pruned_moves: u64,
+    lmr_attempts: u64,
+    lmr_reductions: u64,
+    lmr_researches: u64,
+    lmr_research_fail_highs: u64,
+    objective_root_nodes: u64,
+    personality_root_nodes: u64,
+    personality_verifications: u64,
 }
 
 impl SearchTelemetry {
@@ -189,6 +196,48 @@ impl SearchTelemetry {
     #[must_use]
     pub const fn futility_pruned_moves(self) -> u64 {
         self.futility_pruned_moves
+    }
+
+    /// Returns the number of moves considered for late-move reduction.
+    #[must_use]
+    pub const fn lmr_attempts(self) -> u64 {
+        self.lmr_attempts
+    }
+
+    /// Returns the number of moves searched at reduced depth.
+    #[must_use]
+    pub const fn lmr_reductions(self) -> u64 {
+        self.lmr_reductions
+    }
+
+    /// Returns the number of reduced moves searched again at full depth.
+    #[must_use]
+    pub const fn lmr_researches(self) -> u64 {
+        self.lmr_researches
+    }
+
+    /// Returns the number of full-depth LMR re-searches that failed high.
+    #[must_use]
+    pub const fn lmr_research_fail_highs(self) -> u64 {
+        self.lmr_research_fail_highs
+    }
+
+    /// Returns the nodes spent establishing conventional root results.
+    #[must_use]
+    pub const fn objective_root_nodes(self) -> u64 {
+        self.objective_root_nodes
+    }
+
+    /// Returns the nodes spent probing and verifying styled root alternatives.
+    #[must_use]
+    pub const fn personality_root_nodes(self) -> u64 {
+        self.personality_root_nodes
+    }
+
+    /// Returns the number of styled root candidates selected for verification.
+    #[must_use]
+    pub const fn personality_verifications(self) -> u64 {
+        self.personality_verifications
     }
 }
 

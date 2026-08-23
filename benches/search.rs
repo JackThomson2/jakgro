@@ -89,7 +89,9 @@ fn main() {
          timed_milliseconds,timed_nps,timed_ratio,null_off_nodes,null_on_nodes,\
          null_reduction_percent,null_attempts,null_fail_highs,null_verifications,\
          null_cutoffs,null_probe_nodes,null_verification_nodes,static_pruning_attempts,\
-         reverse_futility_cutoffs,futility_pruned_moves"
+         reverse_futility_cutoffs,futility_pruned_moves,lmr_attempts,lmr_reductions,\
+         lmr_researches,lmr_research_fail_highs,objective_root_nodes,personality_root_nodes,\
+         personality_verifications"
     );
 
     for fixture in SUITES.iter().flat_map(|input| parse_fixtures(input)) {
@@ -113,7 +115,7 @@ fn main() {
         };
 
         println!(
-            "{},{},{},{},{},{},{},{},{},{},{:.3},{},{},{:.3},{},{},{},{},{},{},{},{},{}",
+            "{},{},{},{},{},{},{},{},{},{},{:.3},{},{},{:.3},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
             fixture.id,
             fixture.category,
             observation.best_move,
@@ -137,6 +139,13 @@ fn main() {
             null.telemetry.static_pruning_attempts(),
             null.telemetry.reverse_futility_cutoffs(),
             null.telemetry.futility_pruned_moves(),
+            null.telemetry.lmr_attempts(),
+            null.telemetry.lmr_reductions(),
+            null.telemetry.lmr_researches(),
+            null.telemetry.lmr_research_fail_highs(),
+            null.telemetry.objective_root_nodes(),
+            null.telemetry.personality_root_nodes(),
+            null.telemetry.personality_verifications(),
         );
     }
 }

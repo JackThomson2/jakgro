@@ -1682,6 +1682,7 @@ fn search_root(
     context: &mut SearchContext<'_>,
 ) -> Result<RootSearchResult, Aborted> {
     if context.evaluation.root_style_margin() == 0 {
+        let objective_start_nodes = context.nodes;
         let selected = search_root_conventional(
             board,
             root_moves,
@@ -1690,8 +1691,10 @@ fn search_root(
             window,
             previous_pv,
             context,
-        )?;
-        return Ok(RootSearchResult::from_primary(selected.selected));
+        );
+        context.telemetry.objective_root_nodes +=
+            context.nodes.saturating_sub(objective_start_nodes);
+        return Ok(RootSearchResult::from_primary(selected?.selected));
     }
     search_root_styled(
         board,
@@ -1722,8 +1725,10 @@ fn search_root_styled(
         window,
         previous_pv,
         context,
-    )?;
+    );
     let objective_nodes = context.nodes.saturating_sub(objective_start_nodes);
+    context.telemetry.objective_root_nodes += objective_nodes;
+    let conventional = conventional?;
     let ConventionalRootResult {
         selected: objective,
         evidence,
@@ -1824,6 +1829,7 @@ fn search_root_styled(
         original_node_limit,
     );
     context.node_limit = Some(personality_node_limit);
+    let personality_start_nodes = context.nodes;
     let mut probe_passers = Vec::new();
     let mut personality_exhausted = false;
 
@@ -1882,6 +1888,7 @@ fn search_root_styled(
     }
 
     for probed in select_verification_candidates(probe_passers) {
+        context.telemetry.personality_verifications += 1;
         if context.should_stop() {
             personality_exhausted = true;
             break;
@@ -2019,6 +2026,8 @@ fn search_root_styled(
         personality_exhausted = true;
     }
     context.node_limit = original_node_limit;
+    context.telemetry.personality_root_nodes +=
+        context.nodes.saturating_sub(personality_start_nodes);
     if context.should_stop() || (personality_exhausted && candidates.len() == 1) {
         context.pv[0].clone_from(&objective_pv);
         return Ok(RootSearchResult::from_primary(objective));
@@ -2816,6 +2825,7 @@ fn negamax(
             picker.record_failed_quiet(metadata);
             continue;
         }
+        context.telemetry.lmr_attempts += 1;
         let reduction = late_move_reduction(
             child_depth,
             index,
@@ -2825,6 +2835,9 @@ fn negamax(
             pv_node,
             history_score,
         );
+        if reduction > 0 {
+            context.telemetry.lmr_reductions += 1;
+        }
         let mut child = board.clone();
         child.play_unchecked_with_piece(chess_move, metadata.attacker);
         let child_key = repetition_key(&child);
@@ -2850,6 +2863,7 @@ fn negamax(
         let mut score = -child_result.as_ref().map_err(|_| Aborted)?.score;
 
         if reduced_search_needs_research(reduction, score, alpha) {
+            context.telemetry.lmr_researches += 1;
             history.push_key(child_key);
             child_result = negamax(
                 &child,
@@ -2865,6 +2879,9 @@ fn negamax(
             );
             history.pop();
             score = -child_result.as_ref().map_err(|_| Aborted)?.score;
+            if score >= beta {
+                context.telemetry.lmr_research_fail_highs += 1;
+            }
         } else if reduction > 0 {
             selective_fail_low = true;
         }

@@ -29,11 +29,11 @@ const VOLATILE_HOLD_ITERATIONS: u8 = 2;
 const CONTROL_POLL_INTERVAL_NODES: u64 = 256;
 const ITERATION_TIME_MULTIPLIER: u32 = 2;
 const ITERATION_TIME_MARGIN: Duration = Duration::from_millis(5);
-const STYLED_ROOT_BUDGET_DIVISOR: u64 = 2;
-const STYLED_ROOT_TACTICAL_BUDGET_DIVISOR: u64 = 1;
+const STYLED_ROOT_BUDGET_DIVISOR: u64 = 5;
+const STYLED_ROOT_TACTICAL_BUDGET_DIVISOR: u64 = 3;
 const STYLED_ROOT_MIN_NODES: u64 = 256;
-const STYLED_ROOT_MAX_NODES: u64 = 4_096;
-const STYLED_ROOT_TACTICAL_MAX_NODES: u64 = 8_192;
+const STYLED_ROOT_MAX_NODES: u64 = 2_048;
+const STYLED_ROOT_TACTICAL_MAX_NODES: u64 = 4_096;
 const STYLED_ROOT_MAX_VERIFICATIONS: usize = 2;
 const ORDINARY_ROOT_MARGIN_MAX: Score = 45;
 const WINNING_ROOT_MARGIN_MAX: Score = 20;
@@ -5113,12 +5113,20 @@ mod tests {
             1_256,
         );
         assert_eq!(
+            super::styled_root_node_limit(1_000, 5_000, false, None),
+            2_000,
+        );
+        assert_eq!(
             super::styled_root_node_limit(1_000, 100_000, false, None),
-            5_096,
+            3_048,
+        );
+        assert_eq!(
+            super::styled_root_node_limit(1_000, 5_000, true, None),
+            2_666,
         );
         assert_eq!(
             super::styled_root_node_limit(1_000, 100_000, true, None),
-            9_192,
+            5_096,
         );
         assert_eq!(
             super::styled_root_node_limit(1_000, 100_000, true, Some(1_500)),

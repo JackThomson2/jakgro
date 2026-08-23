@@ -1,12 +1,12 @@
 # Six-field FEN; id NAME; category NAME; nodes N; bm0 MOVE[,MOVE]; bm100 MOVE[,MOVE]
 # Fixed-node limits are deliberately long enough for stable same-host throughput samples.
 rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 ; id starting-development ; category opening ; nodes 100000 ; bm0 e2e3 ; bm100 g1f3,b1c3
-r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3 ; id central-space ; category quiet-middlegame ; nodes 100000 ; bm0 f1c4 ; bm100 f1c4
-r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8 ; id open-king-gambit ; category tactical-middlegame ; nodes 100000 ; bm0 c1g5 ; bm100 f3g5
+r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3 ; id central-space ; category quiet-middlegame ; nodes 100000 ; bm0 f1c4,d2d4 ; bm100 f1c4
+r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8 ; id open-king-gambit ; category tactical-middlegame ; nodes 100000 ; bm0 c1g5,c3a4 ; bm100 f3g5
 2kr3r/pppq1ppp/2n1bn2/3p4/3P4/2P1PN2/PP1N1PPP/R2Q1RK1 w - - 0 10 ; id opposite-castle-storm ; category king-attack ; nodes 100000 ; bm0 a2a4 ; bm100 f3e5
 4k3/8/8/8/8/8/4q3/4R1K1 w - - 0 1 ; id tactical-safety ; category tactics ; nodes 100000 ; bm0 e1e2 ; bm100 e1e2
 7k/8/8/8/8/1r6/8/K7 w - - 0 1 ; id defensive-safety ; category endgame ; nodes 100000 ; bm0 a1a2 ; bm100 a1a2
 r3r1k1/ppp2ppp/2n2n2/3q4/8/2N2N2/PPPQ1PPP/R3R1K1 w - - 0 15 ; id central-queen-safety ; category tactical-middlegame ; nodes 100000 ; bm0 c3d5 ; bm100 c3d5
 r1bq1rk1/ppp2ppp/2n2n2/2b1p1NQ/2B1P3/2NP4/PPP2PPP/R4RK1 w - - 0 10 ; id bishop-f7-sacrifice ; category forcing-attack ; nodes 100000 ; bm0 g5f7 ; bm100 c4f7
-r1bq1rk1/ppp2ppp/2n2n2/3p4/3P4/2PB4/PP3PPP/RNBQ1RK1 w - - 0 8 ; id unsupported-greek-gift ; category quiet-defense ; nodes 100000 ; bm0 f1e1 ; bm100 c1f4
+r1bq1rk1/ppp2ppp/2n2n2/3p4/3P4/2PB4/PP3PPP/RNBQ1RK1 w - - 0 8 ; id unsupported-greek-gift ; category quiet-defense ; nodes 100000 ; bm0 f1e1,c1f4 ; bm100 c1f4
 6k1/5ppp/8/8/6P1/8/5P1P/6K1 w - - 0 1 ; id kingside-pawn-storm ; category pawn-endgame ; nodes 100000 ; bm0 f2f4 ; bm100 g4g5

@@ -196,6 +196,7 @@ class UciEngine:
         fixture: Fixture,
         aggression: int,
         root_moves: frozenset[str] | None = None,
+        depth: int | None = None,
     ) -> Observation:
         self.send(f"setoption name Aggression value {aggression}")
         self.send("ucinewgame")
@@ -209,7 +210,8 @@ class UciEngine:
         searchmoves = ""
         if root_moves:
             searchmoves = f" searchmoves {' '.join(sorted(root_moves))}"
-        self.send(f"go nodes {fixture.nodes}{searchmoves}")
+        limit = f"depth {depth}" if depth is not None else f"nodes {fixture.nodes}"
+        self.send(f"go {limit}{searchmoves}")
         output = self.read_until(lambda line: line.startswith("bestmove "))
         bestmove_fields = output[-1].split()
         parsed_info = next(
@@ -222,8 +224,8 @@ class UciEngine:
         )
         if len(bestmove_fields) < 2 or bestmove_fields[1] == "0000" or parsed_info is None:
             raise RuntimeError(f"{fixture.identifier}: search returned no measured result")
-        score, depth, nodes = parsed_info
-        return Observation(bestmove_fields[1], score, depth, nodes)
+        score, measured_depth, nodes = parsed_info
+        return Observation(bestmove_fields[1], score, measured_depth, nodes)
 
     def close(self) -> None:
         if self.process.poll() is None:

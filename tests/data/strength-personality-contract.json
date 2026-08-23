@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "evidence_level": "fixed-node-smoke",
+  "matches": {
+    "objective": {
+      "candidate_aggression": 0,
+      "baseline_aggression": 0,
+      "minimum_games": 48,
+      "minimum_elo": -100,
+      "minimum_elo_ci95_lower": -250
+    },
+    "same_profile": {
+      "candidate_aggression": 100,
+      "baseline_aggression": 100,
+      "minimum_games": 48,
+      "minimum_elo": -35,
+      "minimum_elo_ci95_lower": -200
+    },
+    "personality": {
+      "candidate_aggression": 100,
+      "baseline_aggression": 0,
+      "minimum_games": 48
+    },
+    "baseline_personality": {
+      "candidate_aggression": 100,
+      "baseline_aggression": 0,
+      "minimum_games": 48
+    }
+  },
+  "personality_comparison": {
+    "minimum_elo_delta": -35
+  },
+  "deterministic": {
+    "minimum_forcing_retention_percent": 90,
+    "maximum_root_loss_cp": 45
+  },
+  "efficiency": {
+    "minimum_node_reduction_percent": -10
+  }
+}

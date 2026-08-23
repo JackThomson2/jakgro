@@ -41,6 +41,13 @@ const LMR_DEEP_CHILD_DEPTH: u32 = 6;
 const LMR_DEEP_MOVE_INDEX: usize = 7;
 const NULL_MOVE_MIN_DEPTH: u32 = 4;
 const NULL_MOVE_RULE_FIFTY_LIMIT: u8 = 99;
+const STATIC_PRUNING_MAX_DEPTH: u32 = 4;
+const QUIET_FUTILITY_MAX_DEPTH: u32 = 2;
+const STATIC_PRUNING_RULE_FIFTY_LIMIT: u8 = 80;
+const REVERSE_FUTILITY_BASE_MARGIN: Score = 100;
+const REVERSE_FUTILITY_DEPTH_MARGIN: Score = 140;
+const QUIET_FUTILITY_BASE_MARGIN: Score = 120;
+const QUIET_FUTILITY_DEPTH_MARGIN: Score = 140;
 
 fn should_poll_control(nodes: u64) -> bool {
     nodes % CONTROL_POLL_INTERVAL_NODES == 0
@@ -661,6 +668,75 @@ fn null_move_material_ok(board: &Board) -> bool {
     .len();
     !heavy.is_empty() || minors >= 2
 }
+fn static_pruning_material_ok(board: &Board) -> bool {
+    [Color::White, Color::Black].into_iter().all(|color| {
+        let heavy =
+            board.colored_pieces(color, Piece::Rook) | board.colored_pieces(color, Piece::Queen);
+        let minors = (board.colored_pieces(color, Piece::Knight)
+            | board.colored_pieces(color, Piece::Bishop))
+        .len();
+        !heavy.is_empty() || minors >= 2
+    })
+}
+
+fn static_pruning_allowed(
+    board: &Board,
+    depth: u32,
+    alpha: Score,
+    beta: Score,
+    pv_node: bool,
+    mode: SearchMode,
+) -> bool {
+    matches!(mode, SearchMode::Normal)
+        && depth <= STATIC_PRUNING_MAX_DEPTH
+        && !pv_node
+        && board.checkers().is_empty()
+        && alpha.abs() < MATE_THRESHOLD
+        && beta.abs() < MATE_THRESHOLD
+        && board.halfmove_clock() < STATIC_PRUNING_RULE_FIFTY_LIMIT
+        && static_pruning_material_ok(board)
+}
+
+fn reverse_futility_cutoff(
+    static_evaluation: Score,
+    beta: Score,
+    depth: u32,
+    aggression: u8,
+) -> bool {
+    let margin = REVERSE_FUTILITY_BASE_MARGIN
+        + REVERSE_FUTILITY_DEPTH_MARGIN * depth as Score
+        + Score::from(aggression);
+    static_evaluation.saturating_sub(margin) >= beta
+}
+
+#[allow(clippy::too_many_arguments)]
+fn should_prune_quiet_move(
+    depth: u32,
+    move_index: usize,
+    metadata: MoveMetadata,
+    protected: bool,
+    history_score: i32,
+    static_evaluation: Score,
+    alpha: Score,
+    aggression: u8,
+) -> bool {
+    if depth > QUIET_FUTILITY_MAX_DEPTH
+        || move_index == 0
+        || protected
+        || history_score > 0
+        || !metadata.is_quiet()
+        || metadata.gives_check
+        || metadata.attacking_pawn_push
+        || metadata.castling
+        || metadata.king_zone_move
+    {
+        return false;
+    }
+    let margin = QUIET_FUTILITY_BASE_MARGIN
+        + QUIET_FUTILITY_DEPTH_MARGIN * depth as Score
+        + Score::from(aggression);
+    static_evaluation.saturating_add(margin) <= alpha
+}
 
 fn null_move_reduction(depth: u32) -> u32 {
     (2 + depth / 4).min(depth.saturating_sub(1))
@@ -675,25 +751,27 @@ fn verified_null_move_cutoff(
     extensions_used: u8,
     alpha: Score,
     beta: Score,
+    static_evaluation: Option<Score>,
     previous_move: Option<HistoryMove>,
     context: &mut SearchContext<'_>,
 ) -> Result<Option<NodeResult>, Aborted> {
     if !context.null_move_enabled {
         return Ok(None);
     }
-    let static_evaluation = evaluate_with_config(board, context.evaluation);
+    let static_evaluation =
+        static_evaluation.unwrap_or_else(|| evaluate_with_config(board, context.evaluation));
     let pv_node = beta.saturating_sub(alpha) > 1;
     if null_move_block(board, depth, beta, pv_node, static_evaluation, context.mode).is_some() {
         return Ok(None);
     }
 
+    context.telemetry.null_move_attempts += 1;
     let (probe_mode, verification_mode) = null_search_modes();
     let reduction = null_move_reduction(depth);
     let null_depth = depth.saturating_sub(reduction).saturating_sub(1);
     let verification_depth = depth.saturating_sub(reduction);
     let null_board = board.null_move().expect("eligible null move must exist");
     let original_mode = context.mode;
-    context.telemetry.null_move_attempts += 1;
     context.mode = probe_mode;
     let probe = negamax(
         &null_board,
@@ -1821,20 +1899,20 @@ fn search_root_conventional(
 
         let chess_move = prepared.metadata.chess_move;
         let current_move = HistoryMove::from_board(board, chess_move);
-        let child = &prepared.child;
+        let prepared_child = &prepared.child;
         let expected_child_pv = if preferred == Some(chess_move) {
             previous_pv.get(1..).unwrap_or_default()
         } else {
             &[]
         };
-        history.push(&child);
+        history.push(prepared_child);
         let first_window = if index == 0 {
             (-beta, -alpha)
         } else {
             (-alpha - 1, -alpha)
         };
         let mut child_result = negamax(
-            &child,
+            prepared_child,
             history,
             child_depth,
             1,
@@ -1849,9 +1927,9 @@ fn search_root_conventional(
         let mut score = -child_result.as_ref().map_err(|_| Aborted)?.score;
 
         if index != 0 && score > alpha && score < beta {
-            history.push(&child);
+            history.push(prepared_child);
             child_result = negamax(
-                &child,
+                prepared_child,
                 history,
                 child_depth,
                 1,
@@ -2000,6 +2078,24 @@ fn negamax(
             path_dependent: result.path_dependent,
         });
     }
+    let in_check = !board.checkers().is_empty();
+    let pv_node = beta.saturating_sub(alpha) > 1;
+    let static_evaluation =
+        if static_pruning_allowed(board, depth, alpha, beta, pv_node, context.mode) {
+            context.telemetry.static_pruning_attempts += 1;
+            Some(evaluate_with_config(board, context.evaluation))
+        } else {
+            None
+        };
+    if static_evaluation.is_some_and(|evaluation| {
+        reverse_futility_cutoff(evaluation, beta, depth, context.evaluation.aggression())
+    }) {
+        context.telemetry.reverse_futility_cutoffs += 1;
+        return Ok(NodeResult {
+            score: beta,
+            path_dependent: false,
+        });
+    }
     if let Some(result) = verified_null_move_cutoff(
         board,
         history,
@@ -2008,6 +2104,7 @@ fn negamax(
         extensions_used,
         alpha,
         beta,
+        static_evaluation,
         previous_move,
         context,
     )? {
@@ -2024,8 +2121,6 @@ fn negamax(
         &context.ordering,
         context.evaluation,
     );
-    let in_check = !board.checkers().is_empty();
-    let pv_node = beta.saturating_sub(alpha) > 1;
     let (child_depth, child_extensions) = next_search_depth(
         depth,
         in_check,
@@ -2042,7 +2137,7 @@ fn negamax(
         let metadata = prepared.metadata;
         let chess_move = metadata.chess_move;
         let current_move = HistoryMove::from_board(board, chess_move);
-        let child = &prepared.child;
+        let prepared_child = &prepared.child;
         let expected_child_pv = if preferred == Some(chess_move) {
             previous_pv.get(1..).unwrap_or_default()
         } else {
@@ -2060,6 +2155,22 @@ fn negamax(
         let history_score = context
             .ordering
             .quiet_history_score(board, chess_move, previous_move);
+        if static_evaluation.is_some_and(|evaluation| {
+            should_prune_quiet_move(
+                depth,
+                index,
+                metadata,
+                protected,
+                history_score,
+                evaluation,
+                alpha,
+                context.evaluation.aggression(),
+            )
+        }) {
+            context.telemetry.futility_pruned_moves += 1;
+            selective_fail_low = true;
+            continue;
+        }
         let reduction = late_move_reduction(
             child_depth,
             index,
@@ -2069,14 +2180,14 @@ fn negamax(
             pv_node,
             history_score,
         );
-        history.push(&child);
+        history.push(prepared_child);
         let first_window = if index == 0 {
             (-beta, -alpha)
         } else {
             (-alpha - 1, -alpha)
         };
         let mut child_result = negamax(
-            &child,
+            prepared_child,
             history,
             child_depth.saturating_sub(reduction),
             ply + 1,
@@ -2091,9 +2202,9 @@ fn negamax(
         let mut score = -child_result.as_ref().map_err(|_| Aborted)?.score;
 
         if reduced_search_needs_research(reduction, score, alpha) {
-            history.push(&child);
+            history.push(prepared_child);
             child_result = negamax(
-                &child,
+                prepared_child,
                 history,
                 child_depth,
                 ply + 1,
@@ -2111,9 +2222,9 @@ fn negamax(
         }
 
         if index != 0 && score > alpha && score < beta {
-            history.push(&child);
+            history.push(prepared_child);
             child_result = negamax(
-                &child,
+                prepared_child,
                 history,
                 child_depth,
                 ply + 1,
@@ -2267,10 +2378,10 @@ fn quiescence(
         let chess_move = metadata.chess_move;
         let uses_quiet_check = !in_check && metadata.is_quiet() && metadata.gives_check;
         let next_check_budget = check_budget.saturating_sub(u8::from(uses_quiet_check));
-        let child = &prepared.child;
-        history.push(child);
+        let prepared_child = &prepared.child;
+        history.push(prepared_child);
         let child_result = quiescence(
-            &child,
+            prepared_child,
             history,
             ply + 1,
             -beta,
@@ -2791,6 +2902,92 @@ mod tests {
                 assert_eq!(prepared.child, direct, "prepared child for {chess_move}");
             }
         }
+    }
+    #[test]
+    fn static_pruning_requires_stable_non_pv_nodes() {
+        let board = cozy_chess::Board::default();
+        assert!(super::static_pruning_allowed(
+            &board,
+            4,
+            0,
+            1,
+            false,
+            super::SearchMode::Normal,
+        ));
+        assert!(!super::static_pruning_allowed(
+            &board,
+            5,
+            0,
+            1,
+            false,
+            super::SearchMode::Normal,
+        ));
+        assert!(!super::static_pruning_allowed(
+            &board,
+            4,
+            0,
+            2,
+            true,
+            super::SearchMode::Normal,
+        ));
+        assert!(!super::static_pruning_allowed(
+            &board,
+            4,
+            super::MATE_SCORE - 2,
+            super::MATE_SCORE - 1,
+            false,
+            super::SearchMode::Normal,
+        ));
+
+        let rule_fifty = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 80 41"
+            .parse()
+            .unwrap();
+        assert!(!super::static_pruning_allowed(
+            &rule_fifty,
+            4,
+            0,
+            1,
+            false,
+            super::SearchMode::Normal,
+        ));
+        let pawn_ending = "6k1/5ppp/8/8/6P1/8/5P1P/6K1 w - - 0 1".parse().unwrap();
+        assert!(!super::static_pruning_allowed(
+            &pawn_ending,
+            4,
+            0,
+            1,
+            false,
+            super::SearchMode::Normal,
+        ));
+    }
+
+    #[test]
+    fn static_bounds_keep_tactical_and_priority_moves() {
+        assert!(super::reverse_futility_cutoff(800, 100, 2, 0));
+        assert!(!super::reverse_futility_cutoff(479, 100, 2, 0));
+
+        let position = Position::default();
+        let metadata = position
+            .search_moves()
+            .into_iter()
+            .map(|chess_move| super::MoveMetadata::classify(position.board(), chess_move))
+            .find(|metadata| {
+                metadata.is_quiet()
+                    && !metadata.gives_check
+                    && !metadata.attacking_pawn_push
+                    && !metadata.castling
+                    && !metadata.king_zone_move
+            })
+            .unwrap();
+        assert!(super::should_prune_quiet_move(
+            1, 2, metadata, false, 0, -500, 0, 0,
+        ));
+        assert!(!super::should_prune_quiet_move(
+            1, 0, metadata, false, 0, -500, 0, 0,
+        ));
+        assert!(!super::should_prune_quiet_move(
+            1, 2, metadata, true, 0, -500, 0, 0,
+        ));
     }
 
     #[test]

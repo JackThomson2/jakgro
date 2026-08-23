@@ -129,7 +129,7 @@ impl SearchInfo {
     }
 }
 
-/// Verified null-move work performed by a search.
+/// Verified null-move and selective-pruning work performed by a search.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SearchTelemetry {
     pub(super) null_move_attempts: u64,
@@ -138,6 +138,9 @@ pub struct SearchTelemetry {
     pub(super) null_move_cutoffs: u64,
     pub(super) null_probe_nodes: u64,
     pub(super) null_verification_nodes: u64,
+    pub(super) static_pruning_attempts: u64,
+    pub(super) reverse_futility_cutoffs: u64,
+    pub(super) futility_pruned_moves: u64,
 }
 
 impl SearchTelemetry {
@@ -169,6 +172,23 @@ impl SearchTelemetry {
     #[must_use]
     pub const fn null_verification_nodes(self) -> u64 {
         self.null_verification_nodes
+    }
+    /// Returns the number of nodes considered for static pruning.
+    #[must_use]
+    pub const fn static_pruning_attempts(self) -> u64 {
+        self.static_pruning_attempts
+    }
+
+    /// Returns the number of reverse-futility node cutoffs.
+    #[must_use]
+    pub const fn reverse_futility_cutoffs(self) -> u64 {
+        self.reverse_futility_cutoffs
+    }
+
+    /// Returns the number of late quiet moves skipped by futility pruning.
+    #[must_use]
+    pub const fn futility_pruned_moves(self) -> u64 {
+        self.futility_pruned_moves
     }
 }
 

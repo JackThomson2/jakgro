@@ -48,6 +48,26 @@ fn fixture_ids_are_unique_and_files_match_their_categories() {
     }
 }
 
+#[test]
+fn static_pruning_is_exercised_in_a_rich_position() {
+    let mut engine = jakgro::engine::Engine::new();
+    engine.set_aggression(0);
+    engine.set_position(
+        jakgro::engine::Position::from_fen(
+            "r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8",
+        )
+        .unwrap(),
+    );
+    let result = engine.search(&jakgro::engine::SearchLimits {
+        depth: Some(5),
+        ..jakgro::engine::SearchLimits::default()
+    });
+    let telemetry = result.telemetry();
+
+    assert!(telemetry.static_pruning_attempts() > 0);
+    assert!(telemetry.reverse_futility_cutoffs() + telemetry.futility_pruned_moves() > 0);
+}
+
 fn fixtures() -> Vec<SearchFixture> {
     SUITES
         .iter()

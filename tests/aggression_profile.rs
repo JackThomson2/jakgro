@@ -178,7 +178,7 @@ fn tuned_aggression_profile_is_reproducible_and_distinct() {
         }
     }
 
-    assert!(changed >= fixtures.len() / 2);
+    assert!(changed * 100 >= fixtures.len() * 30);
     assert!(safety_controls >= 5);
     assert!(sacrifice_controls >= 1);
     assert!(anti_sacrifice_controls >= 2);

@@ -1,2 +1,2 @@
 # Six-field FEN; id NAME; category defensive; nodes N; bm MOVE; score cp|mate VALUE
-7k/8/8/8/8/1r6/8/K7 w - - 0 1 ; id contain-lone-rook ; category defensive ; nodes 20000 ; bm a1a2 ; score cp -581
+7k/8/8/8/8/1r6/8/K7 w - - 0 1 ; id contain-lone-rook ; category defensive ; nodes 20000 ; bm a1a2 ; score cp -558

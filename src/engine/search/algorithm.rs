@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use cozy_chess::util::display_uci_move;
 use cozy_chess::{
-    BitBoard, Board, Color, Move, Piece, Rank, Square, get_bishop_moves, get_king_moves,
+    BitBoard, Board, Color, File, Move, Piece, Rank, Square, get_bishop_moves, get_king_moves,
     get_knight_moves, get_pawn_attacks, get_rook_moves,
 };
 
@@ -1306,7 +1306,7 @@ fn verified_null_move_cutoff(
         return Ok(None);
     }
     let static_evaluation =
-        static_evaluation.unwrap_or_else(|| evaluate_with_config(board, context.evaluation));
+        static_evaluation.unwrap_or_else(|| evaluate_with_config(board, context.scoring));
     if null_move_static_block(static_evaluation, beta).is_some() {
         return Ok(None);
     }
@@ -1370,7 +1370,8 @@ fn verified_null_move_cutoff(
 struct SearchContext<'a> {
     control: &'a SearchControl,
     table: &'a mut TranspositionTable,
-    evaluation: EvaluationConfig,
+    scoring: EvaluationConfig,
+    personality: EvaluationConfig,
     mode: SearchMode,
     telemetry: SearchTelemetry,
     null_move_enabled: bool,
@@ -1477,6 +1478,7 @@ pub(super) fn run<F>(
 where
     F: FnMut(SearchInfo),
 {
+    let scoring = EvaluationConfig::new(0);
     table.start_search(evaluation.aggression());
     let time_budget = allocate_time(position.board().side_to_move(), limits, move_overhead);
     if !control.has_time_budget()
@@ -1519,7 +1521,8 @@ where
     let mut context = SearchContext {
         control,
         table,
-        evaluation,
+        scoring,
+        personality: evaluation,
         mode: SearchMode::Normal,
         telemetry: SearchTelemetry::default(),
         null_move_enabled: limits.null_move.unwrap_or(true),
@@ -1687,7 +1690,7 @@ fn search_root(
     previous_pv: &[Move],
     context: &mut SearchContext<'_>,
 ) -> Result<RootSearchResult, Aborted> {
-    if context.evaluation.root_style_margin() == 0 {
+    if context.personality.root_style_margin() == 0 {
         let objective_start_nodes = context.nodes;
         let selected = search_root_conventional(
             board,
@@ -1753,7 +1756,7 @@ fn search_root_styled(
 
     let threshold = objective
         .score
-        .saturating_sub(context.evaluation.root_style_margin().min(120));
+        .saturating_sub(context.personality.root_style_margin().min(120));
     let mover = board.side_to_move();
     let root_snapshot = tactical_snapshot(board, mover);
     let mut objective_child = board.clone();
@@ -1778,7 +1781,7 @@ fn search_root_styled(
             board,
             &objective_child,
             objective_metadata,
-            context.evaluation,
+            context.personality,
         ),
         pv: objective_pv.clone(),
         sacrifice: objective_sacrifice,
@@ -1806,7 +1809,7 @@ fn search_root_styled(
         let mut child = board.clone();
         child.play_unchecked(chess_move);
         let metadata = MoveMetadata::classify_with_child(board, chess_move, &child, true);
-        let interest = root_interest(board, &child, metadata, context.evaluation);
+        let interest = root_interest(board, &child, metadata, context.personality);
         let immediate = tactical_snapshot(&child, mover);
         let offered_cp = exchange_risk_on(&child, mover, chess_move.to);
         let sacrifice_hint =
@@ -1825,7 +1828,7 @@ fn search_root_styled(
         depth,
         !board.checkers().is_empty(),
         0,
-        context.evaluation.max_check_extensions(),
+        context.personality.max_check_extensions(),
     );
     let original_node_limit = context.node_limit;
     let personality_node_limit = styled_root_node_limit(
@@ -1940,10 +1943,10 @@ fn search_root_styled(
         };
         let mut score = -child_result.score;
         let provisional_margin = if seed.sacrifice_hint >= MIN_SACRIFICE_CP {
-            context.evaluation.root_style_margin().min(120)
+            context.personality.root_style_margin().min(120)
         } else {
             candidate_risk_margin(
-                context.evaluation,
+                context.personality,
                 objective.score,
                 &SacrificeProfile::default(),
             )
@@ -1958,7 +1961,7 @@ fn search_root_styled(
         pv.extend_from_slice(&verified_child_pv);
         let mut sacrifice = sacrifice_profile(board, &child, mover, &pv);
 
-        let should_extend = context.evaluation.aggression() >= 75
+        let should_extend = context.personality.aggression() >= 75
             && seed.sacrifice_hint >= MIN_SACRIFICE_CP
             && is_compensated_sacrifice(&sacrifice)
             && !context.should_stop();
@@ -2009,7 +2012,7 @@ fn search_root_styled(
             }
         }
         let verified_margin =
-            candidate_risk_margin(context.evaluation, objective.score, &sacrifice);
+            candidate_risk_margin(context.personality, objective.score, &sacrifice);
         if !candidate_within_score_guard(score, objective.score, verified_margin) {
             continue;
         }
@@ -2039,7 +2042,7 @@ fn search_root_styled(
         return Ok(RootSearchResult::from_primary(objective));
     }
 
-    let selected = choose_styled_candidate(&candidates, 0, context.evaluation);
+    let selected = choose_styled_candidate(&candidates, 0, context.personality);
     context.pv[0].clone_from(&candidates[selected].pv);
     Ok(RootSearchResult {
         primary_score: objective.score,
@@ -2504,19 +2507,19 @@ fn search_root_conventional(
         root_moves.to_vec(),
         preferred,
         &context.ordering,
-        context.evaluation,
+        context.personality,
     );
     let (child_depth, child_extensions) = next_search_depth(
         depth,
         !board.checkers().is_empty(),
         0,
-        context.evaluation.max_check_extensions(),
+        context.personality.max_check_extensions(),
     );
     let mut best = NodeResult {
         score: NEG_INFINITY,
         path_dependent: false,
     };
-    let collect_evidence = context.evaluation.root_style_margin() != 0;
+    let collect_evidence = context.personality.root_style_margin() != 0;
     let mut evidence = if collect_evidence {
         Vec::with_capacity(moves.len())
     } else {
@@ -2657,7 +2660,7 @@ fn negamax(
             alpha,
             beta,
             QUIESCENCE_DEPTH,
-            context.evaluation.quiescence_check_budget(),
+            context.personality.quiescence_check_budget(),
             None,
             context,
         );
@@ -2675,7 +2678,7 @@ fn negamax(
             });
         }
         return Ok(NodeResult {
-            score: evaluate_with_config(board, context.evaluation),
+            score: evaluate_with_config(board, context.scoring),
             path_dependent: false,
         });
     }
@@ -2743,12 +2746,12 @@ fn negamax(
     let static_evaluation =
         if static_pruning_allowed(board, depth, alpha, beta, pv_node, context.mode) {
             context.telemetry.static_pruning_attempts += 1;
-            Some(evaluate_with_config(board, context.evaluation))
+            Some(evaluate_with_config(board, context.scoring))
         } else {
             None
         };
     if static_evaluation.is_some_and(|evaluation| {
-        reverse_futility_cutoff(evaluation, beta, depth, context.evaluation.aggression())
+        reverse_futility_cutoff(evaluation, beta, depth, context.personality.aggression())
     }) {
         context.telemetry.reverse_futility_cutoffs += 1;
         return Ok(NodeResult {
@@ -2779,14 +2782,14 @@ fn negamax(
         preferred,
         ply,
         previous_move,
-        context.evaluation,
+        context.personality,
         MovePickerMode::Main,
     );
     let (child_depth, child_extensions) = next_search_depth(
         depth,
         in_check,
         extensions_used,
-        context.evaluation.max_check_extensions(),
+        context.personality.max_check_extensions(),
     );
     let mut best = NodeResult {
         score: NEG_INFINITY,
@@ -2804,7 +2807,7 @@ fn negamax(
         };
         let protected = preferred == Some(chess_move)
             || !expected_child_pv.is_empty()
-            || (context.evaluation.aggression() > 0 && metadata.attacking_pawn_push)
+            || (context.personality.aggression() > 0 && metadata.attacking_pawn_push)
             || context
                 .ordering
                 .killers(ply)
@@ -2823,7 +2826,7 @@ fn negamax(
                 history_score,
                 evaluation,
                 alpha,
-                context.evaluation.aggression(),
+                context.personality.aggression(),
             )
         }) {
             context.telemetry.futility_pruned_moves += 1;
@@ -2996,7 +2999,7 @@ fn quiescence(
     let in_check = !board.checkers().is_empty();
     if (remaining == 0 && !in_check) || ply >= MAX_PLY {
         return Ok(NodeResult {
-            score: evaluate_with_config(board, context.evaluation),
+            score: evaluate_with_config(board, context.scoring),
             path_dependent: false,
         });
     }
@@ -3004,7 +3007,7 @@ fn quiescence(
     let stand_pat = if in_check {
         None
     } else {
-        Some(evaluate_with_config(board, context.evaluation))
+        Some(evaluate_with_config(board, context.scoring))
     };
     let mut best = NodeResult {
         score: stand_pat.unwrap_or(NEG_INFINITY),
@@ -3023,7 +3026,7 @@ fn quiescence(
         None,
         ply,
         None,
-        context.evaluation,
+        context.personality,
         MovePickerMode::Quiescence {
             in_check,
             include_quiet_checks: check_budget > 0,
@@ -3038,7 +3041,7 @@ fn quiescence(
             metadata,
             in_check,
             recapture_square,
-            context.evaluation.aggression(),
+            context.personality.aggression(),
             stand_pat.unwrap_or(NEG_INFINITY),
             alpha,
         ) {
@@ -3557,6 +3560,23 @@ fn root_interest(
     let mut interest = i64::from(root_complexity_bonus(child, mover, evaluation)) * 10;
     interest += i64::from(metadata.gives_check) * 120;
     interest += i64::from(metadata.attacking_pawn_push) * 40;
+
+    let queen_home = match mover {
+        Color::White => Square::D1,
+        Color::Black => Square::D8,
+    };
+    let advanced = match mover {
+        Color::White => chess_move.to.rank() as i32 >= Rank::Fourth as i32,
+        Color::Black => chess_move.to.rank() as i32 <= Rank::Fifth as i32,
+    };
+    if metadata.attacker == Piece::Queen
+        && chess_move.from == queen_home
+        && advanced
+        && matches!(chess_move.to.file(), File::A | File::B | File::C)
+    {
+        interest -= i64::from(evaluation.aggression()) * 120;
+    }
+
     interest += chess_move
         .promotion
         .map_or(0, |piece| i64::from(piece_value(piece)) / 5);

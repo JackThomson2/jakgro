@@ -43,12 +43,20 @@ impl ScorePair {
         )
     }
 
-    fn clamped(self, middle_game: Score, end_game: Score) -> Self {
+    fn soft_bounded(self, middle_game: Score, end_game: Score) -> Self {
         Self::new(
-            self.middle_game.clamp(-middle_game, middle_game),
-            self.end_game.clamp(-end_game, end_game),
+            soft_bound(self.middle_game, middle_game),
+            soft_bound(self.end_game, end_game),
         )
     }
+}
+fn soft_bound(score: Score, limit: Score) -> Score {
+    if limit == 0 {
+        return 0;
+    }
+    let score = i64::from(score);
+    let limit = i64::from(limit);
+    (score * limit / (score.abs() + limit)) as Score
 }
 
 impl Add for ScorePair {
@@ -101,6 +109,14 @@ impl EvaluationConfig {
     pub(super) const fn root_style_margin(self) -> Score {
         let aggression = self.aggression as Score;
         aggression * aggression * 120 / 10_000
+    }
+
+    pub(super) const fn style_middle_game_cap(self) -> Score {
+        self.root_style_margin() * 3 / 2
+    }
+
+    pub(super) const fn style_end_game_cap(self) -> Score {
+        self.root_style_margin() * 3 / 4
     }
 }
 
@@ -182,6 +198,8 @@ pub(super) struct EvaluationTrace {
     pub(super) end_game: Score,
     pub(super) style_middle_game: Score,
     pub(super) style_end_game: Score,
+    pub(super) style_middle_game_cap: Score,
+    pub(super) style_end_game_cap: Score,
     pub(super) phase: Score,
     pub(super) aggression: u8,
     pub(super) blended: Score,
@@ -228,8 +246,8 @@ pub(super) fn evaluate_with_trace_and_config(
     let features = features::extract(board);
     let base = weights::score(features);
     let style = weights::attacking_style(features)
-        .clamped(450, 220)
-        .scaled(config.aggression());
+        .scaled(config.aggression())
+        .soft_bounded(config.style_middle_game_cap(), config.style_end_game_cap());
     let score = base + style;
     let phase = features::phase(board);
     let blended = (score.middle_game * phase + score.end_game * (24 - phase)) / 24;
@@ -240,6 +258,8 @@ pub(super) fn evaluate_with_trace_and_config(
         end_game: base.end_game,
         style_middle_game: style.middle_game,
         style_end_game: style.end_game,
+        style_middle_game_cap: config.style_middle_game_cap(),
+        style_end_game_cap: config.style_end_game_cap(),
         phase,
         aggression: config.aggression(),
         blended,
@@ -333,10 +353,11 @@ mod tests {
     }
 
     #[test]
-    fn aggression_is_clamped_and_scales_bounded_style_terms() {
+    fn aggression_is_clamped_and_scales_tempered_style_caps() {
         let position = Position::from_fen("6k1/5ppp/8/7Q/2B5/8/5PPP/6K1 w - - 0 1").unwrap();
         let quiet =
             evaluate_with_trace_and_config(position.board(), EvaluationConfig::new(MIN_AGGRESSION));
+        let midpoint = evaluate_with_trace_and_config(position.board(), EvaluationConfig::new(50));
         let aggressive =
             evaluate_with_trace_and_config(position.board(), EvaluationConfig::new(MAX_AGGRESSION));
         let clamped =
@@ -344,17 +365,41 @@ mod tests {
 
         assert_eq!(EvaluationConfig::default().aggression(), DEFAULT_AGGRESSION);
         assert_eq!(clamped.aggression, MAX_AGGRESSION);
+        assert_eq!(
+            (quiet.style_middle_game_cap, quiet.style_end_game_cap),
+            (0, 0)
+        );
         assert_eq!(quiet.style_middle_game, 0);
         assert_eq!(quiet.style_end_game, 0);
+        assert_eq!(
+            (midpoint.style_middle_game_cap, midpoint.style_end_game_cap),
+            (45, 22),
+        );
+        assert_eq!(
+            (
+                aggressive.style_middle_game_cap,
+                aggressive.style_end_game_cap,
+            ),
+            (180, 90),
+        );
         assert!(aggressive.style_middle_game > 0);
-        assert!(aggressive.style_middle_game.abs() <= 450);
-        assert!(aggressive.style_end_game.abs() <= 220);
+        assert!(aggressive.style_middle_game.abs() <= aggressive.style_middle_game_cap);
+        assert!(aggressive.style_end_game.abs() <= aggressive.style_end_game_cap);
         assert_eq!(aggressive, clamped);
         assert!(aggressive.blended > quiet.blended);
     }
+    #[test]
+    fn soft_style_bound_preserves_sign_and_order_below_its_limit() {
+        assert_eq!(super::soft_bound(0, 120), 0);
+        assert_eq!(super::soft_bound(80, 0), 0);
+        assert!(super::soft_bound(300, 120) > super::soft_bound(100, 120));
+        assert!(super::soft_bound(-300, 120) < super::soft_bound(-100, 120));
+        assert!(super::soft_bound(10_000, 120).abs() < 120);
+        assert!(super::soft_bound(-10_000, 120).abs() < 120);
+    }
 
     #[test]
-    fn coordinated_attack_scores_more_style_than_a_lone_attacker() {
+    fn coordinated_attack_keeps_more_raw_style_than_a_lone_attacker() {
         let lone = Position::from_fen("6k1/5ppp/8/7Q/8/8/5PPP/6K1 w - - 0 1").unwrap();
         let coordinated = Position::from_fen("6k1/5ppp/8/7Q/2B5/8/5PPP/6K1 w - - 0 1").unwrap();
         let config = EvaluationConfig::new(MAX_AGGRESSION);
@@ -363,7 +408,11 @@ mod tests {
 
         assert_eq!(lone_trace.features.white_attack.coordination(), 0);
         assert!(coordinated_trace.features.white_attack.coordination() > 0);
-        assert!(coordinated_trace.style_middle_game > lone_trace.style_middle_game);
+        assert!(
+            weights::attacking_style(coordinated_trace.features).middle_game
+                > weights::attacking_style(lone_trace.features).middle_game
+        );
+        assert!(coordinated_trace.style_middle_game >= lone_trace.style_middle_game);
     }
 
     #[test]

@@ -441,6 +441,334 @@ struct SearchMove {
     order_score: i64,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct PickerMove {
+    facts: MoveFacts,
+    see: Option<Score>,
+    order_score: i64,
+}
+
+impl PickerMove {
+    fn metadata(self, board: &Board) -> MoveMetadata {
+        self.facts.search_metadata(board, self.see)
+    }
+}
+
+#[derive(Debug, Default)]
+struct MovePickerStorage {
+    promotions: Vec<PickerMove>,
+    good_captures: Vec<PickerMove>,
+    quiets: Vec<SearchMove>,
+    bad_captures: Vec<PickerMove>,
+    failed_quiets: Vec<MoveMetadata>,
+}
+
+impl MovePickerStorage {
+    fn clear(&mut self) {
+        self.promotions.clear();
+        self.good_captures.clear();
+        self.quiets.clear();
+        self.bad_captures.clear();
+        self.failed_quiets.clear();
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum MovePickerStage {
+    Preferred,
+    GenerateTacticals,
+    Promotions,
+    GoodCaptures,
+    GenerateQuiets,
+    Quiets,
+    SortBadCaptures,
+    BadCaptures,
+    Done,
+}
+
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+struct MovePickerWork {
+    tactical_generations: usize,
+    quiet_generations: usize,
+    check_detections: usize,
+    see_evaluations: usize,
+    quiet_sorts: usize,
+}
+
+struct MovePicker<'a> {
+    board: &'a Board,
+    storage: MovePickerStorage,
+    preferred: Option<Move>,
+    ply: u32,
+    previous: Option<HistoryMove>,
+    evaluation: EvaluationConfig,
+    stage: MovePickerStage,
+    stage_index: usize,
+    emitted: usize,
+    #[cfg(test)]
+    work: MovePickerWork,
+}
+
+impl<'a> MovePicker<'a> {
+    fn new(
+        board: &'a Board,
+        mut storage: MovePickerStorage,
+        preferred: Option<Move>,
+        ply: u32,
+        previous: Option<HistoryMove>,
+        evaluation: EvaluationConfig,
+    ) -> Self {
+        storage.clear();
+        Self {
+            board,
+            storage,
+            preferred: preferred.filter(|chess_move| board.is_legal(*chess_move)),
+            ply,
+            previous,
+            evaluation,
+            stage: MovePickerStage::Preferred,
+            stage_index: 0,
+            emitted: 0,
+            #[cfg(test)]
+            work: MovePickerWork::default(),
+        }
+    }
+
+    fn next(&mut self, ordering: &MoveOrdering) -> Option<(usize, MoveMetadata)> {
+        loop {
+            match self.stage {
+                MovePickerStage::Preferred => {
+                    self.stage = MovePickerStage::GenerateTacticals;
+                    if let Some(chess_move) = self.preferred {
+                        let facts = MoveFacts::classify(self.board, chess_move);
+                        return Some(self.emit_candidate(PickerMove {
+                            facts,
+                            see: None,
+                            order_score: 6_000_000,
+                        }));
+                    }
+                }
+                MovePickerStage::GenerateTacticals => {
+                    self.generate_tacticals();
+                    self.enter(MovePickerStage::Promotions);
+                }
+                MovePickerStage::Promotions => {
+                    if let Some(candidate) = self.storage.promotions.get(self.stage_index).copied()
+                    {
+                        self.stage_index += 1;
+                        return Some(self.emit_candidate(candidate));
+                    }
+                    self.enter(MovePickerStage::GoodCaptures);
+                }
+                MovePickerStage::GoodCaptures => {
+                    if let Some(candidate) =
+                        self.storage.good_captures.get(self.stage_index).copied()
+                    {
+                        self.stage_index += 1;
+                        return Some(self.emit_candidate(candidate));
+                    }
+                    self.enter(MovePickerStage::GenerateQuiets);
+                }
+                MovePickerStage::GenerateQuiets => {
+                    self.generate_quiets(ordering);
+                    self.enter(MovePickerStage::Quiets);
+                }
+                MovePickerStage::Quiets => {
+                    if let Some(candidate) = self.storage.quiets.get(self.stage_index) {
+                        let metadata = candidate.metadata;
+                        self.stage_index += 1;
+                        return Some(self.emit(metadata));
+                    }
+                    self.enter(MovePickerStage::SortBadCaptures);
+                }
+                MovePickerStage::SortBadCaptures => {
+                    sort_picker_moves(&mut self.storage.bad_captures);
+                    self.enter(MovePickerStage::BadCaptures);
+                }
+                MovePickerStage::BadCaptures => {
+                    if let Some(candidate) =
+                        self.storage.bad_captures.get(self.stage_index).copied()
+                    {
+                        self.stage_index += 1;
+                        return Some(self.emit_candidate(candidate));
+                    }
+                    self.enter(MovePickerStage::Done);
+                }
+                MovePickerStage::Done => return None,
+            }
+        }
+    }
+
+    fn record_failed_quiet(&mut self, metadata: MoveMetadata) {
+        if metadata.is_quiet() {
+            self.storage.failed_quiets.push(metadata);
+        }
+    }
+
+    fn failed_quiets(&self) -> &[MoveMetadata] {
+        &self.storage.failed_quiets
+    }
+
+    fn into_storage(self) -> MovePickerStorage {
+        self.storage
+    }
+
+    #[cfg(test)]
+    fn work(&self) -> MovePickerWork {
+        self.work
+    }
+
+    fn enter(&mut self, stage: MovePickerStage) {
+        self.stage = stage;
+        self.stage_index = 0;
+    }
+
+    fn emit(&mut self, metadata: MoveMetadata) -> (usize, MoveMetadata) {
+        let index = self.emitted;
+        self.emitted += 1;
+        (index, metadata)
+    }
+
+    fn emit_candidate(&mut self, candidate: PickerMove) -> (usize, MoveMetadata) {
+        #[cfg(test)]
+        {
+            self.work.check_detections += 1;
+        }
+        self.emit(candidate.metadata(self.board))
+    }
+
+    fn generate_tacticals(&mut self) {
+        #[cfg(test)]
+        {
+            self.work.tactical_generations += 1;
+        }
+        let board = self.board;
+        let preferred = self.preferred;
+        let evaluation = self.evaluation;
+        let promotions = &mut self.storage.promotions;
+        let good_captures = &mut self.storage.good_captures;
+        let bad_captures = &mut self.storage.bad_captures;
+        #[cfg(test)]
+        let work = &mut self.work;
+        board.generate_moves(|mut piece_moves| {
+            piece_moves.to &= tactical_move_targets(board, piece_moves.piece);
+            for chess_move in piece_moves {
+                if preferred == Some(chess_move) {
+                    continue;
+                }
+                let facts = MoveFacts::classify(board, chess_move);
+                if let Some(order_score) = promotion_order_score(chess_move) {
+                    promotions.push(PickerMove {
+                        facts,
+                        see: None,
+                        order_score,
+                    });
+                    continue;
+                }
+                let compute_see = evaluation.aggression() > 0;
+                #[cfg(test)]
+                if compute_see
+                    && facts
+                        .captured
+                        .is_some_and(|piece| piece_value(piece) < piece_value(facts.attacker))
+                {
+                    work.see_evaluations += 1;
+                }
+                let see = facts.see(board, compute_see);
+                let order_score = capture_order_score(facts, see, evaluation)
+                    .expect("tactical destination without a capture or promotion");
+                let candidate = PickerMove {
+                    facts,
+                    see,
+                    order_score,
+                };
+                if capture_is_good(facts, see, evaluation) {
+                    good_captures.push(candidate);
+                } else {
+                    bad_captures.push(candidate);
+                }
+            }
+            false
+        });
+        sort_picker_moves(promotions);
+        sort_picker_moves(good_captures);
+    }
+
+    fn generate_quiets(&mut self, ordering: &MoveOrdering) {
+        #[cfg(test)]
+        {
+            self.work.quiet_generations += 1;
+        }
+        let board = self.board;
+        let preferred = self.preferred;
+        let quiets = &mut self.storage.quiets;
+        #[cfg(test)]
+        let work = &mut self.work;
+        board.generate_moves(|mut piece_moves| {
+            piece_moves.to &= !tactical_move_targets(board, piece_moves.piece);
+            for chess_move in piece_moves {
+                if preferred == Some(chess_move) {
+                    continue;
+                }
+                let facts = MoveFacts::classify(board, chess_move);
+                #[cfg(test)]
+                {
+                    work.check_detections += 1;
+                }
+                quiets.push(SearchMove {
+                    metadata: facts.search_metadata(board, None),
+                    order_score: 0,
+                });
+            }
+            false
+        });
+        order_search_moves_in_place(
+            board,
+            quiets,
+            None,
+            self.ply,
+            self.previous,
+            ordering,
+            self.evaluation,
+        );
+        #[cfg(test)]
+        {
+            self.work.quiet_sorts += 1;
+        }
+    }
+}
+
+fn tactical_move_targets(board: &Board, piece: Piece) -> BitBoard {
+    let mut targets = board.colors(!board.side_to_move());
+    if piece == Piece::Pawn {
+        targets |= Rank::First.bitboard() | Rank::Eighth.bitboard();
+        if let Some(file) = board.en_passant() {
+            targets |= Square::new(file, Rank::Sixth.relative_to(board.side_to_move())).bitboard();
+        }
+    }
+    targets
+}
+
+fn capture_is_good(facts: MoveFacts, see: Option<Score>, evaluation: EvaluationConfig) -> bool {
+    if evaluation.aggression() > 0
+        && let Some(see) = see
+    {
+        return see >= 0;
+    }
+    ordering_piece_value(facts.captured.expect("capture facts"))
+        >= ordering_piece_value(facts.attacker)
+}
+
+fn sort_picker_moves(moves: &mut [PickerMove]) {
+    moves.sort_unstable_by(|left, right| {
+        right
+            .order_score
+            .cmp(&left.order_score)
+            .then_with(|| move_key(left.facts.chess_move).cmp(&move_key(right.facts.chess_move)))
+    });
+}
+
 impl PreparedMove {
     fn new(board: &Board, chess_move: Move, compute_see: bool) -> Self {
         let attacker = board.piece_on(chess_move.from).unwrap_or(Piece::King);
@@ -592,7 +920,6 @@ impl MoveOrdering {
         (butterfly + continuation / 8).clamp(-HISTORY_MAX, HISTORY_MAX)
     }
 
-    #[cfg(test)]
     fn record_quiet_cutoff(
         &mut self,
         board: &Board,
@@ -607,25 +934,6 @@ impl MoveOrdering {
             previous,
             chess_move,
             failed_quiets.iter().copied(),
-            ply,
-            depth,
-        );
-    }
-
-    fn record_search_quiet_cutoff(
-        &mut self,
-        board: &Board,
-        previous: Option<HistoryMove>,
-        chess_move: Move,
-        failed_quiets: &[SearchMove],
-        ply: u32,
-        depth: u32,
-    ) {
-        self.record_quiet_cutoff_from(
-            board,
-            previous,
-            chess_move,
-            failed_quiets.iter().map(|search_move| search_move.metadata),
             ply,
             depth,
         );
@@ -975,6 +1283,7 @@ struct SearchContext<'a> {
     pv: Vec<Vec<Move>>,
     hash_pv_depths: Vec<Option<u32>>,
     move_buffers: Vec<Vec<SearchMove>>,
+    picker_storage: Vec<MovePickerStorage>,
     ordering: MoveOrdering,
 }
 
@@ -1058,6 +1367,15 @@ impl SearchContext<'_> {
         moves.clear();
         self.move_buffers[ply.min(MAX_PLY) as usize] = moves;
     }
+
+    fn take_picker_storage(&mut self, ply: u32) -> MovePickerStorage {
+        std::mem::take(&mut self.picker_storage[ply.min(MAX_PLY) as usize])
+    }
+
+    fn recycle_picker_storage(&mut self, ply: u32, mut storage: MovePickerStorage) {
+        storage.clear();
+        self.picker_storage[ply.min(MAX_PLY) as usize] = storage;
+    }
 }
 
 pub(super) fn run<F>(
@@ -1126,6 +1444,9 @@ where
             .collect(),
         hash_pv_depths: vec![None; MAX_PLY as usize + 1],
         move_buffers: (0..=MAX_PLY).map(|_| Vec::new()).collect(),
+        picker_storage: (0..=MAX_PLY)
+            .map(|_| MovePickerStorage::default())
+            .collect(),
         ordering: MoveOrdering::new(),
     };
     let mut history = RepetitionTracker::new(position.hash_history());
@@ -2356,18 +2677,15 @@ fn negamax(
     }
 
     let preferred = previous_pv.first().copied().or(hash_move);
-    let mut moves = context.take_move_buffer(ply);
-    prepare_generated_moves_into(
+    let picker_storage = context.take_picker_storage(ply);
+    let mut picker = MovePicker::new(
         board,
-        &mut moves,
+        picker_storage,
         preferred,
         ply,
         previous_move,
-        &context.ordering,
         context.evaluation,
-        |_| true,
     );
-    debug_assert!(!moves.is_empty());
     let (child_depth, child_extensions) = next_search_depth(
         depth,
         in_check,
@@ -2380,8 +2698,7 @@ fn negamax(
     };
     let mut selective_fail_low = false;
 
-    for (index, search_move) in moves.iter().enumerate() {
-        let metadata = search_move.metadata;
+    while let Some((index, metadata)) = picker.next(&context.ordering) {
         let chess_move = metadata.chess_move;
         let current_move = HistoryMove::from_board(board, chess_move);
         let expected_child_pv = if preferred == Some(chess_move) {
@@ -2415,6 +2732,7 @@ fn negamax(
         }) {
             context.telemetry.futility_pruned_moves += 1;
             selective_fail_low = true;
+            picker.record_failed_quiet(metadata);
             continue;
         }
         let reduction = late_move_reduction(
@@ -2499,17 +2817,18 @@ fn negamax(
         alpha = alpha.max(score);
         if alpha >= beta {
             if context.mode.updates_ordering() && metadata.is_quiet() {
-                context.ordering.record_search_quiet_cutoff(
+                context.ordering.record_quiet_cutoff(
                     board,
                     previous_move,
                     chess_move,
-                    &moves[..index],
+                    picker.failed_quiets(),
                     ply,
                     depth,
                 );
             }
             break;
         }
+        picker.record_failed_quiet(metadata);
     }
 
     if context.mode.writes_tt() && !best.path_dependent {
@@ -2533,7 +2852,7 @@ fn negamax(
         }
     }
 
-    context.recycle_move_buffer(ply, moves);
+    context.recycle_picker_storage(ply, picker.into_storage());
     Ok(best)
 }
 
@@ -3418,6 +3737,119 @@ mod tests {
                 assert_eq!(staged.facts(), facts, "facts for {chess_move} in {board}");
             }
         }
+    }
+
+    #[test]
+    fn staged_picker_matches_eager_non_root_ordering() {
+        for fen in [
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1",
+            "4k3/8/8/3pP3/8/8/8/4R1K1 w - d6 0 1",
+            "4k3/P7/8/8/8/8/8/4K3 w - - 0 1",
+            "4k3/8/8/8/8/8/4q3/4R1K1 w - - 0 1",
+        ] {
+            let board = fen.parse::<cozy_chess::Board>().unwrap();
+            let legal_moves = super::generate_moves(&board);
+            let preferred = legal_moves.first().copied();
+            for aggression in [0, 100] {
+                let evaluation = super::EvaluationConfig::new(aggression);
+                for preferred in [None, preferred] {
+                    let ordering = super::MoveOrdering::new();
+                    let mut eager = Vec::new();
+                    super::prepare_generated_moves_into(
+                        &board,
+                        &mut eager,
+                        preferred,
+                        0,
+                        None,
+                        &ordering,
+                        evaluation,
+                        |_| true,
+                    );
+                    let mut picker = super::MovePicker::new(
+                        &board,
+                        super::MovePickerStorage::default(),
+                        preferred,
+                        0,
+                        None,
+                        evaluation,
+                    );
+                    let mut picked = Vec::new();
+                    while let Some((index, metadata)) = picker.next(&ordering) {
+                        assert_eq!(index, picked.len());
+                        picked.push(metadata);
+                    }
+
+                    assert_eq!(
+                        picked
+                            .iter()
+                            .map(|metadata| metadata.chess_move)
+                            .collect::<Vec<_>>(),
+                        eager
+                            .iter()
+                            .map(|search_move| search_move.metadata.chess_move)
+                            .collect::<Vec<_>>(),
+                        "order for aggression {aggression} in {fen}",
+                    );
+                    for (picked, eager) in picked.iter().zip(&eager) {
+                        if Some(picked.chess_move) != preferred {
+                            assert_eq!(*picked, eager.metadata);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn preferred_picker_move_defers_all_generation_and_see() {
+        let board = cozy_chess::Board::default();
+        let preferred: Move = "e2e4".parse().unwrap();
+        let ordering = super::MoveOrdering::new();
+        let mut picker = super::MovePicker::new(
+            &board,
+            super::MovePickerStorage::default(),
+            Some(preferred),
+            0,
+            None,
+            super::EvaluationConfig::new(100),
+        );
+
+        assert_eq!(picker.next(&ordering).unwrap().1.chess_move, preferred);
+        assert_eq!(
+            picker.work(),
+            super::MovePickerWork {
+                check_detections: 1,
+                ..super::MovePickerWork::default()
+            },
+        );
+    }
+
+    #[test]
+    fn tactical_picker_move_defers_quiet_generation_and_sorting() {
+        let board = "4k3/8/8/8/8/8/4q3/4R1K1 w - - 0 1"
+            .parse::<cozy_chess::Board>()
+            .unwrap();
+        let capture: Move = "e1e2".parse().unwrap();
+        let ordering = super::MoveOrdering::new();
+        let mut picker = super::MovePicker::new(
+            &board,
+            super::MovePickerStorage::default(),
+            None,
+            0,
+            None,
+            super::EvaluationConfig::new(100),
+        );
+
+        assert_eq!(picker.next(&ordering).unwrap().1.chess_move, capture);
+        assert_eq!(
+            picker.work(),
+            super::MovePickerWork {
+                tactical_generations: 1,
+                check_detections: 1,
+                ..super::MovePickerWork::default()
+            },
+        );
     }
     #[test]
     fn static_pruning_requires_stable_non_pv_nodes() {

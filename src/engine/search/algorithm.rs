@@ -306,6 +306,68 @@ struct ProbedCandidate {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct MoveFacts {
+    chess_move: Move,
+    attacker: Piece,
+    captured: Option<Piece>,
+}
+
+impl MoveFacts {
+    fn classify(board: &Board, chess_move: Move) -> Self {
+        let attacker = board.piece_on(chess_move.from).unwrap_or(Piece::King);
+        Self::classify_with_attacker(board, chess_move, attacker)
+    }
+
+    fn classify_with_attacker(board: &Board, chess_move: Move, attacker: Piece) -> Self {
+        Self {
+            chess_move,
+            attacker,
+            captured: captured_piece(board, chess_move),
+        }
+    }
+
+    fn see(self, board: &Board, enabled: bool) -> Option<Score> {
+        self.captured
+            .filter(|&piece| enabled && piece_value(piece) < piece_value(self.attacker))
+            .map(|_| static_exchange_eval(board, self.chess_move))
+    }
+
+    fn see_after(self, board: &Board, child: &Board, enabled: bool) -> Option<Score> {
+        self.captured
+            .filter(|&piece| enabled && piece_value(piece) < piece_value(self.attacker))
+            .map(|_| static_exchange_eval_after(board, self.chess_move, child))
+    }
+
+    fn search_metadata(self, board: &Board, see: Option<Score>) -> MoveMetadata {
+        let gives_check = move_gives_check(board, self.chess_move, self.attacker);
+        self.metadata(board, gives_check, see)
+    }
+
+    fn child_metadata(self, board: &Board, child: &Board, see: Option<Score>) -> MoveMetadata {
+        self.metadata(board, !child.checkers().is_empty(), see)
+    }
+
+    fn metadata(self, board: &Board, gives_check: bool, see: Option<Score>) -> MoveMetadata {
+        let enemy_king = board.king(!board.side_to_move());
+        let king_zone_move = (self.chess_move.to.file() as i32 - enemy_king.file() as i32).abs()
+            <= 1
+            && (self.chess_move.to.rank() as i32 - enemy_king.rank() as i32).abs() <= 1;
+        MoveMetadata {
+            chess_move: self.chess_move,
+            attacker: self.attacker,
+            captured: self.captured,
+            gives_check,
+            attacking_pawn_push: is_attacking_pawn_push(board, self.chess_move),
+            castling: self.attacker == Piece::King
+                && (self.chess_move.from.file() as i32 - self.chess_move.to.file() as i32).abs()
+                    > 1,
+            king_zone_move,
+            see,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct MoveMetadata {
     chess_move: Move,
     attacker: Piece,
@@ -324,25 +386,8 @@ impl MoveMetadata {
     }
 
     fn classify_for_search(board: &Board, chess_move: Move, compute_see: bool) -> Self {
-        let attacker = board.piece_on(chess_move.from).unwrap_or(Piece::King);
-        let captured = captured_piece(board, chess_move);
-        let enemy_king = board.king(!board.side_to_move());
-        let king_zone_move = (chess_move.to.file() as i32 - enemy_king.file() as i32).abs() <= 1
-            && (chess_move.to.rank() as i32 - enemy_king.rank() as i32).abs() <= 1;
-        let see = captured
-            .filter(|&piece| compute_see && piece_value(piece) < piece_value(attacker))
-            .map(|_| static_exchange_eval(board, chess_move));
-        Self {
-            chess_move,
-            attacker,
-            captured,
-            gives_check: move_gives_check(board, chess_move, attacker),
-            attacking_pawn_push: is_attacking_pawn_push(board, chess_move),
-            castling: attacker == Piece::King
-                && (chess_move.from.file() as i32 - chess_move.to.file() as i32).abs() > 1,
-            king_zone_move,
-            see,
-        }
+        let facts = MoveFacts::classify(board, chess_move);
+        facts.search_metadata(board, facts.see(board, compute_see))
     }
 
     fn classify_with_child(
@@ -351,9 +396,10 @@ impl MoveMetadata {
         child: &Board,
         compute_see: bool,
     ) -> Self {
-        let attacker = board.piece_on(chess_move.from).unwrap_or(Piece::King);
-        Self::classify_with_attacker(board, chess_move, child, compute_see, attacker)
+        let facts = MoveFacts::classify(board, chess_move);
+        facts.child_metadata(board, child, facts.see_after(board, child, compute_see))
     }
+
     fn classify_with_attacker(
         board: &Board,
         chess_move: Move,
@@ -361,23 +407,15 @@ impl MoveMetadata {
         compute_see: bool,
         attacker: Piece,
     ) -> Self {
-        let captured = captured_piece(board, chess_move);
-        let enemy_king = board.king(!board.side_to_move());
-        let king_zone_move = (chess_move.to.file() as i32 - enemy_king.file() as i32).abs() <= 1
-            && (chess_move.to.rank() as i32 - enemy_king.rank() as i32).abs() <= 1;
-        let see = captured
-            .filter(|&piece| compute_see && piece_value(piece) < piece_value(attacker))
-            .map(|_| static_exchange_eval_after(board, chess_move, child));
-        Self {
-            chess_move,
-            attacker,
-            captured,
-            gives_check: !child.checkers().is_empty(),
-            attacking_pawn_push: is_attacking_pawn_push(board, chess_move),
-            castling: attacker == Piece::King
-                && (chess_move.from.file() as i32 - chess_move.to.file() as i32).abs() > 1,
-            king_zone_move,
-            see,
+        let facts = MoveFacts::classify_with_attacker(board, chess_move, attacker);
+        facts.child_metadata(board, child, facts.see_after(board, child, compute_see))
+    }
+
+    fn facts(self) -> MoveFacts {
+        MoveFacts {
+            chess_move: self.chess_move,
+            attacker: self.attacker,
+            captured: self.captured,
         }
     }
 
@@ -3016,31 +3054,57 @@ fn move_order_score(
         return 6_000_000;
     }
 
-    if let Some(promotion) = chess_move.promotion {
-        return 5_000_000 + i64::from(piece_value(promotion)) * 32;
+    if let Some(score) = promotion_order_score(chess_move) {
+        return score;
     }
 
-    if let Some(captured) = metadata.captured {
-        let captured_value = ordering_piece_value(captured);
-        let attacker_value = ordering_piece_value(metadata.attacker);
-        let exchange = i64::from(captured_value) * 32 - i64::from(attacker_value);
-        if evaluation.aggression() > 0
-            && let Some(see_score) = metadata.see
-        {
-            let see = i64::from(see_score) * 64;
-            return if see_score >= 0 {
-                4_000_000 + see + exchange
-            } else {
-                1_000_000 + see + exchange
-            };
-        }
-        return if captured_value >= attacker_value {
-            4_000_000 + exchange
+    if let Some(score) = capture_order_score(metadata.facts(), metadata.see, evaluation) {
+        return score;
+    }
+
+    quiet_order_score(board, metadata, ply, previous, ordering, evaluation)
+}
+
+fn promotion_order_score(chess_move: Move) -> Option<i64> {
+    chess_move
+        .promotion
+        .map(|promotion| 5_000_000 + i64::from(piece_value(promotion)) * 32)
+}
+
+fn capture_order_score(
+    facts: MoveFacts,
+    see: Option<Score>,
+    evaluation: EvaluationConfig,
+) -> Option<i64> {
+    let captured_value = ordering_piece_value(facts.captured?);
+    let attacker_value = ordering_piece_value(facts.attacker);
+    let exchange = i64::from(captured_value) * 32 - i64::from(attacker_value);
+    if evaluation.aggression() > 0
+        && let Some(see_score) = see
+    {
+        let see = i64::from(see_score) * 64;
+        return Some(if see_score >= 0 {
+            4_000_000 + see + exchange
         } else {
-            1_000_000 + exchange
-        };
+            1_000_000 + see + exchange
+        });
     }
+    Some(if captured_value >= attacker_value {
+        4_000_000 + exchange
+    } else {
+        1_000_000 + exchange
+    })
+}
 
+fn quiet_order_score(
+    board: &Board,
+    metadata: MoveMetadata,
+    ply: u32,
+    previous: Option<HistoryMove>,
+    ordering: &MoveOrdering,
+    evaluation: EvaluationConfig,
+) -> i64 {
+    let chess_move = metadata.chess_move;
     let history = i64::from(ordering.quiet_history_score(board, chess_move, previous));
     let forcing = forcing_order_bonus(metadata, evaluation);
     if forcing > 0 {
@@ -3331,6 +3395,27 @@ mod tests {
                 let lazy = super::MoveMetadata::classify_for_search(&board, chess_move, true);
                 let eager = super::PreparedMove::new(&board, chess_move, true).metadata;
                 assert_eq!(lazy, eager, "metadata for {chess_move} in {board}");
+            }
+        }
+    }
+
+    #[test]
+    fn staged_move_facts_complete_to_the_existing_metadata() {
+        for fen in [
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1",
+            "4k3/8/8/3pP3/8/8/8/4R1K1 w - d6 0 1",
+            "4k3/P7/8/8/8/8/8/4K3 w - - 0 1",
+            "4k3/8/8/8/8/8/4B3/4R1K1 w - - 0 1",
+        ] {
+            let board = fen.parse::<cozy_chess::Board>().unwrap();
+            for chess_move in super::generate_moves(&board) {
+                let facts = super::MoveFacts::classify(&board, chess_move);
+                let staged = facts.search_metadata(&board, facts.see(&board, true));
+                let complete = super::MoveMetadata::classify_for_search(&board, chess_move, true);
+
+                assert_eq!(staged, complete, "metadata for {chess_move} in {board}");
+                assert_eq!(staged.facts(), facts, "facts for {chess_move} in {board}");
             }
         }
     }

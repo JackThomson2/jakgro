@@ -621,12 +621,11 @@ enum NullMoveBlock {
     Unavailable,
 }
 
-fn null_move_block(
+fn null_move_state_block(
     board: &Board,
     depth: u32,
     beta: Score,
     pv_node: bool,
-    static_evaluation: Score,
     mode: SearchMode,
 ) -> Option<NullMoveBlock> {
     if !mode.allows_null() {
@@ -650,13 +649,29 @@ fn null_move_block(
     if !null_move_material_ok(board) {
         return Some(NullMoveBlock::Material);
     }
-    if static_evaluation < beta {
-        return Some(NullMoveBlock::StaticEvaluation);
-    }
-    if board.null_move().is_none() {
-        return Some(NullMoveBlock::Unavailable);
-    }
     None
+}
+
+fn null_move_static_block(static_evaluation: Score, beta: Score) -> Option<NullMoveBlock> {
+    (static_evaluation < beta).then_some(NullMoveBlock::StaticEvaluation)
+}
+
+fn make_null_move(board: &Board) -> Result<Board, NullMoveBlock> {
+    board.null_move().ok_or(NullMoveBlock::Unavailable)
+}
+
+#[cfg(test)]
+fn null_move_block(
+    board: &Board,
+    depth: u32,
+    beta: Score,
+    pv_node: bool,
+    static_evaluation: Score,
+    mode: SearchMode,
+) -> Option<NullMoveBlock> {
+    null_move_state_block(board, depth, beta, pv_node, mode)
+        .or_else(|| null_move_static_block(static_evaluation, beta))
+        .or_else(|| make_null_move(board).err())
 }
 
 fn null_move_material_ok(board: &Board) -> bool {
@@ -758,19 +773,24 @@ fn verified_null_move_cutoff(
     if !context.null_move_enabled {
         return Ok(None);
     }
-    let static_evaluation =
-        static_evaluation.unwrap_or_else(|| evaluate_with_config(board, context.evaluation));
     let pv_node = beta.saturating_sub(alpha) > 1;
-    if null_move_block(board, depth, beta, pv_node, static_evaluation, context.mode).is_some() {
+    if null_move_state_block(board, depth, beta, pv_node, context.mode).is_some() {
         return Ok(None);
     }
+    let static_evaluation =
+        static_evaluation.unwrap_or_else(|| evaluate_with_config(board, context.evaluation));
+    if null_move_static_block(static_evaluation, beta).is_some() {
+        return Ok(None);
+    }
+    let Ok(null_board) = make_null_move(board) else {
+        return Ok(None);
+    };
 
     context.telemetry.null_move_attempts += 1;
     let (probe_mode, verification_mode) = null_search_modes();
     let reduction = null_move_reduction(depth);
     let null_depth = depth.saturating_sub(reduction).saturating_sub(1);
     let verification_depth = depth.saturating_sub(reduction);
-    let null_board = board.null_move().expect("eligible null move must exist");
     let original_mode = context.mode;
     context.mode = probe_mode;
     let probe = negamax(
@@ -2008,9 +2028,8 @@ fn negamax(
     context.clear_pv(ply);
     context.visit_node()?;
     if draw_state_pending(board, history, context.mode) || ply >= MAX_PLY {
-        let moves = generate_moves(board);
         if let Some(result) =
-            terminal_score_for_mode(board, history, ply, moves.is_empty(), context.mode)
+            terminal_score_for_mode(board, history, ply, !has_legal_move(board), context.mode)
         {
             return Ok(NodeResult {
                 score: result.score,
@@ -2069,8 +2088,7 @@ fn negamax(
         }
     }
 
-    let moves = generate_moves(board);
-    if moves.is_empty() {
+    if hash_move.is_none() && !has_legal_move(board) {
         let result = terminal_score_for_mode(board, history, ply, true, context.mode)
             .expect("a position without legal moves is terminal");
         return Ok(NodeResult {
@@ -2111,6 +2129,8 @@ fn negamax(
         return Ok(result);
     }
 
+    let moves = generate_moves(board);
+    debug_assert!(!moves.is_empty());
     let preferred = previous_pv.first().copied().or(hash_move);
     let moves = prepare_and_order_moves(
         board,
@@ -2300,9 +2320,8 @@ fn quiescence(
 ) -> Result<NodeResult, Aborted> {
     context.clear_pv(ply);
     context.visit_node()?;
-    let moves = generate_moves(board);
     if let Some(result) =
-        terminal_score_for_mode(board, history, ply, moves.is_empty(), context.mode)
+        terminal_score_for_mode(board, history, ply, !has_legal_move(board), context.mode)
     {
         return Ok(NodeResult {
             score: result.score,
@@ -2343,7 +2362,7 @@ fn quiescence(
         }
         alpha = alpha.max(stand_pat);
     }
-    let moves = moves
+    let moves = generate_moves(board)
         .into_iter()
         .map(|chess_move| PreparedMove::new(board, chess_move, context.evaluation.aggression() > 0))
         .filter(|prepared| {
@@ -2464,10 +2483,11 @@ fn terminal_without_legal_moves(
     ply: u32,
     mode: SearchMode,
 ) -> Option<NodeResult> {
-    let moves = generate_moves(board);
-    terminal_score_for_mode(board, history, ply, moves.is_empty(), mode).map(|result| NodeResult {
-        score: result.score,
-        path_dependent: result.path_dependent,
+    terminal_score_for_mode(board, history, ply, !has_legal_move(board), mode).map(|result| {
+        NodeResult {
+            score: result.score,
+            path_dependent: result.path_dependent,
+        }
     })
 }
 
@@ -2488,6 +2508,15 @@ fn is_dead_material(board: &Board) -> bool {
     knights.is_empty()
         && ((bishops & BitBoard::DARK_SQUARES) == bishops
             || (bishops & BitBoard::LIGHT_SQUARES) == bishops)
+}
+
+fn has_legal_move(board: &Board) -> bool {
+    let mut found = false;
+    board.generate_moves(|piece_moves| {
+        found = piece_moves.into_iter().next().is_some();
+        found
+    });
+    found
 }
 
 fn generate_moves(board: &Board) -> Vec<Move> {
@@ -2814,6 +2843,23 @@ mod tests {
         assert_eq!(tracker.occurrences(position.board()), 2);
         tracker.pop();
         assert_eq!(tracker.occurrences(position.board()), 1);
+    }
+
+    #[test]
+    fn legal_move_probe_matches_full_generation() {
+        let positions = [
+            Position::default(),
+            Position::from_fen("7k/6Q1/6K1/8/8/8/8/8 b - - 0 1").unwrap(),
+            Position::from_fen("7k/5Q2/6K1/8/8/8/8/8 b - - 0 1").unwrap(),
+        ];
+
+        for position in positions {
+            assert_eq!(
+                super::has_legal_move(position.board()),
+                !generate_moves(position.board()).is_empty(),
+                "{position}",
+            );
+        }
     }
 
     #[test]

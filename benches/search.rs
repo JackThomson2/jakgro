@@ -31,6 +31,14 @@ struct NullObservation {
     telemetry: SearchTelemetry,
 }
 
+#[derive(Debug, PartialEq)]
+struct NullComparison {
+    disabled_nodes: u64,
+    enabled_nodes: u64,
+    reduction_percent: f64,
+    telemetry: SearchTelemetry,
+}
+
 fn run_null_fixture(fixture: &SearchFixture, enabled: bool) -> NullObservation {
     let mut engine = Engine::new();
     engine.set_aggression(0);
@@ -48,7 +56,7 @@ fn run_null_fixture(fixture: &SearchFixture, enabled: bool) -> NullObservation {
     }
 }
 
-fn null_pair(fixture: &SearchFixture) -> (u64, u64, u64, u64, f64) {
+fn null_pair(fixture: &SearchFixture) -> NullComparison {
     let disabled = run_null_fixture(fixture, false);
     let enabled = run_null_fixture(fixture, true);
     assert_eq!(
@@ -62,25 +70,26 @@ fn null_pair(fixture: &SearchFixture) -> (u64, u64, u64, u64, f64) {
         fixture.id,
     );
     assert_eq!(disabled.telemetry.null_move_attempts(), 0);
-    let reduction = if disabled.nodes == 0 {
+    let reduction_percent = if disabled.nodes == 0 {
         0.0
     } else {
         (disabled.nodes as f64 - enabled.nodes as f64) * 100.0 / disabled.nodes as f64
     };
-    (
-        disabled.nodes,
-        enabled.nodes,
-        enabled.telemetry.null_move_attempts(),
-        enabled.telemetry.null_move_cutoffs(),
-        reduction,
-    )
+    NullComparison {
+        disabled_nodes: disabled.nodes,
+        enabled_nodes: enabled.nodes,
+        reduction_percent,
+        telemetry: enabled.telemetry,
+    }
 }
 
 fn main() {
     println!(
         "id,category,bestmove,score,depth,nodes,node_milliseconds,node_nps,\
          timed_milliseconds,timed_nps,timed_ratio,null_off_nodes,null_on_nodes,\
-         null_reduction_percent,null_attempts,null_cutoffs"
+         null_reduction_percent,null_attempts,null_fail_highs,null_verifications,\
+         null_cutoffs,null_probe_nodes,null_verification_nodes,static_pruning_attempts,\
+         reverse_futility_cutoffs,futility_pruned_moves"
     );
 
     for fixture in SUITES.iter().flat_map(|input| parse_fixtures(input)) {
@@ -95,8 +104,7 @@ fn main() {
         };
         let (observation, node_elapsed, timed_elapsed) =
             measure_pair(&fixture, &node_limits, &timed_limits);
-        let (null_off_nodes, null_on_nodes, null_attempts, null_cutoffs, null_reduction) =
-            null_pair(&fixture);
+        let null = null_pair(&fixture);
         let node_nps = nodes_per_second(observation.nodes, node_elapsed);
         let timed_nps = nodes_per_second(observation.nodes, timed_elapsed);
         let score = match observation.score {
@@ -105,7 +113,7 @@ fn main() {
         };
 
         println!(
-            "{},{},{},{},{},{},{},{},{},{},{:.3},{},{},{:.3},{},{}",
+            "{},{},{},{},{},{},{},{},{},{},{:.3},{},{},{:.3},{},{},{},{},{},{},{},{},{}",
             fixture.id,
             fixture.category,
             observation.best_move,
@@ -117,11 +125,18 @@ fn main() {
             timed_elapsed.as_millis(),
             timed_nps,
             timed_nps as f64 / node_nps.max(1) as f64,
-            null_off_nodes,
-            null_on_nodes,
-            null_reduction,
-            null_attempts,
-            null_cutoffs,
+            null.disabled_nodes,
+            null.enabled_nodes,
+            null.reduction_percent,
+            null.telemetry.null_move_attempts(),
+            null.telemetry.null_move_fail_highs(),
+            null.telemetry.null_move_verifications(),
+            null.telemetry.null_move_cutoffs(),
+            null.telemetry.null_probe_nodes(),
+            null.telemetry.null_verification_nodes(),
+            null.telemetry.static_pruning_attempts(),
+            null.telemetry.reverse_futility_cutoffs(),
+            null.telemetry.futility_pruned_moves(),
         );
     }
 }

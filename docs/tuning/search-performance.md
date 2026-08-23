@@ -21,6 +21,10 @@ at distinct paths. Then run both binaries on the same otherwise-idle machine:
 python3 tools/measure_search_efficiency.py \
   --engine /path/to/candidate/jakgro \
   --baseline-engine /path/to/baseline/jakgro \
+  --candidate-revision CANDIDATE_COMMIT \
+  --baseline-revision BASELINE_COMMIT \
+  --dependency-revision COZY_CHESS_COMMIT \
+  --build-profile release \
   --samples 7 \
   --move-time-ms 500 \
   --summary-json search-performance.json \
@@ -29,13 +33,20 @@ python3 tools/measure_search_efficiency.py \
 
 The tool warms each engine, alternates which binary runs first, takes the median
 fixed-node and timed sample for every position, and reports geometric aggregate
-node and NPS ratios. Binary and suite SHA-256 identities are embedded in the
-JSON so the evidence remains tied to the measured inputs.
+node and NPS ratios. Each fixed-depth search is repeated in the opposite run
+order; `--check` rejects an inactive or non-repeatable fixture rather than
+silently calculating an aggregate from the remaining positions. Binary, suite,
+source-revision, dependency-revision, and build-profile identities are embedded
+in the JSON so the evidence remains tied to the measured inputs. The revision
+and profile arguments are mandatory with `--check`.
 
 Use the same hash size, aggression, compiler profile, CPU power mode, and system
 load for both binaries. Increase `--samples` and `--move-time-ms` when a result
 is close to a threshold. A baseline-versus-itself run should center near an NPS
-ratio of 1.0 and zero completed-depth gain.
+ratio of 1.0 and zero completed-depth gain. `cargo bench --bench search` also
+emits deterministic null-probe, verification, static-pruning, and futility
+workload counters so a node reduction can be attributed to the intended search
+mechanism rather than timing noise.
 
 Wall-clock gates are deliberately not part of CI: shared runners cannot provide
 repeatable timing. CI continues to enforce deterministic expected moves,

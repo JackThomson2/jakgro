@@ -37,6 +37,16 @@ def observation_json(observation: measure_style.Observation) -> dict[str, object
         "nps": observation.nps,
     }
 
+def deterministic_signature(
+    observation: measure_style.Observation,
+) -> tuple[str, str, int, int]:
+    return (
+        observation.bestmove,
+        observation.score,
+        observation.depth,
+        observation.nodes,
+    )
+
 
 def measure_rows(
     candidate_engine: SearchEngine,
@@ -53,9 +63,29 @@ def measure_rows(
         if fixture_index % 2 == 0:
             depth_candidate = candidate_engine.measure(fixture, aggression, depth=depth)
             depth_baseline = baseline_engine.measure(fixture, aggression, depth=depth)
+            depth_baseline_repeat = baseline_engine.measure(
+                fixture, aggression, depth=depth
+            )
+            depth_candidate_repeat = candidate_engine.measure(
+                fixture, aggression, depth=depth
+            )
         else:
             depth_baseline = baseline_engine.measure(fixture, aggression, depth=depth)
             depth_candidate = candidate_engine.measure(fixture, aggression, depth=depth)
+            depth_candidate_repeat = candidate_engine.measure(
+                fixture, aggression, depth=depth
+            )
+            depth_baseline_repeat = baseline_engine.measure(
+                fixture, aggression, depth=depth
+            )
+
+        candidate_repeatable = deterministic_signature(
+            depth_candidate
+        ) == deterministic_signature(depth_candidate_repeat)
+        baseline_repeatable = deterministic_signature(
+            depth_baseline
+        ) == deterministic_signature(depth_baseline_repeat)
+        repeatable = candidate_repeatable and baseline_repeatable
 
         candidate_engine.measure(fixture, aggression)
         baseline_engine.measure(fixture, aggression)
@@ -66,8 +96,12 @@ def measure_rows(
         for sample in range(samples):
             candidate_first = (fixture_index + sample) % 2 == 0
             if candidate_first:
-                node_candidate_samples.append(candidate_engine.measure(fixture, aggression))
-                node_baseline_samples.append(baseline_engine.measure(fixture, aggression))
+                node_candidate_samples.append(
+                    candidate_engine.measure(fixture, aggression)
+                )
+                node_baseline_samples.append(
+                    baseline_engine.measure(fixture, aggression)
+                )
                 timed_candidate_samples.append(
                     candidate_engine.measure(
                         fixture, aggression, move_time_ms=move_time_ms
@@ -79,8 +113,12 @@ def measure_rows(
                     )
                 )
             else:
-                node_baseline_samples.append(baseline_engine.measure(fixture, aggression))
-                node_candidate_samples.append(candidate_engine.measure(fixture, aggression))
+                node_baseline_samples.append(
+                    baseline_engine.measure(fixture, aggression)
+                )
+                node_candidate_samples.append(
+                    candidate_engine.measure(fixture, aggression)
+                )
                 timed_baseline_samples.append(
                     baseline_engine.measure(
                         fixture, aggression, move_time_ms=move_time_ms
@@ -104,7 +142,15 @@ def measure_rows(
         timed_baseline = median_observation(
             timed_baseline_samples, lambda item: (item.depth, item.nodes)
         )
-        active = depth_candidate.depth >= depth and depth_baseline.depth >= depth
+        active = all(
+            observation.depth >= depth
+            for observation in (
+                depth_candidate,
+                depth_candidate_repeat,
+                depth_baseline,
+                depth_baseline_repeat,
+            )
+        )
         reduction = (
             percent_reduction(depth_candidate.nodes, depth_baseline.nodes)
             if active and depth_baseline.nodes > 0
@@ -122,16 +168,25 @@ def measure_rows(
                 "expected": sorted(expected),
                 "candidate": {
                     **observation_json(depth_candidate),
-                    "expected_hit": not expected or depth_candidate.bestmove in expected,
+                    "expected_hit": (
+                        not expected or depth_candidate.bestmove in expected
+                    ),
                 },
                 "baseline": {
                     **observation_json(depth_baseline),
                     "expected_hit": not expected or depth_baseline.bestmove in expected,
                 },
                 "active": active,
-                "node_reduction_percent": round(reduction, 6)
-                if reduction is not None
-                else None,
+                "repeatable": repeatable,
+                "fixed_depth_repeats": {
+                    "candidate": observation_json(depth_candidate_repeat),
+                    "baseline": observation_json(depth_baseline_repeat),
+                    "candidate_repeatable": candidate_repeatable,
+                    "baseline_repeatable": baseline_repeatable,
+                },
+                "node_reduction_percent": (
+                    round(reduction, 6) if reduction is not None else None
+                ),
                 "fixed_nodes": {
                     "limit": fixture.nodes,
                     "candidate": observation_json(node_candidate),
@@ -142,9 +197,9 @@ def measure_rows(
                     "baseline_samples": [
                         observation_json(item) for item in node_baseline_samples
                     ],
-                    "nps_gain_percent": round(nps_gain, 6)
-                    if nps_gain is not None
-                    else None,
+                    "nps_gain_percent": (
+                        round(nps_gain, 6) if nps_gain is not None else None
+                    ),
                 },
                 "timed": {
                     "move_time_ms": move_time_ms,
@@ -197,6 +252,7 @@ def summarize(
     minimum_depth_gain: float = -0.25,
     samples: int = 3,
     move_time_ms: int = 250,
+    provenance: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     active = [
         row
@@ -207,6 +263,16 @@ def summarize(
     ]
     if not active:
         raise ValueError("no positions completed the requested depth")
+    inactive_positions = [
+        str(row["id"])
+        for row in rows
+        if not row["active"]
+        or int(row["candidate"]["nodes"]) <= 0
+        or int(row["baseline"]["nodes"]) <= 0
+    ]
+    nonrepeatable_positions = [
+        str(row["id"]) for row in rows if not bool(row["repeatable"])
+    ]
     node_ratios = [
         int(row["candidate"]["nodes"]) / int(row["baseline"]["nodes"])
         for row in active
@@ -219,6 +285,9 @@ def summarize(
     ]
     if not throughput:
         raise ValueError("no positions reported fixed-node throughput")
+    missing_throughput_positions = [
+        str(row["id"]) for row in rows if row not in throughput
+    ]
     nps_ratios = [
         int(row["fixed_nodes"]["candidate"]["nps"])
         / int(row["fixed_nodes"]["baseline"]["nps"])
@@ -235,29 +304,43 @@ def summarize(
     baseline_failures = [
         str(row["id"]) for row in rows if not bool(row["baseline"]["expected_hit"])
     ]
+    candidate_nodes = sum(int(row["candidate"]["nodes"]) for row in active)
+    baseline_nodes = sum(int(row["baseline"]["nodes"]) for row in active)
+    provenance = provenance or {}
     passed = (
-        not candidate_failures
+        not inactive_positions
+        and not nonrepeatable_positions
+        and not missing_throughput_positions
+        and not candidate_failures
         and not baseline_failures
         and reduction >= minimum_reduction
         and nps_gain >= minimum_nps_gain
         and depth_gain >= minimum_depth_gain
     )
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "inputs": {
             "candidate": {
                 "path": str(candidate_path.resolve()),
                 "sha256": measure_style.sha256_file(candidate_path),
                 "aggression": aggression,
+                "revision": provenance.get("candidate_revision", "unreported"),
             },
             "baseline": {
                 "path": str(baseline_path.resolve()),
                 "sha256": measure_style.sha256_file(baseline_path),
                 "aggression": aggression,
+                "revision": provenance.get("baseline_revision", "unreported"),
             },
             "suite": {
                 "path": str(suite_path.resolve()),
                 "sha256": measure_style.sha256_file(suite_path),
+            },
+            "build": {
+                "profile": provenance.get("build_profile", "unreported"),
+                "dependency_revision": provenance.get(
+                    "dependency_revision", "unreported"
+                ),
             },
             "settings": {
                 "aggression": aggression,
@@ -274,7 +357,10 @@ def summarize(
         "metrics": {
             "positions": len(rows),
             "active_positions": len(active),
+            "repeatable_positions": len(rows) - len(nonrepeatable_positions),
             "throughput_positions": len(throughput),
+            "fixed_depth_candidate_nodes": candidate_nodes,
+            "fixed_depth_baseline_nodes": baseline_nodes,
             "geometric_candidate_to_baseline_node_ratio": round(
                 geometric_mean(node_ratios), 8
             ),
@@ -284,6 +370,9 @@ def summarize(
             "mean_completed_depth_gain": round(depth_gain, 6),
             "candidate_expected_move_failures": candidate_failures,
             "baseline_expected_move_failures": baseline_failures,
+            "inactive_positions": inactive_positions,
+            "nonrepeatable_positions": nonrepeatable_positions,
+            "missing_throughput_positions": missing_throughput_positions,
         },
         "positions": rows,
         "thresholds": {
@@ -301,6 +390,18 @@ def summarize(
             },
         },
         "gates": {
+            "all_positions_active": {
+                "passed": not inactive_positions,
+                "failed_positions": inactive_positions,
+            },
+            "fixed_depth_repeatability": {
+                "passed": not nonrepeatable_positions,
+                "failed_positions": nonrepeatable_positions,
+            },
+            "all_positions_report_throughput": {
+                "passed": not missing_throughput_positions,
+                "failed_positions": missing_throughput_positions,
+            },
             "candidate_expected_moves": {
                 "passed": not candidate_failures,
                 "failed_positions": candidate_failures,
@@ -333,6 +434,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--engine", type=Path, required=True)
     parser.add_argument("--baseline-engine", type=Path, required=True)
+    parser.add_argument("--candidate-revision")
+    parser.add_argument("--baseline-revision")
+    parser.add_argument("--dependency-revision")
+    parser.add_argument("--build-profile")
     parser.add_argument(
         "--suite", type=Path, default=Path("tests/data/search-performance.epd")
     )
@@ -348,13 +453,29 @@ def main() -> int:
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
 
+    provenance = {
+        "candidate_revision": args.candidate_revision,
+        "baseline_revision": args.baseline_revision,
+        "dependency_revision": args.dependency_revision,
+        "build_profile": args.build_profile,
+    }
+    if args.check and any(value is None for value in provenance.values()):
+        print(
+            "measure_search_efficiency: --check requires complete build provenance",
+            file=sys.stderr,
+        )
+        return 2
+
     if (
         not 0 <= args.aggression <= 100
         or args.depth <= 0
         or args.samples <= 0
         or args.move_time_ms <= 0
     ):
-        print("measure_search_efficiency: invalid measurement settings", file=sys.stderr)
+        print(
+            "measure_search_efficiency: invalid measurement settings",
+            file=sys.stderr,
+        )
         return 2
     try:
         fixtures = measure_style.parse_suite(args.suite)
@@ -389,6 +510,7 @@ def main() -> int:
             args.minimum_depth_gain,
             args.samples,
             args.move_time_ms,
+            provenance,
         )
     except (OSError, RuntimeError, TimeoutError, ValueError) as error:
         print(f"measure_search_efficiency: {error}", file=sys.stderr)
@@ -396,6 +518,7 @@ def main() -> int:
 
     print(
         f"positions={len(rows)} active={summary['metrics']['active_positions']} "
+        f"repeatable={summary['metrics']['repeatable_positions']} "
         f"node-reduction={summary['metrics']['geometric_node_reduction_percent']:.3f}% "
         f"nps-gain={summary['metrics']['geometric_nps_gain_percent']:.3f}% "
         f"depth-gain={summary['metrics']['mean_completed_depth_gain']:.3f}"

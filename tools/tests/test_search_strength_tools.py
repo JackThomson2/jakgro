@@ -97,15 +97,95 @@ class SearchEfficiencyTests(unittest.TestCase):
                 minimum_reduction=10.0,
                 minimum_nps_gain=10.0,
                 minimum_depth_gain=0.5,
+                provenance={
+                    "candidate_revision": "candidate-rev",
+                    "baseline_revision": "baseline-rev",
+                    "dependency_revision": "cozy-rev",
+                    "build_profile": "release",
+                },
             )
 
         self.assertEqual(candidate_engine.calls[0], (4, None))
-        self.assertEqual(len(candidate_engine.calls), 8)
+        self.assertEqual(len(candidate_engine.calls), 9)
         self.assertEqual(summary["metrics"]["geometric_node_reduction_percent"], 20.0)
         self.assertEqual(summary["metrics"]["geometric_nps_gain_percent"], 20.0)
         self.assertEqual(summary["metrics"]["mean_completed_depth_gain"], 1.0)
+        self.assertEqual(summary["metrics"]["active_positions"], 1)
+        self.assertEqual(summary["metrics"]["repeatable_positions"], 1)
+        self.assertEqual(summary["metrics"]["fixed_depth_candidate_nodes"], 80)
+        self.assertEqual(summary["metrics"]["fixed_depth_baseline_nodes"], 100)
+        self.assertTrue(summary["gates"]["all_positions_active"]["passed"])
+        self.assertTrue(summary["gates"]["fixed_depth_repeatability"]["passed"])
         self.assertTrue(summary["passed"])
         self.assertRegex(summary["inputs"]["candidate"]["sha256"], r"^[0-9a-f]{64}$")
+
+    def test_nonrepeatable_fixed_depth_results_fail_the_gate(self) -> None:
+        fixture = measure_style.Fixture(
+            "start",
+            "initiative",
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            100,
+            {100: frozenset({"e2e4"})},
+        )
+        candidate_engine = FakeEngine(80)
+        baseline_engine = FakeEngine(100)
+        original_measure = candidate_engine.measure
+        fixed_depth_calls = 0
+
+        def nonrepeatable_measure(
+            fixture: measure_style.Fixture,
+            aggression: int,
+            root_moves: frozenset[str] | None = None,
+            depth: int | None = None,
+            move_time_ms: int | None = None,
+        ) -> measure_style.Observation:
+            nonlocal fixed_depth_calls
+            observation = original_measure(
+                fixture, aggression, root_moves, depth, move_time_ms
+            )
+            if depth is not None:
+                fixed_depth_calls += 1
+                if fixed_depth_calls == 2:
+                    return measure_style.Observation(
+                        observation.bestmove,
+                        observation.score,
+                        observation.depth,
+                        observation.nodes + 1,
+                        observation.elapsed_ms,
+                        observation.nps,
+                    )
+            return observation
+
+        candidate_engine.measure = nonrepeatable_measure  # type: ignore[method-assign]
+        rows = measure_search_efficiency.measure_rows(
+            candidate_engine,
+            baseline_engine,
+            [fixture],
+            aggression=100,
+            depth=4,
+            samples=1,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            candidate = root / "candidate"
+            baseline = root / "baseline"
+            suite = root / "suite.epd"
+            candidate.write_bytes(b"candidate")
+            baseline.write_bytes(b"baseline")
+            suite.write_text("suite\n", encoding="utf-8")
+            summary = measure_search_efficiency.summarize(
+                rows,
+                candidate,
+                baseline,
+                suite,
+                aggression=100,
+                depth=4,
+                minimum_reduction=-100.0,
+            )
+
+        self.assertFalse(summary["gates"]["fixed_depth_repeatability"]["passed"])
+        self.assertEqual(summary["metrics"]["nonrepeatable_positions"], ["start"])
+        self.assertFalse(summary["passed"])
 
 
 class StrengthPersonalityGateTests(unittest.TestCase):

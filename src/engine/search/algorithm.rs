@@ -43,6 +43,8 @@ const LMR_MIN_CHILD_DEPTH: u32 = 3;
 const LMR_MIN_MOVE_INDEX: usize = 3;
 const LMR_DEEP_CHILD_DEPTH: u32 = 6;
 const LMR_DEEP_MOVE_INDEX: usize = 7;
+const LMR_VERY_DEEP_CHILD_DEPTH: u32 = 8;
+const LMR_VERY_DEEP_MOVE_INDEX: usize = 12;
 const NULL_MOVE_MIN_DEPTH: u32 = 4;
 const NULL_MOVE_RULE_FIFTY_LIMIT: u8 = 99;
 const STATIC_PRUNING_MAX_DEPTH: u32 = 4;
@@ -901,8 +903,12 @@ fn late_move_reduction(
     {
         return 0;
     }
-    let mut reduction =
-        1 + u32::from(child_depth >= LMR_DEEP_CHILD_DEPTH && move_index >= LMR_DEEP_MOVE_INDEX);
+
+    let mut reduction = 1
+        + u32::from(child_depth >= LMR_DEEP_CHILD_DEPTH && move_index >= LMR_DEEP_MOVE_INDEX)
+        + u32::from(
+            child_depth >= LMR_VERY_DEEP_CHILD_DEPTH && move_index >= LMR_VERY_DEEP_MOVE_INDEX,
+        );
     if history_score >= LMR_HISTORY_THRESHOLD {
         reduction = reduction.saturating_sub(1);
     } else if history_score <= -LMR_HISTORY_THRESHOLD {
@@ -4663,6 +4669,10 @@ mod tests {
             2,
         );
         assert_eq!(
+            super::late_move_reduction(8, 12, metadata, false, false, false, 0),
+            3,
+        );
+        assert_eq!(
             super::late_move_reduction(
                 6,
                 7,
@@ -4703,7 +4713,7 @@ mod tests {
             0,
         );
         assert_eq!(
-            super::late_move_reduction(3, 3, metadata, false, false, true, 0),
+            super::late_move_reduction(6, 7, metadata, false, false, true, 0),
             0,
         );
 
@@ -4720,16 +4730,25 @@ mod tests {
                 king_zone_move: true,
                 ..metadata
             },
-            super::MoveMetadata {
-                captured: Some(Piece::Pawn),
-                ..metadata
-            },
         ] {
             assert_eq!(
                 super::late_move_reduction(6, 7, forcing, false, false, false, 0),
                 0,
             );
+            assert_eq!(
+                super::late_move_reduction(6, 7, forcing, false, false, true, 0),
+                0,
+            );
         }
+
+        let capture = super::MoveMetadata {
+            captured: Some(Piece::Pawn),
+            ..metadata
+        };
+        assert_eq!(
+            super::late_move_reduction(6, 7, capture, false, false, false, 0),
+            0,
+        );
 
         let attacking_push = super::MoveMetadata {
             attacking_pawn_push: true,

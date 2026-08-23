@@ -878,6 +878,7 @@ struct SearchContext<'a> {
     nodes: u64,
     started: Instant,
     pv: Vec<Vec<Move>>,
+    hash_pv_depths: Vec<Option<u32>>,
     move_buffers: Vec<Vec<PreparedMove>>,
     ordering: MoveOrdering,
 }
@@ -911,11 +912,18 @@ impl SearchContext<'_> {
     }
 
     fn clear_pv(&mut self, ply: u32) {
-        self.pv[ply.min(MAX_PLY) as usize].clear();
+        let ply = ply.min(MAX_PLY) as usize;
+        self.pv[ply].clear();
+        self.hash_pv_depths[ply] = None;
     }
 
-    fn update_pv(&mut self, ply: u32, chess_move: Move) {
+    fn update_pv(&mut self, board: &Board, ply: u32, chess_move: Move) {
         let ply = ply.min(MAX_PLY) as usize;
+        if ply < MAX_PLY as usize && self.hash_pv_depths[ply + 1].is_some() {
+            let mut child = board.clone();
+            child.play_unchecked(chess_move);
+            self.resolve_hash_pv(&child, ply as u32 + 1);
+        }
         let (current_rows, child_rows) = self.pv.split_at_mut(ply + 1);
         let current = &mut current_rows[ply];
         current.clear();
@@ -923,15 +931,28 @@ impl SearchContext<'_> {
         if let Some(child) = child_rows.first() {
             current.extend_from_slice(child);
         }
+        self.hash_pv_depths[ply] = None;
     }
 
-    fn write_hash_pv(&mut self, board: &Board, depth: u32, ply: u32) {
-        let output = &mut self.pv[ply.min(MAX_PLY) as usize];
-        self.table.write_principal_variation(board, depth, output);
+    fn mark_hash_pv(&mut self, bound: Bound, depth: u32, ply: u32) {
+        let ply = ply.min(MAX_PLY) as usize;
+        self.pv[ply].clear();
+        self.hash_pv_depths[ply] = (bound == Bound::Exact).then_some(depth);
+    }
+
+    fn resolve_hash_pv(&mut self, board: &Board, ply: u32) {
+        let ply = ply.min(MAX_PLY) as usize;
+        let Some(depth) = self.hash_pv_depths[ply].take() else {
+            return;
+        };
+        self.table
+            .write_principal_variation(board, depth, &mut self.pv[ply]);
     }
 
     fn pv(&self, ply: u32) -> &[Move] {
-        &self.pv[ply.min(MAX_PLY) as usize]
+        let ply = ply.min(MAX_PLY) as usize;
+        debug_assert!(self.hash_pv_depths[ply].is_none());
+        &self.pv[ply]
     }
 
     fn take_move_buffer(&mut self, ply: u32) -> Vec<PreparedMove> {
@@ -1008,6 +1029,7 @@ where
         pv: (0..=MAX_PLY)
             .map(|ply| Vec::with_capacity((MAX_PLY - ply) as usize))
             .collect(),
+        hash_pv_depths: vec![None; MAX_PLY as usize + 1],
         move_buffers: (0..=MAX_PLY).map(|_| Vec::new()).collect(),
         ordering: MoveOrdering::new(),
     };
@@ -1323,6 +1345,7 @@ fn search_root_styled(
             break;
         };
         if -probe.score >= threshold {
+            context.resolve_hash_pv(&child, 1);
             probe_passers.push(ProbedCandidate {
                 seed,
                 child_pv: context.pv(1).to_vec(),
@@ -1391,6 +1414,7 @@ fn search_root_styled(
             continue;
         }
         let mut path_dependent = child_result.path_dependent;
+        context.resolve_hash_pv(&child, 1);
         let mut verified_child_pv = context.pv(1).to_vec();
         let mut pv = vec![seed.chess_move];
         pv.extend_from_slice(&verified_child_pv);
@@ -1433,6 +1457,7 @@ fn search_root_styled(
                 Ok(extended) => {
                     score = -extended.score;
                     path_dependent = extended.path_dependent;
+                    context.resolve_hash_pv(&child, 1);
                     verified_child_pv = context.pv(1).to_vec();
                     pv.clear();
                     pv.push(seed.chess_move);
@@ -2011,7 +2036,7 @@ fn search_root_conventional(
                 score,
                 path_dependent: child_result.path_dependent,
             };
-            context.update_pv(0, chess_move);
+            context.update_pv(board, 0, chess_move);
         }
         alpha = alpha.max(score);
         if alpha >= beta {
@@ -2126,7 +2151,7 @@ fn negamax(
             {
                 return Ok(result);
             }
-            context.write_hash_pv(board, depth, ply);
+            context.mark_hash_pv(entry.bound(), depth, ply);
             return Ok(NodeResult {
                 score,
                 path_dependent: false,
@@ -2313,7 +2338,7 @@ fn negamax(
                 score,
                 path_dependent: child_result.path_dependent,
             };
-            context.update_pv(ply, chess_move);
+            context.update_pv(board, ply, chess_move);
         }
         alpha = alpha.max(score);
         if alpha >= beta {
@@ -2466,7 +2491,7 @@ fn quiescence(
                 score,
                 path_dependent: child_result.path_dependent,
             };
-            context.update_pv(ply, chess_move);
+            context.update_pv(board, ply, chess_move);
         }
         alpha = alpha.max(score);
         if alpha >= beta {

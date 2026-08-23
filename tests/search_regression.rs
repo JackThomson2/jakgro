@@ -27,6 +27,35 @@ fn fixed_node_regressions_are_deterministic_and_legal() {
 }
 
 #[test]
+fn warmed_transposition_search_reconstructs_a_pv_tail() {
+    let mut engine = jakgro::engine::Engine::new();
+    engine.set_aggression(0);
+    engine.set_position(
+        jakgro::engine::Position::from_fen(
+            "r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8",
+        )
+        .unwrap(),
+    );
+    let limits = jakgro::engine::SearchLimits {
+        depth: Some(5),
+        ..jakgro::engine::SearchLimits::default()
+    };
+
+    let cold = engine.search(&limits);
+    let cold_info = cold.info().expect("cold search completed no iteration");
+    let cold_pv = cold_info.pv().to_vec();
+    let warm = engine.search(&limits);
+    let warm_info = warm.info().expect("warm search completed no iteration");
+
+    assert!(cold_pv.len() > 1, "cold search did not produce a PV tail");
+    assert!(warm_info.pv().len() > 1, "warm search lost its PV tail");
+    assert!(warm_info.pv().len() <= cold_pv.len());
+    assert_eq!(warm.best_move(), cold.best_move());
+    assert_eq!(warm_info.score(), cold_info.score());
+    assert_eq!(warm_info.pv(), &cold_pv[..warm_info.pv().len()]);
+}
+
+#[test]
 fn fixture_ids_are_unique_and_files_match_their_categories() {
     let mut ids = BTreeSet::new();
 

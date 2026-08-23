@@ -850,6 +850,7 @@ struct SearchContext<'a> {
     nodes: u64,
     started: Instant,
     pv: Vec<Vec<Move>>,
+    move_buffers: Vec<Vec<PreparedMove>>,
     ordering: MoveOrdering,
 }
 
@@ -903,6 +904,15 @@ impl SearchContext<'_> {
 
     fn pv(&self, ply: u32) -> &[Move] {
         &self.pv[ply.min(MAX_PLY) as usize]
+    }
+
+    fn take_move_buffer(&mut self, ply: u32) -> Vec<PreparedMove> {
+        std::mem::take(&mut self.move_buffers[ply.min(MAX_PLY) as usize])
+    }
+
+    fn recycle_move_buffer(&mut self, ply: u32, mut moves: Vec<PreparedMove>) {
+        moves.clear();
+        self.move_buffers[ply.min(MAX_PLY) as usize] = moves;
     }
 }
 
@@ -970,6 +980,7 @@ where
         pv: (0..=MAX_PLY)
             .map(|ply| Vec::with_capacity((MAX_PLY - ply) as usize))
             .collect(),
+        move_buffers: (0..=MAX_PLY).map(|_| Vec::new()).collect(),
         ordering: MoveOrdering::new(),
     };
     let mut history = RepetitionTracker::new(position.hash_history());
@@ -2129,18 +2140,19 @@ fn negamax(
         return Ok(result);
     }
 
-    let moves = generate_moves(board);
-    debug_assert!(!moves.is_empty());
     let preferred = previous_pv.first().copied().or(hash_move);
-    let moves = prepare_and_order_moves(
+    let mut moves = context.take_move_buffer(ply);
+    prepare_generated_moves_into(
         board,
-        moves,
+        &mut moves,
         preferred,
         ply,
         previous_move,
         &context.ordering,
         context.evaluation,
+        |_| true,
     );
+    debug_assert!(!moves.is_empty());
     let (child_depth, child_extensions) = next_search_depth(
         depth,
         in_check,
@@ -2303,6 +2315,7 @@ fn negamax(
         }
     }
 
+    context.recycle_move_buffer(ply, moves);
     Ok(best)
 }
 
@@ -2362,27 +2375,23 @@ fn quiescence(
         }
         alpha = alpha.max(stand_pat);
     }
-    let moves = generate_moves(board)
-        .into_iter()
-        .map(|chess_move| PreparedMove::new(board, chess_move, context.evaluation.aggression() > 0))
-        .filter(|prepared| {
-            let metadata = prepared.metadata;
-            in_check
-                || metadata.is_tactical()
-                || (check_budget > 0 && metadata.is_quiet() && metadata.gives_check)
-        })
-        .collect::<Vec<_>>();
-    let moves = order_prepared_moves(
+    let mut moves = context.take_move_buffer(ply);
+    prepare_generated_moves_into(
         board,
-        moves,
+        &mut moves,
         None,
         ply,
         None,
         &context.ordering,
         context.evaluation,
+        |metadata| {
+            in_check
+                || metadata.is_tactical()
+                || (check_budget > 0 && metadata.is_quiet() && metadata.gives_check)
+        },
     );
 
-    for prepared in moves {
+    for prepared in &moves {
         let metadata = prepared.metadata;
         if should_prune_quiescence_capture(
             metadata,
@@ -2427,6 +2436,7 @@ fn quiescence(
         }
     }
 
+    context.recycle_move_buffer(ply, moves);
     Ok(best)
 }
 
@@ -2577,6 +2587,7 @@ fn order_move_metadata(
         .collect()
 }
 
+#[cfg(test)]
 fn prepare_and_order_moves(
     board: &Board,
     moves: Vec<Move>,
@@ -2595,6 +2606,7 @@ fn prepare_and_order_moves(
     )
 }
 
+#[cfg(test)]
 fn order_prepared_moves(
     board: &Board,
     mut moves: Vec<PreparedMove>,
@@ -2604,7 +2616,47 @@ fn order_prepared_moves(
     ordering: &MoveOrdering,
     evaluation: EvaluationConfig,
 ) -> Vec<PreparedMove> {
-    for prepared in &mut moves {
+    order_prepared_moves_in_place(
+        board, &mut moves, preferred, ply, previous, ordering, evaluation,
+    );
+    moves
+}
+
+#[allow(clippy::too_many_arguments)]
+fn prepare_generated_moves_into(
+    board: &Board,
+    moves: &mut Vec<PreparedMove>,
+    preferred: Option<Move>,
+    ply: u32,
+    previous: Option<HistoryMove>,
+    ordering: &MoveOrdering,
+    evaluation: EvaluationConfig,
+    mut retain: impl FnMut(MoveMetadata) -> bool,
+) {
+    debug_assert!(moves.is_empty());
+    let compute_see = evaluation.aggression() > 0;
+    board.generate_moves(|piece_moves| {
+        for chess_move in piece_moves {
+            let prepared = PreparedMove::new(board, chess_move, compute_see);
+            if retain(prepared.metadata) {
+                moves.push(prepared);
+            }
+        }
+        false
+    });
+    order_prepared_moves_in_place(board, moves, preferred, ply, previous, ordering, evaluation);
+}
+
+fn order_prepared_moves_in_place(
+    board: &Board,
+    moves: &mut [PreparedMove],
+    preferred: Option<Move>,
+    ply: u32,
+    previous: Option<HistoryMove>,
+    ordering: &MoveOrdering,
+    evaluation: EvaluationConfig,
+) {
+    for prepared in &mut *moves {
         prepared.order_score = move_order_score(
             board,
             prepared.metadata,
@@ -2620,7 +2672,6 @@ fn order_prepared_moves(
             move_key(left.metadata.chess_move).cmp(&move_key(right.metadata.chess_move))
         })
     });
-    moves
 }
 
 #[cfg(test)]

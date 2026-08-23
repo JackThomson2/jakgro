@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "evidence_level": "fixed-node-profile-selection",
+  "series_base": "fab28bea5084f5bfacd5c141f1d100a4b0be3f01",
+  "engine_commit": "d02f629e5f9dbccd100e86c6e3a43a0e509db225",
+  "engine_sha256": "6521ec64c88832114a5e18c4014e5cdea5d6b7dd0c55834c7d2e591582d2324d",
+  "settings": {
+    "games": 96,
+    "nodes_per_move": 20000,
+    "hash_mib": 16,
+    "opening_pairs": 48
+  },
+  "accepted_default_aggression": 75,
+  "personality_floor_elo": -125.0,
+  "profiles": {
+    "75_vs_0": {
+      "wins": 33,
+      "draws": 14,
+      "losses": 49,
+      "score_percent": 41.666667,
+      "elo": -58.451214,
+      "elo_ci95": [-219.219931, 79.674103],
+      "forcing_moves_per_100": {
+        "candidate": 29.750223,
+        "baseline": 26.895629,
+        "retention_percent": 110.612264
+      },
+      "manifest_sha256": "43d3c466d4b35979ddb73263abdbb570b05da33e2bc7a3f6b2211486fc9a9a83",
+      "pgn_sha256": "cb26647f683003c72a2bb7958af6e716dd58445d6d57fb6c5309e52f71f6c3c2"
+    },
+    "100_vs_0": {
+      "wins": 11,
+      "draws": 11,
+      "losses": 74,
+      "score_percent": 17.1875,
+      "elo": -273.153274,
+      "elo_ci95": [null, -94.02235],
+      "forcing_moves_per_100": {
+        "candidate": 27.550464,
+        "baseline": 31.620661,
+        "retention_percent": 87.128021
+      },
+      "manifest_sha256": "58422509e6205e621ea0b9493b85f843008ba82709fb4ca8e10dd01d273b38f4",
+      "pgn_sha256": "1dc4b8213fe913a4ffb84c97888e948e1f107abc46a4db6bd1ad737dd92417f2"
+    }
+  },
+  "incremental_same_profile_smokes": [
+    {
+      "change": "personality-neutral scoring",
+      "games": 96,
+      "elo": 21.743065,
+      "elo_ci95": [-118.935365, 170.389544]
+    },
+    {
+      "change": "bounded styled-root verification",
+      "games": 48,
+      "elo": 65.924099,
+      "elo_ci95": [-133.722884, 331.727026]
+    },
+    {
+      "change": "contextual root-risk limits",
+      "games": 48,
+      "elo": 43.657788,
+      "elo_ci95": [-159.546961, 287.703758]
+    }
+  ],
+  "limitations": [
+    "All matches use fixed node limits rather than a clock.",
+    "Confidence intervals are wide and do not establish publishable Elo gains.",
+    "The opening corpus is deterministic and should not be used as a tuning set for evaluation weights."
+  ]
+}

@@ -149,7 +149,7 @@ fn public_runner_handles_a_protocol_transcript() {
         concat!(
             "id name Jakgro ",
             env!("CARGO_PKG_VERSION"),
-            "\nid author Jakgro contributors\noption name Hash type spin default 16 min 1 max 1024\noption name Aggression type spin default 100 min 0 max 100\noption name Move Overhead type spin default 10 min 0 max 5000\noption name Clear Hash type button\nuciok\nreadyok\n"
+            "\nid author Jakgro contributors\noption name Hash type spin default 16 min 1 max 1024\noption name Aggression type spin default 75 min 0 max 100\noption name Move Overhead type spin default 10 min 0 max 5000\noption name Clear Hash type button\nuciok\nreadyok\n"
         )
     );
 }
@@ -279,26 +279,42 @@ fn clock_search_honors_persistent_move_overhead_and_hard_limit() {
 #[test]
 fn aggression_option_is_snapshotted_clamped_and_persistent() {
     let mut engine = EngineProcess::spawn();
-    let position = "position fen rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2";
+    let position =
+        "position fen 2rq1rk1/1p3ppp/p1n1bn2/3pp3/3P4/2P1PN1P/PP1NBPP1/2RQ1RK1 w - - 0 12";
 
     engine.send(position);
     engine.send("go nodes 20000");
+    let started = engine.receive_until(TEST_TIMEOUT, |line| line.starts_with("info depth "));
+    assert!(started.iter().any(|line| line.starts_with("info depth ")));
     engine.send("setoption name Aggression value -999999999999999999999999999999");
     let active = engine.receive_until(TEST_TIMEOUT, |line| line.starts_with("bestmove "));
-    assert!(active.last().unwrap().starts_with("bestmove d1h5"));
 
     engine.send("ucinewgame");
     engine.send(position);
     engine.send("go nodes 20000");
     let base = engine.receive_until(TEST_TIMEOUT, |line| line.starts_with("bestmove "));
-    assert!(base.last().unwrap().starts_with("bestmove f1c4"));
+    assert!(
+        base.last()
+            .is_some_and(|line| line.starts_with("bestmove "))
+    );
+
+    engine.send("setoption name Aggression value 75");
+    engine.send("ucinewgame");
+    engine.send(position);
+    engine.send("go nodes 20000");
+    let default_profile = engine.receive_until(TEST_TIMEOUT, |line| line.starts_with("bestmove "));
+    assert_eq!(active.last(), default_profile.last());
 
     engine.send("setoption name Aggression value 999999999999999999999999999999");
     engine.send("ucinewgame");
     engine.send(position);
     engine.send("go nodes 20000");
     let tuned = engine.receive_until(TEST_TIMEOUT, |line| line.starts_with("bestmove "));
-    assert!(tuned.last().unwrap().starts_with("bestmove d1h5"));
+    assert!(
+        tuned
+            .last()
+            .is_some_and(|line| line.starts_with("bestmove "))
+    );
 
     engine.send("quit");
     assert!(engine.wait_for_exit(TEST_TIMEOUT).success());

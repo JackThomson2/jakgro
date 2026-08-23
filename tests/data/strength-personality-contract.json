@@ -10,25 +10,26 @@
       "minimum_elo_ci95_lower": -250
     },
     "same_profile": {
-      "candidate_aggression": 100,
-      "baseline_aggression": 100,
+      "candidate_aggression": 75,
+      "baseline_aggression": 75,
       "minimum_games": 48,
       "minimum_elo": -35,
       "minimum_elo_ci95_lower": -200
     },
     "personality": {
-      "candidate_aggression": 100,
+      "candidate_aggression": 75,
       "baseline_aggression": 0,
       "minimum_games": 48
     },
     "baseline_personality": {
-      "candidate_aggression": 100,
+      "candidate_aggression": 75,
       "baseline_aggression": 0,
       "minimum_games": 48
     }
   },
   "personality_comparison": {
-    "minimum_elo_delta": -35
+    "minimum_elo_delta": -35,
+    "minimum_candidate_elo": -125
   },
   "deterministic": {
     "minimum_forcing_retention_percent": 90,

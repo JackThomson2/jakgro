@@ -403,7 +403,7 @@ mod tests {
             concat!(
                 "id name Jakgro ",
                 env!("CARGO_PKG_VERSION"),
-                "\nid author Jakgro contributors\noption name Hash type spin default 16 min 1 max 1024\noption name Aggression type spin default 100 min 0 max 100\noption name Move Overhead type spin default 10 min 0 max 5000\noption name Clear Hash type button\nuciok\nreadyok\n"
+                "\nid author Jakgro contributors\noption name Hash type spin default 16 min 1 max 1024\noption name Aggression type spin default 75 min 0 max 100\noption name Move Overhead type spin default 10 min 0 max 5000\noption name Clear Hash type button\nuciok\nreadyok\n"
             )
         );
     }

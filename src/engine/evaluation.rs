@@ -18,7 +18,7 @@ pub(super) const MATE_SCORE: Score = 30_000;
 pub(super) const MAX_PLY: u32 = 128;
 pub(super) const MATE_THRESHOLD: Score = MATE_SCORE - MAX_PLY as Score;
 pub(super) const MIN_AGGRESSION: u8 = 0;
-pub(super) const DEFAULT_AGGRESSION: u8 = 100;
+pub(super) const DEFAULT_AGGRESSION: u8 = 75;
 pub(super) const MAX_AGGRESSION: u8 = 100;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

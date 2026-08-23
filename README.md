@@ -15,7 +15,7 @@ Jakgro will favor initiative and practical winning chances without replacing che
 - tactically justified material investment; and
 - bounded draw aversion when a position offers winning chances.
 
-Legality, tactical soundness, and reproducible testing remain hard constraints. The engine and UCI APIs bound `Aggression` from 0 to 100 and default to the tuned attacking profile at 100. Fixed-node fixtures gate both endpoints so style changes remain deliberate and reviewable.
+Legality, tactical soundness, and reproducible testing remain hard constraints. The engine and UCI APIs bound `Aggression` from 0 to 100 and default to the accepted attacking profile at 75; profile 100 remains available as the wilder endpoint. Fixed-node fixtures gate the objective, default, and maximum profiles so style changes remain deliberate and reviewable.
 
 ## Requirements
 
@@ -151,13 +151,13 @@ and binds the JSON to exact binary and suite hashes. See
 [`docs/tuning/search-performance.md`](docs/tuning/search-performance.md) for the
 measurement protocol and interpretation rules.
 
-`tools/gate_strength_personality.py` then binds objective old-versus-new, same-profile old-versus-new, candidate and baseline Aggression 100-versus-0, fixed-position style, objective-loss, sacrifice, and efficiency artifacts to one contract. It uses Elo confidence bounds for old-versus-new channels, compares personality cost relative to the baseline binary, and fails on binary-identity mismatches. The passing cross-channel smoke result is recorded in [`docs/tuning/strength-personality-smoke.md`](docs/tuning/strength-personality-smoke.md); its wide intervals explicitly prevent treating the point estimate as a publishable Elo claim.
+`tools/gate_strength_personality.py` then binds objective old-versus-new, accepted-profile old-versus-new, candidate and baseline default-versus-objective, fixed-position style, objective-loss, sacrifice, and efficiency artifacts to one contract. It uses Elo confidence bounds for old-versus-new channels, enforces an absolute floor on the candidate's personality cost, compares that cost with the baseline binary, and fails on binary-identity mismatches. The accepted default profile and its exploratory match evidence are recorded in [`docs/tuning/default-aggression-75.md`](docs/tuning/default-aggression-75.md); wide intervals explicitly prevent treating the point estimates as publishable Elo claims.
 
 ## Current search and protocol limitations
 
 - Only standard chess is supported; Chess960 is deferred.
-- Static evaluation tapers material, activity, mobility, bishop-pair, pawn-structure, passed-pawn, and king-shelter features between middlegame and endgame. High aggression adds coordinated king-zone attackers, supported threats, open attacking lines, and pawn breaks; material deficits receive no generic static refund.
-- High aggression spends additional search effort on checks and forcing continuations. Root personality work threshold-probes diverse alternatives, fully verifies at most two inside a deterministic node budget, and keeps only completed verification when that local budget expires. Ordinary choices use a 45-centipawn cap at Aggression 100, winning conversions use 20, and only verified sacrifices or already-losing complications may use the absolute 120-centipawn ceiling.
+- Static evaluation tapers material, activity, mobility, bishop-pair, pawn-structure, passed-pawn, and king-shelter features between middlegame and endgame. Search scores and transposition bounds remain personality-neutral; aggression instead controls tactical search policy and root interest in coordinated king attacks, supported threats, open attacking lines, and pawn breaks.
+- Higher aggression spends additional search effort on checks and forcing continuations. Root personality work threshold-probes diverse alternatives, fully verifies at most two inside a deterministic node budget, and keeps only completed verification when that local budget expires. Ordinary choices use a 30-centipawn cap, winning conversions use 20, non-negative objective results cannot cross below zero, and only independently verified sacrifices may use the absolute 120-centipawn ceiling.
 - Search is single-threaded internally and uses one worker per active UCI search.
 - Every child still clones the `cozy-chess` board; there is no make/unmake layer yet. A persistent fixed-size transposition table reuses exact and bounded search results.
 - Move ordering combines hash and previous-PV moves, promotions, legal static-exchange values, killers, signed butterfly history, and agreement-bounded continuation history. Principal-variation search, aspiration windows, tactical-aware late-move reductions, always-verified null-move pruning, and conservative quiescence pruning reduce repeated work; a make/unmake board layer is still deferred. Null pruning is disabled in checks, PV and mate windows, rule-fifty boundaries, pawn-only and single-minor endings, and synthetic or verification searches; every fail-high is verified from the original legal board.

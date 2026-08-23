@@ -339,7 +339,10 @@ class StrengthPersonalityGateTests(unittest.TestCase):
                         "minimum_games": 48,
                     },
                 },
-                "personality_comparison": {"minimum_elo_delta": -20},
+                "personality_comparison": {
+                    "minimum_elo_delta": -20,
+                    "minimum_candidate_elo": -125,
+                },
                 "deterministic": {
                     "minimum_forcing_retention_percent": 90,
                     "maximum_root_loss_cp": 45,
@@ -412,6 +415,10 @@ class StrengthPersonalityGateTests(unittest.TestCase):
         self.assertEqual(result["style"]["forcing_retention_percent"], 120.0)
         self.assertEqual(result["acceptance"][0]["maximum_root_loss_cp"], 44)
         self.assertEqual(result["personality_comparison"]["elo_delta"], 10.0)
+        self.assertEqual(result["personality_comparison"]["candidate_elo"], -50.0)
+        self.assertEqual(result["personality_comparison"]["minimum_candidate_elo"], -125.0)
+        self.assertTrue(result["personality_comparison"]["relative_passed"])
+        self.assertTrue(result["personality_comparison"]["absolute_passed"])
 
     def test_confidence_and_efficiency_regressions_fail_the_gate(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -429,6 +436,8 @@ class StrengthPersonalityGateTests(unittest.TestCase):
 
         self.assertFalse(result["passed"])
         self.assertFalse(result["personality_comparison"]["passed"])
+        self.assertFalse(result["personality_comparison"]["relative_passed"])
+        self.assertFalse(result["personality_comparison"]["absolute_passed"])
         self.assertLess(result["personality_comparison"]["elo_delta"], -20)
         self.assertFalse(result["efficiency"]["passed"])
 

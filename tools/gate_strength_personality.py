@@ -196,13 +196,22 @@ def gate_artifacts(
     minimum_personality_delta = float(
         contract["personality_comparison"]["minimum_elo_delta"]
     )
+    minimum_candidate_elo = float(
+        contract["personality_comparison"]["minimum_candidate_elo"]
+    )
     personality_comparison = {
         "candidate_elo": matches["personality"]["elo"],
         "baseline_elo": matches["baseline_personality"]["elo"],
         "elo_delta": personality_delta,
         "minimum_elo_delta": minimum_personality_delta,
-        "passed": personality_delta >= minimum_personality_delta,
+        "minimum_candidate_elo": minimum_candidate_elo,
+        "relative_passed": personality_delta >= minimum_personality_delta,
+        "absolute_passed": matches["personality"]["elo"] >= minimum_candidate_elo,
     }
+    personality_comparison["passed"] = (
+        personality_comparison["relative_passed"]
+        and personality_comparison["absolute_passed"]
+    )
 
     minimum_forcing = float(contract["deterministic"]["minimum_forcing_retention_percent"])
     retention = forcing_retention(summaries["same_profile"])

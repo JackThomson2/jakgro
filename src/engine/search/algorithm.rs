@@ -35,10 +35,9 @@ const STYLED_ROOT_MIN_NODES: u64 = 256;
 const STYLED_ROOT_MAX_NODES: u64 = 2_048;
 const STYLED_ROOT_TACTICAL_MAX_NODES: u64 = 4_096;
 const STYLED_ROOT_MAX_VERIFICATIONS: usize = 2;
-const ORDINARY_ROOT_MARGIN_MAX: Score = 45;
+const ORDINARY_ROOT_MARGIN_MAX: Score = 30;
 const WINNING_ROOT_MARGIN_MAX: Score = 20;
 const WINNING_ROOT_SCORE: Score = 200;
-const LOSING_ROOT_SCORE: Score = -150;
 const LMR_MIN_CHILD_DEPTH: u32 = 3;
 const LMR_MIN_MOVE_INDEX: usize = 3;
 const LMR_DEEP_CHILD_DEPTH: u32 = 6;
@@ -2066,8 +2065,8 @@ fn choose_styled_candidate(
             continue;
         }
         let current = &candidates[selected];
-        let candidate_interest = selection_interest(candidate, evaluation);
-        let current_interest = selection_interest(current, evaluation);
+        let candidate_interest = selection_interest(candidate, evaluation, best);
+        let current_interest = selection_interest(current, evaluation, best);
         if candidate_interest > current_interest
             || (candidate_interest == current_interest && candidate.score > current.score)
             || (candidate_interest == current_interest
@@ -2081,6 +2080,9 @@ fn choose_styled_candidate(
 }
 
 fn candidate_within_score_guard(candidate: Score, best: Score, margin: Score) -> bool {
+    if best >= 0 && candidate < 0 {
+        return false;
+    }
     if candidate.abs() >= MATE_THRESHOLD || best.abs() >= MATE_THRESHOLD {
         candidate >= best
     } else {
@@ -2094,15 +2096,13 @@ fn candidate_risk_margin(
     sacrifice: &SacrificeProfile,
 ) -> Score {
     let hard_margin = evaluation.root_style_margin().min(120);
-    if is_compensated_sacrifice(sacrifice) || best_score <= LOSING_ROOT_SCORE {
+    if best_score >= WINNING_ROOT_SCORE {
+        return hard_margin.min(WINNING_ROOT_MARGIN_MAX);
+    }
+    if is_compensated_sacrifice(sacrifice) {
         return hard_margin;
     }
-    let contextual_cap = if best_score >= WINNING_ROOT_SCORE {
-        WINNING_ROOT_MARGIN_MAX
-    } else {
-        ORDINARY_ROOT_MARGIN_MAX
-    };
-    hard_margin.min(contextual_cap)
+    hard_margin.min(ORDINARY_ROOT_MARGIN_MAX)
 }
 
 fn is_compensated_sacrifice(sacrifice: &SacrificeProfile) -> bool {
@@ -2128,7 +2128,11 @@ fn sacrifice_material(sacrifice: &SacrificeProfile) -> Score {
     }
 }
 
-fn selection_interest(candidate: &RootCandidate, evaluation: EvaluationConfig) -> i64 {
+fn selection_interest(
+    candidate: &RootCandidate,
+    evaluation: EvaluationConfig,
+    best_score: Score,
+) -> i64 {
     let mut interest = candidate.interest;
     if is_compensated_sacrifice(&candidate.sacrifice) {
         interest += 1_000_000
@@ -2140,7 +2144,7 @@ fn selection_interest(candidate: &RootCandidate, evaluation: EvaluationConfig) -
             + (20_i64 - candidate.sacrifice.reply_count.min(20) as i64) * 500
             - i64::from(candidate.sacrifice.king_danger_delta.max(0)) * 100;
     }
-    if evaluation.aggression() >= 75 {
+    if evaluation.aggression() >= 75 && best_score >= WINNING_ROOT_SCORE {
         if candidate.outcome != RootLineOutcome::Live {
             interest -= i64::from(evaluation.aggression()) * 20_000;
         }
@@ -4893,7 +4897,7 @@ mod tests {
             },
             super::RootCandidate {
                 chess_move: exciting_move,
-                score: 5,
+                score: 20,
                 path_dependent: false,
                 interest: 100,
                 pv: vec![exciting_move],
@@ -4907,7 +4911,7 @@ mod tests {
             super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
             1
         );
-        candidates[1].score = 4;
+        candidates[1].score = 19;
         assert_eq!(
             super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
             0
@@ -4952,6 +4956,8 @@ mod tests {
             100,
             120,
         ));
+        assert!(!super::candidate_within_score_guard(-1, 0, 30));
+        assert!(super::candidate_within_score_guard(-20, -10, 30));
     }
 
     #[test]
@@ -4993,7 +4999,7 @@ mod tests {
             ..super::SacrificeProfile::default()
         };
 
-        for best_score in [-200, 0, 400] {
+        for best_score in [-200, 0] {
             assert_eq!(
                 super::candidate_risk_margin(
                     super::EvaluationConfig::new(100),
@@ -5003,14 +5009,19 @@ mod tests {
                 120,
             );
         }
+        assert_eq!(
+            super::candidate_risk_margin(super::EvaluationConfig::new(100), 400, &sacrifice),
+            20,
+        );
+
         let ordinary = super::SacrificeProfile::default();
         assert_eq!(
             super::candidate_risk_margin(super::EvaluationConfig::new(100), -200, &ordinary),
-            120,
+            30,
         );
         assert_eq!(
             super::candidate_risk_margin(super::EvaluationConfig::new(100), 0, &ordinary),
-            45,
+            30,
         );
         assert_eq!(
             super::candidate_risk_margin(super::EvaluationConfig::new(100), 400, &ordinary),
@@ -5070,11 +5081,17 @@ mod tests {
             super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
             0,
         );
-        candidates[1].score = -60;
+        candidates[1].score = 0;
         assert_eq!(
             super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
             1,
         );
+        candidates[1].score = -1;
+        assert_eq!(
+            super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
+            0,
+        );
+        candidates[1].score = 0;
         candidates[1].sacrifice.king_danger_delta = 21;
         assert_eq!(
             super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
@@ -5176,7 +5193,7 @@ mod tests {
     }
 
     #[test]
-    fn high_aggression_prefers_a_live_candidate_inside_the_margin() {
+    fn high_aggression_does_not_trade_a_draw_for_a_negative_score() {
         let position = Position::default();
         let draw_move = find_move(&position, "e2e4");
         let live_move = find_move(&position, "g1f3");
@@ -5193,9 +5210,9 @@ mod tests {
             },
             super::RootCandidate {
                 chess_move: live_move,
-                score: -45,
+                score: -30,
                 path_dependent: false,
-                interest: 0,
+                interest: 2_000,
                 pv: vec![live_move],
                 sacrifice: super::SacrificeProfile::default(),
                 outcome: super::RootLineOutcome::Live,
@@ -5203,15 +5220,21 @@ mod tests {
             },
         ];
 
+        let evaluation = super::EvaluationConfig::new(100);
         assert_eq!(
-            super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
-            1,
+            super::choose_styled_candidate(&candidates, 0, evaluation),
+            0
         );
-        candidates[1].score = -46;
+        candidates[1].score = 0;
         assert_eq!(
-            super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
-            0,
+            super::choose_styled_candidate(&candidates, 0, evaluation),
+            1
         );
+        assert_eq!(
+            super::selection_interest(&candidates[0], evaluation, 0),
+            1_000,
+        );
+        assert!(super::selection_interest(&candidates[0], evaluation, 200) < 1_000);
     }
 
     #[test]

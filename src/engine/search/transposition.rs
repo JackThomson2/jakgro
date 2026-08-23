@@ -105,6 +105,7 @@ impl TranspositionTable {
         self.probe_key(repetition_key(board), board.halfmove_clock())
     }
 
+    #[cfg(test)]
     pub(super) fn store(
         &mut self,
         board: &Board,
@@ -114,22 +115,44 @@ impl TranspositionTable {
         bound: Bound,
         best_move: Option<Move>,
     ) {
+        self.store_key(
+            repetition_key(board),
+            board.halfmove_clock(),
+            depth,
+            ply,
+            score,
+            bound,
+            best_move,
+        );
+    }
+    pub(super) fn probe_key(&self, key: u64, halfmove_clock: u8) -> Option<Entry> {
+        self.buckets[self.index(key)]
+            .iter()
+            .flatten()
+            .find(|entry| entry.key == key && entry.halfmove_clock == halfmove_clock)
+            .copied()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn store_key(
+        &mut self,
+        key: u64,
+        halfmove_clock: u8,
+        depth: u32,
+        ply: u32,
+        score: Score,
+        bound: Bound,
+        best_move: Option<Move>,
+    ) {
         self.store_entry(Entry {
-            key: repetition_key(board),
-            halfmove_clock: board.halfmove_clock(),
+            key,
+            halfmove_clock,
             depth,
             score: score_to_table(score, ply),
             bound,
             best_move,
             generation: self.generation,
         });
-    }
-    fn probe_key(&self, key: u64, halfmove_clock: u8) -> Option<Entry> {
-        self.buckets[self.index(key)]
-            .iter()
-            .flatten()
-            .find(|entry| entry.key == key && entry.halfmove_clock == halfmove_clock)
-            .copied()
     }
 
     fn store_entry(&mut self, candidate: Entry) {

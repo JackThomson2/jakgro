@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::hash::{BuildHasherDefault, Hasher};
 use std::time::{Duration, Instant};
 
 use cozy_chess::util::display_uci_move;
@@ -107,15 +108,39 @@ impl IterationStability {
     }
 }
 
+#[derive(Default)]
+struct ZobristHasher(u64);
+
+impl Hasher for ZobristHasher {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+
+    fn write(&mut self, bytes: &[u8]) {
+        let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+        for &byte in bytes {
+            hash ^= u64::from(byte);
+            hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+        self.0 = hash;
+    }
+
+    fn write_u64(&mut self, value: u64) {
+        self.0 = value;
+    }
+}
+
+type RepetitionCounts = HashMap<u64, usize, BuildHasherDefault<ZobristHasher>>;
+
 #[derive(Clone, Debug)]
 struct RepetitionTracker {
     keys: Vec<u64>,
-    counts: HashMap<u64, usize>,
+    counts: RepetitionCounts,
 }
 
 impl RepetitionTracker {
     fn new(history: &[u64]) -> Self {
-        let mut counts = HashMap::new();
+        let mut counts = RepetitionCounts::default();
         for &key in history {
             *counts.entry(key).or_insert(0) += 1;
         }
@@ -126,8 +151,14 @@ impl RepetitionTracker {
         }
     }
 
-    fn push(&mut self, board: &Board) {
-        let key = repetition_key(board);
+    fn current_key(&self) -> u64 {
+        *self
+            .keys
+            .last()
+            .expect("search repetition history is empty")
+    }
+
+    fn push_key(&mut self, key: u64) {
         self.keys.push(key);
         *self.counts.entry(key).or_insert(0) += 1;
     }
@@ -144,11 +175,8 @@ impl RepetitionTracker {
         }
     }
 
-    fn occurrences(&self, board: &Board) -> usize {
-        self.counts
-            .get(&repetition_key(board))
-            .copied()
-            .unwrap_or(0)
+    fn occurrences(&self, key: u64) -> usize {
+        self.counts.get(&key).copied().unwrap_or(0)
     }
 }
 
@@ -1276,7 +1304,7 @@ fn search_root_styled(
         let current_move = HistoryMove::from_board(board, seed.chess_move);
         let mut child = board.clone();
         child.play_unchecked(seed.chess_move);
-        history.push(&child);
+        history.push_key(repetition_key(&child));
         let probe = negamax(
             &child,
             history,
@@ -1314,9 +1342,10 @@ fn search_root_styled(
         let current_move = HistoryMove::from_board(board, seed.chess_move);
         let mut child = board.clone();
         child.play_unchecked(seed.chess_move);
+        let child_key = repetition_key(&child);
         let verification_alpha = threshold.saturating_sub(1).max(NEG_INFINITY);
         let verification_beta = objective.score.saturating_add(1).min(POS_INFINITY);
-        history.push(&child);
+        history.push_key(child_key);
         let mut child_result = negamax(
             &child,
             history,
@@ -1372,7 +1401,7 @@ fn search_root_styled(
             && is_compensated_sacrifice(&sacrifice)
             && !context.should_stop();
         if should_extend {
-            history.push(&child);
+            history.push_key(child_key);
             let mut extended = negamax(
                 &child,
                 history,
@@ -1571,7 +1600,7 @@ fn root_line_outcome(
             return RootLineOutcome::Live;
         }
         board.play_unchecked(chess_move);
-        tracker.push(&board);
+        tracker.push_key(repetition_key(&board));
         let no_legal_moves = generate_moves(&board).is_empty();
         if let Some(result) = terminal_score(&board, &tracker, index as u32 + 1, no_legal_moves)
             && result.score == 0
@@ -1902,7 +1931,7 @@ fn search_root_conventional(
     let alpha_original = alpha;
     let hash_move = context
         .table
-        .probe(board)
+        .probe_key(history.current_key(), board.halfmove_clock())
         .and_then(|entry| entry.best_move());
     let preferred = previous_pv.first().copied().or(hash_move);
     let moves = prepare_and_order_root_moves(
@@ -1931,12 +1960,13 @@ fn search_root_conventional(
         let chess_move = prepared.metadata.chess_move;
         let current_move = HistoryMove::from_board(board, chess_move);
         let prepared_child = &prepared.child;
+        let child_key = repetition_key(prepared_child);
         let expected_child_pv = if preferred == Some(chess_move) {
             previous_pv.get(1..).unwrap_or_default()
         } else {
             &[]
         };
-        history.push(prepared_child);
+        history.push_key(child_key);
         let first_window = if index == 0 {
             (-beta, -alpha)
         } else {
@@ -1958,7 +1988,7 @@ fn search_root_conventional(
         let mut score = -child_result.as_ref().map_err(|_| Aborted)?.score;
 
         if index != 0 && score > alpha && score < beta {
-            history.push(prepared_child);
+            history.push_key(child_key);
             child_result = negamax(
                 prepared_child,
                 history,
@@ -1997,8 +2027,9 @@ fn search_root_conventional(
         } else {
             Bound::Exact
         };
-        context.table.store(
-            board,
+        context.table.store_key(
+            history.current_key(),
+            board.halfmove_clock(),
             depth,
             0,
             best.score,
@@ -2059,7 +2090,11 @@ fn negamax(
     let hash_entry = context
         .mode
         .reads_tt()
-        .then(|| context.table.probe(board))
+        .then(|| {
+            context
+                .table
+                .probe_key(history.current_key(), board.halfmove_clock())
+        })
         .flatten();
     let hash_move = hash_entry
         .and_then(|entry| entry.best_move())
@@ -2170,6 +2205,7 @@ fn negamax(
         let chess_move = metadata.chess_move;
         let current_move = HistoryMove::from_board(board, chess_move);
         let prepared_child = &prepared.child;
+        let child_key = repetition_key(prepared_child);
         let expected_child_pv = if preferred == Some(chess_move) {
             previous_pv.get(1..).unwrap_or_default()
         } else {
@@ -2212,7 +2248,7 @@ fn negamax(
             pv_node,
             history_score,
         );
-        history.push(prepared_child);
+        history.push_key(child_key);
         let first_window = if index == 0 {
             (-beta, -alpha)
         } else {
@@ -2234,7 +2270,7 @@ fn negamax(
         let mut score = -child_result.as_ref().map_err(|_| Aborted)?.score;
 
         if reduced_search_needs_research(reduction, score, alpha) {
-            history.push(prepared_child);
+            history.push_key(child_key);
             child_result = negamax(
                 prepared_child,
                 history,
@@ -2254,7 +2290,7 @@ fn negamax(
         }
 
         if index != 0 && score > alpha && score < beta {
-            history.push(prepared_child);
+            history.push_key(child_key);
             child_result = negamax(
                 prepared_child,
                 history,
@@ -2304,8 +2340,9 @@ fn negamax(
             Bound::Exact
         };
         if !selective_fail_low || bound == Bound::Lower {
-            context.table.store(
-                board,
+            context.table.store_key(
+                history.current_key(),
+                board.halfmove_clock(),
                 depth,
                 ply,
                 best.score,
@@ -2407,7 +2444,8 @@ fn quiescence(
         let uses_quiet_check = !in_check && metadata.is_quiet() && metadata.gives_check;
         let next_check_budget = check_budget.saturating_sub(u8::from(uses_quiet_check));
         let prepared_child = &prepared.child;
-        history.push(prepared_child);
+        let child_key = repetition_key(prepared_child);
+        history.push_key(child_key);
         let child_result = quiescence(
             prepared_child,
             history,
@@ -2466,7 +2504,7 @@ fn terminal_score_for_mode(
             path_dependent: false,
         });
     }
-    if mode.tracks_legal_draws() && history.occurrences(board) >= 3 {
+    if mode.tracks_legal_draws() && history.occurrences(history.current_key()) >= 3 {
         return Some(TerminalResult {
             score: 0,
             path_dependent: true,
@@ -2483,7 +2521,7 @@ fn terminal_score_for_mode(
 
 fn draw_state_pending(board: &Board, history: &RepetitionTracker, mode: SearchMode) -> bool {
     (mode.tracks_legal_draws()
-        && (history.occurrences(board) >= 3 || board.halfmove_clock() >= 100))
+        && (history.occurrences(history.current_key()) >= 3 || board.halfmove_clock() >= 100))
         || is_dead_material(board)
 }
 
@@ -2889,11 +2927,12 @@ mod tests {
         let position = Position::default();
         let mut tracker = RepetitionTracker::new(position.hash_history());
 
-        assert_eq!(tracker.occurrences(position.board()), 1);
-        tracker.push(position.board());
-        assert_eq!(tracker.occurrences(position.board()), 2);
+        let key = super::repetition_key(position.board());
+        assert_eq!(tracker.occurrences(key), 1);
+        tracker.push_key(key);
+        assert_eq!(tracker.occurrences(key), 2);
         tracker.pop();
-        assert_eq!(tracker.occurrences(position.board()), 1);
+        assert_eq!(tracker.occurrences(key), 1);
     }
 
     #[test]
@@ -3522,8 +3561,8 @@ mod tests {
     fn synthetic_null_mode_ignores_legal_history_draws_only() {
         let position = Position::from_fen("4k3/8/8/8/8/8/Q7/4K3 w - - 100 50").unwrap();
         let mut tracker = RepetitionTracker::new(position.hash_history());
-        tracker.push(position.board());
-        tracker.push(position.board());
+        tracker.push_key(super::repetition_key(position.board()));
+        tracker.push_key(super::repetition_key(position.board()));
 
         assert!(
             super::terminal_score_for_mode(

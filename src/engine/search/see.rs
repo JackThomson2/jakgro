@@ -5,7 +5,6 @@ use cozy_chess::{
 
 use crate::engine::evaluation::{Score, piece_value};
 
-#[cfg(test)]
 pub(super) fn static_exchange_eval(board: &Board, chess_move: Move) -> Score {
     debug_assert!(board.is_legal(chess_move));
     let mut child = board.clone();

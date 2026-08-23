@@ -3,10 +3,13 @@ use std::hash::{BuildHasherDefault, Hasher};
 use std::time::{Duration, Instant};
 
 use cozy_chess::util::display_uci_move;
-use cozy_chess::{BitBoard, Board, Color, Move, Piece, Square};
+use cozy_chess::{
+    BitBoard, Board, Color, Move, Piece, Rank, Square, get_bishop_moves, get_king_moves,
+    get_knight_moves, get_pawn_attacks, get_rook_moves,
+};
 
 use super::control::DeadlineWindow;
-use super::see::static_exchange_eval_after;
+use super::see::{static_exchange_eval, static_exchange_eval_after};
 use super::time::allocate_time;
 use super::transposition::{Bound, TranspositionTable};
 use super::{SearchControl, SearchInfo, SearchLimits, SearchResult, SearchScore, SearchTelemetry};
@@ -271,7 +274,7 @@ struct ProbedCandidate {
     child_pv: Vec<Move>,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct MoveMetadata {
     chess_move: Move,
     attacker: Piece,
@@ -289,9 +292,26 @@ impl MoveMetadata {
         Self::classify_for_search(board, chess_move, true)
     }
 
-    #[cfg(test)]
     fn classify_for_search(board: &Board, chess_move: Move, compute_see: bool) -> Self {
-        PreparedMove::new(board, chess_move, compute_see).metadata
+        let attacker = board.piece_on(chess_move.from).unwrap_or(Piece::King);
+        let captured = captured_piece(board, chess_move);
+        let enemy_king = board.king(!board.side_to_move());
+        let king_zone_move = (chess_move.to.file() as i32 - enemy_king.file() as i32).abs() <= 1
+            && (chess_move.to.rank() as i32 - enemy_king.rank() as i32).abs() <= 1;
+        let see = captured
+            .filter(|&piece| compute_see && piece_value(piece) < piece_value(attacker))
+            .map(|_| static_exchange_eval(board, chess_move));
+        Self {
+            chess_move,
+            attacker,
+            captured,
+            gives_check: move_gives_check(board, chess_move, attacker),
+            attacking_pawn_push: is_attacking_pawn_push(board, chess_move),
+            castling: attacker == Piece::King
+                && (chess_move.from.file() as i32 - chess_move.to.file() as i32).abs() > 1,
+            king_zone_move,
+            see,
+        }
     }
 
     fn classify_with_child(
@@ -344,6 +364,12 @@ struct PreparedMove {
     child: Board,
     order_score: i64,
     root_complexity: Score,
+}
+
+#[derive(Debug)]
+struct SearchMove {
+    metadata: MoveMetadata,
+    order_score: i64,
 }
 
 impl PreparedMove {
@@ -517,12 +543,12 @@ impl MoveOrdering {
         );
     }
 
-    fn record_prepared_quiet_cutoff(
+    fn record_search_quiet_cutoff(
         &mut self,
         board: &Board,
         previous: Option<HistoryMove>,
         chess_move: Move,
-        failed_quiets: &[PreparedMove],
+        failed_quiets: &[SearchMove],
         ply: u32,
         depth: u32,
     ) {
@@ -530,7 +556,7 @@ impl MoveOrdering {
             board,
             previous,
             chess_move,
-            failed_quiets.iter().map(|prepared| prepared.metadata),
+            failed_quiets.iter().map(|search_move| search_move.metadata),
             ply,
             depth,
         );
@@ -879,7 +905,7 @@ struct SearchContext<'a> {
     started: Instant,
     pv: Vec<Vec<Move>>,
     hash_pv_depths: Vec<Option<u32>>,
-    move_buffers: Vec<Vec<PreparedMove>>,
+    move_buffers: Vec<Vec<SearchMove>>,
     ordering: MoveOrdering,
 }
 
@@ -955,11 +981,11 @@ impl SearchContext<'_> {
         &self.pv[ply]
     }
 
-    fn take_move_buffer(&mut self, ply: u32) -> Vec<PreparedMove> {
+    fn take_move_buffer(&mut self, ply: u32) -> Vec<SearchMove> {
         std::mem::take(&mut self.move_buffers[ply.min(MAX_PLY) as usize])
     }
 
-    fn recycle_move_buffer(&mut self, ply: u32, mut moves: Vec<PreparedMove>) {
+    fn recycle_move_buffer(&mut self, ply: u32, mut moves: Vec<SearchMove>) {
         moves.clear();
         self.move_buffers[ply.min(MAX_PLY) as usize] = moves;
     }
@@ -2225,12 +2251,10 @@ fn negamax(
     };
     let mut selective_fail_low = false;
 
-    for (index, prepared) in moves.iter().enumerate() {
-        let metadata = prepared.metadata;
+    for (index, search_move) in moves.iter().enumerate() {
+        let metadata = search_move.metadata;
         let chess_move = metadata.chess_move;
         let current_move = HistoryMove::from_board(board, chess_move);
-        let prepared_child = &prepared.child;
-        let child_key = repetition_key(prepared_child);
         let expected_child_pv = if preferred == Some(chess_move) {
             previous_pv.get(1..).unwrap_or_default()
         } else {
@@ -2273,6 +2297,9 @@ fn negamax(
             pv_node,
             history_score,
         );
+        let mut child = board.clone();
+        child.play_unchecked_with_piece(chess_move, metadata.attacker);
+        let child_key = repetition_key(&child);
         history.push_key(child_key);
         let first_window = if index == 0 {
             (-beta, -alpha)
@@ -2280,7 +2307,7 @@ fn negamax(
             (-alpha - 1, -alpha)
         };
         let mut child_result = negamax(
-            prepared_child,
+            &child,
             history,
             child_depth.saturating_sub(reduction),
             ply + 1,
@@ -2297,7 +2324,7 @@ fn negamax(
         if reduced_search_needs_research(reduction, score, alpha) {
             history.push_key(child_key);
             child_result = negamax(
-                prepared_child,
+                &child,
                 history,
                 child_depth,
                 ply + 1,
@@ -2317,7 +2344,7 @@ fn negamax(
         if index != 0 && score > alpha && score < beta {
             history.push_key(child_key);
             child_result = negamax(
-                prepared_child,
+                &child,
                 history,
                 child_depth,
                 ply + 1,
@@ -2343,7 +2370,7 @@ fn negamax(
         alpha = alpha.max(score);
         if alpha >= beta {
             if context.mode.updates_ordering() && metadata.is_quiet() {
-                context.ordering.record_prepared_quiet_cutoff(
+                context.ordering.record_search_quiet_cutoff(
                     board,
                     previous_move,
                     chess_move,
@@ -2453,8 +2480,8 @@ fn quiescence(
         },
     );
 
-    for prepared in &moves {
-        let metadata = prepared.metadata;
+    for search_move in &moves {
+        let metadata = search_move.metadata;
         if should_prune_quiescence_capture(
             metadata,
             in_check,
@@ -2468,11 +2495,12 @@ fn quiescence(
         let chess_move = metadata.chess_move;
         let uses_quiet_check = !in_check && metadata.is_quiet() && metadata.gives_check;
         let next_check_budget = check_budget.saturating_sub(u8::from(uses_quiet_check));
-        let prepared_child = &prepared.child;
-        let child_key = repetition_key(prepared_child);
+        let mut child = board.clone();
+        child.play_unchecked_with_piece(chess_move, metadata.attacker);
+        let child_key = repetition_key(&child);
         history.push_key(child_key);
         let child_result = quiescence(
-            prepared_child,
+            &child,
             history,
             ply + 1,
             -beta,
@@ -2583,6 +2611,68 @@ fn is_dead_material(board: &Board) -> bool {
             || (bishops & BitBoard::LIGHT_SQUARES) == bishops)
 }
 
+fn move_gives_check(board: &Board, chess_move: Move, moved: Piece) -> bool {
+    let color = board.side_to_move();
+    let enemy = !color;
+    let enemy_king = board.king(enemy);
+    let from = chess_move.from.bitboard();
+    let to = chess_move.to.bitboard();
+    let mut pieces = [BitBoard::EMPTY; Piece::NUM];
+    for piece in [
+        Piece::Pawn,
+        Piece::Knight,
+        Piece::Bishop,
+        Piece::Rook,
+        Piece::Queen,
+        Piece::King,
+    ] {
+        pieces[piece as usize] = board.colored_pieces(color, piece);
+    }
+    let mut enemy_pieces = board.colors(enemy);
+    let is_castling = board.colors(color).has(chess_move.to);
+
+    if is_castling {
+        let back_rank = Rank::First.relative_to(color);
+        let (king_file, rook_file) = if chess_move.from.file() < chess_move.to.file() {
+            (cozy_chess::File::G, cozy_chess::File::F)
+        } else {
+            (cozy_chess::File::C, cozy_chess::File::D)
+        };
+        pieces[Piece::King as usize] &= !from;
+        pieces[Piece::King as usize] |= Square::new(king_file, back_rank).bitboard();
+        pieces[Piece::Rook as usize] &= !to;
+        pieces[Piece::Rook as usize] |= Square::new(rook_file, back_rank).bitboard();
+    } else {
+        pieces[moved as usize] &= !from;
+        let placed = chess_move.promotion.unwrap_or(moved);
+        pieces[placed as usize] |= to;
+        enemy_pieces &= !to;
+
+        let is_en_passant = moved == Piece::Pawn
+            && chess_move.from.file() != chess_move.to.file()
+            && board.piece_on(chess_move.to).is_none();
+        if is_en_passant {
+            let victim = Square::new(chess_move.to.file(), Rank::Fifth.relative_to(color));
+            enemy_pieces &= !victim.bitboard();
+        }
+    }
+
+    let friendly = pieces
+        .iter()
+        .copied()
+        .fold(BitBoard::EMPTY, |occupied, piece| occupied | piece);
+    let occupied = friendly | enemy_pieces;
+    !(get_pawn_attacks(enemy_king, enemy) & pieces[Piece::Pawn as usize]).is_empty()
+        || !(get_knight_moves(enemy_king) & pieces[Piece::Knight as usize]).is_empty()
+        || !(get_king_moves(enemy_king) & pieces[Piece::King as usize]).is_empty()
+        || !(get_bishop_moves(enemy_king, occupied)
+            & (pieces[Piece::Bishop as usize] | pieces[Piece::Queen as usize]))
+            .is_empty()
+        || !(get_rook_moves(enemy_king, occupied)
+            & (pieces[Piece::Rook as usize] | pieces[Piece::Queen as usize]))
+            .is_empty()
+}
+
 fn has_legal_move(board: &Board) -> bool {
     let mut found = false;
     board.generate_moves(|piece_moves| {
@@ -2688,7 +2778,7 @@ fn order_prepared_moves(
 #[allow(clippy::too_many_arguments)]
 fn prepare_generated_moves_into(
     board: &Board,
-    moves: &mut Vec<PreparedMove>,
+    moves: &mut Vec<SearchMove>,
     preferred: Option<Move>,
     ply: u32,
     previous: Option<HistoryMove>,
@@ -2700,16 +2790,20 @@ fn prepare_generated_moves_into(
     let compute_see = evaluation.aggression() > 0;
     board.generate_moves(|piece_moves| {
         for chess_move in piece_moves {
-            let prepared = PreparedMove::new(board, chess_move, compute_see);
-            if retain(prepared.metadata) {
-                moves.push(prepared);
+            let metadata = MoveMetadata::classify_for_search(board, chess_move, compute_see);
+            if retain(metadata) {
+                moves.push(SearchMove {
+                    metadata,
+                    order_score: 0,
+                });
             }
         }
         false
     });
-    order_prepared_moves_in_place(board, moves, preferred, ply, previous, ordering, evaluation);
+    order_search_moves_in_place(board, moves, preferred, ply, previous, ordering, evaluation);
 }
 
+#[cfg(test)]
 fn order_prepared_moves_in_place(
     board: &Board,
     moves: &mut [PreparedMove],
@@ -2723,6 +2817,34 @@ fn order_prepared_moves_in_place(
         prepared.order_score = move_order_score(
             board,
             prepared.metadata,
+            preferred,
+            ply,
+            previous,
+            ordering,
+            evaluation,
+        );
+    }
+    moves.sort_unstable_by(|left, right| {
+        right.order_score.cmp(&left.order_score).then_with(|| {
+            move_key(left.metadata.chess_move).cmp(&move_key(right.metadata.chess_move))
+        })
+    });
+}
+
+#[allow(clippy::too_many_arguments)]
+fn order_search_moves_in_place(
+    board: &Board,
+    moves: &mut [SearchMove],
+    preferred: Option<Move>,
+    ply: u32,
+    previous: Option<HistoryMove>,
+    ordering: &MoveOrdering,
+    evaluation: EvaluationConfig,
+) {
+    for search_move in &mut *moves {
+        search_move.order_score = move_order_score(
+            board,
+            search_move.metadata,
             preferred,
             ply,
             previous,
@@ -3061,6 +3183,24 @@ mod tests {
                 let mut direct = board.clone();
                 direct.play_unchecked(chess_move);
                 assert_eq!(prepared.child, direct, "prepared child for {chess_move}");
+            }
+        }
+    }
+
+    #[test]
+    fn lazy_move_metadata_matches_played_children() {
+        for fen in [
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1",
+            "4k3/8/8/3pP3/8/8/8/4R1K1 w - d6 0 1",
+            "4k3/P7/8/8/8/8/8/4K3 w - - 0 1",
+            "4k3/8/8/8/8/8/4B3/4R1K1 w - - 0 1",
+        ] {
+            let board = fen.parse::<cozy_chess::Board>().unwrap();
+            for chess_move in super::generate_moves(&board) {
+                let lazy = super::MoveMetadata::classify_for_search(&board, chess_move, true);
+                let eager = super::PreparedMove::new(&board, chess_move, true).metadata;
+                assert_eq!(lazy, eager, "metadata for {chess_move} in {board}");
             }
         }
     }

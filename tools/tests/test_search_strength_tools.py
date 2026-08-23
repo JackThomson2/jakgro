@@ -10,10 +10,18 @@ from tools import gate_strength_personality, measure_search_efficiency, measure_
 
 
 class FakeEngine:
-    def __init__(self, nodes: int, bestmove: str = "e2e4") -> None:
+    def __init__(
+        self,
+        nodes: int,
+        bestmove: str = "e2e4",
+        nps: int = 1_000,
+        timed_depth: int = 5,
+    ) -> None:
         self.nodes = nodes
         self.bestmove = bestmove
-        self.depths: list[int | None] = []
+        self.nps = nps
+        self.timed_depth = timed_depth
+        self.calls: list[tuple[int | None, int | None]] = []
 
     def measure(
         self,
@@ -21,18 +29,40 @@ class FakeEngine:
         aggression: int,
         root_moves: frozenset[str] | None = None,
         depth: int | None = None,
+        move_time_ms: int | None = None,
     ) -> measure_style.Observation:
-        self.depths.append(depth)
+        self.calls.append((depth, move_time_ms))
+        if move_time_ms is not None:
+            return measure_style.Observation(
+                self.bestmove,
+                "cp 10",
+                self.timed_depth,
+                self.nps * move_time_ms // 1_000,
+                move_time_ms,
+                self.nps,
+            )
+        if depth is None:
+            elapsed_ms = max(1, fixture.nodes * 1_000 // self.nps)
+            return measure_style.Observation(
+                self.bestmove,
+                "cp 10",
+                self.timed_depth,
+                fixture.nodes,
+                elapsed_ms,
+                self.nps,
+            )
         return measure_style.Observation(
             self.bestmove,
             "cp 10",
-            depth or 1,
+            depth,
             self.nodes,
+            max(1, self.nodes * 1_000 // self.nps),
+            self.nps,
         )
 
 
 class SearchEfficiencyTests(unittest.TestCase):
-    def test_fixed_depth_rows_and_geometric_reduction_are_hash_bound(self) -> None:
+    def test_paired_channels_report_tree_speed_and_depth_gains(self) -> None:
         fixture = measure_style.Fixture(
             "start",
             "initiative",
@@ -40,8 +70,8 @@ class SearchEfficiencyTests(unittest.TestCase):
             100,
             {100: frozenset({"e2e4"})},
         )
-        candidate_engine = FakeEngine(80)
-        baseline_engine = FakeEngine(100)
+        candidate_engine = FakeEngine(80, nps=1_200, timed_depth=6)
+        baseline_engine = FakeEngine(100, nps=1_000, timed_depth=5)
         rows = measure_search_efficiency.measure_rows(
             candidate_engine,
             baseline_engine,
@@ -65,10 +95,15 @@ class SearchEfficiencyTests(unittest.TestCase):
                 aggression=100,
                 depth=4,
                 minimum_reduction=10.0,
+                minimum_nps_gain=10.0,
+                minimum_depth_gain=0.5,
             )
 
-        self.assertEqual(candidate_engine.depths, [4])
+        self.assertEqual(candidate_engine.calls[0], (4, None))
+        self.assertEqual(len(candidate_engine.calls), 8)
         self.assertEqual(summary["metrics"]["geometric_node_reduction_percent"], 20.0)
+        self.assertEqual(summary["metrics"]["geometric_nps_gain_percent"], 20.0)
+        self.assertEqual(summary["metrics"]["mean_completed_depth_gain"], 1.0)
         self.assertTrue(summary["passed"])
         self.assertRegex(summary["inputs"]["candidate"]["sha256"], r"^[0-9a-f]{64}$")
 

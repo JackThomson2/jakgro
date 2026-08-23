@@ -132,15 +132,24 @@ python3 tools/analyze_match.py \
 
 The analyzer verifies the PGN hash and completed game count against the manifest, requires consecutive color-reversed opening pairs, and reports W/D/L, score, color balance, pair outcomes, terminations, average length, SAN-derived checks, captures, promotions, forcing-move rates, and a conservative pair-aware 95% score and Elo bound. `--min-elo-lower-bound` turns that bound into a strict acceptance gate. The style rates are descriptive proxies rather than move-quality judgments, and the interval is not an SPRT result. The historical Aggression 100 versus 0 baseline is recorded in [`docs/tuning/aggression-100-vs-0.md`](docs/tuning/aggression-100-vs-0.md); the current old-versus-new result is recorded in [`docs/tuning/verified-aggression-elo.md`](docs/tuning/verified-aggression-elo.md); and the accepted null-only search result is recorded in [`docs/tuning/verified-null-move.md`](docs/tuning/verified-null-move.md).
 
-Compare fixed-depth search work before running matches with:
+Compare tree size, throughput, and completed depth before running matches with:
 
 ```sh
 python3 tools/measure_search_efficiency.py \
   --engine target/release/jakgro \
   --baseline-engine artifacts/baseline-jakgro \
   --depth 4 \
-  --summary-json artifacts/search-efficiency.json
+  --samples 7 \
+  --move-time-ms 500 \
+  --summary-json artifacts/search-efficiency.json \
+  --check
 ```
+
+The paired runner alternates the two binaries over the frozen performance suite,
+reports fixed-depth node reduction, median fixed-node NPS, and fixed-time depth,
+and binds the JSON to exact binary and suite hashes. See
+[`docs/tuning/search-performance.md`](docs/tuning/search-performance.md) for the
+measurement protocol and interpretation rules.
 
 `tools/gate_strength_personality.py` then binds objective old-versus-new, same-profile old-versus-new, candidate and baseline Aggression 100-versus-0, fixed-position style, objective-loss, sacrifice, and efficiency artifacts to one contract. It uses Elo confidence bounds for old-versus-new channels, compares personality cost relative to the baseline binary, and fails on binary-identity mismatches. The passing cross-channel smoke result is recorded in [`docs/tuning/strength-personality-smoke.md`](docs/tuning/strength-personality-smoke.md); its wide intervals explicitly prevent treating the point estimate as a publishable Elo claim.
 
@@ -169,7 +178,7 @@ python3 tools/measure_search_efficiency.py \
 - `src/uci/session.rs` owns the serialized protocol event loop.
 - `src/uci/search_worker.rs` isolates search threads, generation IDs, pondering, and stale-result suppression.
 - `tools/measure_style.py` and `tools/measure_acceptance.py` report fixed-node choices and objective root loss across Aggression profiles.
-- `tools/measure_search_efficiency.py` compares old/new node counts at a fixed completed depth.
+- `tools/measure_search_efficiency.py` compares old/new fixed-depth nodes, fixed-node throughput, and fixed-time completed depth.
 - `tools/run_match.py` builds deterministic paired fixed-node matches for `cutechess-cli`.
 - `tools/analyze_match.py` validates paired PGNs and reports strength, confidence, color balance, and descriptive forcing-play rates.
 - `tools/gate_strength_personality.py` binds all strength, style, acceptance, and efficiency channels to exact binary hashes and confidence floors.

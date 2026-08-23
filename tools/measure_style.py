@@ -32,6 +32,8 @@ class Observation:
     score: str
     depth: int
     nodes: int
+    elapsed_ms: int = 0
+    nps: int = 0
 
 
 def parse_suite(path: Path) -> list[Fixture]:
@@ -98,7 +100,7 @@ def parse_profiles(value: str) -> list[int]:
     return profiles
 
 
-def parse_search_info(line: str) -> tuple[str, int, int] | None:
+def parse_search_info(line: str) -> tuple[str, int, int, int, int] | None:
     if not line.startswith("info "):
         return None
     tokens = line.split()
@@ -107,9 +109,11 @@ def parse_search_info(line: str) -> tuple[str, int, int] | None:
         score_index = tokens.index("score")
         score = f"{tokens[score_index + 1]} {tokens[score_index + 2]}"
         nodes = int(tokens[tokens.index("nodes") + 1])
+        elapsed_ms = int(tokens[tokens.index("time") + 1])
+        nps = int(tokens[tokens.index("nps") + 1])
     except (ValueError, IndexError):
         return None
-    return score, depth, nodes
+    return score, depth, nodes, elapsed_ms, nps
 
 
 def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -197,7 +201,10 @@ class UciEngine:
         aggression: int,
         root_moves: frozenset[str] | None = None,
         depth: int | None = None,
+        move_time_ms: int | None = None,
     ) -> Observation:
+        if depth is not None and move_time_ms is not None:
+            raise ValueError("depth and move_time_ms are mutually exclusive")
         self.send(f"setoption name Aggression value {aggression}")
         self.send("ucinewgame")
         self.send("isready")
@@ -210,7 +217,12 @@ class UciEngine:
         searchmoves = ""
         if root_moves:
             searchmoves = f" searchmoves {' '.join(sorted(root_moves))}"
-        limit = f"depth {depth}" if depth is not None else f"nodes {fixture.nodes}"
+        if depth is not None:
+            limit = f"depth {depth}"
+        elif move_time_ms is not None:
+            limit = f"movetime {move_time_ms}"
+        else:
+            limit = f"nodes {fixture.nodes}"
         self.send(f"go {limit}{searchmoves}")
         output = self.read_until(lambda line: line.startswith("bestmove "))
         bestmove_fields = output[-1].split()
@@ -224,8 +236,8 @@ class UciEngine:
         )
         if len(bestmove_fields) < 2 or bestmove_fields[1] == "0000" or parsed_info is None:
             raise RuntimeError(f"{fixture.identifier}: search returned no measured result")
-        score, measured_depth, nodes = parsed_info
-        return Observation(bestmove_fields[1], score, measured_depth, nodes)
+        score, measured_depth, nodes, elapsed_ms, nps = parsed_info
+        return Observation(bestmove_fields[1], score, measured_depth, nodes, elapsed_ms, nps)
 
     def close(self) -> None:
         if self.process.poll() is None:

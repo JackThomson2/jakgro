@@ -72,6 +72,15 @@ class MovetextStyleTests(unittest.TestCase):
         self.assertEqual(indicators["baseline"]["checks"], 0)
 
 
+class SearchInfoParsingTests(unittest.TestCase):
+    def test_parser_retains_engine_timing_and_throughput(self) -> None:
+        parsed = measure_style.parse_search_info(
+            "info depth 6 score cp 21 nodes 12345 time 67 nps 184253 pv e2e4"
+        )
+
+        self.assertEqual(parsed, ("cp 21", 6, 12345, 67, 184253))
+
+
 class FixedPositionSummaryTests(unittest.TestCase):
     def test_suite_accepts_categories_and_multiple_expected_moves(self) -> None:
         suite = (

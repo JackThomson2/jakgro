@@ -25,10 +25,16 @@ const VOLATILE_HOLD_ITERATIONS: u8 = 2;
 const CONTROL_POLL_INTERVAL_NODES: u64 = 256;
 const ITERATION_TIME_MULTIPLIER: u32 = 2;
 const ITERATION_TIME_MARGIN: Duration = Duration::from_millis(5);
-const STYLED_ROOT_BUDGET_DIVISOR: u64 = 1;
+const STYLED_ROOT_BUDGET_DIVISOR: u64 = 2;
+const STYLED_ROOT_TACTICAL_BUDGET_DIVISOR: u64 = 1;
 const STYLED_ROOT_MIN_NODES: u64 = 256;
-const STYLED_ROOT_MAX_NODES: u64 = 8_192;
+const STYLED_ROOT_MAX_NODES: u64 = 4_096;
+const STYLED_ROOT_TACTICAL_MAX_NODES: u64 = 8_192;
 const STYLED_ROOT_MAX_VERIFICATIONS: usize = 2;
+const ORDINARY_ROOT_MARGIN_MAX: Score = 45;
+const WINNING_ROOT_MARGIN_MAX: Score = 20;
+const WINNING_ROOT_SCORE: Score = 200;
+const LOSING_ROOT_SCORE: Score = -150;
 const LMR_MIN_CHILD_DEPTH: u32 = 3;
 const LMR_MIN_MOVE_INDEX: usize = 3;
 const LMR_DEEP_CHILD_DEPTH: u32 = 6;
@@ -1056,6 +1062,9 @@ fn search_root_styled(
         });
     }
     let alternatives = prioritize_probe_seeds(select_candidate_seeds(seeds));
+    let tactical_reserve = alternatives
+        .iter()
+        .any(|seed| seed.sacrifice_hint >= MIN_SACRIFICE_CP);
     let (child_depth, child_extensions) = next_search_depth(
         depth,
         !board.checkers().is_empty(),
@@ -1063,8 +1072,12 @@ fn search_root_styled(
         context.evaluation.max_check_extensions(),
     );
     let original_node_limit = context.node_limit;
-    let personality_node_limit =
-        styled_root_node_limit(context.nodes, objective_nodes, original_node_limit);
+    let personality_node_limit = styled_root_node_limit(
+        context.nodes,
+        objective_nodes,
+        tactical_reserve,
+        original_node_limit,
+    );
     context.node_limit = Some(personality_node_limit);
     let threshold = objective
         .score
@@ -1153,11 +1166,16 @@ fn search_root_styled(
             break;
         };
         let mut score = -child_result.score;
-        if !candidate_within_score_guard(
-            score,
-            objective.score,
-            context.evaluation.root_style_margin().min(120),
-        ) {
+        let provisional_margin = if seed.sacrifice_hint >= MIN_SACRIFICE_CP {
+            context.evaluation.root_style_margin().min(120)
+        } else {
+            candidate_risk_margin(
+                context.evaluation,
+                objective.score,
+                &SacrificeProfile::default(),
+            )
+        };
+        if !candidate_within_score_guard(score, objective.score, provisional_margin) {
             continue;
         }
         let mut path_dependent = child_result.path_dependent;
@@ -1215,11 +1233,9 @@ fn search_root_styled(
                 }
             }
         }
-        if !candidate_within_score_guard(
-            score,
-            objective.score,
-            context.evaluation.root_style_margin().min(120),
-        ) {
+        let verified_margin =
+            candidate_risk_margin(context.evaluation, objective.score, &sacrifice);
+        if !candidate_within_score_guard(score, objective.score, verified_margin) {
             continue;
         }
 
@@ -1241,7 +1257,7 @@ fn search_root_styled(
         personality_exhausted = true;
     }
     context.node_limit = original_node_limit;
-    if personality_exhausted || context.should_stop() {
+    if context.should_stop() || (personality_exhausted && candidates.len() == 1) {
         context.pv[0].clone_from(&objective_pv);
         return Ok(RootSearchResult::from_primary(objective));
     }
@@ -1294,10 +1310,19 @@ fn candidate_within_score_guard(candidate: Score, best: Score, margin: Score) ->
 
 fn candidate_risk_margin(
     evaluation: EvaluationConfig,
-    _best_score: Score,
-    _sacrifice: &SacrificeProfile,
+    best_score: Score,
+    sacrifice: &SacrificeProfile,
 ) -> Score {
-    evaluation.root_style_margin().min(120)
+    let hard_margin = evaluation.root_style_margin().min(120);
+    if is_compensated_sacrifice(sacrifice) || best_score <= LOSING_ROOT_SCORE {
+        return hard_margin;
+    }
+    let contextual_cap = if best_score >= WINNING_ROOT_SCORE {
+        WINNING_ROOT_MARGIN_MAX
+    } else {
+        ORDINARY_ROOT_MARGIN_MAX
+    };
+    hard_margin.min(contextual_cap)
 }
 
 fn is_compensated_sacrifice(sacrifice: &SacrificeProfile) -> bool {
@@ -1461,10 +1486,18 @@ fn select_candidate_seeds(seeds: Vec<CandidateSeed>) -> Vec<CandidateSeed> {
 fn styled_root_node_limit(
     current_nodes: u64,
     objective_nodes: u64,
+    tactical_reserve: bool,
     global_limit: Option<u64>,
 ) -> u64 {
-    let budget = (objective_nodes / STYLED_ROOT_BUDGET_DIVISOR)
-        .clamp(STYLED_ROOT_MIN_NODES, STYLED_ROOT_MAX_NODES);
+    let (divisor, maximum) = if tactical_reserve {
+        (
+            STYLED_ROOT_TACTICAL_BUDGET_DIVISOR,
+            STYLED_ROOT_TACTICAL_MAX_NODES,
+        )
+    } else {
+        (STYLED_ROOT_BUDGET_DIVISOR, STYLED_ROOT_MAX_NODES)
+    };
+    let budget = (objective_nodes / divisor).clamp(STYLED_ROOT_MIN_NODES, maximum);
     let local_limit = current_nodes.saturating_add(budget);
     global_limit.map_or(local_limit, |limit| local_limit.min(limit))
 }
@@ -3323,7 +3356,7 @@ mod tests {
             },
             super::RootCandidate {
                 chess_move: exciting_move,
-                score: -60,
+                score: 5,
                 path_dependent: false,
                 interest: 100,
                 pv: vec![exciting_move],
@@ -3337,7 +3370,7 @@ mod tests {
             super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
             1
         );
-        candidates[1].score = -71;
+        candidates[1].score = 4;
         assert_eq!(
             super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
             0
@@ -3409,7 +3442,7 @@ mod tests {
     }
 
     #[test]
-    fn verified_sacrifices_obey_the_hard_root_margin() {
+    fn root_risk_margin_tracks_sacrifice_and_position_context() {
         let sacrifice = super::SacrificeProfile {
             state: super::SacrificeState::Accepted,
             settled_exchange: true,
@@ -3433,6 +3466,23 @@ mod tests {
                 120,
             );
         }
+        let ordinary = super::SacrificeProfile::default();
+        assert_eq!(
+            super::candidate_risk_margin(super::EvaluationConfig::new(100), -200, &ordinary),
+            120,
+        );
+        assert_eq!(
+            super::candidate_risk_margin(super::EvaluationConfig::new(100), 0, &ordinary),
+            45,
+        );
+        assert_eq!(
+            super::candidate_risk_margin(super::EvaluationConfig::new(100), 400, &ordinary),
+            20,
+        );
+        assert_eq!(
+            super::candidate_risk_margin(super::EvaluationConfig::new(50), 0, &ordinary),
+            30,
+        );
         assert_eq!(
             super::candidate_risk_margin(super::EvaluationConfig::new(50), 0, &sacrifice),
             30,
@@ -3520,11 +3570,21 @@ mod tests {
 
     #[test]
     fn styled_root_budget_is_bounded_and_respects_the_global_limit() {
-        assert_eq!(super::styled_root_node_limit(1_000, 4, None), 1_256);
-        assert_eq!(super::styled_root_node_limit(1_000, 400, None), 1_400);
-        assert_eq!(super::styled_root_node_limit(1_000, 100_000, None), 9_192);
+        assert_eq!(super::styled_root_node_limit(1_000, 4, false, None), 1_256);
         assert_eq!(
-            super::styled_root_node_limit(1_000, 100_000, Some(1_500)),
+            super::styled_root_node_limit(1_000, 400, false, None),
+            1_256,
+        );
+        assert_eq!(
+            super::styled_root_node_limit(1_000, 100_000, false, None),
+            5_096,
+        );
+        assert_eq!(
+            super::styled_root_node_limit(1_000, 100_000, true, None),
+            9_192,
+        );
+        assert_eq!(
+            super::styled_root_node_limit(1_000, 100_000, true, Some(1_500)),
             1_500,
         );
     }
@@ -3588,7 +3648,7 @@ mod tests {
             },
             super::RootCandidate {
                 chess_move: live_move,
-                score: -100,
+                score: -45,
                 path_dependent: false,
                 interest: 0,
                 pv: vec![live_move],
@@ -3602,7 +3662,7 @@ mod tests {
             super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
             1,
         );
-        candidates[1].score = -121;
+        candidates[1].score = -46;
         assert_eq!(
             super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
             0,

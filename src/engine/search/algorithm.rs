@@ -214,6 +214,37 @@ impl RootSearchResult {
     }
 }
 
+#[derive(Clone, Debug)]
+struct RootMoveEvidence {
+    chess_move: Move,
+    score: Score,
+    bound: Bound,
+    child_pv: Vec<Move>,
+}
+
+#[derive(Debug)]
+struct ConventionalRootResult {
+    selected: NodeResult,
+    evidence: Vec<RootMoveEvidence>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum RootEvidenceDecision {
+    Reject,
+    Accept,
+    Probe,
+}
+
+fn root_evidence_decision(evidence: &RootMoveEvidence, threshold: Score) -> RootEvidenceDecision {
+    match evidence.bound {
+        Bound::Exact if evidence.score < threshold => RootEvidenceDecision::Reject,
+        Bound::Exact => RootEvidenceDecision::Accept,
+        Bound::Upper if evidence.score < threshold => RootEvidenceDecision::Reject,
+        Bound::Lower if evidence.score >= threshold => RootEvidenceDecision::Accept,
+        Bound::Upper | Bound::Lower => RootEvidenceDecision::Probe,
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 enum SacrificeState {
     #[default]
@@ -1221,7 +1252,7 @@ fn search_root(
             previous_pv,
             context,
         )?;
-        return Ok(RootSearchResult::from_primary(selected));
+        return Ok(RootSearchResult::from_primary(selected.selected));
     }
     search_root_styled(
         board,
@@ -1244,7 +1275,7 @@ fn search_root_styled(
     context: &mut SearchContext<'_>,
 ) -> Result<RootSearchResult, Aborted> {
     let objective_start_nodes = context.nodes;
-    let objective = search_root_conventional(
+    let conventional = search_root_conventional(
         board,
         root_moves,
         history,
@@ -1254,6 +1285,10 @@ fn search_root_styled(
         context,
     )?;
     let objective_nodes = context.nodes.saturating_sub(objective_start_nodes);
+    let ConventionalRootResult {
+        selected: objective,
+        evidence,
+    } = conventional;
     let objective_pv = context.pv(0).to_vec();
     let Some(objective_move) = objective_pv.first().copied() else {
         return Ok(RootSearchResult::from_primary(objective));
@@ -1266,6 +1301,9 @@ fn search_root_styled(
         return Ok(RootSearchResult::from_primary(objective));
     }
 
+    let threshold = objective
+        .score
+        .saturating_sub(context.evaluation.root_style_margin().min(120));
     let mover = board.side_to_move();
     let root_snapshot = tactical_snapshot(board, mover);
     let mut objective_child = board.clone();
@@ -1300,6 +1338,15 @@ fn search_root_styled(
     let mut seeds = Vec::with_capacity(root_moves.len().saturating_sub(1));
     for &chess_move in root_moves {
         if chess_move == objective_move {
+            continue;
+        }
+        if evidence
+            .iter()
+            .find(|entry| entry.chess_move == chess_move)
+            .is_some_and(|entry| {
+                root_evidence_decision(entry, threshold) == RootEvidenceDecision::Reject
+            })
+        {
             continue;
         }
         if context.control_stop_requested() {
@@ -1338,9 +1385,6 @@ fn search_root_styled(
         original_node_limit,
     );
     context.node_limit = Some(personality_node_limit);
-    let threshold = objective
-        .score
-        .saturating_sub(context.evaluation.root_style_margin().min(120));
     let mut probe_passers = Vec::new();
     let mut personality_exhausted = false;
 
@@ -1348,6 +1392,22 @@ fn search_root_styled(
         if context.should_stop() {
             personality_exhausted = true;
             break;
+        }
+        if let Some(entry) = evidence
+            .iter()
+            .find(|entry| entry.chess_move == seed.chess_move)
+        {
+            match root_evidence_decision(entry, threshold) {
+                RootEvidenceDecision::Reject => continue,
+                RootEvidenceDecision::Accept => {
+                    probe_passers.push(ProbedCandidate {
+                        seed,
+                        child_pv: entry.child_pv.clone(),
+                    });
+                    continue;
+                }
+                RootEvidenceDecision::Probe => {}
+            }
         }
         let current_move = HistoryMove::from_board(board, seed.chess_move);
         let mut child = board.clone();
@@ -1973,7 +2033,7 @@ fn search_root_conventional(
     window: (Score, Score),
     previous_pv: &[Move],
     context: &mut SearchContext<'_>,
-) -> Result<NodeResult, Aborted> {
+) -> Result<ConventionalRootResult, Aborted> {
     let (mut alpha, beta) = window;
     context.clear_pv(0);
     if context.should_stop() {
@@ -2002,6 +2062,12 @@ fn search_root_conventional(
         score: NEG_INFINITY,
         path_dependent: false,
     };
+    let collect_evidence = context.evaluation.root_style_margin() != 0;
+    let mut evidence = if collect_evidence {
+        Vec::with_capacity(moves.len())
+    } else {
+        Vec::new()
+    };
 
     for (index, prepared) in moves.into_iter().enumerate() {
         if context.should_stop() {
@@ -2017,6 +2083,7 @@ fn search_root_conventional(
         } else {
             &[]
         };
+        let move_alpha = alpha;
         history.push_key(child_key);
         let first_window = if index == 0 {
             (-beta, -alpha)
@@ -2056,6 +2123,27 @@ fn search_root_conventional(
             score = -child_result.as_ref().map_err(|_| Aborted)?.score;
         }
         let child_result = child_result?;
+        let bound = if score <= move_alpha {
+            Bound::Upper
+        } else if score >= beta {
+            Bound::Lower
+        } else {
+            Bound::Exact
+        };
+        if collect_evidence {
+            let child_pv = if bound == Bound::Exact {
+                context.resolve_hash_pv(prepared_child, 1);
+                context.pv(1).to_vec()
+            } else {
+                Vec::new()
+            };
+            evidence.push(RootMoveEvidence {
+                chess_move,
+                score,
+                bound,
+                child_pv,
+            });
+        }
 
         if score > best.score {
             best = NodeResult {
@@ -2088,7 +2176,10 @@ fn search_root_conventional(
             context.pv(0).first().copied(),
         );
     }
-    Ok(best)
+    Ok(ConventionalRootResult {
+        selected: best,
+        evidence,
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -3097,6 +3188,45 @@ mod tests {
                 "{position}",
             );
         }
+    }
+
+    #[test]
+    fn root_evidence_only_skips_proven_candidates() {
+        let evidence = |score, bound| super::RootMoveEvidence {
+            chess_move: Move {
+                from: Square::A1,
+                to: Square::A2,
+                promotion: None,
+            },
+            score,
+            bound,
+            child_pv: Vec::new(),
+        };
+
+        assert_eq!(
+            super::root_evidence_decision(&evidence(9, super::Bound::Exact), 10),
+            super::RootEvidenceDecision::Reject,
+        );
+        assert_eq!(
+            super::root_evidence_decision(&evidence(10, super::Bound::Exact), 10),
+            super::RootEvidenceDecision::Accept,
+        );
+        assert_eq!(
+            super::root_evidence_decision(&evidence(9, super::Bound::Upper), 10),
+            super::RootEvidenceDecision::Reject,
+        );
+        assert_eq!(
+            super::root_evidence_decision(&evidence(10, super::Bound::Upper), 10),
+            super::RootEvidenceDecision::Probe,
+        );
+        assert_eq!(
+            super::root_evidence_decision(&evidence(10, super::Bound::Lower), 10),
+            super::RootEvidenceDecision::Accept,
+        );
+        assert_eq!(
+            super::root_evidence_decision(&evidence(9, super::Bound::Lower), 10),
+            super::RootEvidenceDecision::Probe,
+        );
     }
 
     #[test]

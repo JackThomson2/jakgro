@@ -385,6 +385,7 @@ impl MoveMetadata {
         Self::classify_for_search(board, chess_move, true)
     }
 
+    #[cfg(test)]
     fn classify_for_search(board: &Board, chess_move: Move, compute_see: bool) -> Self {
         let facts = MoveFacts::classify(board, chess_move);
         facts.search_metadata(board, facts.see(board, compute_see))
@@ -479,11 +480,45 @@ enum MovePickerStage {
     GenerateTacticals,
     Promotions,
     GoodCaptures,
+    FirstKiller,
+    SecondKiller,
     GenerateQuiets,
     Quiets,
     SortBadCaptures,
     BadCaptures,
     Done,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum MovePickerMode {
+    Main,
+    Quiescence {
+        in_check: bool,
+        include_quiet_checks: bool,
+    },
+}
+
+impl MovePickerMode {
+    fn needs_quiets(self) -> bool {
+        match self {
+            Self::Main => true,
+            Self::Quiescence {
+                in_check,
+                include_quiet_checks,
+            } => in_check || include_quiet_checks,
+        }
+    }
+
+    fn accepts_quiet(self, metadata: MoveMetadata) -> bool {
+        match self {
+            Self::Main => true,
+            Self::Quiescence { in_check: true, .. } => true,
+            Self::Quiescence {
+                include_quiet_checks,
+                ..
+            } => include_quiet_checks && metadata.gives_check,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -500,9 +535,11 @@ struct MovePicker<'a> {
     board: &'a Board,
     storage: MovePickerStorage,
     preferred: Option<Move>,
+    picked_killers: [Option<Move>; 2],
     ply: u32,
     previous: Option<HistoryMove>,
     evaluation: EvaluationConfig,
+    mode: MovePickerMode,
     stage: MovePickerStage,
     stage_index: usize,
     emitted: usize,
@@ -518,15 +555,18 @@ impl<'a> MovePicker<'a> {
         ply: u32,
         previous: Option<HistoryMove>,
         evaluation: EvaluationConfig,
+        mode: MovePickerMode,
     ) -> Self {
         storage.clear();
         Self {
             board,
             storage,
             preferred: preferred.filter(|chess_move| board.is_legal(*chess_move)),
+            picked_killers: [None; 2],
             ply,
             previous,
             evaluation,
+            mode,
             stage: MovePickerStage::Preferred,
             stage_index: 0,
             emitted: 0,
@@ -568,7 +608,29 @@ impl<'a> MovePicker<'a> {
                         self.stage_index += 1;
                         return Some(self.emit_candidate(candidate));
                     }
-                    self.enter(MovePickerStage::GenerateQuiets);
+                    self.enter(if self.mode == MovePickerMode::Main {
+                        MovePickerStage::FirstKiller
+                    } else if self.mode.needs_quiets() {
+                        MovePickerStage::GenerateQuiets
+                    } else {
+                        MovePickerStage::SortBadCaptures
+                    });
+                }
+                MovePickerStage::FirstKiller => {
+                    self.enter(MovePickerStage::SecondKiller);
+                    if let Some(killer) = self.pick_killer(ordering, 0) {
+                        return Some(killer);
+                    }
+                }
+                MovePickerStage::SecondKiller => {
+                    self.enter(if self.mode.needs_quiets() {
+                        MovePickerStage::GenerateQuiets
+                    } else {
+                        MovePickerStage::SortBadCaptures
+                    });
+                    if let Some(killer) = self.pick_killer(ordering, 1) {
+                        return Some(killer);
+                    }
                 }
                 MovePickerStage::GenerateQuiets => {
                     self.generate_quiets(ordering);
@@ -638,6 +700,30 @@ impl<'a> MovePicker<'a> {
         self.emit(candidate.metadata(self.board))
     }
 
+    fn pick_killer(
+        &mut self,
+        ordering: &MoveOrdering,
+        slot: usize,
+    ) -> Option<(usize, MoveMetadata)> {
+        let chess_move = ordering.killers(self.ply)[slot]?;
+        if self.preferred == Some(chess_move)
+            || self.picked_killers.contains(&Some(chess_move))
+            || !self.board.is_legal(chess_move)
+        {
+            return None;
+        }
+        let facts = MoveFacts::classify(self.board, chess_move);
+        if chess_move.promotion.is_some() || facts.captured.is_some() {
+            return None;
+        }
+        self.picked_killers[slot] = Some(chess_move);
+        Some(self.emit_candidate(PickerMove {
+            facts,
+            see: None,
+            order_score: if slot == 0 { 3_000_000 } else { 2_900_000 },
+        }))
+    }
+
     fn generate_tacticals(&mut self) {
         #[cfg(test)]
         {
@@ -702,13 +788,15 @@ impl<'a> MovePicker<'a> {
         }
         let board = self.board;
         let preferred = self.preferred;
+        let picked_killers = self.picked_killers;
+        let mode = self.mode;
         let quiets = &mut self.storage.quiets;
         #[cfg(test)]
         let work = &mut self.work;
         board.generate_moves(|mut piece_moves| {
             piece_moves.to &= !tactical_move_targets(board, piece_moves.piece);
             for chess_move in piece_moves {
-                if preferred == Some(chess_move) {
+                if preferred == Some(chess_move) || picked_killers.contains(&Some(chess_move)) {
                     continue;
                 }
                 let facts = MoveFacts::classify(board, chess_move);
@@ -716,10 +804,13 @@ impl<'a> MovePicker<'a> {
                 {
                     work.check_detections += 1;
                 }
-                quiets.push(SearchMove {
-                    metadata: facts.search_metadata(board, None),
-                    order_score: 0,
-                });
+                let metadata = facts.search_metadata(board, None);
+                if mode.accepts_quiet(metadata) {
+                    quiets.push(SearchMove {
+                        metadata,
+                        order_score: 0,
+                    });
+                }
             }
             false
         });
@@ -1282,7 +1373,6 @@ struct SearchContext<'a> {
     started: Instant,
     pv: Vec<Vec<Move>>,
     hash_pv_depths: Vec<Option<u32>>,
-    move_buffers: Vec<Vec<SearchMove>>,
     picker_storage: Vec<MovePickerStorage>,
     ordering: MoveOrdering,
 }
@@ -1357,15 +1447,6 @@ impl SearchContext<'_> {
         let ply = ply.min(MAX_PLY) as usize;
         debug_assert!(self.hash_pv_depths[ply].is_none());
         &self.pv[ply]
-    }
-
-    fn take_move_buffer(&mut self, ply: u32) -> Vec<SearchMove> {
-        std::mem::take(&mut self.move_buffers[ply.min(MAX_PLY) as usize])
-    }
-
-    fn recycle_move_buffer(&mut self, ply: u32, mut moves: Vec<SearchMove>) {
-        moves.clear();
-        self.move_buffers[ply.min(MAX_PLY) as usize] = moves;
     }
 
     fn take_picker_storage(&mut self, ply: u32) -> MovePickerStorage {
@@ -1443,7 +1524,6 @@ where
             .map(|ply| Vec::with_capacity((MAX_PLY - ply) as usize))
             .collect(),
         hash_pv_depths: vec![None; MAX_PLY as usize + 1],
-        move_buffers: (0..=MAX_PLY).map(|_| Vec::new()).collect(),
         picker_storage: (0..=MAX_PLY)
             .map(|_| MovePickerStorage::default())
             .collect(),
@@ -2685,6 +2765,7 @@ fn negamax(
         ply,
         previous_move,
         context.evaluation,
+        MovePickerMode::Main,
     );
     let (child_depth, child_extensions) = next_search_depth(
         depth,
@@ -2912,24 +2993,24 @@ fn quiescence(
         }
         alpha = alpha.max(stand_pat);
     }
-    let mut moves = context.take_move_buffer(ply);
-    prepare_generated_moves_into(
+    let picker_storage = context.take_picker_storage(ply);
+    let mut picker = MovePicker::new(
         board,
-        &mut moves,
+        picker_storage,
         None,
         ply,
         None,
-        &context.ordering,
         context.evaluation,
-        |metadata| {
-            in_check
-                || metadata.is_tactical()
-                || (check_budget > 0 && metadata.is_quiet() && metadata.gives_check)
+        MovePickerMode::Quiescence {
+            in_check,
+            include_quiet_checks: check_budget > 0,
         },
     );
 
-    for search_move in &moves {
-        let metadata = search_move.metadata;
+    while let Some((_, metadata)) = picker.next(&context.ordering) {
+        debug_assert!(
+            in_check || metadata.is_tactical() || (metadata.is_quiet() && metadata.gives_check)
+        );
         if should_prune_quiescence_capture(
             metadata,
             in_check,
@@ -2975,7 +3056,7 @@ fn quiescence(
         }
     }
 
-    context.recycle_move_buffer(ply, moves);
+    context.recycle_picker_storage(ply, picker.into_storage());
     Ok(best)
 }
 
@@ -3223,6 +3304,7 @@ fn order_prepared_moves(
     moves
 }
 
+#[cfg(test)]
 #[allow(clippy::too_many_arguments)]
 fn prepare_generated_moves_into(
     board: &Board,
@@ -3773,6 +3855,7 @@ mod tests {
                         0,
                         None,
                         evaluation,
+                        super::MovePickerMode::Main,
                     );
                     let mut picked = Vec::new();
                     while let Some((index, metadata)) = picker.next(&ordering) {
@@ -3813,6 +3896,7 @@ mod tests {
             0,
             None,
             super::EvaluationConfig::new(100),
+            super::MovePickerMode::Main,
         );
 
         assert_eq!(picker.next(&ordering).unwrap().1.chess_move, preferred);
@@ -3839,6 +3923,7 @@ mod tests {
             0,
             None,
             super::EvaluationConfig::new(100),
+            super::MovePickerMode::Main,
         );
 
         assert_eq!(picker.next(&ordering).unwrap().1.chess_move, capture);
@@ -3850,6 +3935,137 @@ mod tests {
                 ..super::MovePickerWork::default()
             },
         );
+    }
+
+    #[test]
+    fn killer_picker_move_defers_quiet_generation_and_is_not_duplicated() {
+        let board = cozy_chess::Board::default();
+        let killer: Move = "e2e4".parse().unwrap();
+        let mut ordering = super::MoveOrdering::new();
+        ordering.record_quiet_cutoff(&board, None, killer, &[], 0, 4);
+        let mut picker = super::MovePicker::new(
+            &board,
+            super::MovePickerStorage::default(),
+            None,
+            0,
+            None,
+            super::EvaluationConfig::new(100),
+            super::MovePickerMode::Main,
+        );
+
+        let (_, metadata) = picker.next(&ordering).unwrap();
+        assert_eq!(metadata.chess_move, killer);
+        assert_eq!(
+            picker.work(),
+            super::MovePickerWork {
+                tactical_generations: 1,
+                check_detections: 1,
+                ..super::MovePickerWork::default()
+            },
+        );
+        picker.record_failed_quiet(metadata);
+
+        let mut picked = vec![metadata.chess_move];
+        while let Some((_, metadata)) = picker.next(&ordering) {
+            picked.push(metadata.chess_move);
+        }
+        assert_eq!(
+            picked
+                .iter()
+                .filter(|&&chess_move| chess_move == killer)
+                .count(),
+            1
+        );
+        assert_eq!(picker.work().quiet_generations, 1);
+        assert_eq!(picked.len(), super::generate_moves(&board).len());
+    }
+
+    #[test]
+    fn quiescence_picker_skips_or_filters_the_quiet_stage() {
+        let board = "7k/8/8/8/8/8/4Q3/4K3 w - - 0 1"
+            .parse::<cozy_chess::Board>()
+            .unwrap();
+        let ordering = super::MoveOrdering::new();
+        let evaluation = super::EvaluationConfig::new(100);
+        let mut tactical_only = super::MovePicker::new(
+            &board,
+            super::MovePickerStorage::default(),
+            None,
+            0,
+            None,
+            evaluation,
+            super::MovePickerMode::Quiescence {
+                in_check: false,
+                include_quiet_checks: false,
+            },
+        );
+
+        assert!(tactical_only.next(&ordering).is_none());
+        assert_eq!(
+            tactical_only.work(),
+            super::MovePickerWork {
+                tactical_generations: 1,
+                ..super::MovePickerWork::default()
+            },
+        );
+
+        let quiet_check: Move = "e2e8".parse().unwrap();
+        let mut with_checks = super::MovePicker::new(
+            &board,
+            super::MovePickerStorage::default(),
+            None,
+            0,
+            None,
+            evaluation,
+            super::MovePickerMode::Quiescence {
+                in_check: false,
+                include_quiet_checks: true,
+            },
+        );
+        let mut picked = Vec::new();
+        while let Some((_, metadata)) = with_checks.next(&ordering) {
+            assert!(metadata.is_quiet());
+            assert!(metadata.gives_check);
+            picked.push(metadata.chess_move);
+        }
+
+        assert!(picked.contains(&quiet_check));
+        assert_eq!(with_checks.work().tactical_generations, 1);
+        assert_eq!(with_checks.work().quiet_generations, 1);
+        assert_eq!(with_checks.work().quiet_sorts, 1);
+        assert!(with_checks.work().check_detections > picked.len());
+    }
+
+    #[test]
+    fn quiescence_evasion_picker_emits_every_legal_move() {
+        let board = "4k3/8/8/8/8/8/4r3/4K3 w - - 0 1"
+            .parse::<cozy_chess::Board>()
+            .unwrap();
+        assert!(!board.checkers().is_empty());
+        let ordering = super::MoveOrdering::new();
+        let mut picker = super::MovePicker::new(
+            &board,
+            super::MovePickerStorage::default(),
+            None,
+            4,
+            None,
+            super::EvaluationConfig::new(100),
+            super::MovePickerMode::Quiescence {
+                in_check: true,
+                include_quiet_checks: false,
+            },
+        );
+        let mut picked = Vec::new();
+        while let Some((_, metadata)) = picker.next(&ordering) {
+            picked.push(metadata.chess_move);
+        }
+        let mut legal = super::generate_moves(&board);
+        picked.sort_unstable_by_key(|chess_move| super::move_key(*chess_move));
+        legal.sort_unstable_by_key(|chess_move| super::move_key(*chess_move));
+
+        assert_eq!(picked, legal);
+        assert_eq!(picker.work().tactical_generations, 1);
+        assert_eq!(picker.work().quiet_generations, 1);
     }
     #[test]
     fn static_pruning_requires_stable_non_pv_nodes() {

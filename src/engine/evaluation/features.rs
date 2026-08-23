@@ -7,9 +7,9 @@ use super::{AttackProfile, EvalFeatures, piece_value};
 
 pub(super) fn extract(board: &Board) -> EvalFeatures {
     let mut features = EvalFeatures::default();
-    let attacks = attacking_features(board);
-    let white_attack = attacks[Color::White as usize];
-    let black_attack = attacks[Color::Black as usize];
+    let attacks = attack_summary(board);
+    let white_attack = attacks.profiles[Color::White as usize];
+    let black_attack = attacks.profiles[Color::Black as usize];
     features.white_attack = white_attack;
     features.black_attack = black_attack;
 
@@ -24,7 +24,7 @@ pub(super) fn extract(board: &Board) -> EvalFeatures {
         let bishops = board.colored_pieces(color, Piece::Bishop).len();
         features.bishop_pair += sign * i32::from(bishops >= 2);
         features.activity += sign * activity(board, color);
-        features.mobility += sign * mobility(board, color);
+        features.mobility += sign * attacks.mobility[color as usize];
         let attack = if color == Color::White {
             white_attack
         } else {
@@ -91,7 +91,8 @@ fn centrality(square: Square) -> i32 {
     6 - file_distance - rank_distance
 }
 
-fn mobility(board: &Board, color: Color) -> i32 {
+#[cfg(test)]
+fn reference_mobility(board: &Board, color: Color) -> i32 {
     let occupied = board.occupied();
     let friendly = board.colors(color);
     let mut total = 0;
@@ -105,30 +106,27 @@ fn mobility(board: &Board, color: Color) -> i32 {
         Piece::King,
     ] {
         for square in board.colored_pieces(color, piece) {
-            let attacks = match piece {
-                Piece::Pawn => get_pawn_attacks(square, color),
-                Piece::Knight => get_knight_moves(square),
-                Piece::Bishop => get_bishop_moves(square, occupied),
-                Piece::Rook => get_rook_moves(square, occupied),
-                Piece::Queen => {
-                    get_bishop_moves(square, occupied) | get_rook_moves(square, occupied)
-                }
-                Piece::King => get_king_moves(square),
-            };
-            total += (attacks & !friendly).len() as i32;
+            total += (attacks_from(piece, square, color, occupied) & !friendly).len() as i32;
         }
     }
 
     total
 }
 
-fn attacking_features(board: &Board) -> [AttackProfile; 2] {
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct AttackSummary {
+    profiles: [AttackProfile; 2],
+    mobility: [i32; 2],
+}
+
+fn attack_summary(board: &Board) -> AttackSummary {
     let occupied = board.occupied();
     let king_zones = [
         get_king_moves(board.king(Color::White)) | board.colored_pieces(Color::White, Piece::King),
         get_king_moves(board.king(Color::Black)) | board.colored_pieces(Color::Black, Piece::King),
     ];
     let mut profiles = [AttackProfile::default(); 2];
+    let mut mobility = [0_i32; 2];
     let mut attack_counts = [[0_u8; 64]; 2];
     let mut zone_defenders = [0_i32; 2];
 
@@ -153,6 +151,7 @@ fn attacking_features(board: &Board) -> [AttackProfile; 2] {
             for square in board.colored_pieces(color, piece) {
                 let raw_attacks = attacks_from(piece, square, color, occupied);
                 let attacks = raw_attacks & !friendly_pieces;
+                mobility[index] += attacks.len() as i32;
                 if piece != Piece::King {
                     for target in raw_attacks {
                         attack_counts[index][target as usize] += 1;
@@ -248,7 +247,7 @@ fn attacking_features(board: &Board) -> [AttackProfile; 2] {
         }
     }
 
-    profiles
+    AttackSummary { profiles, mobility }
 }
 
 #[cfg(test)]
@@ -512,15 +511,20 @@ fn king_safety(board: &Board, color: Color) -> (i32, i32) {
 mod tests {
     use cozy_chess::{Board, Color, Move};
 
-    use super::{attacking_features, reference_attacking_features};
+    use super::{attack_summary, reference_attacking_features, reference_mobility};
 
     fn assert_matches_reference(board: &Board) {
-        let cached = attacking_features(board);
+        let cached = attack_summary(board);
         for color in [Color::White, Color::Black] {
             assert_eq!(
-                cached[color as usize],
+                cached.profiles[color as usize],
                 reference_attacking_features(board, color),
                 "attack features differ for {color:?} in {board}"
+            );
+            assert_eq!(
+                cached.mobility[color as usize],
+                reference_mobility(board, color),
+                "mobility differs for {color:?} in {board}"
             );
         }
     }

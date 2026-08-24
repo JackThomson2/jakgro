@@ -35,7 +35,7 @@ const STYLED_ROOT_MIN_NODES: u64 = 256;
 const STYLED_ROOT_MAX_NODES: u64 = 2_048;
 const STYLED_ROOT_TACTICAL_MAX_NODES: u64 = 4_096;
 const STYLED_ROOT_MAX_VERIFICATIONS: usize = 2;
-const ORDINARY_ROOT_MARGIN_MAX: Score = 30;
+const ORDINARY_ROOT_MARGIN_MAX: Score = 26;
 const WINNING_ROOT_MARGIN_MAX: Score = 20;
 const WINNING_ROOT_SCORE: Score = 200;
 const LMR_MIN_CHILD_DEPTH: u32 = 3;
@@ -4897,7 +4897,7 @@ mod tests {
             },
             super::RootCandidate {
                 chess_move: exciting_move,
-                score: 20,
+                score: 24,
                 path_dependent: false,
                 interest: 100,
                 pv: vec![exciting_move],
@@ -4911,7 +4911,7 @@ mod tests {
             super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
             1
         );
-        candidates[1].score = 19;
+        candidates[1].score = 23;
         assert_eq!(
             super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
             0
@@ -5017,11 +5017,11 @@ mod tests {
         let ordinary = super::SacrificeProfile::default();
         assert_eq!(
             super::candidate_risk_margin(super::EvaluationConfig::new(100), -200, &ordinary),
-            30,
+            26,
         );
         assert_eq!(
             super::candidate_risk_margin(super::EvaluationConfig::new(100), 0, &ordinary),
-            30,
+            26,
         );
         assert_eq!(
             super::candidate_risk_margin(super::EvaluationConfig::new(100), 400, &ordinary),
@@ -5029,7 +5029,7 @@ mod tests {
         );
         assert_eq!(
             super::candidate_risk_margin(super::EvaluationConfig::new(50), 0, &ordinary),
-            30,
+            26,
         );
         assert_eq!(
             super::candidate_risk_margin(super::EvaluationConfig::new(50), 0, &sacrifice),

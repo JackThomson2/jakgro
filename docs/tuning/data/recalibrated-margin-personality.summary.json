@@ -1,0 +1,89 @@
+{
+  "average_plies": 77.6875,
+  "colors": {
+    "black": {
+      "draws": 2,
+      "losses": 16,
+      "score_percent": 29.166667,
+      "wins": 6
+    },
+    "score_gap_percentage_points": 8.333333,
+    "white": {
+      "draws": 4,
+      "losses": 13,
+      "score_percent": 37.5,
+      "wins": 7
+    }
+  },
+  "confidence": {
+    "elo": -120.411998,
+    "elo_ci95": [
+      -490.345813,
+      78.111204
+    ],
+    "method": "95% Hoeffding bound over color-reversed pair scores",
+    "score_percent_ci95": [
+      5.611202,
+      61.055464
+    ]
+  },
+  "engines": {
+    "baseline": "Cand0",
+    "candidate": "Cand75"
+  },
+  "games": 48,
+  "inputs": {
+    "manifest": "personality.manifest.json",
+    "manifest_sha256": "880ba82e6f8866dcfe4133e357da359716514883cfc014efb7ca08da4ac9c5e5",
+    "pgn": "personality.pgn",
+    "pgn_sha256": "6210f60308a36956b3391daf940a8ff731685aaa146fcc1c498e438f40dac8a7"
+  },
+  "pairs": {
+    "count": 24,
+    "decisive_splits": 8,
+    "double_draws": 0,
+    "point_distribution": {
+      "0.0": 9,
+      "0.5": 3,
+      "1.0": 8,
+      "1.5": 3,
+      "2.0": 1
+    }
+  },
+  "result": {
+    "decisive_percent": 87.5,
+    "draws": 6,
+    "losses": 29,
+    "score_percent": 33.333333,
+    "wins": 13
+  },
+  "schema_version": 2,
+  "style": {
+    "baseline": {
+      "captures": 431,
+      "captures_per_100_moves": 23.147154,
+      "checks": 163,
+      "checks_per_100_moves": 8.754028,
+      "forcing_moves": 547,
+      "forcing_moves_per_100_moves": 29.377014,
+      "moves": 1862,
+      "promotions": 10,
+      "promotions_per_100_moves": 0.537057
+    },
+    "candidate": {
+      "captures": 395,
+      "captures_per_100_moves": 21.156936,
+      "checks": 255,
+      "checks_per_100_moves": 13.658275,
+      "forcing_moves": 610,
+      "forcing_moves_per_100_moves": 32.672737,
+      "moves": 1867,
+      "promotions": 11,
+      "promotions_per_100_moves": 0.589181
+    }
+  },
+  "terminations": {
+    "adjudication": 30,
+    "unknown": 18
+  }
+}

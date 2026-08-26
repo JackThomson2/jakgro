@@ -49,13 +49,20 @@ class RunMatchTests(unittest.TestCase):
                 baseline_aggression=0,
                 games=2,
                 nodes=50_000,
+                time_control=None,
                 hash=16,
                 openings=openings,
                 pgn=pgn,
                 manifest=manifest_path,
                 cutechess=cutechess,
+                candidate_revision="candidate-rev",
+                baseline_revision="baseline-rev",
+                dependency_revision="cozy-rev",
+                build_profile="release",
             )
             command = run_match.build_command(args)
+            self.assertIn("tc=inf", command)
+            self.assertIn("nodes=50000", command)
 
             manifest = run_match.build_manifest(args, command, 1, "cutechess-cli 1.3.1")
             pgn.write_text(
@@ -77,9 +84,13 @@ class RunMatchTests(unittest.TestCase):
             run_match.write_manifest(manifest_path, manifest)
             persisted = json.loads(manifest_path.read_text(encoding="utf-8"))
 
-            self.assertEqual(persisted["schema_version"], 1)
+            self.assertEqual(persisted["schema_version"], 2)
             self.assertEqual(persisted["command"], command)
             self.assertEqual(persisted["settings"]["nodes_per_move"], 50_000)
+            self.assertEqual(persisted["settings"]["limit"]["mode"], "fixed-nodes")
+            self.assertIsNone(persisted["settings"]["time_control"])
+            self.assertEqual(persisted["provenance"]["dependency_revision"], "cozy-rev")
+            self.assertEqual(persisted["inputs"]["candidate"]["revision"], "candidate-rev")
             self.assertEqual(persisted["settings"]["concurrency"], 1)
             self.assertEqual(
                 persisted["inputs"]["candidate"]["sha256"],
@@ -184,6 +195,36 @@ class RunMatchTests(unittest.TestCase):
                     run_match.read_cutechess_version(executable),
                     "cutechess-cli 1.3.1",
                 )
+
+    def test_fixed_time_command_omits_node_limit(self) -> None:
+        args = argparse.Namespace(
+            engine=Path("candidate"),
+            baseline_engine=Path("baseline"),
+            candidate_aggression=75,
+            baseline_aggression=75,
+            games=96,
+            nodes=None,
+            time_control="10+0.1",
+            hash=16,
+            openings=Path("openings.epd"),
+            pgn=Path("match.pgn"),
+            cutechess=Path("cutechess-cli"),
+        )
+
+        command = run_match.build_command(args)
+
+        self.assertIn("tc=10+0.1", command)
+        self.assertNotIn("tc=inf", command)
+        self.assertFalse(any(argument.startswith("nodes=") for argument in command))
+
+    def test_time_control_parser_accepts_cute_chess_forms(self) -> None:
+        for value in ("10+0.1", "40/60+0.5", "1:00+0.5", "0.5"):
+            with self.subTest(value=value):
+                self.assertEqual(run_match.time_control(value), value)
+        for value in ("inf", "10 seconds", "40//60", "10+", ""):
+            with self.subTest(value=value):
+                with self.assertRaises(argparse.ArgumentTypeError):
+                    run_match.time_control(value)
 
 
 class BinaryComparisonValidationTests(unittest.TestCase):

@@ -30,6 +30,18 @@ def positive(value: str) -> int:
         raise argparse.ArgumentTypeError("value must be positive")
     return parsed
 
+_TIME_CONTROL = re.compile(
+    r"(?:[1-9]\d*/)?(?:\d+(?::\d{1,2}){1,2}|\d+(?:\.\d+)?)(?:\+\d+(?:\.\d+)?)?"
+)
+
+
+def time_control(value: str) -> str:
+    if _TIME_CONTROL.fullmatch(value) is None:
+        raise argparse.ArgumentTypeError(
+            "time control must look like 10+0.1, 40/60+0.5, or 1:00+0.5"
+        )
+    return value
+
 
 def hash_mib(value: str) -> int:
     parsed = positive(value)
@@ -206,8 +218,13 @@ def build_manifest(
         if args.candidate_aggression == args.baseline_aggression
         else "profile-self-play"
     )
+    limit = {
+        "mode": "fixed-time" if args.time_control is not None else "fixed-nodes",
+        "nodes_per_move": args.nodes,
+        "time_control": args.time_control,
+    }
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "created_utc": datetime.now(timezone.utc).isoformat(),
         "command": command,
         "comparison": {
@@ -227,12 +244,14 @@ def build_manifest(
                 "path": str(args.engine),
                 "sha256": candidate_hash,
                 "aggression": args.candidate_aggression,
+                "revision": getattr(args, "candidate_revision", None),
             },
             "baseline": {
                 "name": baseline_name,
                 "path": str(baseline),
                 "sha256": baseline_hash,
                 "aggression": args.baseline_aggression,
+                "revision": getattr(args, "baseline_revision", None),
             },
             "openings": {
                 "path": str(args.openings),
@@ -245,10 +264,16 @@ def build_manifest(
                 "version": cutechess_version,
             },
         },
+        "provenance": {
+            "build_profile": getattr(args, "build_profile", None),
+            "dependency_revision": getattr(args, "dependency_revision", None),
+        },
         "settings": {
             "games": args.games,
             "rounds": args.games // 2,
+            "limit": limit,
             "nodes_per_move": args.nodes,
+            "time_control": args.time_control,
             "hash_mib": args.hash,
             "concurrency": 1,
             "draw": {"movenumber": 80, "movecount": 10, "score": 10},
@@ -302,6 +327,11 @@ def record_execution(
 def build_command(args: argparse.Namespace) -> list[str]:
     baseline = args.baseline_engine or args.engine
     candidate_name, baseline_name = engine_names(args)
+    limit = (
+        [f"tc={args.time_control}"]
+        if args.time_control is not None
+        else ["tc=inf", f"nodes={args.nodes}"]
+    )
     return [
         str(args.cutechess),
         "-engine",
@@ -314,8 +344,7 @@ def build_command(args: argparse.Namespace) -> list[str]:
         f"option.Aggression={args.baseline_aggression}",
         "-each",
         "proto=uci",
-        "tc=inf",
-        f"nodes={args.nodes}",
+        *limit,
         f"option.Hash={args.hash}",
         "-rounds",
         str(args.games // 2),
@@ -364,7 +393,13 @@ def main() -> int:
         help="PGN name for the baseline; defaults from its Aggression value",
     )
     parser.add_argument("--games", type=positive, default=96, help="even number of games")
-    parser.add_argument("--nodes", type=positive, default=50_000, help="nodes per move")
+    limits = parser.add_mutually_exclusive_group()
+    limits.add_argument("--nodes", type=positive, help="nodes per move")
+    limits.add_argument(
+        "--time-control",
+        type=time_control,
+        help="Cute Chess fixed time control, such as 10+0.1 or 40/60+0.5",
+    )
     parser.add_argument("--hash", type=hash_mib, default=16, help="Hash MiB per engine")
     parser.add_argument(
         "--openings",
@@ -380,8 +415,15 @@ def main() -> int:
     )
     parser.add_argument("--manifest", type=Path, help="output JSON manifest")
     parser.add_argument("--cutechess", type=Path, default=Path("cutechess-cli"))
+    parser.add_argument("--candidate-revision", help="candidate source revision")
+    parser.add_argument("--baseline-revision", help="baseline source revision")
+    parser.add_argument("--dependency-revision", help="shared dependency revision")
+    parser.add_argument("--build-profile", help="profile used to build both engines")
     parser.add_argument("--dry-run", action="store_true", help="print the command only")
     args = parser.parse_args()
+
+    if args.nodes is None and args.time_control is None:
+        args.nodes = 50_000
 
     if args.games % 2:
         parser.error("--games must be even so each opening is played with reversed colors")

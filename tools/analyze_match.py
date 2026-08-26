@@ -174,7 +174,7 @@ def load_manifest(path: Path, pgn: Path) -> tuple[dict[str, object], str, str, i
         )
     except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
         raise ValueError(f"invalid match manifest {path}: {error}") from error
-    if manifest.get("schema_version") != 1:
+    if manifest.get("schema_version") not in (1, 2):
         raise ValueError("unsupported match manifest schema")
     comparison = manifest.get("comparison")
     if comparison is not None:

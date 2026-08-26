@@ -40,7 +40,7 @@ class AnalyzeMatchTests(unittest.TestCase):
         manifest.write_text(
             json.dumps(
                 {
-                    "schema_version": 1,
+                    "schema_version": 2,
                     "inputs": {
                         "candidate": {"aggression": 100},
                         "baseline": {"aggression": 0},

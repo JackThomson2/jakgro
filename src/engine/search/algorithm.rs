@@ -463,6 +463,7 @@ struct MovePickerStorage {
     quiets: Vec<SearchMove>,
     bad_captures: Vec<PickerMove>,
     failed_quiets: Vec<MoveMetadata>,
+    failed_captures: Vec<MoveMetadata>,
 }
 
 impl MovePickerStorage {
@@ -472,6 +473,7 @@ impl MovePickerStorage {
         self.quiets.clear();
         self.bad_captures.clear();
         self.failed_quiets.clear();
+        self.failed_captures.clear();
     }
 }
 
@@ -591,7 +593,7 @@ impl<'a> MovePicker<'a> {
                     }
                 }
                 MovePickerStage::GenerateTacticals => {
-                    self.generate_tacticals();
+                    self.generate_tacticals(ordering);
                     self.enter(MovePickerStage::Promotions);
                 }
                 MovePickerStage::Promotions => {
@@ -673,6 +675,16 @@ impl<'a> MovePicker<'a> {
         &self.storage.failed_quiets
     }
 
+    fn record_failed_capture(&mut self, metadata: MoveMetadata) {
+        if metadata.chess_move.promotion.is_none() && metadata.facts().captured.is_some() {
+            self.storage.failed_captures.push(metadata);
+        }
+    }
+
+    fn failed_captures(&self) -> &[MoveMetadata] {
+        &self.storage.failed_captures
+    }
+
     fn into_storage(self) -> MovePickerStorage {
         self.storage
     }
@@ -725,7 +737,7 @@ impl<'a> MovePicker<'a> {
         }))
     }
 
-    fn generate_tacticals(&mut self) {
+    fn generate_tacticals(&mut self, ordering: &MoveOrdering) {
         #[cfg(test)]
         {
             self.work.tactical_generations += 1;
@@ -763,7 +775,8 @@ impl<'a> MovePicker<'a> {
                     work.see_evaluations += 1;
                 }
                 let see = facts.see(board, compute_see);
-                let order_score = capture_order_score(facts, see, evaluation)
+                let capture_history = ordering.capture_history_score(board.side_to_move(), facts);
+                let order_score = capture_order_score(facts, see, evaluation, capture_history)
                     .expect("tactical destination without a capture or promotion");
                 let candidate = PickerMove {
                     facts,
@@ -951,6 +964,7 @@ fn should_prune_quiescence_capture(
 }
 
 const HISTORY_MAX: i32 = 16_384;
+const CAPTURE_HISTORY_ENTRIES: usize = 2 * 6 * 64 * 6;
 const HISTORY_BONUS_SCALE: u32 = 64;
 const LMR_HISTORY_THRESHOLD: i32 = HISTORY_MAX / 3;
 const CONTINUATION_BUCKETS: usize = 6 * 64;
@@ -975,6 +989,7 @@ struct MoveOrdering {
     killers: Vec<[Option<Move>; 2]>,
     history: Vec<i32>,
     continuation: Vec<i32>,
+    capture_history: Vec<i16>,
 }
 
 impl MoveOrdering {
@@ -983,6 +998,7 @@ impl MoveOrdering {
             killers: vec![[None; 2]; MAX_PLY as usize + 1],
             history: vec![0; 2 * 64 * 64],
             continuation: vec![0; CONTINUATION_BUCKETS * CONTINUATION_BUCKETS],
+            capture_history: vec![0; CAPTURE_HISTORY_ENTRIES],
         }
     }
 
@@ -1077,11 +1093,57 @@ impl MoveOrdering {
             bonus,
         );
     }
+
+    fn capture_history_score(&self, color: Color, facts: MoveFacts) -> i32 {
+        let Some(captured) = facts.captured else {
+            return 0;
+        };
+        i32::from(
+            self.capture_history
+                [capture_history_index(color, facts.attacker, facts.chess_move.to, captured)],
+        )
+    }
+
+    fn record_capture_cutoff(
+        &mut self,
+        board: &Board,
+        winner: MoveMetadata,
+        failed_captures: &[MoveMetadata],
+        depth: u32,
+    ) {
+        if winner.chess_move.promotion.is_some() || winner.facts().captured.is_none() {
+            return;
+        }
+        let color = board.side_to_move();
+        let bonus = history_bonus(depth);
+        self.update_capture_history(color, winner.facts(), bonus);
+        for failed in failed_captures.iter().copied() {
+            if failed.chess_move.promotion.is_none() && failed.facts().captured.is_some() {
+                self.update_capture_history(color, failed.facts(), -bonus);
+            }
+        }
+    }
+
+    fn update_capture_history(&mut self, color: Color, facts: MoveFacts, bonus: i32) {
+        let Some(captured) = facts.captured else {
+            return;
+        };
+        update_capture_gravity(
+            &mut self.capture_history
+                [capture_history_index(color, facts.attacker, facts.chess_move.to, captured)],
+            bonus,
+        );
+    }
 }
 
 fn history_index(color: Color, chess_move: Move) -> usize {
     ((color as usize * 64 + chess_move.from as usize) * 64) + chess_move.to as usize
 }
+
+fn capture_history_index(color: Color, attacker: Piece, to: Square, captured: Piece) -> usize {
+    (((color as usize * 6 + attacker as usize) * 64 + to as usize) * 6) + captured as usize
+}
+
 fn continuation_index(previous: HistoryMove, current: HistoryMove) -> usize {
     let previous = previous.piece as usize * 64 + previous.to as usize;
     let current = current.piece as usize * 64 + current.to as usize;
@@ -1092,6 +1154,13 @@ fn update_gravity(score: &mut i32, bonus: i32) {
     let bounded_bonus = bonus.clamp(-HISTORY_MAX, HISTORY_MAX);
     let gravity = *score * bounded_bonus.abs() / HISTORY_MAX;
     *score = (*score + bounded_bonus - gravity).clamp(-HISTORY_MAX, HISTORY_MAX);
+}
+
+fn update_capture_gravity(score: &mut i16, bonus: i32) {
+    let bounded_bonus = bonus.clamp(-HISTORY_MAX, HISTORY_MAX);
+    let current = i32::from(*score);
+    let gravity = current * bounded_bonus.abs() / HISTORY_MAX;
+    *score = (current + bounded_bonus - gravity).clamp(-HISTORY_MAX, HISTORY_MAX) as i16;
 }
 
 fn history_bonus(depth: u32) -> i32 {
@@ -2992,10 +3061,23 @@ fn negamax(
             } else if metadata.facts().captured.is_some() {
                 context.telemetry.capture_cutoffs += 1;
                 context.telemetry.capture_cutoff_index_sum += index as u64;
+                if context.mode.updates_ordering()
+                    && metadata.chess_move.promotion.is_none()
+                    && !picker.failed_captures().is_empty()
+                {
+                    context.ordering.record_capture_cutoff(
+                        board,
+                        metadata,
+                        picker.failed_captures(),
+                        depth,
+                    );
+                    context.telemetry.capture_history_updates += 1;
+                }
             }
             break;
         }
         picker.record_failed_quiet(metadata);
+        picker.record_failed_capture(metadata);
     }
 
     if context.mode.writes_tt() && !best.path_dependent {
@@ -3175,9 +3257,22 @@ fn quiescence(
             if metadata.facts().captured.is_some() {
                 context.telemetry.capture_cutoffs += 1;
                 context.telemetry.capture_cutoff_index_sum += index as u64;
+                if context.mode.updates_ordering()
+                    && metadata.chess_move.promotion.is_none()
+                    && !picker.failed_captures().is_empty()
+                {
+                    context.ordering.record_capture_cutoff(
+                        board,
+                        metadata,
+                        picker.failed_captures(),
+                        remaining.max(1),
+                    );
+                    context.telemetry.capture_history_updates += 1;
+                }
             }
             break;
         }
+        picker.record_failed_capture(metadata);
     }
 
     context.recycle_picker_storage(ply, picker.into_storage());
@@ -3601,7 +3696,10 @@ fn move_order_score(
         return score;
     }
 
-    if let Some(score) = capture_order_score(metadata.facts(), metadata.see, evaluation) {
+    let capture_history = ordering.capture_history_score(board.side_to_move(), metadata.facts());
+    if let Some(score) =
+        capture_order_score(metadata.facts(), metadata.see, evaluation, capture_history)
+    {
         return score;
     }
 
@@ -3618,24 +3716,28 @@ fn capture_order_score(
     facts: MoveFacts,
     see: Option<Score>,
     evaluation: EvaluationConfig,
+    capture_history: i32,
 ) -> Option<i64> {
     let captured_value = ordering_piece_value(facts.captured?);
     let attacker_value = ordering_piece_value(facts.attacker);
     let exchange = i64::from(captured_value) * 32 - i64::from(attacker_value);
+    // Retain full influence through the default profile, then taper it to zero.
+    let capture_history_scale = i64::from(100_u8.saturating_sub(evaluation.aggression())) * 4;
+    let capture_history = i64::from(capture_history) * capture_history_scale.min(100) / 100;
     if evaluation.aggression() > 0
         && let Some(see_score) = see
     {
         let see = i64::from(see_score) * 64;
         return Some(if see_score >= 0 {
-            4_000_000 + see + exchange
+            4_000_000 + see + exchange + capture_history
         } else {
-            1_000_000 + see + exchange
+            1_000_000 + see + exchange + capture_history
         });
     }
     Some(if captured_value >= attacker_value {
-        4_000_000 + exchange
+        4_000_000 + exchange + capture_history
     } else {
-        1_000_000 + exchange
+        1_000_000 + exchange + capture_history
     })
 }
 
@@ -4416,6 +4518,39 @@ mod tests {
             ordering.quiet_history_score(position.board(), winner, None),
             ordering.history_score(position.board().side_to_move(), winner),
         );
+    }
+
+    #[test]
+    fn capture_history_rewards_cutoffs_without_crossing_see_tiers() {
+        let position = Position::from_fen("k7/8/8/8/3pRp2/8/8/K7 w - - 0 1").unwrap();
+        let winner = find_move(&position, "e4d4");
+        let failed = find_move(&position, "e4f4");
+        let winner = super::MoveMetadata::classify(position.board(), winner);
+        let failed = super::MoveMetadata::classify(position.board(), failed);
+        let color = position.board().side_to_move();
+        let mut ordering = super::MoveOrdering::new();
+
+        for _ in 0..32 {
+            ordering.record_capture_cutoff(position.board(), winner, &[failed], 8);
+        }
+
+        let winner_history = ordering.capture_history_score(color, winner.facts());
+        let failed_history = ordering.capture_history_score(color, failed.facts());
+        let opposite_history = ordering.capture_history_score(!color, winner.facts());
+        assert!(winner_history > 0);
+        assert!(failed_history < 0);
+        assert_eq!(opposite_history, 0);
+        assert!(winner_history <= super::HISTORY_MAX);
+        assert!(failed_history >= -super::HISTORY_MAX);
+
+        let evaluation = super::EvaluationConfig::new(75);
+        let good =
+            super::capture_order_score(winner.facts(), Some(0), evaluation, -super::HISTORY_MAX)
+                .unwrap();
+        let losing =
+            super::capture_order_score(winner.facts(), Some(-1), evaluation, super::HISTORY_MAX)
+                .unwrap();
+        assert!(good > losing);
     }
 
     #[test]

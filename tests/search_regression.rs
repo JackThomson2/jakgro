@@ -98,6 +98,24 @@ fn static_pruning_is_exercised_in_a_rich_position() {
 }
 
 #[test]
+fn capture_history_is_trained_by_misordered_cutoffs() {
+    let mut engine = jakgro::engine::Engine::new();
+    engine.set_aggression(0);
+    engine.set_position(
+        jakgro::engine::Position::from_fen(
+            "r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8",
+        )
+        .unwrap(),
+    );
+    let result = engine.search(&jakgro::engine::SearchLimits {
+        depth: Some(5),
+        ..jakgro::engine::SearchLimits::default()
+    });
+
+    assert!(result.telemetry().capture_history_updates() > 0);
+}
+
+#[test]
 fn selective_search_telemetry_attributes_objective_work() {
     let mut engine = jakgro::engine::Engine::new();
     engine.set_aggression(0);
@@ -135,6 +153,8 @@ fn selective_search_telemetry_attributes_objective_work() {
     assert!(telemetry.tt_cutoffs() <= telemetry.tt_hits());
     assert!(telemetry.quiescence_nodes() > 0);
     assert!(telemetry.capture_cutoffs() > 0);
+    assert!(telemetry.capture_history_updates() > 0);
+    assert!(telemetry.capture_history_updates() <= telemetry.capture_cutoffs());
 }
 
 #[test]

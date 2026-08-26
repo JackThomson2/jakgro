@@ -153,6 +153,7 @@ pub struct SearchTelemetry {
     pub(super) quiescence_nodes: u64,
     pub(super) capture_cutoffs: u64,
     pub(super) capture_cutoff_index_sum: u64,
+    pub(super) capture_history_updates: u64,
     lmr_attempts: u64,
     lmr_reductions: u64,
     lmr_researches: u64,
@@ -322,6 +323,12 @@ impl SearchTelemetry {
     #[must_use]
     pub const fn capture_cutoff_index_sum(self) -> u64 {
         self.capture_cutoff_index_sum
+    }
+
+    /// Returns the number of learned capture-history cutoff updates.
+    #[must_use]
+    pub const fn capture_history_updates(self) -> u64 {
+        self.capture_history_updates
     }
 }
 

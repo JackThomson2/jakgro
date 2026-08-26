@@ -52,3 +52,19 @@ Wall-clock gates are deliberately not part of CI: shared runners cannot provide
 repeatable timing. CI continues to enforce deterministic expected moves,
 legality, fixed-node regressions, style, and acceptance contracts. Paired local
 results supplement those checks; they do not replace strength matches.
+
+## Fixed-time strength matches
+
+Use `tools/run_match.py --time-control CONTROL` for same-profile old-versus-new
+matches when a search change is expected to convert lower node counts or higher
+NPS into playing strength. Fixed-node mode remains the default for established
+personality contracts; `--nodes` and `--time-control` are mutually exclusive.
+The versioned manifest records the selected limit mode, binary hashes, source
+and dependency revisions, build profile, host, opening corpus, and completed
+PGN hash. Analyze the PGN with `tools/analyze_match.py`.
+
+A positive point estimate is only smoke evidence while its paired 95% interval
+includes zero. Do not label a change an Elo improvement until a predeclared
+interval or sequential-test criterion passes. The accepted search-efficiency
+series and its deliberately inconclusive fixed-time smoke matches are recorded
+in [search-elo-improvements.md](search-elo-improvements.md).

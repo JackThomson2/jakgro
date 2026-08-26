@@ -128,6 +128,7 @@ fn selective_search_telemetry_attributes_objective_work() {
             <= telemetry.aspiration_attempts()
     );
     assert!(telemetry.legal_move_probes() > 0);
+    assert!(telemetry.legal_move_probes() < telemetry.quiescence_nodes());
     assert!(telemetry.tt_probes() > 0);
     assert!(telemetry.tt_hits() <= telemetry.tt_probes());
     assert!(telemetry.tt_hash_moves() <= telemetry.tt_hits());

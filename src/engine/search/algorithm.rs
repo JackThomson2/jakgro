@@ -1357,7 +1357,6 @@ fn verified_null_move_cutoff(
     context.clear_pv(ply);
     let verification = verification?;
     if verification.score >= beta {
-        context.telemetry.null_move_cutoffs += 1;
         return Ok(Some(NodeResult {
             score: beta,
             path_dependent: false,
@@ -2775,14 +2774,6 @@ fn negamax(
         }
     }
 
-    if hash_move.is_none() && !context.legal_move_exists(board) {
-        let result = terminal_score_for_mode(board, history, ply, true, context.mode)
-            .expect("a position without legal moves is terminal");
-        return Ok(NodeResult {
-            score: result.score,
-            path_dependent: result.path_dependent,
-        });
-    }
     let in_check = !board.checkers().is_empty();
     let pv_node = beta.saturating_sub(alpha) > 1;
     let static_evaluation =
@@ -2795,6 +2786,11 @@ fn negamax(
     if static_evaluation.is_some_and(|evaluation| {
         reverse_futility_cutoff(evaluation, beta, depth, context.personality.aggression())
     }) {
+        if hash_move.is_none()
+            && let Some(result) = terminal_without_legal_moves(board, history, ply, context)
+        {
+            return Ok(result);
+        }
         context.telemetry.reverse_futility_cutoffs += 1;
         return Ok(NodeResult {
             score: beta,
@@ -2813,6 +2809,12 @@ fn negamax(
         previous_move,
         context,
     )? {
+        if hash_move.is_none()
+            && let Some(terminal) = terminal_without_legal_moves(board, history, ply, context)
+        {
+            return Ok(terminal);
+        }
+        context.telemetry.null_move_cutoffs += 1;
         return Ok(result);
     }
 
@@ -2827,6 +2829,16 @@ fn negamax(
         context.personality,
         MovePickerMode::Main,
     );
+    let Some(first_move) = picker.next(&context.ordering) else {
+        context.recycle_picker_storage(ply, picker.into_storage());
+        return Ok(known_terminal_without_legal_moves(
+            board,
+            history,
+            ply,
+            context.mode,
+        ));
+    };
+    let mut prefetched_move = Some(first_move);
     let (child_depth, child_extensions) = next_search_depth(
         depth,
         in_check,
@@ -2839,7 +2851,10 @@ fn negamax(
     };
     let mut selective_fail_low = false;
 
-    while let Some((index, metadata)) = picker.next(&context.ordering) {
+    while let Some((index, metadata)) = prefetched_move
+        .take()
+        .or_else(|| picker.next(&context.ordering))
+    {
         let chess_move = metadata.chess_move;
         let current_move = HistoryMove::from_board(board, chess_move);
         let expected_child_pv = if preferred == Some(chess_move) {
@@ -3022,23 +3037,31 @@ fn quiescence(
 ) -> Result<NodeResult, Aborted> {
     context.clear_pv(ply);
     context.visit_quiescence_node()?;
-    if let Some(result) = terminal_score_for_mode(
-        board,
-        history,
-        ply,
-        !context.legal_move_exists(board),
-        context.mode,
-    ) {
+    if draw_state_pending(board, history, context.mode) || ply >= MAX_PLY {
+        if let Some(result) = terminal_score_for_mode(
+            board,
+            history,
+            ply,
+            !context.legal_move_exists(board),
+            context.mode,
+        ) {
+            return Ok(NodeResult {
+                score: result.score,
+                path_dependent: result.path_dependent,
+            });
+        }
         return Ok(NodeResult {
-            score: result.score,
-            path_dependent: result.path_dependent,
+            score: evaluate_with_config(board, context.scoring),
+            path_dependent: false,
         });
     }
-
     let (mate_alpha, mate_beta) = mate_distance_bounds(ply);
     alpha = alpha.max(mate_alpha);
     beta = beta.min(mate_beta);
     if alpha >= beta {
+        if let Some(result) = terminal_without_legal_moves(board, history, ply, context) {
+            return Ok(result);
+        }
         return Ok(NodeResult {
             score: alpha,
             path_dependent: false,
@@ -3046,7 +3069,10 @@ fn quiescence(
     }
 
     let in_check = !board.checkers().is_empty();
-    if (remaining == 0 && !in_check) || ply >= MAX_PLY {
+    if remaining == 0 && !in_check {
+        if let Some(result) = terminal_without_legal_moves(board, history, ply, context) {
+            return Ok(result);
+        }
         return Ok(NodeResult {
             score: evaluate_with_config(board, context.scoring),
             path_dependent: false,
@@ -3064,6 +3090,9 @@ fn quiescence(
     };
     if let Some(stand_pat) = stand_pat {
         if stand_pat >= beta {
+            if let Some(result) = terminal_without_legal_moves(board, history, ply, context) {
+                return Ok(result);
+            }
             return Ok(best);
         }
         alpha = alpha.max(stand_pat);
@@ -3081,8 +3110,24 @@ fn quiescence(
             include_quiet_checks: check_budget > 0,
         },
     );
+    let Some(first_move) = picker.next(&context.ordering) else {
+        context.recycle_picker_storage(ply, picker.into_storage());
+        if in_check || !context.legal_move_exists(board) {
+            return Ok(known_terminal_without_legal_moves(
+                board,
+                history,
+                ply,
+                context.mode,
+            ));
+        }
+        return Ok(best);
+    };
+    let mut prefetched_move = Some(first_move);
 
-    while let Some((index, metadata)) = picker.next(&context.ordering) {
+    while let Some((index, metadata)) = prefetched_move
+        .take()
+        .or_else(|| picker.next(&context.ordering))
+    {
         debug_assert!(
             in_check || metadata.is_tactical() || (metadata.is_quiet() && metadata.gives_check)
         );
@@ -3192,13 +3237,30 @@ fn terminal_without_legal_moves(
     ply: u32,
     context: &mut SearchContext<'_>,
 ) -> Option<NodeResult> {
-    let no_legal_moves = !context.legal_move_exists(board);
-    terminal_score_for_mode(board, history, ply, no_legal_moves, context.mode).map(|result| {
-        NodeResult {
-            score: result.score,
-            path_dependent: result.path_dependent,
-        }
-    })
+    if context.legal_move_exists(board) {
+        None
+    } else {
+        Some(known_terminal_without_legal_moves(
+            board,
+            history,
+            ply,
+            context.mode,
+        ))
+    }
+}
+
+fn known_terminal_without_legal_moves(
+    board: &Board,
+    history: &RepetitionTracker,
+    ply: u32,
+    mode: SearchMode,
+) -> NodeResult {
+    let result = terminal_score_for_mode(board, history, ply, true, mode)
+        .expect("a position without legal moves is terminal");
+    NodeResult {
+        score: result.score,
+        path_dependent: result.path_dependent,
+    }
 }
 
 fn is_dead_material(board: &Board) -> bool {

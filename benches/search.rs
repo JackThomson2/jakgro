@@ -91,7 +91,9 @@ fn main() {
          null_cutoffs,null_probe_nodes,null_verification_nodes,static_pruning_attempts,\
          reverse_futility_cutoffs,futility_pruned_moves,lmr_attempts,lmr_reductions,\
          lmr_researches,lmr_research_fail_highs,objective_root_nodes,personality_root_nodes,\
-         personality_verifications"
+         personality_verifications,aspiration_attempts,aspiration_fail_lows,\
+         aspiration_fail_highs,aspiration_research_nodes,legal_move_probes,tt_probes,tt_hits,\
+         tt_hash_moves,tt_cutoffs,quiescence_nodes,capture_cutoffs,capture_cutoff_index_sum"
     );
 
     for fixture in SUITES.iter().flat_map(|input| parse_fixtures(input)) {
@@ -115,7 +117,7 @@ fn main() {
         };
 
         println!(
-            "{},{},{},{},{},{},{},{},{},{},{:.3},{},{},{:.3},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+            "{},{},{},{},{},{},{},{},{},{},{:.3},{},{},{:.3},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
             fixture.id,
             fixture.category,
             observation.best_move,
@@ -146,6 +148,18 @@ fn main() {
             null.telemetry.objective_root_nodes(),
             null.telemetry.personality_root_nodes(),
             null.telemetry.personality_verifications(),
+            observation.telemetry.aspiration_attempts(),
+            observation.telemetry.aspiration_fail_lows(),
+            observation.telemetry.aspiration_fail_highs(),
+            observation.telemetry.aspiration_research_nodes(),
+            observation.telemetry.legal_move_probes(),
+            observation.telemetry.tt_probes(),
+            observation.telemetry.tt_hits(),
+            observation.telemetry.tt_hash_moves(),
+            observation.telemetry.tt_cutoffs(),
+            observation.telemetry.quiescence_nodes(),
+            observation.telemetry.capture_cutoffs(),
+            observation.telemetry.capture_cutoff_index_sum(),
         );
     }
 }

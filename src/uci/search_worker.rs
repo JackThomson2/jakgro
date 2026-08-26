@@ -14,7 +14,7 @@ pub(super) enum SearchEvent {
     },
     Finished {
         generation: u64,
-        result: SearchResult,
+        result: Box<SearchResult>,
     },
     Failed {
         generation: u64,
@@ -71,7 +71,10 @@ impl SearchTask {
                 })
             }));
             let event = match result {
-                Ok(result) => SearchEvent::Finished { generation, result },
+                Ok(result) => SearchEvent::Finished {
+                    generation,
+                    result: Box::new(result),
+                },
                 Err(_) => SearchEvent::Failed { generation },
             };
             let _ = sender.send(Event::Search(event));

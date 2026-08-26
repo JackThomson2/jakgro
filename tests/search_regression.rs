@@ -121,6 +121,19 @@ fn selective_search_telemetry_attributes_objective_work() {
     assert!(telemetry.objective_root_nodes() > 0);
     assert_eq!(telemetry.personality_root_nodes(), 0);
     assert_eq!(telemetry.personality_verifications(), 0);
+
+    assert!(telemetry.aspiration_attempts() > 0);
+    assert!(
+        telemetry.aspiration_fail_lows() + telemetry.aspiration_fail_highs()
+            <= telemetry.aspiration_attempts()
+    );
+    assert!(telemetry.legal_move_probes() > 0);
+    assert!(telemetry.tt_probes() > 0);
+    assert!(telemetry.tt_hits() <= telemetry.tt_probes());
+    assert!(telemetry.tt_hash_moves() <= telemetry.tt_hits());
+    assert!(telemetry.tt_cutoffs() <= telemetry.tt_hits());
+    assert!(telemetry.quiescence_nodes() > 0);
+    assert!(telemetry.capture_cutoffs() > 0);
 }
 
 #[test]

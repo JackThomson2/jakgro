@@ -1,4 +1,4 @@
-use jakgro::engine::{Engine, Position, SearchLimits, SearchScore};
+use jakgro::engine::{Engine, Position, SearchLimits, SearchScore, SearchTelemetry};
 
 #[derive(Clone, Debug)]
 pub struct SearchFixture {
@@ -17,6 +17,7 @@ pub struct SearchObservation {
     pub depth: u32,
     pub nodes: u64,
     pub pv: Vec<String>,
+    pub telemetry: SearchTelemetry,
 }
 
 pub fn parse_fixtures(input: &str) -> Vec<SearchFixture> {
@@ -65,6 +66,7 @@ pub fn run_fixture_with_limits(
         depth: info.depth(),
         nodes: info.nodes(),
         pv: info.pv().to_vec(),
+        telemetry: result.telemetry(),
     }
 }
 

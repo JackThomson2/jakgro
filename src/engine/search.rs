@@ -141,6 +141,18 @@ pub struct SearchTelemetry {
     pub(super) static_pruning_attempts: u64,
     pub(super) reverse_futility_cutoffs: u64,
     pub(super) futility_pruned_moves: u64,
+    pub(super) aspiration_attempts: u64,
+    pub(super) aspiration_fail_lows: u64,
+    pub(super) aspiration_fail_highs: u64,
+    pub(super) aspiration_research_nodes: u64,
+    pub(super) legal_move_probes: u64,
+    pub(super) tt_probes: u64,
+    pub(super) tt_hits: u64,
+    pub(super) tt_hash_moves: u64,
+    pub(super) tt_cutoffs: u64,
+    pub(super) quiescence_nodes: u64,
+    pub(super) capture_cutoffs: u64,
+    pub(super) capture_cutoff_index_sum: u64,
     lmr_attempts: u64,
     lmr_reductions: u64,
     lmr_researches: u64,
@@ -238,6 +250,78 @@ impl SearchTelemetry {
     #[must_use]
     pub const fn personality_verifications(self) -> u64 {
         self.personality_verifications
+    }
+
+    /// Returns the number of finite-window root searches.
+    #[must_use]
+    pub const fn aspiration_attempts(self) -> u64 {
+        self.aspiration_attempts
+    }
+
+    /// Returns the number of root searches that failed below alpha.
+    #[must_use]
+    pub const fn aspiration_fail_lows(self) -> u64 {
+        self.aspiration_fail_lows
+    }
+
+    /// Returns the number of root searches that failed at or above beta.
+    #[must_use]
+    pub const fn aspiration_fail_highs(self) -> u64 {
+        self.aspiration_fail_highs
+    }
+
+    /// Returns the nodes spent repeating a root search at the same depth.
+    #[must_use]
+    pub const fn aspiration_research_nodes(self) -> u64 {
+        self.aspiration_research_nodes
+    }
+
+    /// Returns the number of full legal-move existence probes.
+    #[must_use]
+    pub const fn legal_move_probes(self) -> u64 {
+        self.legal_move_probes
+    }
+
+    /// Returns the number of transposition-table probes made by search.
+    #[must_use]
+    pub const fn tt_probes(self) -> u64 {
+        self.tt_probes
+    }
+
+    /// Returns the number of search probes that matched a table entry.
+    #[must_use]
+    pub const fn tt_hits(self) -> u64 {
+        self.tt_hits
+    }
+
+    /// Returns the number of table hits that supplied a hash move.
+    #[must_use]
+    pub const fn tt_hash_moves(self) -> u64 {
+        self.tt_hash_moves
+    }
+
+    /// Returns the number of table bounds that cut off a node.
+    #[must_use]
+    pub const fn tt_cutoffs(self) -> u64 {
+        self.tt_cutoffs
+    }
+
+    /// Returns the number of nodes entered by quiescence search.
+    #[must_use]
+    pub const fn quiescence_nodes(self) -> u64 {
+        self.quiescence_nodes
+    }
+
+    /// Returns the number of beta cutoffs caused by captures.
+    #[must_use]
+    pub const fn capture_cutoffs(self) -> u64 {
+        self.capture_cutoffs
+    }
+
+    /// Returns the sum of zero-based move indexes for capture cutoffs.
+    #[must_use]
+    pub const fn capture_cutoff_index_sum(self) -> u64 {
+        self.capture_cutoff_index_sum
     }
 }
 

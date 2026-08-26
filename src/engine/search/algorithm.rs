@@ -11,7 +11,7 @@ use cozy_chess::{
 use super::control::DeadlineWindow;
 use super::see::{static_exchange_eval, static_exchange_eval_after};
 use super::time::allocate_time;
-use super::transposition::{Bound, TranspositionTable};
+use super::transposition::{Bound, Entry, TranspositionTable};
 use super::{SearchControl, SearchInfo, SearchLimits, SearchResult, SearchScore, SearchTelemetry};
 use crate::engine::Position;
 use crate::engine::evaluation::{
@@ -1463,6 +1463,26 @@ impl SearchContext<'_> {
         storage.clear();
         self.picker_storage[ply.min(MAX_PLY) as usize] = storage;
     }
+
+    fn visit_quiescence_node(&mut self) -> Result<(), Aborted> {
+        self.visit_node()?;
+        self.telemetry.quiescence_nodes += 1;
+        Ok(())
+    }
+
+    fn legal_move_exists(&mut self, board: &Board) -> bool {
+        self.telemetry.legal_move_probes += 1;
+        has_legal_move(board)
+    }
+
+    fn probe_table(&mut self, key: u64, halfmove_clock: u8) -> Option<Entry> {
+        self.telemetry.tt_probes += 1;
+        let entry = self.table.probe_key(key, halfmove_clock);
+        self.telemetry.tt_hits += u64::from(entry.is_some());
+        self.telemetry.tt_hash_moves +=
+            u64::from(entry.is_some_and(|entry| entry.best_move().is_some()));
+        entry
+    }
 }
 
 pub(super) fn run<F>(
@@ -1570,7 +1590,15 @@ where
             .map_or((NEG_INFINITY, POS_INFINITY), |score| {
                 aspiration_bounds(score, radius)
             });
+        let mut aspiration_searches = 0_u32;
         let iteration = loop {
+            let finite_window = alpha != NEG_INFINITY || beta != POS_INFINITY;
+            if finite_window {
+                context.telemetry.aspiration_attempts += 1;
+            }
+            let is_research = aspiration_searches > 0;
+            aspiration_searches += 1;
+            let nodes_before = context.nodes;
             let iteration = search_root(
                 &root_board,
                 &root_moves,
@@ -1580,12 +1608,23 @@ where
                 &previous_pv,
                 &mut context,
             );
+            if is_research {
+                context.telemetry.aspiration_research_nodes +=
+                    context.nodes.saturating_sub(nodes_before);
+            }
             let Ok(iteration) = iteration else {
                 break 'iterative;
             };
 
             if iteration.primary_inside((alpha, beta)) {
                 break iteration;
+            }
+            if finite_window {
+                if iteration.primary_score <= alpha {
+                    context.telemetry.aspiration_fail_lows += 1;
+                } else if iteration.primary_score >= beta {
+                    context.telemetry.aspiration_fail_highs += 1;
+                }
             }
             if alpha == NEG_INFINITY && beta == POS_INFINITY {
                 break iteration;
@@ -2502,8 +2541,7 @@ fn search_root_conventional(
     }
     let alpha_original = alpha;
     let hash_move = context
-        .table
-        .probe_key(history.current_key(), board.halfmove_clock())
+        .probe_table(history.current_key(), board.halfmove_clock())
         .and_then(|entry| entry.best_move());
     let preferred = previous_pv.first().copied().or(hash_move);
     let moves = prepare_and_order_root_moves(
@@ -2673,9 +2711,13 @@ fn negamax(
     context.clear_pv(ply);
     context.visit_node()?;
     if draw_state_pending(board, history, context.mode) || ply >= MAX_PLY {
-        if let Some(result) =
-            terminal_score_for_mode(board, history, ply, !has_legal_move(board), context.mode)
-        {
+        if let Some(result) = terminal_score_for_mode(
+            board,
+            history,
+            ply,
+            !context.legal_move_exists(board),
+            context.mode,
+        ) {
             return Ok(NodeResult {
                 score: result.score,
                 path_dependent: result.path_dependent,
@@ -2693,18 +2735,14 @@ fn negamax(
     let hash_entry = context
         .mode
         .reads_tt()
-        .then(|| {
-            context
-                .table
-                .probe_key(history.current_key(), board.halfmove_clock())
-        })
+        .then(|| context.probe_table(history.current_key(), board.halfmove_clock()))
         .flatten();
     let hash_move = hash_entry
         .and_then(|entry| entry.best_move())
         .filter(|&chess_move| board.is_legal(chess_move));
     if alpha >= beta {
         if hash_move.is_none()
-            && let Some(result) = terminal_without_legal_moves(board, history, ply, context.mode)
+            && let Some(result) = terminal_without_legal_moves(board, history, ply, context)
         {
             return Ok(result);
         }
@@ -2724,11 +2762,11 @@ fn negamax(
         };
         if cutoff {
             if hash_move.is_none()
-                && let Some(result) =
-                    terminal_without_legal_moves(board, history, ply, context.mode)
+                && let Some(result) = terminal_without_legal_moves(board, history, ply, context)
             {
                 return Ok(result);
             }
+            context.telemetry.tt_cutoffs += 1;
             context.mark_hash_pv(entry.bound(), depth, ply);
             return Ok(NodeResult {
                 score,
@@ -2737,7 +2775,7 @@ fn negamax(
         }
     }
 
-    if hash_move.is_none() && !has_legal_move(board) {
+    if hash_move.is_none() && !context.legal_move_exists(board) {
         let result = terminal_score_for_mode(board, history, ply, true, context.mode)
             .expect("a position without legal moves is terminal");
         return Ok(NodeResult {
@@ -2936,6 +2974,9 @@ fn negamax(
                     ply,
                     depth,
                 );
+            } else if metadata.facts().captured.is_some() {
+                context.telemetry.capture_cutoffs += 1;
+                context.telemetry.capture_cutoff_index_sum += index as u64;
             }
             break;
         }
@@ -2980,10 +3021,14 @@ fn quiescence(
     context: &mut SearchContext<'_>,
 ) -> Result<NodeResult, Aborted> {
     context.clear_pv(ply);
-    context.visit_node()?;
-    if let Some(result) =
-        terminal_score_for_mode(board, history, ply, !has_legal_move(board), context.mode)
-    {
+    context.visit_quiescence_node()?;
+    if let Some(result) = terminal_score_for_mode(
+        board,
+        history,
+        ply,
+        !context.legal_move_exists(board),
+        context.mode,
+    ) {
         return Ok(NodeResult {
             score: result.score,
             path_dependent: result.path_dependent,
@@ -3037,7 +3082,7 @@ fn quiescence(
         },
     );
 
-    while let Some((_, metadata)) = picker.next(&context.ordering) {
+    while let Some((index, metadata)) = picker.next(&context.ordering) {
         debug_assert!(
             in_check || metadata.is_tactical() || (metadata.is_quiet() && metadata.gives_check)
         );
@@ -3082,6 +3127,10 @@ fn quiescence(
         }
         alpha = alpha.max(score);
         if alpha >= beta {
+            if metadata.facts().captured.is_some() {
+                context.telemetry.capture_cutoffs += 1;
+                context.telemetry.capture_cutoff_index_sum += index as u64;
+            }
             break;
         }
     }
@@ -3141,9 +3190,10 @@ fn terminal_without_legal_moves(
     board: &Board,
     history: &RepetitionTracker,
     ply: u32,
-    mode: SearchMode,
+    context: &mut SearchContext<'_>,
 ) -> Option<NodeResult> {
-    terminal_score_for_mode(board, history, ply, !has_legal_move(board), mode).map(|result| {
+    let no_legal_moves = !context.legal_move_exists(board);
+    terminal_score_for_mode(board, history, ply, no_legal_moves, context.mode).map(|result| {
         NodeResult {
             score: result.score,
             path_dependent: result.path_dependent,

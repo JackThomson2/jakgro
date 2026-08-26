@@ -311,7 +311,7 @@ where
                 {
                     return Ok(());
                 }
-                let released = self.active.as_mut().and_then(|task| task.complete(result));
+                let released = self.active.as_mut().and_then(|task| task.complete(*result));
                 if let Some(result) = released {
                     self.write_search_result(result)?;
                     self.active = None;

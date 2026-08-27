@@ -60,6 +60,18 @@ const REVERSE_FUTILITY_BASE_MARGIN: Score = 100;
 const REVERSE_FUTILITY_DEPTH_MARGIN: Score = 140;
 const QUIET_FUTILITY_BASE_MARGIN: Score = 120;
 const QUIET_FUTILITY_DEPTH_MARGIN: Score = 140;
+/// Narrows the reverse-futility margin when the side to move is improving.
+///
+/// Reverse futility assumes a static evaluation far above beta will hold. That
+/// assumption is safer when the side to move is already gaining ground, so an
+/// improving node may cut on a smaller excess over beta.
+const IMPROVING_REVERSE_FUTILITY_RELIEF: Score = 40;
+/// Narrows the quiet-futility margin when the side to move is not improving.
+///
+/// A late quiet move is pruned when its static evaluation plus a margin still
+/// cannot reach alpha, so a smaller margin prunes more. A node already losing
+/// ground is less likely to be rescued by such a move.
+const DECLINING_QUIET_FUTILITY_RELIEF: Score = 40;
 
 fn should_poll_control(nodes: u64) -> bool {
     nodes % CONTROL_POLL_INTERVAL_NODES == 0
@@ -1329,10 +1341,16 @@ fn reverse_futility_cutoff(
     beta: Score,
     depth: u32,
     aggression: u8,
+    improving: bool,
 ) -> bool {
     let margin = REVERSE_FUTILITY_BASE_MARGIN
         + REVERSE_FUTILITY_DEPTH_MARGIN * depth as Score
-        + Score::from(aggression);
+        + Score::from(aggression)
+        - if improving {
+            IMPROVING_REVERSE_FUTILITY_RELIEF
+        } else {
+            0
+        };
     static_evaluation.saturating_sub(margin) >= beta
 }
 
@@ -1346,6 +1364,7 @@ fn should_prune_quiet_move(
     static_evaluation: Score,
     alpha: Score,
     aggression: u8,
+    improving: bool,
 ) -> bool {
     if depth > QUIET_FUTILITY_MAX_DEPTH
         || move_index == 0
@@ -1361,7 +1380,12 @@ fn should_prune_quiet_move(
     }
     let margin = QUIET_FUTILITY_BASE_MARGIN
         + QUIET_FUTILITY_DEPTH_MARGIN * depth as Score
-        + Score::from(aggression);
+        + Score::from(aggression)
+        - if improving {
+            0
+        } else {
+            DECLINING_QUIET_FUTILITY_RELIEF
+        };
     static_evaluation.saturating_add(margin) <= alpha
 }
 
@@ -1463,6 +1487,7 @@ struct SearchContext<'a> {
     started: Instant,
     pv: Vec<Vec<Move>>,
     hash_pv_depths: Vec<Option<u32>>,
+    static_evaluations: Vec<Option<Score>>,
     picker_storage: Vec<MovePickerStorage>,
     ordering: MoveOrdering,
 }
@@ -1499,6 +1524,33 @@ impl SearchContext<'_> {
         let ply = ply.min(MAX_PLY) as usize;
         self.pv[ply].clear();
         self.hash_pv_depths[ply] = None;
+    }
+
+    /// Records this node's static evaluation and reports whether it improves.
+    ///
+    /// A node improves when the side to move stands better than it did two plies
+    /// earlier, which is the same side. Nodes in check have no meaningful static
+    /// evaluation, and a node without a recorded grandparent has nothing to
+    /// compare against; both are treated as improving so that the wider margins
+    /// apply and pruning stays conservative where the signal is unavailable.
+    fn record_static_evaluation(
+        &mut self,
+        ply: u32,
+        in_check: bool,
+        static_evaluation: Option<Score>,
+    ) -> bool {
+        let index = ply.min(MAX_PLY) as usize;
+        self.static_evaluations[index] = (!in_check).then_some(static_evaluation).flatten();
+        let Some(current) = self.static_evaluations[index] else {
+            return true;
+        };
+        match index
+            .checked_sub(2)
+            .and_then(|before| self.static_evaluations[before])
+        {
+            Some(grandparent) => current > grandparent,
+            None => true,
+        }
     }
 
     fn update_pv(&mut self, board: &Board, ply: u32, chess_move: Move) {
@@ -1636,6 +1688,7 @@ where
             .map(|ply| Vec::with_capacity((MAX_PLY - ply) as usize))
             .collect(),
         hash_pv_depths: vec![None; MAX_PLY as usize + 1],
+        static_evaluations: vec![None; MAX_PLY as usize + 1],
         picker_storage: (0..=MAX_PLY)
             .map(|_| MovePickerStorage::default())
             .collect(),
@@ -2757,6 +2810,7 @@ fn search_root_conventional(
             best.score,
             bound,
             context.pv(0).first().copied(),
+            None,
         );
     }
     Ok(ConventionalRootResult {
@@ -2865,12 +2919,24 @@ fn negamax(
     let static_evaluation =
         if static_pruning_allowed(board, depth, alpha, beta, pv_node, context.mode) {
             context.telemetry.static_pruning_attempts += 1;
-            Some(evaluate_with_config(board, context.scoring))
+            Some(
+                hash_entry
+                    .and_then(Entry::static_evaluation)
+                    .inspect(|_| context.telemetry.static_evaluation_hits += 1)
+                    .unwrap_or_else(|| evaluate_with_config(board, context.scoring)),
+            )
         } else {
             None
         };
+    let improving = context.record_static_evaluation(ply, in_check, static_evaluation);
     if static_evaluation.is_some_and(|evaluation| {
-        reverse_futility_cutoff(evaluation, beta, depth, context.personality.aggression())
+        reverse_futility_cutoff(
+            evaluation,
+            beta,
+            depth,
+            context.personality.aggression(),
+            improving,
+        )
     }) {
         if hash_move.is_none()
             && let Some(result) = terminal_without_legal_moves(board, history, ply, context)
@@ -2970,6 +3036,7 @@ fn negamax(
                 evaluation,
                 alpha,
                 context.personality.aggression(),
+                improving,
             )
         }) {
             context.telemetry.futility_pruned_moves += 1;
@@ -3130,6 +3197,7 @@ fn negamax(
                 best.score,
                 bound,
                 context.pv(ply).first().copied(),
+                static_evaluation,
             );
         }
     }
@@ -4437,8 +4505,8 @@ mod tests {
 
     #[test]
     fn static_bounds_keep_tactical_and_priority_moves() {
-        assert!(super::reverse_futility_cutoff(800, 100, 2, 0));
-        assert!(!super::reverse_futility_cutoff(479, 100, 2, 0));
+        assert!(super::reverse_futility_cutoff(800, 100, 2, 0, false));
+        assert!(!super::reverse_futility_cutoff(439, 100, 2, 0, false));
 
         let position = Position::default();
         let metadata = position
@@ -4454,14 +4522,118 @@ mod tests {
             })
             .unwrap();
         assert!(super::should_prune_quiet_move(
-            1, 2, metadata, false, 0, -500, 0, 0,
+            1, 2, metadata, false, 0, -500, 0, 0, true,
         ));
         assert!(!super::should_prune_quiet_move(
-            1, 0, metadata, false, 0, -500, 0, 0,
+            1, 0, metadata, false, 0, -500, 0, 0, true,
         ));
         assert!(!super::should_prune_quiet_move(
-            1, 2, metadata, true, 0, -500, 0, 0,
+            1, 2, metadata, true, 0, -500, 0, 0, true,
         ));
+    }
+
+    #[test]
+    fn improving_shifts_each_static_pruning_margin_in_its_own_direction() {
+        let beta = 100;
+        let declining_margin =
+            super::REVERSE_FUTILITY_BASE_MARGIN + super::REVERSE_FUTILITY_DEPTH_MARGIN * 2;
+        let declining_boundary = beta + declining_margin;
+
+        assert!(super::reverse_futility_cutoff(
+            declining_boundary,
+            beta,
+            2,
+            0,
+            false,
+        ));
+        assert!(!super::reverse_futility_cutoff(
+            declining_boundary - 1,
+            beta,
+            2,
+            0,
+            false,
+        ));
+        assert!(
+            super::reverse_futility_cutoff(
+                declining_boundary - super::IMPROVING_REVERSE_FUTILITY_RELIEF,
+                beta,
+                2,
+                0,
+                true,
+            ),
+            "an improving node may cut on a smaller excess over beta",
+        );
+
+        let position = Position::default();
+        let metadata = position
+            .search_moves()
+            .into_iter()
+            .map(|chess_move| super::MoveMetadata::classify(position.board(), chess_move))
+            .find(|metadata| {
+                metadata.is_quiet()
+                    && !metadata.gives_check
+                    && !metadata.attacking_pawn_push
+                    && !metadata.castling
+                    && !metadata.king_zone_move
+            })
+            .unwrap();
+        let alpha = 0;
+        let improving_margin =
+            super::QUIET_FUTILITY_BASE_MARGIN + super::QUIET_FUTILITY_DEPTH_MARGIN;
+        let improving_boundary = alpha - improving_margin;
+
+        assert!(super::should_prune_quiet_move(
+            1,
+            2,
+            metadata,
+            false,
+            0,
+            improving_boundary,
+            alpha,
+            0,
+            true,
+        ));
+        assert!(!super::should_prune_quiet_move(
+            1,
+            2,
+            metadata,
+            false,
+            0,
+            improving_boundary + 1,
+            alpha,
+            0,
+            true,
+        ));
+        let declining_boundary = improving_boundary + super::DECLINING_QUIET_FUTILITY_RELIEF;
+
+        assert!(
+            !super::should_prune_quiet_move(
+                1,
+                2,
+                metadata,
+                false,
+                0,
+                declining_boundary,
+                alpha,
+                0,
+                true,
+            ),
+            "an improving node keeps a late quiet this close to alpha",
+        );
+        assert!(
+            super::should_prune_quiet_move(
+                1,
+                2,
+                metadata,
+                false,
+                0,
+                declining_boundary,
+                alpha,
+                0,
+                false,
+            ),
+            "a declining node prunes the same late quiet",
+        );
     }
 
     #[test]

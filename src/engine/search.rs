@@ -139,6 +139,7 @@ pub struct SearchTelemetry {
     pub(super) null_probe_nodes: u64,
     pub(super) null_verification_nodes: u64,
     pub(super) static_pruning_attempts: u64,
+    pub(super) static_evaluation_hits: u64,
     pub(super) reverse_futility_cutoffs: u64,
     pub(super) futility_pruned_moves: u64,
     pub(super) aspiration_attempts: u64,
@@ -202,6 +203,12 @@ impl SearchTelemetry {
     #[must_use]
     pub const fn static_pruning_attempts(self) -> u64 {
         self.static_pruning_attempts
+    }
+
+    /// Returns the number of static evaluations recovered from the table.
+    #[must_use]
+    pub const fn static_evaluation_hits(self) -> u64 {
+        self.static_evaluation_hits
     }
 
     /// Returns the number of reverse-futility node cutoffs.

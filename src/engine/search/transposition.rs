@@ -36,24 +36,47 @@ pub(super) enum Bound {
     Upper,
 }
 
+/// Marks an entry that carries no cached static evaluation.
+///
+/// Every real score is bounded by the mate constants, so this sits outside the
+/// representable range rather than colliding with a legitimate evaluation.
+const NO_STATIC_EVALUATION: i16 = i16::MIN;
+
+/// A stored search result.
+///
+/// The score and static evaluation are narrowed to sixteen bits and the depth to
+/// eight, which keeps the whole entry inside the same twenty-four bytes it
+/// occupied before it gained a cached evaluation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct Entry {
     key: u64,
-    clock_class: u8,
-    depth: u32,
-    score: Score,
-    bound: Bound,
     best_move: Option<Move>,
+    score: i16,
+    static_evaluation: i16,
     generation: u16,
+    depth: u8,
+    clock_class: u8,
+    bound: Bound,
 }
+
+const _: () = assert!(
+    size_of::<Bucket>() <= 4 * 24,
+    "caching a static evaluation must not cost transposition entries per allocation",
+);
 
 impl Entry {
     pub(super) fn depth(self) -> u32 {
-        self.depth
+        u32::from(self.depth)
     }
 
     pub(super) fn score_at_ply(self, ply: u32) -> Score {
-        score_from_table(self.score, ply)
+        score_from_table(Score::from(self.score), ply)
+    }
+
+    /// Returns the static evaluation recorded with this entry, when it has one.
+    pub(super) fn static_evaluation(self) -> Option<Score> {
+        (self.static_evaluation != NO_STATIC_EVALUATION)
+            .then_some(Score::from(self.static_evaluation))
     }
 
     pub(super) fn bound(self) -> Bound {
@@ -140,6 +163,7 @@ impl TranspositionTable {
             score,
             bound,
             best_move,
+            None,
         );
     }
     pub(super) fn probe_key(&self, key: u64, halfmove_clock: u8) -> Option<Entry> {
@@ -161,12 +185,14 @@ impl TranspositionTable {
         score: Score,
         bound: Bound,
         best_move: Option<Move>,
+        static_evaluation: Option<Score>,
     ) {
         self.store_entry(Entry {
             key,
             clock_class: clock_class(halfmove_clock),
-            depth,
-            score: score_to_table(score, ply),
+            depth: depth.min(u8::MAX.into()) as u8,
+            score: narrow(score_to_table(score, ply)),
+            static_evaluation: static_evaluation.map_or(NO_STATIC_EVALUATION, narrow),
             bound,
             best_move,
             generation: self.generation,
@@ -252,7 +278,7 @@ fn replacement_index(bucket: &Bucket, generation: u16) -> usize {
             (
                 generation.wrapping_sub(entry.generation),
                 entry.bound != Bound::Exact,
-                u32::MAX - entry.depth,
+                u32::MAX - entry.depth(),
             )
         })
     {
@@ -280,6 +306,14 @@ fn floor_power_of_two(value: usize) -> Option<usize> {
     value
         .checked_next_power_of_two()
         .map(|power| if power == value { power } else { power / 2 })
+}
+
+/// Narrows a search score to the width stored in a table entry.
+///
+/// Every score search can produce lies inside the mate bounds, so this clamp is
+/// unreachable in practice and exists to keep the conversion total.
+fn narrow(score: Score) -> i16 {
+    score.clamp(i16::MIN as Score + 1, i16::MAX as Score) as i16
 }
 
 fn score_to_table(score: Score, ply: u32) -> Score {
@@ -321,12 +355,44 @@ mod tests {
         assert_eq!(entry.bound(), Bound::Exact);
         assert_eq!(entry.best_move(), Some(best_move));
     }
+    #[test]
+    fn stored_static_evaluations_are_recovered_and_optional() {
+        let position = Position::default();
+        let best_move = position.search_moves()[0];
+        let mut table = TranspositionTable::new(1).unwrap();
+
+        table.store_key(
+            super::repetition_key(position.board()),
+            position.board().halfmove_clock(),
+            6,
+            0,
+            42,
+            Bound::Exact,
+            Some(best_move),
+            Some(-37),
+        );
+        assert_eq!(
+            table.probe(position.board()).unwrap().static_evaluation(),
+            Some(-37),
+        );
+
+        table.clear();
+        table.store(position.board(), 6, 0, 42, Bound::Exact, Some(best_move));
+
+        assert_eq!(
+            table.probe(position.board()).unwrap().static_evaluation(),
+            None,
+            "an entry stored without an evaluation must not invent one",
+        );
+    }
+
     fn synthetic_entry(key: u64, depth: u32, bound: Bound, generation: u16) -> super::Entry {
         super::Entry {
             key,
             clock_class: 0,
-            depth,
+            depth: depth as u8,
             score: 0,
+            static_evaluation: super::NO_STATIC_EVALUATION,
             bound,
             best_move: None,
             generation,

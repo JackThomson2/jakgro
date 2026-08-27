@@ -6,8 +6,17 @@ use cozy_chess::{
 use super::{AttackProfile, EvalFeatures, piece_value};
 
 pub(super) fn extract(board: &Board) -> EvalFeatures {
+    extract_with_style(board, true)
+}
+
+/// Extracts evaluation features, computing style-only attack terms on request.
+///
+/// Mobility and material features are always produced. When `style` is false the
+/// king-pressure, threat, space, and supported-threat terms are left at their
+/// defaults, which is sound only for configurations that weight them at zero.
+pub(super) fn extract_with_style(board: &Board, style: bool) -> EvalFeatures {
     let mut features = EvalFeatures::default();
-    let attacks = attack_summary(board);
+    let attacks = attack_summary_with_style(board, style);
     let white_attack = attacks.profiles[Color::White as usize];
     let black_attack = attacks.profiles[Color::Black as usize];
     features.white_attack = white_attack;
@@ -132,7 +141,12 @@ struct AttackSummary {
     piece_mobility: [[i32; 6]; 2],
 }
 
+#[cfg(test)]
 fn attack_summary(board: &Board) -> AttackSummary {
+    attack_summary_with_style(board, true)
+}
+
+fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
     let occupied = board.occupied();
     let king_zones = [
         get_king_moves(board.king(Color::White)) | board.colored_pieces(Color::White, Piece::King),
@@ -167,6 +181,9 @@ fn attack_summary(board: &Board) -> AttackSummary {
                 let attacks = raw_attacks & !friendly_pieces;
                 mobility[index] += attacks.len() as i32;
                 piece_mobility[index][piece_index(piece) as usize] += attacks.len() as i32;
+                if !style {
+                    continue;
+                }
                 if piece != Piece::King {
                     for target in raw_attacks {
                         attack_counts[index][target as usize] += 1;
@@ -221,6 +238,10 @@ fn attack_summary(board: &Board) -> AttackSummary {
 
         result.attacker_variety = attacker_mask.count_ones() as i32;
         result.king_pressure += result.attackers * result.attackers * 2;
+        if !style {
+            profiles[index] = result;
+            continue;
+        }
         let king_file = enemy_king.file() as i32;
         let king_rank = enemy_king.rank() as i32;
         let enemy_pawns = board.colored_pieces(enemy, Piece::Pawn);
@@ -244,6 +265,9 @@ fn attack_summary(board: &Board) -> AttackSummary {
     }
 
     for color in [Color::White, Color::Black] {
+        if !style {
+            break;
+        }
         let index = color as usize;
         let enemy = !color;
         let result = &mut profiles[index];

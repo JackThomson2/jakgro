@@ -237,13 +237,32 @@ pub(super) fn evaluate(board: &Board) -> Score {
 }
 
 pub(super) fn evaluate_with_config(board: &Board, config: EvaluationConfig) -> Score {
-    let trace = evaluate_with_trace_and_config(board, config);
+    let blended = if config.aggression() == MIN_AGGRESSION {
+        objective_blended_score(board, config)
+    } else {
+        evaluate_with_trace_and_config(board, config).blended
+    };
     let relative = match board.side_to_move() {
-        Color::White => trace.blended,
-        Color::Black => -trace.blended,
+        Color::White => blended,
+        Color::Black => -blended,
     };
     debug_assert!(relative > NEG_INFINITY && relative < POS_INFINITY);
     relative
+}
+
+/// Blends the objective score without extracting style-only attack features.
+///
+/// Search always scores through [`EvaluationConfig::objective_scoring`], which
+/// zeroes aggression and therefore scales every attacking-style weight to zero.
+/// Extracting those features would compute king-pressure, threat, space, and
+/// supported-threat terms only to multiply them away.
+fn objective_blended_score(board: &Board, config: EvaluationConfig) -> Score {
+    let features = features::extract_with_style(board, false);
+    let base = weights::score(features)
+        + weights::profile_mobility_adjustment(features)
+            .scaled(config.mobility_profile_intensity());
+    let phase = features::phase(board);
+    (base.middle_game * phase + base.end_game * (24 - phase)) / 24
 }
 pub(super) fn root_complexity_bonus(
     board: &Board,
@@ -314,6 +333,61 @@ mod tests {
     };
     use crate::engine::Position;
     use cozy_chess::Color;
+
+    #[test]
+    fn objective_fast_path_matches_the_general_evaluation() {
+        let fens = [
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+            "r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8",
+            "r1bqk2r/pp2bppp/2n1pn2/3p4/3P4/2NBPN2/PP3PPP/R1BQK2R b KQkq - 4 8",
+            "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+            "6k1/5ppp/8/7Q/2B5/8/5PPP/6K1 w - - 0 1",
+            "6k1/5ppp/8/2b5/7q/8/5PPP/6K1 b - - 0 1",
+            "7k/8/8/8/8/8/8/K7 w - - 0 1",
+        ];
+
+        for profile in [MIN_AGGRESSION, 50, DEFAULT_AGGRESSION, MAX_AGGRESSION] {
+            let objective = EvaluationConfig::new(profile).objective_scoring();
+            for fen in fens {
+                let position = Position::from_fen(fen).unwrap();
+                let board = position.board();
+                let general = evaluate_with_trace_and_config(board, objective).blended;
+
+                assert_eq!(
+                    super::objective_blended_score(board, objective),
+                    general,
+                    "profile {profile} disagreed on {fen}",
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn style_free_extraction_preserves_material_and_mobility_features() {
+        let position = Position::from_fen(
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+        )
+        .unwrap();
+        let styled = super::features::extract_with_style(position.board(), true);
+        let plain = super::features::extract_with_style(position.board(), false);
+
+        assert_eq!(plain.mobility, styled.mobility);
+        assert_eq!(plain.knight_mobility, styled.knight_mobility);
+        assert_eq!(plain.bishop_mobility, styled.bishop_mobility);
+        assert_eq!(plain.rook_mobility, styled.rook_mobility);
+        assert_eq!(plain.queen_mobility, styled.queen_mobility);
+        assert_eq!(plain.pawn_mobility, styled.pawn_mobility);
+        assert_eq!(plain.king_mobility, styled.king_mobility);
+        assert_eq!(plain.passed_pawns, styled.passed_pawns);
+        assert_eq!(plain.king_shelter, styled.king_shelter);
+        assert_eq!(weights::score(plain), weights::score(styled));
+        assert_eq!(
+            weights::profile_mobility_adjustment(plain),
+            weights::profile_mobility_adjustment(styled),
+        );
+        assert!(weights::attacking_style(styled).middle_game > 0);
+    }
 
     #[test]
     fn starting_material_is_equal_without_style() {

@@ -2772,6 +2772,7 @@ fn negamax(
             QUIESCENCE_DEPTH,
             context.personality.quiescence_check_budget(),
             None,
+            true,
             context,
         );
     }
@@ -2972,6 +2973,9 @@ fn negamax(
         );
         if reduction > 0 {
             context.telemetry.lmr_reductions += 1;
+            if child_depth <= LMR_MIN_CHILD_DEPTH {
+                context.telemetry.lmr_shallow_reductions += 1;
+            }
         }
         let mut child = board.clone();
         child.play_unchecked_with_piece(chess_move, metadata.attacker);
@@ -2999,6 +3003,9 @@ fn negamax(
 
         if reduced_search_needs_research(reduction, score, alpha) {
             context.telemetry.lmr_researches += 1;
+            if child_depth <= LMR_MIN_CHILD_DEPTH {
+                context.telemetry.lmr_shallow_researches += 1;
+            }
             history.push_key(child_key);
             child_result = negamax(
                 &child,
@@ -3063,6 +3070,12 @@ fn negamax(
                 context.telemetry.capture_cutoff_index_sum += index as u64;
                 if context.mode.updates_ordering()
                     && metadata.chess_move.promotion.is_none()
+                    && picker.failed_captures().is_empty()
+                {
+                    context.telemetry.capture_history_first_move_cutoffs += 1;
+                }
+                if context.mode.updates_ordering()
+                    && metadata.chess_move.promotion.is_none()
                     && !picker.failed_captures().is_empty()
                 {
                     context.ordering.record_capture_cutoff(
@@ -3115,6 +3128,7 @@ fn quiescence(
     remaining: u32,
     check_budget: u8,
     recapture_square: Option<cozy_chess::Square>,
+    horizon: bool,
     context: &mut SearchContext<'_>,
 ) -> Result<NodeResult, Aborted> {
     context.clear_pv(ply);
@@ -3221,6 +3235,10 @@ fn quiescence(
             stand_pat.unwrap_or(NEG_INFINITY),
             alpha,
         ) {
+            context.telemetry.quiescence_pruned_captures += 1;
+            if horizon {
+                context.telemetry.horizon_quiescence_pruned_captures += 1;
+            }
             continue;
         }
         let chess_move = metadata.chess_move;
@@ -3239,6 +3257,7 @@ fn quiescence(
             remaining.saturating_sub(1),
             next_check_budget,
             Some(chess_move.to),
+            false,
             context,
         );
         history.pop();
@@ -3257,6 +3276,12 @@ fn quiescence(
             if metadata.facts().captured.is_some() {
                 context.telemetry.capture_cutoffs += 1;
                 context.telemetry.capture_cutoff_index_sum += index as u64;
+                if context.mode.updates_ordering()
+                    && metadata.chess_move.promotion.is_none()
+                    && picker.failed_captures().is_empty()
+                {
+                    context.telemetry.capture_history_first_move_cutoffs += 1;
+                }
                 if context.mode.updates_ordering()
                     && metadata.chess_move.promotion.is_none()
                     && !picker.failed_captures().is_empty()

@@ -151,12 +151,17 @@ pub struct SearchTelemetry {
     pub(super) tt_hash_moves: u64,
     pub(super) tt_cutoffs: u64,
     pub(super) quiescence_nodes: u64,
+    pub(super) quiescence_pruned_captures: u64,
+    pub(super) horizon_quiescence_pruned_captures: u64,
     pub(super) capture_cutoffs: u64,
     pub(super) capture_cutoff_index_sum: u64,
     pub(super) capture_history_updates: u64,
+    pub(super) capture_history_first_move_cutoffs: u64,
     lmr_attempts: u64,
     lmr_reductions: u64,
+    lmr_shallow_reductions: u64,
     lmr_researches: u64,
+    lmr_shallow_researches: u64,
     lmr_research_fail_highs: u64,
     objective_root_nodes: u64,
     personality_root_nodes: u64,
@@ -329,6 +334,36 @@ impl SearchTelemetry {
     #[must_use]
     pub const fn capture_history_updates(self) -> u64 {
         self.capture_history_updates
+    }
+
+    /// Returns the number of eligible capture cutoffs before a failed capture.
+    #[must_use]
+    pub const fn capture_history_first_move_cutoffs(self) -> u64 {
+        self.capture_history_first_move_cutoffs
+    }
+
+    /// Returns the number of captures discarded by quiescence pruning.
+    #[must_use]
+    pub const fn quiescence_pruned_captures(self) -> u64 {
+        self.quiescence_pruned_captures
+    }
+
+    /// Returns the number of captures pruned on the first quiescence ply.
+    #[must_use]
+    pub const fn horizon_quiescence_pruned_captures(self) -> u64 {
+        self.horizon_quiescence_pruned_captures
+    }
+
+    /// Returns the number of moves reduced at the shallow LMR boundary.
+    #[must_use]
+    pub const fn lmr_shallow_reductions(self) -> u64 {
+        self.lmr_shallow_reductions
+    }
+
+    /// Returns the number of shallow reduced moves searched at full depth.
+    #[must_use]
+    pub const fn lmr_shallow_researches(self) -> u64 {
+        self.lmr_shallow_researches
     }
 }
 

@@ -155,6 +155,12 @@ fn selective_search_telemetry_attributes_objective_work() {
     assert!(telemetry.capture_cutoffs() > 0);
     assert!(telemetry.capture_history_updates() > 0);
     assert!(telemetry.capture_history_updates() <= telemetry.capture_cutoffs());
+
+    assert!(telemetry.capture_history_first_move_cutoffs() <= telemetry.capture_cutoffs());
+    assert!(telemetry.lmr_shallow_reductions() <= telemetry.lmr_reductions());
+    assert!(telemetry.lmr_shallow_researches() <= telemetry.lmr_shallow_reductions());
+    assert_eq!(telemetry.quiescence_pruned_captures(), 0);
+    assert_eq!(telemetry.horizon_quiescence_pruned_captures(), 0);
 }
 
 #[test]
@@ -177,6 +183,10 @@ fn selective_search_telemetry_attributes_personality_work() {
     assert!(telemetry.personality_root_nodes() > 0);
     assert!(telemetry.personality_verifications() > 0);
     assert!(result.info().is_some());
+
+    assert!(
+        telemetry.horizon_quiescence_pruned_captures() <= telemetry.quiescence_pruned_captures()
+    );
 }
 
 fn fixtures() -> Vec<SearchFixture> {

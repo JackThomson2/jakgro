@@ -2777,7 +2777,7 @@ fn negamax(
             beta,
             QUIESCENCE_DEPTH,
             context.personality.quiescence_check_budget(),
-            None,
+            previous_move.map(|previous| previous.to),
             true,
             context,
         );

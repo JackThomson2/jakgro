@@ -203,6 +203,8 @@ fn selective_search_telemetry_attributes_personality_work() {
     assert!(
         telemetry.horizon_quiescence_pruned_captures() <= telemetry.quiescence_pruned_captures()
     );
+
+    assert!(telemetry.horizon_quiescence_pruned_captures() > 0);
 }
 
 fn fixtures() -> Vec<SearchFixture> {

@@ -177,6 +177,8 @@ fn selective_search_telemetry_attributes_objective_work() {
     assert!(telemetry.lmr_shallow_researches() <= telemetry.lmr_shallow_reductions());
     assert_eq!(telemetry.quiescence_pruned_captures(), 0);
     assert_eq!(telemetry.horizon_quiescence_pruned_captures(), 0);
+
+    assert!(telemetry.lmr_shallow_reductions() > 0);
 }
 
 #[test]

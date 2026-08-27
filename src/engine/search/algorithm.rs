@@ -38,6 +38,8 @@ const STYLED_ROOT_MAX_VERIFICATIONS: usize = 2;
 const ORDINARY_ROOT_MARGIN_MAX: Score = 26;
 const WINNING_ROOT_MARGIN_MAX: Score = 20;
 const WINNING_ROOT_SCORE: Score = 200;
+const LMR_SHALLOW_CHILD_DEPTH: u32 = 2;
+const LMR_SHALLOW_MOVE_INDEX: usize = 6;
 const LMR_MIN_CHILD_DEPTH: u32 = 3;
 const LMR_MIN_MOVE_INDEX: usize = 3;
 const LMR_DEEP_CHILD_DEPTH: u32 = 6;
@@ -903,8 +905,10 @@ fn late_move_reduction(
     pv_node: bool,
     history_score: i32,
 ) -> u32 {
-    if child_depth < LMR_MIN_CHILD_DEPTH
-        || move_index < LMR_MIN_MOVE_INDEX
+    let shallow_candidate =
+        child_depth == LMR_SHALLOW_CHILD_DEPTH && move_index >= LMR_SHALLOW_MOVE_INDEX;
+    let regular_candidate = child_depth >= LMR_MIN_CHILD_DEPTH && move_index >= LMR_MIN_MOVE_INDEX;
+    if (!shallow_candidate && !regular_candidate)
         || !metadata.is_quiet()
         || metadata.gives_check
         || metadata.castling
@@ -926,7 +930,8 @@ fn late_move_reduction(
     } else if history_score <= -LMR_HISTORY_THRESHOLD {
         reduction = reduction.saturating_add(1);
     }
-    reduction.min(child_depth.saturating_sub(2))
+    let minimum_remaining_depth = if shallow_candidate { 1 } else { 2 };
+    reduction.min(child_depth.saturating_sub(minimum_remaining_depth))
 }
 
 fn reduced_search_needs_research(reduction: u32, score: Score, alpha: Score) -> bool {
@@ -5079,6 +5084,78 @@ mod tests {
             super::late_move_reduction(6, 7, attacking_push, false, false, false, 0),
             2,
         );
+
+        assert_eq!(
+            super::late_move_reduction(1, usize::MAX, metadata, false, false, false, 0),
+            0,
+        );
+        assert_eq!(
+            super::late_move_reduction(2, 5, metadata, false, false, false, 0),
+            0,
+        );
+        {
+            let (child_depth, move_index) = (2, 6);
+            assert_eq!(
+                super::late_move_reduction(
+                    child_depth,
+                    move_index,
+                    metadata,
+                    false,
+                    false,
+                    false,
+                    0,
+                ),
+                1,
+            );
+            assert_eq!(
+                super::late_move_reduction(
+                    child_depth,
+                    move_index,
+                    metadata,
+                    false,
+                    false,
+                    false,
+                    super::LMR_HISTORY_THRESHOLD,
+                ),
+                0,
+            );
+            assert_eq!(
+                super::late_move_reduction(
+                    child_depth,
+                    move_index,
+                    metadata,
+                    true,
+                    false,
+                    false,
+                    0,
+                ),
+                0,
+            );
+            assert_eq!(
+                super::late_move_reduction(
+                    child_depth,
+                    move_index,
+                    metadata,
+                    false,
+                    true,
+                    false,
+                    0,
+                ),
+                0,
+            );
+            assert_eq!(
+                super::late_move_reduction(
+                    child_depth,
+                    move_index,
+                    metadata,
+                    false,
+                    false,
+                    true,
+                    0,
+                ),
+                0,
+            );
+        }
     }
 
     #[test]

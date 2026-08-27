@@ -1,0 +1,89 @@
+{
+  "average_plies": 96.197917,
+  "colors": {
+    "black": {
+      "draws": 9,
+      "losses": 19,
+      "score_percent": 51.041667,
+      "wins": 20
+    },
+    "score_gap_percentage_points": 0.0,
+    "white": {
+      "draws": 13,
+      "losses": 17,
+      "score_percent": 51.041667,
+      "wins": 18
+    }
+  },
+  "confidence": {
+    "elo": 7.239289,
+    "elo_ci95": [
+      -135.44208,
+      152.552815
+    ],
+    "method": "95% Hoeffding bound over color-reversed pair scores",
+    "score_percent_ci95": [
+      31.43916,
+      70.644174
+    ]
+  },
+  "engines": {
+    "baseline": "pre-series-a75",
+    "candidate": "tuned-candidate-a75"
+  },
+  "games": 96,
+  "inputs": {
+    "manifest": "selective-tuned-a75-fixed-time.manifest.json",
+    "manifest_sha256": "497b9dd69ca346eb7b0c08a8385822656cd8d53e7adac80b4069ea72866a3289",
+    "pgn": "selective-tuned-a75-fixed-time.pgn",
+    "pgn_sha256": "29b8db49b1e7922120524ee14816b8c200b4a256f9f7c5000fcc0d57facd2d08"
+  },
+  "pairs": {
+    "count": 48,
+    "decisive_splits": 12,
+    "double_draws": 3,
+    "point_distribution": {
+      "0.0": 7,
+      "0.5": 10,
+      "1.0": 15,
+      "1.5": 6,
+      "2.0": 10
+    }
+  },
+  "result": {
+    "decisive_percent": 77.083333,
+    "draws": 22,
+    "losses": 36,
+    "score_percent": 51.041667,
+    "wins": 38
+  },
+  "schema_version": 2,
+  "style": {
+    "baseline": {
+      "captures": 882,
+      "captures_per_100_moves": 19.099177,
+      "checks": 583,
+      "checks_per_100_moves": 12.624513,
+      "forcing_moves": 1376,
+      "forcing_moves_per_100_moves": 29.796449,
+      "moves": 4618,
+      "promotions": 26,
+      "promotions_per_100_moves": 0.563014
+    },
+    "candidate": {
+      "captures": 915,
+      "captures_per_100_moves": 19.818064,
+      "checks": 656,
+      "checks_per_100_moves": 14.20836,
+      "forcing_moves": 1475,
+      "forcing_moves_per_100_moves": 31.947152,
+      "moves": 4617,
+      "promotions": 23,
+      "promotions_per_100_moves": 0.498159
+    }
+  },
+  "terminations": {
+    "adjudication": 61,
+    "unknown": 35
+  }
+}

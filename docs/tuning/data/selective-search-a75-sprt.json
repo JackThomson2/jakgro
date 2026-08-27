@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "comparison": "final tuned series versus pre-series baseline",
+  "profile": 75,
+  "candidate": {
+    "revision": "fe96f0011475c992616dfa507ae7474376c96732",
+    "binary_sha256": "3e475df417fed0b3cf6c0f844eaf38f29b3e50e846e6fe0b6e78537b8281ed22"
+  },
+  "baseline": {
+    "revision": "e17a098089ab0a34daff1c8cd175abe3d8b35e08",
+    "binary_sha256": "866f1012128f1b9ff9ea0d18dcd4cba5dafed79629dd2841de244e993ee0666a"
+  },
+  "dependency_revision": "7e93cdea094a50c1574081ceb6e7b269ad0234ee",
+  "openings": {
+    "positions": 2048,
+    "sha256": "9f44058d953324751ed1db1a3325f8bfa8ccf31ee6f6cffa3e1e98a391a9de37",
+    "order": "sequential",
+    "repeat_colors": true
+  },
+  "match": {
+    "time_control": "0.05+0.0005",
+    "hash_mib": 16,
+    "concurrency": 4,
+    "games": 4096,
+    "wins": 1339,
+    "draws": 1540,
+    "losses": 1217,
+    "score_percent": 51.489258,
+    "elo": 10.4,
+    "elo_margin_95": 8.4,
+    "elo_ci95": [2.0, 18.8],
+    "los_percent": 99.2
+  },
+  "sprt": {
+    "elo0": 0,
+    "elo1": 15,
+    "alpha": 0.05,
+    "beta": 0.05,
+    "llr": 2.32,
+    "lower_bound": -2.94,
+    "upper_bound": 2.94,
+    "decision": "max_games_without_boundary"
+  },
+  "artifacts": {
+    "pgn_sha256": "698d1fcb62c072f798e377718ed7617a8713c35e25d8d119c53f24ced74a73d1",
+    "log_sha256": "5c34929483b1bda96824532b0ce445ea90fa722dac822b27e24dcdff830babd8"
+  }
+}

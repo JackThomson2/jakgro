@@ -1,0 +1,96 @@
+{
+  "acceptance": [
+    {
+      "maximum_root_loss_cp": 44,
+      "passed": true,
+      "positions": 16
+    }
+  ],
+  "artifacts": {
+    "mobility-profile-final-acceptance.json": "a88941efba8a185982035274dbd0d06bc8e3c28182ff6e91187a50730432bdc6",
+    "selective-search-a75-efficiency.json": "17b01055c0f05f22801166980ece6db6d18b00ebd86522586e2e53a6cf754dc4",
+    "selective-tuned-baseline-personality-nodes.json": "d67b030033d3ad3bdf25349cbf1a431b734106e3e7f6ae8bb63e1c38eb96c8fe",
+    "selective-tuned-baseline-personality-nodes.manifest.json": "a2717f49577e84ff997ecb2c7f67ee58f4f61ca6ce1c7007628fdb58a22d1ed3",
+    "selective-tuned-objective-nodes.json": "53a0ac69ee922a16323f647b50e140bc91d130d5be260efe289ccfe1a84532db",
+    "selective-tuned-objective-nodes.manifest.json": "6e2387c5b9e72313730911d62b95be832f8c863716e8b029b04248258254bd89",
+    "selective-tuned-personality-nodes.json": "67e878fdc8599e6248f42367e031b719b4ddca9ee7b762b406de5f29e8ad3044",
+    "selective-tuned-personality-nodes.manifest.json": "4e496f7bea4d070d0d762d880d58dd2ea9f9740a1ba2270ef209d68563fccbc4",
+    "selective-tuned-same-profile-nodes.json": "d6787edf9297859b445661ec12f4208bd8f21114db7eecb2d3340e70e85d08c3",
+    "selective-tuned-same-profile-nodes.manifest.json": "29afac537d3ced106dc9fa4b37b687bb7b7417d7df6bb927d76864b439665728",
+    "selective-tuned-style.json": "8a563bc37ca50e3997f6ac3670bd533f2b55703b1d93b7695d933ddf5fa82e0f",
+    "strength-personality-contract.json": "5d577b917c6d67517931961cfaedcc9ade5b1787890c42eb24b9f984fc8fb05f"
+  },
+  "baseline_sha256": "866f1012128f1b9ff9ea0d18dcd4cba5dafed79629dd2841de244e993ee0666a",
+  "candidate_sha256": "3e475df417fed0b3cf6c0f844eaf38f29b3e50e846e6fe0b6e78537b8281ed22",
+  "efficiency": {
+    "active_positions": 10,
+    "geometric_node_reduction_percent": 2.22237,
+    "minimum_percent": -10.0,
+    "passed": true
+  },
+  "matches": {
+    "baseline_personality": {
+      "elo": -69.682846,
+      "elo_ci95": [
+        -235.427616,
+        68.315901
+      ],
+      "failures": [],
+      "games": 96,
+      "label": "baseline_personality",
+      "passed": true
+    },
+    "objective": {
+      "elo": 0.0,
+      "elo_ci95": [
+        -143.914845,
+        143.914845
+      ],
+      "failures": [],
+      "games": 96,
+      "label": "objective",
+      "passed": true
+    },
+    "personality": {
+      "elo": 21.743065,
+      "elo_ci95": [
+        -118.935365,
+        170.389544
+      ],
+      "failures": [],
+      "games": 96,
+      "label": "personality",
+      "passed": true
+    },
+    "same_profile": {
+      "elo": 84.889641,
+      "elo_ci95": [
+        -53.388683,
+        258.536978
+      ],
+      "failures": [],
+      "games": 96,
+      "label": "same_profile",
+      "passed": true
+    }
+  },
+  "passed": true,
+  "personality_comparison": {
+    "absolute_passed": true,
+    "baseline_elo": -69.682846,
+    "candidate_elo": 21.743065,
+    "elo_delta": 91.425911,
+    "minimum_candidate_elo": -125.0,
+    "minimum_elo_delta": -35.0,
+    "passed": true,
+    "relative_passed": true
+  },
+  "schema_version": 1,
+  "style": {
+    "candidate_expected_moves": true,
+    "controls_preserved": true,
+    "forcing_retention_percent": 116.11707096903612,
+    "minimum_forcing_retention_percent": 90.0,
+    "passed": true
+  }
+}

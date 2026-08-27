@@ -11,3 +11,9 @@ mimalloc = "0.1.48"
 [[bench]]
 name = "search"
 harness = false
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "debuginfo"

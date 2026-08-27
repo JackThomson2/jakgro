@@ -33,7 +33,7 @@ cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 ```
 
-The release executable is written to `target/release/jakgro`.
+The release executable is written to `target/release/jakgro`. Release builds use fat link-time optimization and a single codegen unit, which roughly doubles link time in exchange for a measurably faster search. The benchmark profile inherits those optimization settings, and Cargo always builds benchmarks with unwinding so their assertions still report failures.
 
 Jakgro resolves `cozy-chess` from the [`board-state-save-restore` branch](https://github.com/JackThomson2/cozy-chess/tree/board-state-save-restore). `Cargo.lock` pins the exact Git revision for reproducible builds. The UCI executable and standalone search benchmark select mimalloc globally; the reusable library does not force an allocator on downstream binaries.
 

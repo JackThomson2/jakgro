@@ -1576,7 +1576,7 @@ pub(super) fn run<F>(
 where
     F: FnMut(SearchInfo),
 {
-    let scoring = EvaluationConfig::new(0);
+    let scoring = evaluation.objective_scoring();
     table.start_search(evaluation.aggression());
     let time_budget = allocate_time(position.board().side_to_move(), limits, move_overhead);
     if !control.has_time_budget()

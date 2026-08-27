@@ -25,6 +25,18 @@ pub(super) fn extract(board: &Board) -> EvalFeatures {
         features.bishop_pair += sign * i32::from(bishops >= 2);
         features.activity += sign * activity(board, color);
         features.mobility += sign * attacks.mobility[color as usize];
+        features.pawn_mobility +=
+            sign * attacks.piece_mobility[color as usize][piece_index(Piece::Pawn) as usize];
+        features.knight_mobility +=
+            sign * attacks.piece_mobility[color as usize][piece_index(Piece::Knight) as usize];
+        features.bishop_mobility +=
+            sign * attacks.piece_mobility[color as usize][piece_index(Piece::Bishop) as usize];
+        features.rook_mobility +=
+            sign * attacks.piece_mobility[color as usize][piece_index(Piece::Rook) as usize];
+        features.queen_mobility +=
+            sign * attacks.piece_mobility[color as usize][piece_index(Piece::Queen) as usize];
+        features.king_mobility +=
+            sign * attacks.piece_mobility[color as usize][piece_index(Piece::King) as usize];
         let attack = if color == Color::White {
             white_attack
         } else {
@@ -117,6 +129,7 @@ fn reference_mobility(board: &Board, color: Color) -> i32 {
 struct AttackSummary {
     profiles: [AttackProfile; 2],
     mobility: [i32; 2],
+    piece_mobility: [[i32; 6]; 2],
 }
 
 fn attack_summary(board: &Board) -> AttackSummary {
@@ -127,6 +140,7 @@ fn attack_summary(board: &Board) -> AttackSummary {
     ];
     let mut profiles = [AttackProfile::default(); 2];
     let mut mobility = [0_i32; 2];
+    let mut piece_mobility = [[0_i32; 6]; 2];
     let mut attack_counts = [[0_u8; 64]; 2];
     let mut zone_defenders = [0_i32; 2];
 
@@ -152,6 +166,7 @@ fn attack_summary(board: &Board) -> AttackSummary {
                 let raw_attacks = attacks_from(piece, square, color, occupied);
                 let attacks = raw_attacks & !friendly_pieces;
                 mobility[index] += attacks.len() as i32;
+                piece_mobility[index][piece_index(piece) as usize] += attacks.len() as i32;
                 if piece != Piece::King {
                     for target in raw_attacks {
                         attack_counts[index][target as usize] += 1;
@@ -247,7 +262,11 @@ fn attack_summary(board: &Board) -> AttackSummary {
         }
     }
 
-    AttackSummary { profiles, mobility }
+    AttackSummary {
+        profiles,
+        mobility,
+        piece_mobility,
+    }
 }
 
 #[cfg(test)]

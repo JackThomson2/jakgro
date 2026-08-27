@@ -81,21 +81,32 @@ impl Mul<Score> for ScorePair {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct EvaluationConfig {
     aggression: u8,
+    mobility_profile: u8,
 }
 
 impl EvaluationConfig {
     pub(super) const fn new(aggression: u8) -> Self {
+        let aggression = if aggression > MAX_AGGRESSION {
+            MAX_AGGRESSION
+        } else {
+            aggression
+        };
         Self {
-            aggression: if aggression > MAX_AGGRESSION {
-                MAX_AGGRESSION
-            } else {
-                aggression
-            },
+            aggression,
+            mobility_profile: aggression,
         }
     }
 
     pub(super) const fn aggression(self) -> u8 {
         self.aggression
+    }
+
+    /// Returns objective scoring while retaining the selected mobility profile.
+    pub(super) const fn objective_scoring(self) -> Self {
+        Self {
+            aggression: MIN_AGGRESSION,
+            mobility_profile: self.mobility_profile,
+        }
     }
 
     pub(super) const fn max_check_extensions(self) -> u8 {
@@ -104,6 +115,15 @@ impl EvaluationConfig {
 
     pub(super) const fn quiescence_check_budget(self) -> u8 {
         1 + self.aggression / 50
+    }
+
+    /// Peaks at the default profile and fades to zero at both endpoint profiles.
+    pub(super) const fn mobility_profile_intensity(self) -> u8 {
+        if self.mobility_profile <= DEFAULT_AGGRESSION {
+            (self.mobility_profile as u16 * 100 / DEFAULT_AGGRESSION as u16) as u8
+        } else {
+            (MAX_AGGRESSION - self.mobility_profile) * 4
+        }
     }
 
     pub(super) const fn root_style_margin(self) -> Score {
@@ -172,6 +192,12 @@ pub(super) struct EvalFeatures {
     pub(super) queens: Score,
     pub(super) activity: Score,
     pub(super) mobility: Score,
+    pub(super) pawn_mobility: Score,
+    pub(super) knight_mobility: Score,
+    pub(super) bishop_mobility: Score,
+    pub(super) rook_mobility: Score,
+    pub(super) queen_mobility: Score,
+    pub(super) king_mobility: Score,
     pub(super) bishop_pair: Score,
     pub(super) doubled_pawns: Score,
     pub(super) isolated_pawns: Score,
@@ -244,7 +270,9 @@ pub(super) fn evaluate_with_trace_and_config(
     config: EvaluationConfig,
 ) -> EvaluationTrace {
     let features = features::extract(board);
-    let base = weights::score(features);
+    let base = weights::score(features)
+        + weights::profile_mobility_adjustment(features)
+            .scaled(config.mobility_profile_intensity());
     let style = weights::attacking_style(features)
         .scaled(config.aggression())
         .soft_bounded(config.style_middle_game_cap(), config.style_end_game_cap());
@@ -353,6 +381,74 @@ mod tests {
     }
 
     #[test]
+    fn piece_mobility_is_weighted_without_entering_style() {
+        let knight = Position::from_fen("4k3/8/8/8/3N4/8/8/4K3 w - - 0 1").unwrap();
+        let bishop = Position::from_fen("4k3/8/8/8/3B4/8/8/4K3 w - - 0 1").unwrap();
+        let rook = Position::from_fen("4k3/8/8/8/3R4/8/8/4K3 w - - 0 1").unwrap();
+        let queen = Position::from_fen("4k3/8/8/8/3Q4/8/8/4K3 w - - 0 1").unwrap();
+
+        assert_eq!(
+            evaluate_with_trace(knight.board()).features.knight_mobility,
+            8
+        );
+        assert_eq!(
+            evaluate_with_trace(bishop.board()).features.bishop_mobility,
+            13
+        );
+        assert_eq!(evaluate_with_trace(rook.board()).features.rook_mobility, 14);
+        assert_eq!(
+            evaluate_with_trace(queen.board()).features.queen_mobility,
+            27
+        );
+
+        let generic = EvalFeatures {
+            mobility: 10,
+            ..EvalFeatures::default()
+        };
+        let pieces = EvalFeatures {
+            knight_mobility: 1,
+            bishop_mobility: 1,
+            rook_mobility: 1,
+            queen_mobility: 1,
+            ..EvalFeatures::default()
+        };
+        assert_ne!(
+            super::weights::score(generic),
+            super::weights::score(EvalFeatures::default())
+        );
+        assert_eq!(
+            super::weights::score(pieces),
+            super::weights::score(EvalFeatures::default())
+        );
+        assert_ne!(
+            super::weights::profile_mobility_adjustment(pieces),
+            super::weights::profile_mobility_adjustment(EvalFeatures::default())
+        );
+        assert_eq!(
+            super::weights::attacking_style(pieces),
+            super::weights::attacking_style(EvalFeatures::default())
+        );
+
+        let features = evaluate_with_trace(queen.board()).features;
+        assert_eq!(
+            features.mobility,
+            features.pawn_mobility
+                + features.knight_mobility
+                + features.bishop_mobility
+                + features.rook_mobility
+                + features.queen_mobility
+                + features.king_mobility
+        );
+        let profiled = super::ScorePair::new(3, 2) * features.mobility
+            + super::weights::profile_mobility_adjustment(features);
+        let explicit = super::ScorePair::new(4, 4) * features.knight_mobility
+            + super::ScorePair::new(5, 5) * features.bishop_mobility
+            + super::ScorePair::new(2, 4) * features.rook_mobility
+            + super::ScorePair::new(1, 2) * features.queen_mobility;
+        assert_eq!(profiled, explicit);
+    }
+
+    #[test]
     fn aggression_is_clamped_and_scales_tempered_style_caps() {
         let position = Position::from_fen("6k1/5ppp/8/7Q/2B5/8/5PPP/6K1 w - - 0 1").unwrap();
         let quiet =
@@ -364,6 +460,21 @@ mod tests {
             evaluate_with_trace_and_config(position.board(), EvaluationConfig::new(u8::MAX));
 
         assert_eq!(EvaluationConfig::default().aggression(), DEFAULT_AGGRESSION);
+        assert_eq!(
+            EvaluationConfig::new(MIN_AGGRESSION).mobility_profile_intensity(),
+            0
+        );
+        assert_eq!(
+            EvaluationConfig::default().mobility_profile_intensity(),
+            100
+        );
+        let objective = EvaluationConfig::default().objective_scoring();
+        assert_eq!(objective.aggression(), MIN_AGGRESSION);
+        assert_eq!(objective.mobility_profile_intensity(), 100);
+        assert_eq!(
+            EvaluationConfig::new(MAX_AGGRESSION).mobility_profile_intensity(),
+            0
+        );
         assert_eq!(clamped.aggression, MAX_AGGRESSION);
         assert_eq!(
             (quiet.style_middle_game_cap, quiet.style_end_game_cap),

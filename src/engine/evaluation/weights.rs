@@ -7,6 +7,12 @@ const ROOK: ScorePair = ScorePair::new(500, 520);
 const QUEEN: ScorePair = ScorePair::new(900, 900);
 const ACTIVITY: ScorePair = ScorePair::new(4, 2);
 const MOBILITY: ScorePair = ScorePair::new(3, 2);
+const PAWN_MOBILITY_ADJUSTMENT: ScorePair = ScorePair::new(-3, -2);
+const KNIGHT_MOBILITY_ADJUSTMENT: ScorePair = ScorePair::new(1, 2);
+const BISHOP_MOBILITY_ADJUSTMENT: ScorePair = ScorePair::new(2, 3);
+const ROOK_MOBILITY_ADJUSTMENT: ScorePair = ScorePair::new(-1, 2);
+const QUEEN_MOBILITY_ADJUSTMENT: ScorePair = ScorePair::new(-2, 0);
+const KING_MOBILITY_ADJUSTMENT: ScorePair = ScorePair::new(-3, -2);
 const BISHOP_PAIR: ScorePair = ScorePair::new(30, 45);
 const DOUBLED_PAWN: ScorePair = ScorePair::new(-14, -18);
 const ISOLATED_PAWN: ScorePair = ScorePair::new(-12, -10);
@@ -38,6 +44,15 @@ pub(super) fn score(features: EvalFeatures) -> ScorePair {
         + PASSED_PAWN * features.passed_pawns
         + KING_SHELTER * features.king_shelter
         + OPEN_KING_FILE * features.open_king_files
+}
+
+pub(super) fn profile_mobility_adjustment(features: EvalFeatures) -> ScorePair {
+    PAWN_MOBILITY_ADJUSTMENT * features.pawn_mobility
+        + KNIGHT_MOBILITY_ADJUSTMENT * features.knight_mobility
+        + BISHOP_MOBILITY_ADJUSTMENT * features.bishop_mobility
+        + ROOK_MOBILITY_ADJUSTMENT * features.rook_mobility
+        + QUEEN_MOBILITY_ADJUSTMENT * features.queen_mobility
+        + KING_MOBILITY_ADJUSTMENT * features.king_mobility
 }
 
 pub(super) fn attacking_style(features: EvalFeatures) -> ScorePair {

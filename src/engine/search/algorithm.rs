@@ -11,7 +11,7 @@ use cozy_chess::{
 use super::control::DeadlineWindow;
 use super::see::{static_exchange_eval, static_exchange_eval_after};
 use super::time::allocate_time;
-use super::transposition::{Bound, Entry, TranspositionTable};
+use super::transposition::{Bound, Entry, RULE_FIFTY_EXACT_HORIZON, TranspositionTable};
 use super::{SearchControl, SearchInfo, SearchLimits, SearchResult, SearchScore, SearchTelemetry};
 use crate::engine::Position;
 use crate::engine::evaluation::{
@@ -51,6 +51,11 @@ const NULL_MOVE_RULE_FIFTY_LIMIT: u8 = 99;
 const STATIC_PRUNING_MAX_DEPTH: u32 = 4;
 const QUIET_FUTILITY_MAX_DEPTH: u32 = 2;
 const STATIC_PRUNING_RULE_FIFTY_LIMIT: u8 = 80;
+const _: () = assert!(
+    STATIC_PRUNING_RULE_FIFTY_LIMIT >= RULE_FIFTY_EXACT_HORIZON
+        && NULL_MOVE_RULE_FIFTY_LIMIT >= RULE_FIFTY_EXACT_HORIZON,
+    "table entries must be keyed exactly wherever rule-fifty policy changes",
+);
 const REVERSE_FUTILITY_BASE_MARGIN: Score = 100;
 const REVERSE_FUTILITY_DEPTH_MARGIN: Score = 140;
 const QUIET_FUTILITY_BASE_MARGIN: Score = 120;

@@ -10,7 +10,24 @@ pub(in crate::engine) const DEFAULT_HASH_MIB: usize = 16;
 pub(in crate::engine) const MIN_HASH_MIB: usize = 1;
 pub(in crate::engine) const MAX_HASH_MIB: usize = 1024;
 const BUCKET_SIZE: usize = 4;
+/// Halfmove clocks at or above this value keep individually keyed entries.
+///
+/// Below it every clock shares one class, so ordinary transpositions that differ
+/// only in the fifty-move counter reuse each other's results. At or above it the
+/// clock is keyed exactly, which keeps entries isolated for every position whose
+/// score can depend on the rule-fifty horizon: static pruning stops here, null
+/// pruning stops at ninety-nine, and a draw is claimed at one hundred.
+pub(super) const RULE_FIFTY_EXACT_HORIZON: u8 = 80;
 type Bucket = [Option<Entry>; BUCKET_SIZE];
+
+/// Maps a halfmove clock onto the class that keys its transposition entries.
+fn clock_class(halfmove_clock: u8) -> u8 {
+    if halfmove_clock >= RULE_FIFTY_EXACT_HORIZON {
+        halfmove_clock
+    } else {
+        0
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Bound {
@@ -22,7 +39,7 @@ pub(super) enum Bound {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct Entry {
     key: u64,
-    halfmove_clock: u8,
+    clock_class: u8,
     depth: u32,
     score: Score,
     bound: Bound,
@@ -126,10 +143,11 @@ impl TranspositionTable {
         );
     }
     pub(super) fn probe_key(&self, key: u64, halfmove_clock: u8) -> Option<Entry> {
+        let clock_class = clock_class(halfmove_clock);
         self.buckets[self.index(key)]
             .iter()
             .flatten()
-            .find(|entry| entry.key == key && entry.halfmove_clock == halfmove_clock)
+            .find(|entry| entry.key == key && entry.clock_class == clock_class)
             .copied()
     }
 
@@ -146,7 +164,7 @@ impl TranspositionTable {
     ) {
         self.store_entry(Entry {
             key,
-            halfmove_clock,
+            clock_class: clock_class(halfmove_clock),
             depth,
             score: score_to_table(score, ply),
             bound,
@@ -159,9 +177,11 @@ impl TranspositionTable {
         let index = self.index(candidate.key);
         let generation = self.generation;
         let bucket = &mut self.buckets[index];
-        if let Some(existing) = bucket.iter_mut().flatten().find(|entry| {
-            entry.key == candidate.key && entry.halfmove_clock == candidate.halfmove_clock
-        }) {
+        if let Some(existing) = bucket
+            .iter_mut()
+            .flatten()
+            .find(|entry| entry.key == candidate.key && entry.clock_class == candidate.clock_class)
+        {
             if existing.depth > candidate.depth && existing.bound == Bound::Exact {
                 existing.generation = self.generation;
                 if existing.best_move.is_none() {
@@ -304,7 +324,7 @@ mod tests {
     fn synthetic_entry(key: u64, depth: u32, bound: Bound, generation: u16) -> super::Entry {
         super::Entry {
             key,
-            halfmove_clock: 0,
+            clock_class: 0,
             depth,
             score: 0,
             bound,
@@ -413,14 +433,66 @@ mod tests {
     }
 
     #[test]
-    fn isolates_positions_with_different_halfmove_clocks() {
-        let first = Position::from_fen("7k/8/8/8/8/8/R7/K7 w - - 0 1").unwrap();
-        let second = Position::from_fen("7k/8/8/8/8/8/R7/K7 w - - 99 50").unwrap();
+    fn an_equal_depth_result_replaces_a_matching_exact_entry() {
+        let mut table = TranspositionTable::new(1).unwrap();
+        table.start_search(0);
+        let key = 11;
+        table.store_entry(synthetic_entry(key, 5, Bound::Exact, table.generation));
+        let mut refreshed = synthetic_entry(key, 5, Bound::Lower, table.generation);
+        refreshed.score = 64;
+        table.store_entry(refreshed);
+
+        let entry = table.probe_key(key, 0).unwrap();
+        assert_eq!(entry.depth(), 5);
+        assert_eq!(entry.bound(), Bound::Lower);
+        assert_eq!(entry.score_at_ply(0), 64);
+    }
+
+    #[test]
+    fn shares_entries_below_the_rule_fifty_horizon_and_isolates_above_it() {
+        let quiet = Position::from_fen("7k/8/8/8/8/8/R7/K7 w - - 0 1").unwrap();
+        let advanced = Position::from_fen("7k/8/8/8/8/8/R7/K7 w - - 40 21").unwrap();
+        let horizon = Position::from_fen("7k/8/8/8/8/8/R7/K7 w - - 80 41").unwrap();
+        let claimable = Position::from_fen("7k/8/8/8/8/8/R7/K7 w - - 99 50").unwrap();
         let mut table = TranspositionTable::new(1).unwrap();
 
-        table.store(first.board(), 4, 0, 75, Bound::Exact, None);
+        table.store(quiet.board(), 4, 0, 75, Bound::Exact, None);
 
-        assert!(table.probe(second.board()).is_none());
+        assert_eq!(
+            table
+                .probe(advanced.board())
+                .map(|entry| entry.score_at_ply(0)),
+            Some(75),
+            "clocks below the horizon must share one entry",
+        );
+        assert!(
+            table.probe(horizon.board()).is_none(),
+            "the horizon clock must not read a shared entry",
+        );
+        assert!(
+            table.probe(claimable.board()).is_none(),
+            "a nearly claimable draw must not read a shared entry",
+        );
+
+        table.store(claimable.board(), 4, 0, 120, Bound::Exact, None);
+
+        assert_eq!(
+            table
+                .probe(claimable.board())
+                .map(|entry| entry.score_at_ply(0)),
+            Some(120),
+        );
+        assert!(
+            table.probe(horizon.board()).is_none(),
+            "clocks at or above the horizon stay individually keyed",
+        );
+        assert_eq!(
+            table
+                .probe(quiet.board())
+                .map(|entry| entry.score_at_ply(0)),
+            Some(75),
+            "isolating a claimable clock must not disturb the shared class",
+        );
     }
 
     #[test]

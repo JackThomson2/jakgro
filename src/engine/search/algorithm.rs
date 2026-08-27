@@ -964,6 +964,7 @@ fn should_prune_quiescence_capture(
 }
 
 const HISTORY_MAX: i32 = 16_384;
+const FIRST_CAPTURE_HISTORY_BONUS_DIVISOR: i32 = 16;
 const CAPTURE_HISTORY_ENTRIES: usize = 2 * 6 * 64 * 6;
 const HISTORY_BONUS_SCALE: u32 = 64;
 const LMR_HISTORY_THRESHOLD: i32 = HISTORY_MAX / 3;
@@ -1116,7 +1117,12 @@ impl MoveOrdering {
         }
         let color = board.side_to_move();
         let bonus = history_bonus(depth);
-        self.update_capture_history(color, winner.facts(), bonus);
+        let winner_bonus = if failed_captures.is_empty() {
+            bonus / FIRST_CAPTURE_HISTORY_BONUS_DIVISOR
+        } else {
+            bonus
+        };
+        self.update_capture_history(color, winner.facts(), winner_bonus);
         for failed in failed_captures.iter().copied() {
             if failed.chess_move.promotion.is_none() && failed.facts().captured.is_some() {
                 self.update_capture_history(color, failed.facts(), -bonus);
@@ -3076,7 +3082,11 @@ fn negamax(
                 }
                 if context.mode.updates_ordering()
                     && metadata.chess_move.promotion.is_none()
-                    && !picker.failed_captures().is_empty()
+                    && (!picker.failed_captures().is_empty()
+                        || context
+                            .ordering
+                            .capture_history_score(board.side_to_move(), metadata.facts())
+                            <= 0)
                 {
                     context.ordering.record_capture_cutoff(
                         board,
@@ -3284,7 +3294,11 @@ fn quiescence(
                 }
                 if context.mode.updates_ordering()
                     && metadata.chess_move.promotion.is_none()
-                    && !picker.failed_captures().is_empty()
+                    && (!picker.failed_captures().is_empty()
+                        || context
+                            .ordering
+                            .capture_history_score(board.side_to_move(), metadata.facts())
+                            <= 0)
                 {
                     context.ordering.record_capture_cutoff(
                         board,
@@ -4576,6 +4590,13 @@ mod tests {
             super::capture_order_score(winner.facts(), Some(-1), evaluation, super::HISTORY_MAX)
                 .unwrap();
         assert!(good > losing);
+
+        let mut first_only = super::MoveOrdering::new();
+        first_only.record_capture_cutoff(position.board(), winner, &[], 8);
+        assert_eq!(
+            first_only.capture_history_score(color, winner.facts()),
+            super::history_bonus(8) / super::FIRST_CAPTURE_HISTORY_BONUS_DIVISOR,
+        );
     }
 
     #[test]

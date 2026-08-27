@@ -116,6 +116,22 @@ fn capture_history_is_trained_by_misordered_cutoffs() {
 }
 
 #[test]
+fn first_capture_cutoffs_update_capture_history() {
+    let mut engine = jakgro::engine::Engine::new();
+    engine.set_position(
+        jakgro::engine::Position::from_fen("4k3/8/8/8/8/8/4q3/4R1K1 w - - 0 1").unwrap(),
+    );
+    let result = engine.search(&jakgro::engine::SearchLimits {
+        depth: Some(5),
+        ..jakgro::engine::SearchLimits::default()
+    });
+    let telemetry = result.telemetry();
+
+    assert!(telemetry.capture_history_first_move_cutoffs() > 0);
+    assert!(telemetry.capture_history_updates() > 0);
+}
+
+#[test]
 fn selective_search_telemetry_attributes_objective_work() {
     let mut engine = jakgro::engine::Engine::new();
     engine.set_aggression(0);

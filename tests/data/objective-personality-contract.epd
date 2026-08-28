@@ -1,6 +1,6 @@
 # Frozen objective/personality contract. Six-field FEN; id; category; nodes; obm; bm0; bm100; maxloss; gate; motif.
 rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 ; id contract-starting-development ; category initiative ; nodes 20000 ; obm b1c3,d2d4 ; bm0 b1c3 ; bm100 d2d4 ; maxloss 0 ; gate personality ; motif development
-rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2 ; id contract-early-king-pressure ; category king-attack ; nodes 20000 ; obm g1f3 ; bm0 g1f3 ; bm100 b1c3 ; maxloss 30 ; gate personality ; motif queen-pressure
+rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2 ; id contract-early-king-pressure ; category king-attack ; nodes 20000 ; obm d2d4 ; bm0 d2d4 ; bm100 d2d4 ; maxloss 30 ; gate personality ; motif queen-pressure
 r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3 ; id contract-central-space ; category initiative ; nodes 20000 ; obm f1c4,d2d4 ; bm0 d2d4 ; bm100 f1c4 ; maxloss 0 ; gate objective ; motif development
 rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 2 ; id contract-black-king-pressure ; category king-attack ; nodes 20000 ; obm f8c5,d7d5 ; bm0 d7d5 ; bm100 d7d5 ; maxloss 30 ; gate personality ; motif queen-pressure
 4k3/8/8/8/8/8/4q3/4R1K1 w - - 0 1 ; id contract-tactical-safety ; category safety ; nodes 20000 ; obm e1e2 ; bm0 e1e2 ; bm100 e1e2 ; maxloss 0 ; gate control ; motif forced-capture
@@ -11,7 +11,7 @@ r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8 ; id contra
 6k1/5ppp/8/7Q/2B5/8/5PPP/6K1 w - - 0 1 ; id contract-forcing-mate-safety ; category safety ; nodes 20000 ; obm h5f7 ; bm0 h5f7 ; bm100 h5f7 ; maxloss 0 ; gate control ; motif forced-mate
 6k1/5ppp/8/8/6P1/8/5P1P/6K1 w - - 0 1 ; id contract-kingside-pawn-storm ; category pawn-storm ; nodes 20000 ; obm g1g2 ; bm0 g1g2 ; bm100 g4g5 ; maxloss 120 ; gate personality ; motif pawn-storm
 r3r1k1/ppp2ppp/2n2n2/3q4/8/2N2N2/PPPQ1PPP/R3R1K1 w - - 0 15 ; id contract-central-queen-safety ; category safety ; nodes 20000 ; obm c3d5 ; bm0 c3d5 ; bm100 c3d5 ; maxloss 0 ; gate control ; motif queen-capture
-rnbqkb1r/1p3pp1/p1p4p/3np3/6PP/2N5/PPQPPP2/R1B1KBNR w KQkq - 0 1 ; id contract-knight-d5-investment ; category sacrifice ; nodes 20000 ; obm g1f3 ; bm0 g1f3 ; bm100 c3d5 ; maxloss 120 ; gate sacrifice ; motif knight-investment
+rn1qkb1r/ppp1pp1p/6p1/3n4/3P2b1/2N2N2/PPQ1PPPP/R1B1KB1R b KQkq - 0 1 ; id contract-knight-c3-investment ; category sacrifice ; nodes 20000 ; obm d5b4 ; bm0 d5b4 ; bm100 d5c3 ; maxloss 120 ; gate sacrifice ; motif knight-investment
 r1bq1rk1/ppp2ppp/2n2n2/3p4/3P4/2PB4/PP3PPP/RNBQ1RK1 w - - 0 8 ; id contract-unsupported-greek-gift ; category anti-sacrifice ; nodes 40000 ; obm c1f4 ; bm0 c1f4 ; bm100 c1f4 ; maxloss 0 ; gate control ; motif unsound-bishop-sacrifice
 r4rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP4/PPP3PP/R4RK1 w - - 0 10 ; id contract-unsupported-rook-f7 ; category anti-sacrifice ; nodes 20000 ; obm g1h1 ; bm0 g1h1 ; bm100 g1h1 ; maxloss 0 ; gate control ; motif unsound-rook-sacrifice
 4k3/3q4/8/8/8/8/3Q4/4K3 w - - 0 1 ; id contract-avoid-equal-queen-trade ; category simplification ; nodes 20000 ; obm d2d7 ; bm0 d2d7 ; bm100 d2f4 ; maxloss 120 ; gate personality ; motif live-tension

@@ -42,10 +42,12 @@ const LMR_SHALLOW_CHILD_DEPTH: u32 = 2;
 const LMR_SHALLOW_MOVE_INDEX: usize = 6;
 const LMR_MIN_CHILD_DEPTH: u32 = 3;
 const LMR_MIN_MOVE_INDEX: usize = 3;
-const LMR_DEEP_CHILD_DEPTH: u32 = 6;
-const LMR_DEEP_MOVE_INDEX: usize = 7;
-const LMR_VERY_DEEP_CHILD_DEPTH: u32 = 8;
-const LMR_VERY_DEEP_MOVE_INDEX: usize = 12;
+/// Quiet moves always searched before move-count pruning applies.
+const LMP_BASE: usize = 6;
+/// Growth of the move-count limit per ply of remaining depth.
+const LMP_DEPTH_SCALE: usize = 3;
+/// Deepest node at which move-count pruning is considered.
+const LMP_MAX_DEPTH: u32 = 8;
 const NULL_MOVE_MIN_DEPTH: u32 = 4;
 const NULL_MOVE_RULE_FIFTY_LIMIT: u8 = 99;
 const STATIC_PRUNING_MAX_DEPTH: u32 = 4;
@@ -927,6 +929,70 @@ impl PreparedMove {
     }
 }
 
+/// Base late-move reduction indexed by remaining depth and move index.
+///
+/// The entries follow the conventional logarithmic shape, so a reduction grows
+/// with both depth and how late a move appears instead of saturating at a fixed
+/// ladder. The previous three-step ladder stopped growing past child depth eight
+/// and move index twelve, which left a late quiet move at depth twenty reduced by
+/// the same three plies as one at depth eight.
+static LMR_TABLE: [[u8; LMR_INDEX_ENTRIES]; LMR_DEPTH_ENTRIES] = build_lmr_table();
+
+const LMR_DEPTH_ENTRIES: usize = 64;
+const LMR_INDEX_ENTRIES: usize = 64;
+
+/// Builds the reduction table as `0.75 + ln(depth) * ln(index) / 2.25`.
+///
+/// The logarithms are evaluated at compile time through a small integer series
+/// because floating point is not available in const context. Values are scaled by
+/// 1024 throughout and the result is rounded down to whole plies.
+const fn build_lmr_table() -> [[u8; LMR_INDEX_ENTRIES]; LMR_DEPTH_ENTRIES] {
+    let mut table = [[0_u8; LMR_INDEX_ENTRIES]; LMR_DEPTH_ENTRIES];
+    let mut depth = 1;
+    while depth < LMR_DEPTH_ENTRIES {
+        let mut index = 1;
+        while index < LMR_INDEX_ENTRIES {
+            let product = scaled_ln(depth as u32) * scaled_ln(index as u32) / 1024;
+            let reduction = (768 + product * 1024 / 2304) / 1024;
+            table[depth][index] = if reduction > 31 { 31 } else { reduction as u8 };
+            index += 1;
+        }
+        depth += 1;
+    }
+    table
+}
+
+/// Returns `ln(value)` scaled by 1024, for `value` at least one.
+///
+/// `ln(v)` is recovered from the bit length as `ln(2) * floor(log2 v)` plus a
+/// linear interpolation across the mantissa, which is accurate to about one part
+/// in a hundred over the range the table needs and is monotone throughout.
+const fn scaled_ln(value: u32) -> u32 {
+    if value <= 1 {
+        return 0;
+    }
+    let floor_log2 = 31 - value.leading_zeros();
+    // ln(2) * 1024 = 709.78, rounded to 710.
+    let base = 710 * floor_log2;
+    let power = 1_u32 << floor_log2;
+    // Interpolate ln(1 + f) as f * ln(2) for the fractional part f in [0, 1).
+    let fraction = (value - power) * 1024 / power;
+    base + fraction * 710 / 1024
+}
+
+/// Returns the number of quiet moves searched before move-count pruning starts.
+///
+/// Late-move pruning skips quiet moves that appear far down a well-ordered list at
+/// shallow depth, on the assumption that ordering has already surfaced anything
+/// worth searching. The limit grows quadratically with depth so deep nodes are
+/// barely affected, and an improving node is allowed more moves because its
+/// evaluation is trending in its favour.
+fn late_move_pruning_limit(depth: u32, improving: bool) -> usize {
+    let depth = depth as usize;
+    let base = LMP_BASE + depth * depth * LMP_DEPTH_SCALE / 2;
+    if improving { base * 2 } else { base }
+}
+
 fn late_move_reduction(
     child_depth: u32,
     move_index: usize,
@@ -951,11 +1017,9 @@ fn late_move_reduction(
         return 0;
     }
 
-    let mut reduction = 1
-        + u32::from(child_depth >= LMR_DEEP_CHILD_DEPTH && move_index >= LMR_DEEP_MOVE_INDEX)
-        + u32::from(
-            child_depth >= LMR_VERY_DEEP_CHILD_DEPTH && move_index >= LMR_VERY_DEEP_MOVE_INDEX,
-        );
+    let depth_row = (child_depth as usize).min(LMR_DEPTH_ENTRIES - 1);
+    let index_column = move_index.min(LMR_INDEX_ENTRIES - 1);
+    let mut reduction = u32::from(LMR_TABLE[depth_row][index_column]).max(1);
     if history_score >= LMR_HISTORY_THRESHOLD {
         reduction = reduction.saturating_sub(1);
     } else if history_score <= -LMR_HISTORY_THRESHOLD {
@@ -1401,6 +1465,58 @@ fn should_prune_quiet_move(
             DECLINING_QUIET_FUTILITY_RELIEF
         };
     static_evaluation.saturating_add(margin) <= alpha
+}
+
+/// Reports whether a quiet move is late enough to skip without searching it.
+///
+/// This is move-count pruning: past a depth-dependent limit, quiet moves in a
+/// well-ordered list are skipped rather than reduced. It is confined to shallow
+/// non-PV nodes in the ordinary search and never applies to the classes that
+/// carry tactical or stylistic meaning.
+///
+/// Restricting it to `SearchMode::Normal` matters for correctness, not only for
+/// policy. Null pruning verifies every fail-high by re-searching, and the
+/// null-move contract requires a search with pruning enabled to agree with one
+/// without it. Pruning inside those probe and verification searches would make
+/// the two disagree, so this follows the same mode restriction the existing
+/// static pruning uses.
+///
+/// The exemptions matter as much as the rule. An earlier attempt at this pruning
+/// was withheld because the attacking profile stopped finding a required
+/// sacrifice; that attempt skipped the forcing quiet moves the personality is
+/// built from. Checks, castling, moves into the enemy king's zone, killers, the
+/// hash and principal-variation moves, and any move with positive history are all
+/// searched, and attacking pawn pushes are additionally protected whenever
+/// aggression is non-zero.
+#[allow(clippy::too_many_arguments)]
+fn should_prune_late_move(
+    depth: u32,
+    move_index: usize,
+    metadata: MoveMetadata,
+    protected: bool,
+    in_check: bool,
+    pv_node: bool,
+    history_score: i32,
+    improving: bool,
+    aggression: u8,
+    mode: SearchMode,
+) -> bool {
+    if !matches!(mode, SearchMode::Normal)
+        || depth > LMP_MAX_DEPTH
+        || move_index == 0
+        || protected
+        || in_check
+        || pv_node
+        || history_score > 0
+        || !metadata.is_quiet()
+        || metadata.gives_check
+        || metadata.castling
+        || metadata.king_zone_move
+        || (aggression > 0 && metadata.attacking_pawn_push)
+    {
+        return false;
+    }
+    move_index >= late_move_pruning_limit(depth, improving)
 }
 
 fn null_move_reduction(depth: u32) -> u32 {
@@ -3067,6 +3183,25 @@ fn negamax(
             )
         }) {
             context.telemetry.futility_pruned_moves += 1;
+            selective_fail_low = true;
+            picker.record_failed_quiet(metadata);
+            continue;
+        }
+        if static_evaluation.is_some()
+            && should_prune_late_move(
+                depth,
+                index,
+                metadata,
+                protected,
+                in_check,
+                pv_node,
+                history_score,
+                improving,
+                context.personality.aggression(),
+                context.mode,
+            )
+        {
+            context.telemetry.late_move_pruned_moves += 1;
             selective_fail_low = true;
             picker.record_failed_quiet(metadata);
             continue;
@@ -5349,7 +5484,17 @@ mod tests {
         );
         assert_eq!(
             super::late_move_reduction(8, 12, metadata, false, false, false, 0),
-            3,
+            2,
+        );
+        // Unlike the previous fixed ladder, the reduction keeps growing with
+        // depth rather than saturating at three plies.
+        assert!(
+            super::late_move_reduction(24, 12, metadata, false, false, false, 0)
+                > super::late_move_reduction(8, 12, metadata, false, false, false, 0),
+        );
+        assert!(
+            super::late_move_reduction(16, 32, metadata, false, false, false, 0)
+                > super::late_move_reduction(16, 5, metadata, false, false, false, 0),
         );
         assert_eq!(
             super::late_move_reduction(
@@ -5512,6 +5657,207 @@ mod tests {
                 ),
                 0,
             );
+        }
+    }
+
+    /// Move-count pruning must skip only genuinely uninteresting quiet moves.
+    ///
+    /// The earlier attempt at this pruning was withheld because it skipped the
+    /// forcing quiet moves the attacking personality is built from, so this pins
+    /// each exemption rather than only the limit itself.
+    #[test]
+    fn move_count_pruning_exempts_forcing_and_protected_moves() {
+        let position = Position::default();
+        let quiet_move = find_move(&position, "a2a3");
+        let quiet = super::MoveMetadata::classify(position.board(), quiet_move);
+        let late = super::late_move_pruning_limit(2, false);
+
+        // A late quiet move at shallow depth with no history is pruned.
+        assert!(super::should_prune_late_move(
+            2,
+            late,
+            quiet,
+            false,
+            false,
+            false,
+            0,
+            false,
+            75,
+            super::SearchMode::Normal
+        ));
+        // The first move is never pruned, whatever the limit says.
+        assert!(!super::should_prune_late_move(
+            2,
+            0,
+            quiet,
+            false,
+            false,
+            false,
+            0,
+            false,
+            75,
+            super::SearchMode::Normal
+        ));
+        // Nor is a move inside the limit.
+        assert!(!super::should_prune_late_move(
+            2,
+            late - 1,
+            quiet,
+            false,
+            false,
+            false,
+            0,
+            false,
+            75,
+            super::SearchMode::Normal
+        ));
+        // Deep nodes are left to reductions instead.
+        assert!(!super::should_prune_late_move(
+            super::LMP_MAX_DEPTH + 1,
+            late,
+            quiet,
+            false,
+            false,
+            false,
+            0,
+            false,
+            75,
+            super::SearchMode::Normal
+        ));
+        // Protected moves, checks in progress, principal variations, and positive
+        // history all veto pruning.
+        for (name, pruned) in [
+            (
+                "protected",
+                super::should_prune_late_move(
+                    2,
+                    late,
+                    quiet,
+                    true,
+                    false,
+                    false,
+                    0,
+                    false,
+                    75,
+                    super::SearchMode::Normal,
+                ),
+            ),
+            (
+                "in check",
+                super::should_prune_late_move(
+                    2,
+                    late,
+                    quiet,
+                    false,
+                    true,
+                    false,
+                    0,
+                    false,
+                    75,
+                    super::SearchMode::Normal,
+                ),
+            ),
+            (
+                "pv node",
+                super::should_prune_late_move(
+                    2,
+                    late,
+                    quiet,
+                    false,
+                    false,
+                    true,
+                    0,
+                    false,
+                    75,
+                    super::SearchMode::Normal,
+                ),
+            ),
+            (
+                "history",
+                super::should_prune_late_move(
+                    2,
+                    late,
+                    quiet,
+                    false,
+                    false,
+                    false,
+                    1,
+                    false,
+                    75,
+                    super::SearchMode::Normal,
+                ),
+            ),
+        ] {
+            assert!(!pruned, "{name} should not be pruned");
+        }
+        // An improving node searches more moves before pruning starts.
+        assert!(super::late_move_pruning_limit(2, true) > super::late_move_pruning_limit(2, false));
+
+        // A capture is not a quiet move and is never move-count pruned.
+        let capture_position = Position::from_fen("4k3/8/8/8/8/2n5/3P4/4K3 w - - 0 1").unwrap();
+        let capture_move = find_move(&capture_position, "d2c3");
+        let capture = super::MoveMetadata::classify(capture_position.board(), capture_move);
+        assert!(!super::should_prune_late_move(
+            2,
+            late,
+            capture,
+            false,
+            false,
+            false,
+            0,
+            false,
+            75,
+            super::SearchMode::Normal
+        ));
+
+        // A checking quiet move is exempt, as is an attacking pawn push while
+        // aggression is non-zero.
+        let checking_position = Position::from_fen("7k/8/8/8/8/8/6R1/K7 w - - 0 1").unwrap();
+        let checking_move = find_move(&checking_position, "g2h2");
+        let checking = super::MoveMetadata::classify(checking_position.board(), checking_move);
+        assert!(checking.gives_check);
+        assert!(!super::should_prune_late_move(
+            2,
+            late,
+            checking,
+            false,
+            false,
+            false,
+            0,
+            false,
+            75,
+            super::SearchMode::Normal
+        ));
+
+        let storm = Position::from_fen("6k1/5ppp/8/6P1/8/8/5P1P/6K1 w - - 0 1").unwrap();
+        let push = find_move(&storm, "g5g6");
+        let push_metadata = super::MoveMetadata::classify(storm.board(), push);
+        if push_metadata.attacking_pawn_push {
+            assert!(!super::should_prune_late_move(
+                2,
+                late,
+                push_metadata,
+                false,
+                false,
+                false,
+                0,
+                false,
+                75,
+                super::SearchMode::Normal
+            ));
+            // At objective settings the stylistic exemption does not apply.
+            assert!(super::should_prune_late_move(
+                2,
+                late,
+                push_metadata,
+                false,
+                false,
+                false,
+                0,
+                false,
+                0,
+                super::SearchMode::Normal
+            ));
         }
     }
 

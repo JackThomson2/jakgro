@@ -142,6 +142,7 @@ pub struct SearchTelemetry {
     pub(super) static_evaluation_hits: u64,
     pub(super) reverse_futility_cutoffs: u64,
     pub(super) futility_pruned_moves: u64,
+    pub(super) late_move_pruned_moves: u64,
     pub(super) aspiration_attempts: u64,
     pub(super) aspiration_fail_lows: u64,
     pub(super) aspiration_fail_highs: u64,
@@ -221,6 +222,12 @@ impl SearchTelemetry {
     #[must_use]
     pub const fn futility_pruned_moves(self) -> u64 {
         self.futility_pruned_moves
+    }
+
+    /// Returns the number of quiet moves skipped by move-count pruning.
+    #[must_use]
+    pub const fn late_move_pruned_moves(self) -> u64 {
+        self.late_move_pruned_moves
     }
 
     /// Returns the number of moves considered for late-move reduction.

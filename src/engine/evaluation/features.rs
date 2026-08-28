@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+
 use cozy_chess::{
     BitBoard, Board, Color, File, Piece, Rank, Square, get_bishop_moves, get_king_moves,
     get_knight_moves, get_pawn_attacks, get_rook_moves,
@@ -105,6 +107,113 @@ const fn build_king_file_spans() -> [BitBoard; 64] {
     spans
 }
 
+/// Pawn and king structure for one position, as side-relative feature deltas.
+///
+/// Every field is a function of the pawn placement of both colours and the two
+/// king squares alone, which is what makes it cacheable across nodes: the rest of
+/// the evaluation changes when any piece moves, but these terms change only when
+/// a pawn or a king does.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct StructureTerms {
+    doubled: i32,
+    isolated: i32,
+    passed: i32,
+    shelter: i32,
+    open_files: i32,
+}
+
+/// The inputs a [`StructureTerms`] depends on, stored so a hit is exact.
+///
+/// Verifying the full inputs rather than a hash means a cache hit returns the
+/// value recomputation would have produced, so the cache cannot change a score.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct StructureKey {
+    white_pawns: u64,
+    black_pawns: u64,
+    white_king: u8,
+    black_king: u8,
+}
+
+impl StructureKey {
+    fn new(board: &Board) -> Self {
+        Self {
+            white_pawns: board.colored_pieces(Color::White, Piece::Pawn).0,
+            black_pawns: board.colored_pieces(Color::Black, Piece::Pawn).0,
+            white_king: board.king(Color::White) as u8,
+            black_king: board.king(Color::Black) as u8,
+        }
+    }
+
+    /// Returns the table slot this key maps to.
+    ///
+    /// The pawn bitboards carry nearly all of the entropy, so they are mixed with
+    /// a multiplicative hash and the king squares folded in afterwards.
+    fn slot(self) -> usize {
+        let mut hash = self.white_pawns.wrapping_mul(0x9e37_79b9_7f4a_7c15);
+        hash ^= self.black_pawns.wrapping_mul(0xbf58_476d_1ce4_e5b9);
+        hash ^= u64::from(self.white_king) << 7 | u64::from(self.black_king) << 1;
+        hash = hash.wrapping_mul(0x94d0_49bb_1331_11eb);
+        (hash >> 40) as usize & (STRUCTURE_CACHE_SLOTS - 1)
+    }
+}
+
+/// Slots in the direct-mapped structure cache.
+///
+/// Sized to stay inside a core's private cache: at 32 bytes an entry, this is
+/// 64 KiB, which a search revisits far more often than it evicts.
+const STRUCTURE_CACHE_SLOTS: usize = 2048;
+
+thread_local! {
+    /// Per-thread structure cache.
+    ///
+    /// Evaluation is a pure function of the board, so the cache is an
+    /// optimization with no observable effect and needs no sharing between
+    /// threads. Keeping it thread-local also keeps the search deterministic:
+    /// whatever the cache state, a hit is verified against the full key.
+    static STRUCTURE_CACHE: RefCell<Box<[(StructureKey, StructureTerms)]>> = RefCell::new(
+        vec![(StructureKey::default(), StructureTerms::default()); STRUCTURE_CACHE_SLOTS]
+            .into_boxed_slice(),
+    );
+}
+
+/// Returns pawn and king structure terms, computing them only on a miss.
+///
+/// The empty key cannot collide with a real position, because every legal
+/// position has two kings and `Square::A1` is square zero only for one of them at
+/// a time; a slot still holding the default is simply a miss and is recomputed.
+fn structure_terms(board: &Board) -> StructureTerms {
+    let key = StructureKey::new(board);
+    let slot = key.slot();
+    STRUCTURE_CACHE.with(|cache| {
+        if let Ok(mut cache) = cache.try_borrow_mut() {
+            let (stored_key, stored) = cache[slot];
+            if stored_key == key {
+                return stored;
+            }
+            let terms = compute_structure_terms(board);
+            cache[slot] = (key, terms);
+            return terms;
+        }
+        compute_structure_terms(board)
+    })
+}
+
+/// Computes pawn and king structure terms from scratch.
+fn compute_structure_terms(board: &Board) -> StructureTerms {
+    let mut terms = StructureTerms::default();
+    for color in [Color::White, Color::Black] {
+        let sign = if color == Color::White { 1 } else { -1 };
+        let pawns = pawn_features(board, color);
+        terms.doubled += sign * pawns.doubled;
+        terms.isolated += sign * pawns.isolated;
+        terms.passed += sign * pawns.passed;
+        let (shelter, open_files) = king_safety(board, color);
+        terms.shelter += sign * shelter;
+        terms.open_files += sign * open_files;
+    }
+    terms
+}
+
 pub(super) fn extract(board: &Board) -> EvalFeatures {
     extract_with_style(board, true)
 }
@@ -160,16 +269,16 @@ pub(super) fn extract_with_style(board: &Board, style: bool) -> EvalFeatures {
         features.supported_threats += sign * attack.supported_threats;
         features.open_lines += sign * attack.open_lines;
         features.pawn_breaks += sign * attack.pawn_breaks;
-
-        let pawns = pawn_features(board, color);
-        features.doubled_pawns += sign * pawns.doubled;
-        features.isolated_pawns += sign * pawns.isolated;
-        features.passed_pawns += sign * pawns.passed;
-
-        let (shelter, open_files) = king_safety(board, color);
-        features.king_shelter += sign * shelter;
-        features.open_king_files += sign * open_files;
     }
+
+    // Pawn and king structure depends only on pawn placement and king squares, so
+    // it is accumulated for both colours at once through the cache.
+    let structure = structure_terms(board);
+    features.doubled_pawns = structure.doubled;
+    features.isolated_pawns = structure.isolated;
+    features.passed_pawns = structure.passed;
+    features.king_shelter = structure.shelter;
+    features.open_king_files = structure.open_files;
 
     features.tempo = if board.side_to_move() == Color::White {
         1
@@ -781,6 +890,67 @@ mod tests {
                 "king safety differs for {color:?} in {board}"
             );
         }
+    }
+
+    /// The structure cache must return what recomputation would produce.
+    ///
+    /// This is the property the cache rests on: it stores the full inputs and
+    /// compares them, so a hit is exact rather than probabilistic. The walk visits
+    /// many positions that collide into the same slots, which is what exercises
+    /// eviction and mismatched keys rather than only fresh inserts.
+    #[test]
+    fn cached_structure_matches_recomputation_over_a_playout() {
+        let mut board = Board::default();
+        let mut checked = 0_u32;
+        for step in 0..160 {
+            assert_eq!(
+                super::structure_terms(&board),
+                super::compute_structure_terms(&board),
+                "structure cache disagreed after {step} plies in {board}",
+            );
+            checked += 1;
+            let mut moves = Vec::new();
+            board.generate_moves(|piece_moves| {
+                moves.extend(piece_moves);
+                false
+            });
+            if moves.is_empty() {
+                break;
+            }
+            let chess_move = moves[step % moves.len()];
+            board.play_unchecked(chess_move);
+        }
+
+        assert!(checked > 40, "expected a long playout, checked {checked}");
+    }
+
+    /// Repeated queries for one position must agree with each other.
+    #[test]
+    fn cached_structure_is_stable_across_repeated_queries() {
+        let board: Board = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
+            .parse()
+            .unwrap();
+        let expected = super::compute_structure_terms(&board);
+
+        for _ in 0..8 {
+            assert_eq!(super::structure_terms(&board), expected);
+        }
+    }
+
+    /// Positions differing only in king square must not share a cache entry.
+    #[test]
+    fn structure_keys_separate_positions_that_differ_only_by_a_king() {
+        let left: Board = "4k3/8/8/8/8/8/PPP5/K7 w - - 0 1".parse().unwrap();
+        let right: Board = "4k3/8/8/8/8/8/PPP5/1K6 w - - 0 1".parse().unwrap();
+
+        let left_key = super::StructureKey::new(&left);
+        let right_key = super::StructureKey::new(&right);
+
+        assert_ne!(left_key, right_key);
+        assert_eq!(super::structure_terms(&left), {
+            let _ = super::structure_terms(&right);
+            super::compute_structure_terms(&left)
+        });
     }
 
     #[test]

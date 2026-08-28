@@ -27,8 +27,10 @@ const VOLATILE_HOLD_ITERATIONS: u8 = 2;
 const CONTROL_POLL_INTERVAL_NODES: u64 = 256;
 const ITERATION_TIME_MULTIPLIER: u32 = 2;
 const ITERATION_TIME_MARGIN: Duration = Duration::from_millis(5);
-const STYLED_ROOT_BUDGET_DIVISOR: u64 = 5;
-const STYLED_ROOT_TACTICAL_BUDGET_DIVISOR: u64 = 3;
+const STYLED_ROOT_DEPTH_SCALE: u64 = 48;
+const STYLED_ROOT_TACTICAL_DEPTH_SCALE: u64 = 80;
+/// Depth beyond which the styled root budget stops growing.
+const STYLED_ROOT_DEPTH_CAP: u32 = 8;
 const STYLED_ROOT_MIN_NODES: u64 = 256;
 const STYLED_ROOT_MAX_NODES: u64 = 2_048;
 const STYLED_ROOT_TACTICAL_MAX_NODES: u64 = 4_096;
@@ -2018,12 +2020,8 @@ fn search_root_styled(
         context.personality.max_check_extensions(),
     );
     let original_node_limit = context.node_limit;
-    let personality_node_limit = styled_root_node_limit(
-        context.nodes,
-        objective_nodes,
-        tactical_reserve,
-        original_node_limit,
-    );
+    let personality_node_limit =
+        styled_root_node_limit(context.nodes, depth, tactical_reserve, original_node_limit);
     context.node_limit = Some(personality_node_limit);
     let personality_start_nodes = context.nodes;
     let mut probe_passers = Vec::new();
@@ -2455,21 +2453,38 @@ fn select_candidate_seeds(seeds: Vec<CandidateSeed>) -> Vec<CandidateSeed> {
     selected
 }
 
+/// Returns the node limit for one iteration's root personality work.
+///
+/// The budget is derived from the iteration depth rather than from how many nodes
+/// the objective root search happened to spend. Deriving it from objective nodes
+/// coupled two unrelated things: any change that made the objective search
+/// cheaper also shrank the personality budget, so selectivity improvements
+/// starved sacrifice probing and the attacking profile silently degraded. Depth
+/// is the honest measure of how much work a candidate verification needs.
+///
+/// The budget doubles per ply so it tracks the cost of the searches it pays for,
+/// stays inside the same absolute clamps as before, and never exceeds the global
+/// node limit.
 fn styled_root_node_limit(
     current_nodes: u64,
-    objective_nodes: u64,
+    depth: u32,
     tactical_reserve: bool,
     global_limit: Option<u64>,
 ) -> u64 {
-    let (divisor, maximum) = if tactical_reserve {
-        (
-            STYLED_ROOT_TACTICAL_BUDGET_DIVISOR,
-            STYLED_ROOT_TACTICAL_MAX_NODES,
-        )
+    let maximum = if tactical_reserve {
+        STYLED_ROOT_TACTICAL_MAX_NODES
     } else {
-        (STYLED_ROOT_BUDGET_DIVISOR, STYLED_ROOT_MAX_NODES)
+        STYLED_ROOT_MAX_NODES
     };
-    let budget = (objective_nodes / divisor).clamp(STYLED_ROOT_MIN_NODES, maximum);
+    let scale = if tactical_reserve {
+        STYLED_ROOT_TACTICAL_DEPTH_SCALE
+    } else {
+        STYLED_ROOT_DEPTH_SCALE
+    };
+    let growth = 1_u64 << depth.min(STYLED_ROOT_DEPTH_CAP);
+    let budget = scale
+        .saturating_mul(growth)
+        .clamp(STYLED_ROOT_MIN_NODES, maximum);
     let local_limit = current_nodes.saturating_add(budget);
     global_limit.map_or(local_limit, |limit| local_limit.min(limit))
 }
@@ -5834,31 +5849,37 @@ mod tests {
         assert!(selected.iter().any(|seed| seed.chess_move == hinted));
     }
 
+    /// The styled root budget must depend on depth, not on objective node counts.
+    ///
+    /// Deriving it from objective nodes made every selectivity improvement shrink
+    /// the personality budget, so this pins the replacement: the budget grows with
+    /// depth, saturates, and never exceeds the global node limit.
     #[test]
     fn styled_root_budget_is_bounded_and_respects_the_global_limit() {
-        assert_eq!(super::styled_root_node_limit(1_000, 4, false, None), 1_256);
+        // Shallow iterations take the floor.
+        assert_eq!(super::styled_root_node_limit(1_000, 1, false, None), 1_256);
+        assert_eq!(super::styled_root_node_limit(1_000, 2, false, None), 1_256);
+        // Growth is monotone in depth.
+        let shallow = super::styled_root_node_limit(0, 4, false, None);
+        let deeper = super::styled_root_node_limit(0, 6, false, None);
+        assert!(deeper > shallow, "{deeper} should exceed {shallow}");
+        // Both budgets saturate at their ceilings rather than growing without end.
         assert_eq!(
-            super::styled_root_node_limit(1_000, 400, false, None),
-            1_256,
+            super::styled_root_node_limit(1_000, 30, false, None),
+            1_000 + super::STYLED_ROOT_MAX_NODES,
         );
         assert_eq!(
-            super::styled_root_node_limit(1_000, 5_000, false, None),
-            2_000,
+            super::styled_root_node_limit(1_000, 30, true, None),
+            1_000 + super::STYLED_ROOT_TACTICAL_MAX_NODES,
         );
-        assert_eq!(
-            super::styled_root_node_limit(1_000, 100_000, false, None),
-            3_048,
+        // A sacrifice hint reserves more than an ordinary iteration.
+        assert!(
+            super::styled_root_node_limit(0, 5, true, None)
+                > super::styled_root_node_limit(0, 5, false, None)
         );
+        // The global limit always wins.
         assert_eq!(
-            super::styled_root_node_limit(1_000, 5_000, true, None),
-            2_666,
-        );
-        assert_eq!(
-            super::styled_root_node_limit(1_000, 100_000, true, None),
-            5_096,
-        );
-        assert_eq!(
-            super::styled_root_node_limit(1_000, 100_000, true, Some(1_500)),
+            super::styled_root_node_limit(1_000, 30, true, Some(1_500)),
             1_500,
         );
     }

@@ -1,4 +1,5 @@
 mod features;
+mod placement;
 mod tactics;
 mod weights;
 
@@ -33,6 +34,16 @@ impl ScorePair {
             middle_game,
             end_game,
         }
+    }
+
+    #[cfg(test)]
+    pub(super) const fn middle_game(self) -> Score {
+        self.middle_game
+    }
+
+    #[cfg(test)]
+    pub(super) const fn end_game(self) -> Score {
+        self.end_game
     }
 
     fn scaled(self, percent: u8) -> Self {
@@ -191,6 +202,12 @@ pub(super) struct EvalFeatures {
     pub(super) rooks: Score,
     pub(super) queens: Score,
     pub(super) activity: Score,
+    /// Side-relative sum of tapered piece-square deltas.
+    ///
+    /// This term is already a middlegame and endgame pair, so it is added to the
+    /// blend directly rather than multiplied by a single weight.
+    pub(super) placement: ScorePair,
+    pub(super) tempo: Score,
     pub(super) mobility: Score,
     pub(super) pawn_mobility: Score,
     pub(super) knight_mobility: Score,
@@ -205,7 +222,6 @@ pub(super) struct EvalFeatures {
     pub(super) king_shelter: Score,
     pub(super) open_king_files: Score,
     pub(super) king_pressure: Score,
-    pub(super) initiative: Score,
     pub(super) pawn_storm: Score,
     pub(super) threats: Score,
     pub(super) space: Score,
@@ -363,6 +379,14 @@ mod tests {
         }
     }
 
+    /// Checks that skipping style extraction preserves every other feature.
+    ///
+    /// The style-free path is only sound for configurations that weight the
+    /// attacking terms at zero, so this pins two things: the shared features are
+    /// identical, and the style-only features really are absent rather than
+    /// merely small. The previous form asserted that the styled aggregate was
+    /// positive, which the tempo term satisfied on its own in both paths and so
+    /// proved nothing about style extraction.
     #[test]
     fn style_free_extraction_preserves_material_and_mobility_features() {
         let position = Position::from_fen(
@@ -381,23 +405,52 @@ mod tests {
         assert_eq!(plain.king_mobility, styled.king_mobility);
         assert_eq!(plain.passed_pawns, styled.passed_pawns);
         assert_eq!(plain.king_shelter, styled.king_shelter);
+        assert_eq!(plain.placement, styled.placement);
+        assert_eq!(plain.tempo, styled.tempo);
         assert_eq!(weights::score(plain), weights::score(styled));
         assert_eq!(
             weights::profile_mobility_adjustment(plain),
             weights::profile_mobility_adjustment(styled),
         );
-        assert!(weights::attacking_style(styled).middle_game > 0);
+
+        for (name, value) in [
+            ("king_pressure", plain.king_pressure),
+            ("threats", plain.threats),
+            ("space", plain.space),
+            ("coordination", plain.coordination),
+            ("supported_threats", plain.supported_threats),
+            ("open_lines", plain.open_lines),
+            ("pawn_breaks", plain.pawn_breaks),
+            ("pawn_storm", plain.pawn_storm),
+        ] {
+            assert_eq!(value, 0, "style-free extraction produced {name}");
+        }
+        assert_ne!(styled.king_pressure, 0);
+
+        // A position with a live attack shows the style bucket is genuinely fed.
+        let attacker = Position::from_fen("6k1/5ppp/8/7Q/2B5/8/5PPP/6K1 w - - 0 1").unwrap();
+        let attacking = super::features::extract(attacker.board());
+        assert!(weights::attacking_style(attacking).middle_game > 0);
     }
 
+    /// The starting position is symmetric apart from whose turn it is.
+    ///
+    /// Material, placement, and pawn structure all cancel, so the whole score is
+    /// the tempo bonus for the side to move. That makes this the test that pins
+    /// tempo as a personality-neutral term rather than a style one.
     #[test]
-    fn starting_material_is_equal_without_style() {
-        assert_eq!(
-            evaluate_with_config(
-                Position::default().board(),
-                EvaluationConfig::new(MIN_AGGRESSION),
-            ),
-            0
-        );
+    fn the_starting_position_scores_only_a_tempo() {
+        let white = Position::default();
+        let black =
+            Position::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1").unwrap();
+        let base = EvaluationConfig::new(MIN_AGGRESSION);
+        let trace = evaluate_with_trace_and_config(white.board(), base);
+
+        assert_eq!(trace.features.placement, super::ScorePair::default());
+        assert_eq!(trace.features.tempo, 1);
+        let score = evaluate_with_config(white.board(), base);
+        assert!(score > 0, "the side to move holds a tempo, scored {score}");
+        assert_eq!(evaluate_with_config(black.board(), base), score);
     }
 
     #[test]
@@ -406,9 +459,16 @@ mod tests {
         let black = Position::from_fen("7k/8/8/8/8/8/8/3QK3 b - - 0 1").unwrap();
         let base = EvaluationConfig::new(MIN_AGGRESSION);
 
+        // Both positions are the same placement with the turn changed, so the two
+        // scores differ by twice the tempo rather than being exact negations.
         let white_score = evaluate_with_config(white.board(), base);
+        let black_score = evaluate_with_config(black.board(), base);
         assert!(white_score > 900);
-        assert_eq!(evaluate_with_config(black.board(), base), -white_score);
+        assert!(black_score < -900);
+        assert!(
+            white_score > -black_score,
+            "the side to move should not lose its tempo: {white_score} against {black_score}",
+        );
     }
 
     #[test]
@@ -420,13 +480,35 @@ mod tests {
         assert!(score.abs() < MATE_THRESHOLD);
     }
 
+    /// A bare-kings position is materially dead but not positionally identical.
+    ///
+    /// The kings stand on different squares, so the endgame king table gives one
+    /// side a small placement edge; the two-king ending is recognized as drawn by
+    /// search rather than by evaluation. What must hold is that the score stays
+    /// far below anything decisive.
     #[test]
-    fn drawn_positions_are_neutral_without_style() {
+    fn drawn_positions_score_near_zero_without_style() {
         let position = Position::from_fen("7k/8/8/8/8/8/8/K7 w - - 0 1").unwrap();
 
+        let score = evaluate_with_config(position.board(), EvaluationConfig::new(MIN_AGGRESSION));
+
+        assert!(
+            score.abs() < 100,
+            "a dead position should not look decisive, scored {score}",
+        );
+    }
+
+    /// Placement is mirrored between colours, so a mirrored position is scored
+    /// identically for whichever side is to move.
+    #[test]
+    fn placement_is_symmetric_between_mirrored_positions() {
+        let white = Position::from_fen("6k1/5ppp/8/8/8/8/5PPP/6K1 w - - 0 1").unwrap();
+        let black = Position::from_fen("6k1/5ppp/8/8/8/8/5PPP/6K1 b - - 0 1").unwrap();
+        let base = EvaluationConfig::new(MIN_AGGRESSION);
+
         assert_eq!(
-            evaluate_with_config(position.board(), EvaluationConfig::new(MIN_AGGRESSION)),
-            0
+            evaluate_with_config(white.board(), base),
+            evaluate_with_config(black.board(), base),
         );
     }
     #[test]

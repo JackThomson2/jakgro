@@ -5,7 +5,8 @@ const KNIGHT: ScorePair = ScorePair::new(320, 300);
 const BISHOP: ScorePair = ScorePair::new(330, 320);
 const ROOK: ScorePair = ScorePair::new(500, 520);
 const QUEEN: ScorePair = ScorePair::new(900, 900);
-const ACTIVITY: ScorePair = ScorePair::new(4, 2);
+const ACTIVITY: ScorePair = ScorePair::new(1, 1);
+const TEMPO: ScorePair = ScorePair::new(12, 4);
 const MOBILITY: ScorePair = ScorePair::new(3, 2);
 const PAWN_MOBILITY_ADJUSTMENT: ScorePair = ScorePair::new(-3, -2);
 const KNIGHT_MOBILITY_ADJUSTMENT: ScorePair = ScorePair::new(1, 2);
@@ -20,7 +21,6 @@ const PASSED_PAWN: ScorePair = ScorePair::new(18, 40);
 const KING_SHELTER: ScorePair = ScorePair::new(10, 0);
 const OPEN_KING_FILE: ScorePair = ScorePair::new(-18, -4);
 const KING_PRESSURE: ScorePair = ScorePair::new(9, 2);
-const INITIATIVE: ScorePair = ScorePair::new(12, 4);
 const PAWN_STORM: ScorePair = ScorePair::new(7, 1);
 const THREAT: ScorePair = ScorePair::new(11, 7);
 const SPACE: ScorePair = ScorePair::new(2, 0);
@@ -36,7 +36,9 @@ pub(super) fn score(features: EvalFeatures) -> ScorePair {
         + BISHOP * features.bishops
         + ROOK * features.rooks
         + QUEEN * features.queens
+        + features.placement
         + ACTIVITY * features.activity
+        + TEMPO * features.tempo
         + MOBILITY * features.mobility
         + BISHOP_PAIR * features.bishop_pair
         + DOUBLED_PAWN * features.doubled_pawns
@@ -57,7 +59,6 @@ pub(super) fn profile_mobility_adjustment(features: EvalFeatures) -> ScorePair {
 
 pub(super) fn attacking_style(features: EvalFeatures) -> ScorePair {
     KING_PRESSURE * features.king_pressure
-        + INITIATIVE * features.initiative
         + PAWN_STORM * features.pawn_storm
         + THREAT * features.threats
         + SPACE * features.space

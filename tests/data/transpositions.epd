@@ -1,2 +1,2 @@
 # Six-field FEN; id NAME; category transposition; nodes N; bm MOVE; score cp|mate VALUE
-r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3 ; id developed-open-game ; category transposition ; nodes 20000 ; bm b1c3 ; score cp 21
+r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3 ; id developed-open-game ; category transposition ; nodes 20000 ; bm d2d4 ; score cp 42

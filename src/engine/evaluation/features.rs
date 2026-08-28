@@ -3,7 +3,7 @@ use cozy_chess::{
     get_knight_moves, get_pawn_attacks, get_rook_moves,
 };
 
-use super::{AttackProfile, EvalFeatures, piece_value};
+use super::{AttackProfile, EvalFeatures, ScorePair, piece_value, placement};
 
 /// Files ahead of each square from White's perspective, on the file and both
 /// neighbours.
@@ -133,6 +133,7 @@ pub(super) fn extract_with_style(board: &Board, style: bool) -> EvalFeatures {
         let bishops = board.colored_pieces(color, Piece::Bishop).len();
         features.bishop_pair += sign * i32::from(bishops >= 2);
         features.activity += sign * attacks.activity[color as usize];
+        features.placement = features.placement + attacks.placement[color as usize] * sign;
         features.mobility += sign * attacks.mobility[color as usize];
         features.pawn_mobility +=
             sign * attacks.piece_mobility[color as usize][piece_index(Piece::Pawn) as usize];
@@ -170,7 +171,7 @@ pub(super) fn extract_with_style(board: &Board, style: bool) -> EvalFeatures {
         features.open_king_files += sign * open_files;
     }
 
-    features.initiative = if board.side_to_move() == Color::White {
+    features.tempo = if board.side_to_move() == Color::White {
         1
     } else {
         -1
@@ -242,6 +243,7 @@ struct AttackSummary {
     mobility: [i32; 2],
     piece_mobility: [[i32; 6]; 2],
     activity: [i32; 2],
+    placement: [ScorePair; 2],
 }
 
 #[cfg(test)]
@@ -259,6 +261,7 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
     let mut mobility = [0_i32; 2];
     let mut piece_mobility = [[0_i32; 6]; 2];
     let mut activity = [0_i32; 2];
+    let mut placement = [ScorePair::default(); 2];
     let mut attack_counts = [[0_u8; 64]; 2];
     let mut zone_defenders = [0_i32; 2];
 
@@ -281,9 +284,10 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
             Piece::King,
         ] {
             for square in board.colored_pieces(color, piece) {
-                // Activity is accumulated in the same pass rather than in a
-                // second loop over every piece: the terms differ but the
-                // iteration is identical.
+                // Placement and activity are accumulated in the same pass rather
+                // than in a second loop over every piece: the terms differ but
+                // the iteration is identical.
+                placement[index] = placement[index] + placement::placement(piece, square, color);
                 activity[index] += match piece {
                     Piece::Knight | Piece::Bishop | Piece::Rook | Piece::Queen => {
                         centrality(square)
@@ -412,6 +416,7 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
         mobility,
         piece_mobility,
         activity,
+        placement,
     }
 }
 

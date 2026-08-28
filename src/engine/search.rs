@@ -11,6 +11,12 @@ pub(crate) use time::TimeBudget;
 pub(super) use time::{DEFAULT_MOVE_OVERHEAD_MS, MAX_MOVE_OVERHEAD_MS, MIN_MOVE_OVERHEAD_MS};
 pub(super) use transposition::{DEFAULT_HASH_MIB, MAX_HASH_MIB, MIN_HASH_MIB, TranspositionTable};
 
+/// Number of search threads used unless configured otherwise.
+///
+/// One thread keeps a search deterministic, which every fixed-node fixture and
+/// measurement gate depends on, so parallel search is opt-in.
+pub(super) const DEFAULT_THREADS: usize = 1;
+
 use super::Position;
 use super::evaluation::{EvaluationConfig, MATE_SCORE, MATE_THRESHOLD, Score};
 
@@ -168,6 +174,61 @@ pub struct SearchTelemetry {
     objective_root_nodes: u64,
     personality_root_nodes: u64,
     personality_verifications: u64,
+}
+
+impl SearchTelemetry {
+    /// Returns the combined work of two searchers in one search.
+    ///
+    /// Every counter records work performed, so combining searchers is a sum.
+    /// That keeps the reported relationships between counters true of the search
+    /// as a whole, the same way they are true of each searcher individually.
+    pub(super) fn merged_with(self, other: Self) -> Self {
+        Self {
+            null_move_attempts: self.null_move_attempts + other.null_move_attempts,
+            null_move_fail_highs: self.null_move_fail_highs + other.null_move_fail_highs,
+            null_move_verifications: self.null_move_verifications + other.null_move_verifications,
+            null_move_cutoffs: self.null_move_cutoffs + other.null_move_cutoffs,
+            null_probe_nodes: self.null_probe_nodes + other.null_probe_nodes,
+            null_verification_nodes: self.null_verification_nodes + other.null_verification_nodes,
+            static_pruning_attempts: self.static_pruning_attempts + other.static_pruning_attempts,
+            static_evaluation_hits: self.static_evaluation_hits + other.static_evaluation_hits,
+            reverse_futility_cutoffs: self.reverse_futility_cutoffs
+                + other.reverse_futility_cutoffs,
+            futility_pruned_moves: self.futility_pruned_moves + other.futility_pruned_moves,
+            late_move_pruned_moves: self.late_move_pruned_moves + other.late_move_pruned_moves,
+            aspiration_attempts: self.aspiration_attempts + other.aspiration_attempts,
+            aspiration_fail_lows: self.aspiration_fail_lows + other.aspiration_fail_lows,
+            aspiration_fail_highs: self.aspiration_fail_highs + other.aspiration_fail_highs,
+            aspiration_research_nodes: self.aspiration_research_nodes
+                + other.aspiration_research_nodes,
+            legal_move_probes: self.legal_move_probes + other.legal_move_probes,
+            tt_probes: self.tt_probes + other.tt_probes,
+            tt_hits: self.tt_hits + other.tt_hits,
+            tt_hash_moves: self.tt_hash_moves + other.tt_hash_moves,
+            tt_cutoffs: self.tt_cutoffs + other.tt_cutoffs,
+            quiescence_nodes: self.quiescence_nodes + other.quiescence_nodes,
+            quiescence_pruned_captures: self.quiescence_pruned_captures
+                + other.quiescence_pruned_captures,
+            horizon_quiescence_pruned_captures: self.horizon_quiescence_pruned_captures
+                + other.horizon_quiescence_pruned_captures,
+            capture_cutoffs: self.capture_cutoffs + other.capture_cutoffs,
+            capture_cutoff_index_sum: self.capture_cutoff_index_sum
+                + other.capture_cutoff_index_sum,
+            capture_history_updates: self.capture_history_updates + other.capture_history_updates,
+            capture_history_first_move_cutoffs: self.capture_history_first_move_cutoffs
+                + other.capture_history_first_move_cutoffs,
+            lmr_attempts: self.lmr_attempts + other.lmr_attempts,
+            lmr_reductions: self.lmr_reductions + other.lmr_reductions,
+            lmr_shallow_reductions: self.lmr_shallow_reductions + other.lmr_shallow_reductions,
+            lmr_researches: self.lmr_researches + other.lmr_researches,
+            lmr_shallow_researches: self.lmr_shallow_researches + other.lmr_shallow_researches,
+            lmr_research_fail_highs: self.lmr_research_fail_highs + other.lmr_research_fail_highs,
+            objective_root_nodes: self.objective_root_nodes + other.objective_root_nodes,
+            personality_root_nodes: self.personality_root_nodes + other.personality_root_nodes,
+            personality_verifications: self.personality_verifications
+                + other.personality_verifications,
+        }
+    }
 }
 
 impl SearchTelemetry {
@@ -431,6 +492,25 @@ impl SearchResult {
     }
 }
 
+/// Settings a search reads that are configured rather than derived per move.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct SearchSettings {
+    pub(super) evaluation: EvaluationConfig,
+    pub(super) move_overhead: Duration,
+    pub(super) threads: usize,
+}
+
+impl SearchSettings {
+    #[cfg(test)]
+    fn for_test(evaluation: EvaluationConfig) -> Self {
+        Self {
+            evaluation,
+            move_overhead: Duration::from_millis(DEFAULT_MOVE_OVERHEAD_MS),
+            threads: DEFAULT_THREADS,
+        }
+    }
+}
+
 #[cfg(test)]
 pub(super) fn search(position: &Position, limits: &SearchLimits) -> SearchResult {
     let control = SearchControl::new();
@@ -453,8 +533,7 @@ where
         position,
         limits,
         control,
-        EvaluationConfig::default(),
-        Duration::from_millis(DEFAULT_MOVE_OVERHEAD_MS),
+        SearchSettings::for_test(EvaluationConfig::default()),
         &table,
         report,
     )
@@ -464,23 +543,14 @@ pub(super) fn search_with_table<F>(
     position: &Position,
     limits: &SearchLimits,
     control: &SearchControl,
-    evaluation: EvaluationConfig,
-    move_overhead: Duration,
+    settings: SearchSettings,
     table: &TranspositionTable,
     report: F,
 ) -> SearchResult
 where
     F: FnMut(SearchInfo),
 {
-    algorithm::run(
-        position,
-        limits,
-        control,
-        evaluation,
-        move_overhead,
-        table,
-        report,
-    )
+    algorithm::run(position, limits, control, settings, table, report)
 }
 
 pub(super) fn time_budget(
@@ -503,11 +573,10 @@ mod tests {
     use std::time::Duration;
 
     use super::{
-        DEFAULT_MOVE_OVERHEAD_MS, EvaluationConfig, SearchControl, SearchInfo, SearchLimits,
-        SearchScore, TranspositionTable, search, search_with_reporter, search_with_table,
+        EvaluationConfig, SearchControl, SearchInfo, SearchLimits, SearchScore, SearchSettings,
+        TranspositionTable, search, search_with_reporter, search_with_table,
     };
     use crate::engine::Position;
-    const MOVE_OVERHEAD: Duration = Duration::from_millis(DEFAULT_MOVE_OVERHEAD_MS);
 
     #[test]
     fn iterative_search_is_deterministic() {
@@ -538,8 +607,7 @@ mod tests {
                 ..SearchLimits::default()
             },
             &control,
-            EvaluationConfig::new(0),
-            MOVE_OVERHEAD,
+            SearchSettings::for_test(EvaluationConfig::new(0)),
             &disabled_table,
             |_| {},
         );
@@ -551,8 +619,7 @@ mod tests {
                 ..SearchLimits::default()
             },
             &control,
-            EvaluationConfig::new(0),
-            MOVE_OVERHEAD,
+            SearchSettings::for_test(EvaluationConfig::new(0)),
             &enabled_table,
             |_| {},
         );
@@ -620,8 +687,7 @@ mod tests {
             &position,
             &limits,
             &control,
-            EvaluationConfig::default(),
-            MOVE_OVERHEAD,
+            SearchSettings::for_test(EvaluationConfig::default()),
             &table,
             |_| {},
         );
@@ -629,8 +695,7 @@ mod tests {
             &position,
             &limits,
             &control,
-            EvaluationConfig::default(),
-            MOVE_OVERHEAD,
+            SearchSettings::for_test(EvaluationConfig::default()),
             &table,
             |_| {},
         );
@@ -656,8 +721,7 @@ mod tests {
             &position,
             &limits,
             &control,
-            EvaluationConfig::new(0),
-            MOVE_OVERHEAD,
+            SearchSettings::for_test(EvaluationConfig::new(0)),
             &switched_table,
             |_| {},
         );
@@ -665,8 +729,7 @@ mod tests {
             &position,
             &limits,
             &control,
-            EvaluationConfig::new(100),
-            MOVE_OVERHEAD,
+            SearchSettings::for_test(EvaluationConfig::new(100)),
             &switched_table,
             |_| {},
         );
@@ -674,8 +737,7 @@ mod tests {
             &position,
             &limits,
             &control,
-            EvaluationConfig::new(100),
-            MOVE_OVERHEAD,
+            SearchSettings::for_test(EvaluationConfig::new(100)),
             &fresh_table,
             |_| {},
         );
@@ -1009,13 +1071,205 @@ mod tests {
                 ..SearchLimits::default()
             },
             &control,
-            EvaluationConfig::new(0),
-            MOVE_OVERHEAD,
+            SearchSettings::for_test(EvaluationConfig::new(0)),
             &table,
             |_| {},
         );
 
         assert!(result.info().unwrap().nodes() > legal_moves);
+    }
+
+    /// A parallel search must still return a usable, self-consistent result.
+    ///
+    /// Helper searchers make the tree they explore depend on timing, so the
+    /// move and score are not pinned. What must hold is that the result is
+    /// legal, that its principal variation is playable and starts with the
+    /// selected move, and that the reported nodes account for every searcher.
+    #[test]
+    fn a_parallel_search_returns_a_legal_result_and_playable_pv() {
+        let position = Position::from_fen(
+            "r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8",
+        )
+        .unwrap();
+        let table = TranspositionTable::new(4).unwrap();
+
+        for _ in 0..4 {
+            let result = search_with_table(
+                &position,
+                &SearchLimits {
+                    depth: Some(6),
+                    ..SearchLimits::default()
+                },
+                &SearchControl::new(),
+                SearchSettings {
+                    threads: 4,
+                    ..SearchSettings::for_test(EvaluationConfig::new(0))
+                },
+                &table,
+                |_| {},
+            );
+
+            let best_move = result
+                .best_move()
+                .expect("a parallel search selects a move");
+            assert!(position.legal_moves().contains(&best_move.to_owned()));
+            let info = result
+                .info()
+                .expect("a parallel search completes an iteration");
+            assert_eq!(info.pv().first().map(String::as_str), Some(best_move));
+            assert!(info.nodes() > 0);
+            let mut replay = position.clone();
+            replay
+                .apply_uci_moves(info.pv().iter().map(String::as_str))
+                .expect("a parallel search reports a playable principal variation");
+        }
+    }
+
+    /// Helper searchers must not outlive the search that spawned them.
+    #[test]
+    fn a_parallel_search_joins_every_helper_before_returning() {
+        let started = std::time::Instant::now();
+        let table = TranspositionTable::new(4).unwrap();
+        let result = search_with_table(
+            &Position::default(),
+            &SearchLimits {
+                depth: Some(64),
+                move_time: Some(Duration::from_millis(50)),
+                ..SearchLimits::default()
+            },
+            &SearchControl::new(),
+            SearchSettings {
+                threads: 4,
+                ..SearchSettings::for_test(EvaluationConfig::new(0))
+            },
+            &table,
+            |_| {},
+        );
+
+        assert!(result.best_move().is_some());
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "helpers must be released when the main searcher finishes",
+        );
+    }
+
+    /// A parallel search must respect the node budget for the search as a whole.
+    ///
+    /// Each searcher refreshes the shared total only on its polling cadence, so
+    /// the budget can be overshot by less than one interval per searcher rather
+    /// than by a whole searcher's worth of work.
+    #[test]
+    fn a_parallel_node_limit_bounds_the_whole_search() {
+        const THREADS: usize = 4;
+        const LIMIT: u64 = 50_000;
+
+        let table = TranspositionTable::new(4).unwrap();
+        let result = search_with_table(
+            &Position::default(),
+            &SearchLimits {
+                depth: Some(64),
+                nodes: Some(LIMIT),
+                ..SearchLimits::default()
+            },
+            &SearchControl::new(),
+            SearchSettings {
+                threads: THREADS,
+                ..SearchSettings::for_test(EvaluationConfig::new(0))
+            },
+            &table,
+            |_| {},
+        );
+
+        let nodes = result.info().map_or(0, SearchInfo::nodes);
+        let allowance = super::algorithm::CONTROL_POLL_INTERVAL_NODES * THREADS as u64;
+        assert!(
+            nodes <= LIMIT + allowance,
+            "{nodes} nodes exceeded {LIMIT} by more than {allowance}",
+        );
+    }
+
+    /// One configured thread must behave exactly as the search always has.
+    #[test]
+    fn one_thread_matches_a_search_that_never_spawned_helpers() {
+        let position =
+            Position::from_fen("r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3")
+                .unwrap();
+        let limits = SearchLimits {
+            depth: Some(6),
+            ..SearchLimits::default()
+        };
+
+        let first_table = TranspositionTable::new(4).unwrap();
+        let first = search_with_table(
+            &position,
+            &limits,
+            &SearchControl::new(),
+            SearchSettings::for_test(EvaluationConfig::new(0)),
+            &first_table,
+            |_| {},
+        );
+        let second_table = TranspositionTable::new(4).unwrap();
+        let second = search_with_table(
+            &position,
+            &limits,
+            &SearchControl::new(),
+            SearchSettings::for_test(EvaluationConfig::new(0)),
+            &second_table,
+            |_| {},
+        );
+
+        assert_eq!(first.best_move(), second.best_move());
+        assert_eq!(
+            first.info().unwrap().score(),
+            second.info().unwrap().score()
+        );
+        assert_eq!(
+            first.info().unwrap().nodes(),
+            second.info().unwrap().nodes()
+        );
+    }
+
+    /// Helpers must actually contribute searched work to the shared total.
+    ///
+    /// This is what distinguishes a parallel search from one that spawns threads
+    /// and wastes them: at a fixed time the reported nodes account for every
+    /// searcher, so several threads must search more of the tree than one does.
+    #[test]
+    fn helpers_contribute_nodes_to_the_search_total() {
+        let position = Position::from_fen(
+            "r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8",
+        )
+        .unwrap();
+        let limits = SearchLimits {
+            depth: Some(64),
+            move_time: Some(Duration::from_millis(300)),
+            ..SearchLimits::default()
+        };
+        let nodes = |threads: usize| {
+            let table = TranspositionTable::new(8).unwrap();
+            search_with_table(
+                &position,
+                &limits,
+                &SearchControl::new(),
+                SearchSettings {
+                    threads,
+                    ..SearchSettings::for_test(EvaluationConfig::new(0))
+                },
+                &table,
+                |_| {},
+            )
+            .info()
+            .map_or(0, SearchInfo::nodes)
+        };
+
+        let single = nodes(1);
+        let parallel = nodes(4);
+
+        assert!(single > 0, "the single-threaded search reported no nodes");
+        assert!(
+            parallel > single,
+            "four searchers reported {parallel} nodes against {single} for one",
+        );
     }
 
     #[test]

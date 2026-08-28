@@ -178,8 +178,11 @@ impl Engine {
             &self.position,
             limits,
             control,
-            self.evaluation,
-            self.move_overhead,
+            search::SearchSettings {
+                evaluation: self.evaluation,
+                move_overhead: self.move_overhead,
+                threads: search::DEFAULT_THREADS,
+            },
             &table,
             report,
         )

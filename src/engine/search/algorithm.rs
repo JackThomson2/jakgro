@@ -1,4 +1,5 @@
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use cozy_chess::util::display_uci_move;
@@ -11,7 +12,10 @@ use super::control::DeadlineWindow;
 use super::see::static_exchange_eval;
 use super::time::allocate_time;
 use super::transposition::{Bound, Entry, RULE_FIFTY_EXACT_HORIZON, TranspositionTable};
-use super::{SearchControl, SearchInfo, SearchLimits, SearchResult, SearchScore, SearchTelemetry};
+use super::{
+    SearchControl, SearchInfo, SearchLimits, SearchResult, SearchScore, SearchSettings,
+    SearchTelemetry,
+};
 use crate::engine::Position;
 use crate::engine::evaluation::{
     EvaluationConfig, MATE_SCORE, MATE_THRESHOLD, MAX_PLY, NEG_INFINITY, POS_INFINITY, Score,
@@ -25,7 +29,7 @@ const MAX_DEPTH: u32 = 64;
 const QUIESCENCE_DEPTH: u32 = 16;
 const ASPIRATION_INITIAL: Score = 50;
 const VOLATILE_HOLD_ITERATIONS: u8 = 2;
-const CONTROL_POLL_INTERVAL_NODES: u64 = 256;
+pub(super) const CONTROL_POLL_INTERVAL_NODES: u64 = 256;
 const ITERATION_TIME_MULTIPLIER: u32 = 2;
 const ITERATION_TIME_MARGIN: Duration = Duration::from_millis(5);
 const STYLED_ROOT_DEPTH_SCALE: u64 = 48;
@@ -1620,6 +1624,10 @@ struct SearchContext<'a> {
     /// Local nodes already folded into the shared counter.
     published_nodes: u64,
     stats: &'a SearchStats,
+    /// Whether this searcher stops when the main searcher finishes.
+    helper: bool,
+    /// Whether the node limit bounds the whole search rather than this searcher.
+    shared_node_budget: bool,
     started: Instant,
     pv: Vec<Vec<Move>>,
     hash_pv_depths: Vec<Option<u32>>,
@@ -1666,6 +1674,8 @@ impl<'a> SearchContext<'a> {
             nodes: 0,
             published_nodes: 0,
             stats,
+            helper: false,
+            shared_node_budget: false,
             started: Instant::now(),
             pv: (0..=MAX_PLY)
                 .map(|ply| Vec::with_capacity((MAX_PLY - ply) as usize))
@@ -1726,11 +1736,25 @@ impl SearchContext<'_> {
     }
 
     fn control_stop_requested(&self) -> bool {
-        self.control.is_stopped() || self.control.hard_deadline_reached()
+        self.control.is_stopped()
+            || self.control.hard_deadline_reached()
+            || (self.helper && self.stats.helpers_released())
     }
 
+    /// Reports whether this searcher has exhausted the search's node budget.
+    ///
+    /// A lone searcher measures its own nodes, which keeps a fixed-node search
+    /// exact. With helpers running the budget belongs to the search as a whole,
+    /// so the shared total is what bounds it; that total is only refreshed on the
+    /// polling cadence, so the limit can be overshot by less than one interval
+    /// per searcher.
     fn node_limit_reached(&self) -> bool {
-        self.node_limit.is_some_and(|limit| self.nodes >= limit)
+        let counted = if self.shared_node_budget {
+            self.total_nodes()
+        } else {
+            self.nodes
+        };
+        self.node_limit.is_some_and(|limit| counted >= limit)
     }
 
     fn clear_pv(&mut self, ply: u32) {
@@ -1834,6 +1858,59 @@ impl SearchContext<'_> {
     }
 }
 
+/// Which part a searcher plays in a search.
+///
+/// Only the main searcher owns the clock, the reported iterations, the styled
+/// root, and the result a search returns. A helper exists to deepen the shared
+/// transposition table, so it neither reports progress nor decides when to stop.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum WorkerRole {
+    Main,
+    Helper { index: usize },
+}
+
+impl WorkerRole {
+    const fn is_main(self) -> bool {
+        matches!(self, Self::Main)
+    }
+
+    /// Returns the first depth this searcher attempts and its increment.
+    ///
+    /// Odd helpers take every second depth starting one ahead, so they reach
+    /// deep results sooner than the main searcher and leave them in the table
+    /// for it to find. Even helpers follow the ordinary schedule and diversify
+    /// through root move order alone.
+    const fn depth_schedule(self) -> (u32, u32) {
+        match self {
+            Self::Main => (1, 1),
+            Self::Helper { index } if index % 2 == 1 => (2, 2),
+            Self::Helper { .. } => (1, 1),
+        }
+    }
+
+    /// Returns how far this searcher rotates the root move order.
+    ///
+    /// Starting from a different root move makes helpers disagree about which
+    /// subtree to establish first, which is what turns extra threads into extra
+    /// table coverage rather than repeated identical work.
+    const fn root_rotation(self) -> usize {
+        match self {
+            Self::Main => 0,
+            Self::Helper { index } => index + 1,
+        }
+    }
+}
+
+/// Rotates a root move order so a searcher begins with a different move.
+fn rotated_root_moves(moves: &[Move], rotation: usize) -> Vec<Move> {
+    let offset = rotation % moves.len().max(1);
+    moves[offset..]
+        .iter()
+        .chain(&moves[..offset])
+        .copied()
+        .collect()
+}
+
 /// Node accounting shared by every searcher in one search.
 ///
 /// A searcher counts its own nodes locally and folds them in on the same cadence
@@ -1841,11 +1918,24 @@ impl SearchContext<'_> {
 #[derive(Debug, Default)]
 struct SearchStats {
     nodes: AtomicU64,
+    helpers_released: AtomicBool,
 }
 
 impl SearchStats {
     fn nodes(&self) -> u64 {
         self.nodes.load(Ordering::Relaxed)
+    }
+
+    /// Reports whether helpers have been asked to finish.
+    ///
+    /// This is distinct from an explicit stop: the search itself is over because
+    /// the main searcher is done, which must not be reported as cancellation.
+    fn helpers_released(&self) -> bool {
+        self.helpers_released.load(Ordering::Relaxed)
+    }
+
+    fn release_helpers(&self) {
+        self.helpers_released.store(true, Ordering::Relaxed);
     }
 }
 
@@ -1860,6 +1950,7 @@ struct SharedSearch<'a> {
     evaluation: EvaluationConfig,
     scoring: EvaluationConfig,
     maximum_depth: u32,
+    threads: usize,
     started: Instant,
     stats: SearchStats,
 }
@@ -1874,16 +1965,20 @@ pub(super) fn run<F>(
     position: &Position,
     limits: &SearchLimits,
     control: &SearchControl,
-    evaluation: EvaluationConfig,
-    move_overhead: Duration,
+    settings: SearchSettings,
     table: &TranspositionTable,
     mut report: F,
 ) -> SearchResult
 where
     F: FnMut(SearchInfo),
 {
+    let evaluation = settings.evaluation;
     table.start_search(evaluation.aggression());
-    let time_budget = allocate_time(position.board().side_to_move(), limits, move_overhead);
+    let time_budget = allocate_time(
+        position.board().side_to_move(),
+        limits,
+        settings.move_overhead,
+    );
     if !control.has_time_budget()
         && let Some(budget) = time_budget
     {
@@ -1931,6 +2026,7 @@ where
         evaluation,
         scoring: evaluation.objective_scoring(),
         maximum_depth: maximum_depth(limits, has_time_budget),
+        threads: settings.threads.max(1),
         started: Instant::now(),
         stats: SearchStats::default(),
     };
@@ -1970,17 +2066,67 @@ fn search_stopped_before_starting(limits: &SearchLimits, control: &SearchControl
 }
 
 /// Runs the searchers this search is configured for and returns the main result.
+///
+/// One configured thread runs the main searcher inline, with no scope, no spawn,
+/// and no helper ever observing the shared counter, so a single-threaded search
+/// costs exactly what it did before helpers existed. Additional threads deepen
+/// the same root into the shared table while the main searcher alone keeps the
+/// clock, the reported iterations, and the returned result.
 fn drive_search(shared: &SharedSearch<'_>, report: &mut dyn FnMut(SearchInfo)) -> WorkerOutcome {
-    run_worker(shared, report)
+    if shared.threads <= 1 {
+        return run_worker(shared, WorkerRole::Main, report);
+    }
+
+    std::thread::scope(|scope| {
+        let helpers = (0..shared.threads - 1)
+            .map(|index| {
+                scope.spawn(move || {
+                    // A helper that fails must cost its thread rather than the
+                    // search, so the main result stands even if one panics.
+                    catch_unwind(AssertUnwindSafe(|| {
+                        run_worker(shared, WorkerRole::Helper { index }, &mut |_| {})
+                    }))
+                    .ok()
+                })
+            })
+            .collect::<Vec<_>>();
+
+        let outcome = run_worker(shared, WorkerRole::Main, report);
+        // Helpers run until released, so the main searcher finishing is what
+        // ends them. This is deliberately not an explicit stop, which would be
+        // indistinguishable from a cancelled search.
+        shared.stats.release_helpers();
+        let telemetry = helpers
+            .into_iter()
+            .filter_map(|helper| helper.join().ok().flatten())
+            .fold(outcome.telemetry, |merged, helper| {
+                merged.merged_with(helper.telemetry)
+            });
+        WorkerOutcome {
+            telemetry,
+            ..outcome
+        }
+    })
 }
 
 /// Deepens the root position until this searcher's limits or clock stop it.
-fn run_worker(shared: &SharedSearch<'_>, report: &mut dyn FnMut(SearchInfo)) -> WorkerOutcome {
+fn run_worker(
+    shared: &SharedSearch<'_>,
+    role: WorkerRole,
+    report: &mut dyn FnMut(SearchInfo),
+) -> WorkerOutcome {
     let mut context = SearchContext {
         control: shared.control,
         table: shared.table,
         scoring: shared.scoring,
-        personality: shared.evaluation,
+        // Only the main searcher spends nodes on styled root alternatives. A
+        // helper exists to deepen the shared table, and the styled root is where
+        // the personality contracts are decided, so it stays single-threaded.
+        personality: if role.is_main() {
+            shared.evaluation
+        } else {
+            shared.evaluation.objective_scoring()
+        },
         mode: SearchMode::Normal,
         telemetry: SearchTelemetry::default(),
         null_move_enabled: shared.limits.null_move.unwrap_or(true),
@@ -1988,6 +2134,8 @@ fn run_worker(shared: &SharedSearch<'_>, report: &mut dyn FnMut(SearchInfo)) -> 
         nodes: 0,
         published_nodes: 0,
         stats: &shared.stats,
+        helper: !role.is_main(),
+        shared_node_budget: shared.threads > 1,
         started: shared.started,
         pv: (0..=MAX_PLY)
             .map(|ply| Vec::with_capacity((MAX_PLY - ply) as usize))
@@ -1999,14 +2147,16 @@ fn run_worker(shared: &SharedSearch<'_>, report: &mut dyn FnMut(SearchInfo)) -> 
             .collect(),
         ordering: MoveOrdering::new(),
     };
+    let root_moves = rotated_root_moves(&shared.root_moves, role.root_rotation());
     let mut history = RepetitionTracker::new(shared.hash_history);
     let mut previous_pv = Vec::new();
     let mut previous_score = None;
     let mut stability = IterationStability::default();
     let mut extension_used = false;
     let mut final_info = None;
+    let (first_depth, depth_step) = role.depth_schedule();
 
-    'iterative: for depth in 1..=shared.maximum_depth {
+    'iterative: for depth in (first_depth..=shared.maximum_depth).step_by(depth_step as usize) {
         if context.should_stop() {
             break;
         }
@@ -2029,7 +2179,7 @@ fn run_worker(shared: &SharedSearch<'_>, report: &mut dyn FnMut(SearchInfo)) -> 
             let nodes_before = context.nodes;
             let iteration = search_root(
                 &shared.root_board,
-                &shared.root_moves,
+                &root_moves,
                 &mut history,
                 depth,
                 (alpha, beta),
@@ -2081,12 +2231,19 @@ fn run_worker(shared: &SharedSearch<'_>, report: &mut dyn FnMut(SearchInfo)) -> 
             context.started.elapsed(),
             pv,
         );
-        report(info.clone());
+        if role.is_main() {
+            report(info.clone());
+        }
         let found_mate = matches!(info.score(), SearchScore::Mate(_));
         final_info = Some(info);
 
         if found_mate || context.should_stop() {
             break;
+        }
+        if !role.is_main() {
+            // A helper neither owns the clock nor decides when the search ends,
+            // so it keeps deepening until the main searcher releases it.
+            continue;
         }
         match next_iteration_decision(
             shared.control.deadline_window(),
@@ -2099,7 +2256,6 @@ fn run_worker(shared: &SharedSearch<'_>, report: &mut dyn FnMut(SearchInfo)) -> 
             IterationDecision::Extend => extension_used = true,
         }
     }
-
     context.publish_nodes();
     WorkerOutcome {
         info: final_info,
@@ -5565,6 +5721,44 @@ mod tests {
         assert_eq!(
             first_only.capture_history_score(color, winner.facts()),
             super::history_bonus(8) / super::FIRST_CAPTURE_HISTORY_BONUS_DIVISOR,
+        );
+    }
+
+    /// Helper diversification must be deterministic and cover every root move.
+    #[test]
+    fn helper_roles_diversify_depth_and_root_order() {
+        use super::WorkerRole;
+
+        assert_eq!(WorkerRole::Main.depth_schedule(), (1, 1));
+        assert_eq!(WorkerRole::Main.root_rotation(), 0);
+        // Odd helpers skip ahead so deep results reach the table sooner.
+        assert_eq!(WorkerRole::Helper { index: 1 }.depth_schedule(), (2, 2));
+        // Even helpers keep the ordinary schedule and diversify by move order.
+        assert_eq!(WorkerRole::Helper { index: 0 }.depth_schedule(), (1, 1));
+        assert_eq!(WorkerRole::Helper { index: 0 }.root_rotation(), 1);
+        assert_eq!(WorkerRole::Helper { index: 3 }.root_rotation(), 4);
+
+        let position = Position::default();
+        let moves = position.search_moves();
+        let rotated = super::rotated_root_moves(&moves, 1);
+        assert_eq!(rotated.len(), moves.len());
+        assert_eq!(rotated[0], moves[1]);
+        assert_eq!(rotated[moves.len() - 1], moves[0]);
+        assert_eq!(
+            rotated.iter().collect::<std::collections::HashSet<_>>(),
+            moves.iter().collect::<std::collections::HashSet<_>>(),
+            "rotation must preserve the root move set",
+        );
+        // A rotation beyond the move count wraps rather than truncating.
+        assert_eq!(
+            super::rotated_root_moves(&moves, moves.len()),
+            moves,
+            "a full rotation returns the original order",
+        );
+        assert_eq!(
+            super::rotated_root_moves(&moves[..1], 7),
+            moves[..1].to_vec(),
+            "a single root move cannot be rotated away",
         );
     }
 

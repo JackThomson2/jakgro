@@ -75,6 +75,7 @@ Match:
   --games N                     even game count (default 96)
   --openings PATH               sequential EPD suite (default tools/data/openings.epd)
   --hash N                      Hash MiB per engine (default 16)
+  --threads N                   Threads per engine (default 1)
   --concurrency N               concurrent games (default 8)
   --event NAME                  PGN Event header (default \"Jakgro self-play\")
 
@@ -139,6 +140,7 @@ struct MatchConfig {
     baseline: EngineConfig,
     games: usize,
     hash_mib: usize,
+    threads: usize,
     concurrency: usize,
     limit: Limit,
     adjudication: Adjudication,
@@ -163,6 +165,7 @@ impl MatchConfig {
             "--games",
             "--openings",
             "--hash",
+            "--threads",
             "--concurrency",
             "--event",
             "--nodes",
@@ -207,6 +210,10 @@ impl MatchConfig {
         if !(1..=1024).contains(&hash_mib) {
             return Err("--hash must be between 1 and 1024 MiB".to_owned());
         }
+        let threads = parse_number::<usize>(&values, "--threads", 1)?;
+        if !(1..=128).contains(&threads) {
+            return Err("--threads must be between 1 and 128".to_owned());
+        }
         let concurrency = parse_number::<usize>(&values, "--concurrency", 8)?
             .max(1)
             .min(games / 2);
@@ -240,6 +247,7 @@ impl MatchConfig {
             },
             games,
             hash_mib,
+            threads,
             concurrency,
             limit: parse_limit(&values)?,
             adjudication: parse_adjudication(&values)?,
@@ -1030,6 +1038,7 @@ struct Process {
 struct Engine<'a> {
     config: &'a EngineConfig,
     hash_mib: usize,
+    threads: usize,
     handshake_timeout: Duration,
     process: Option<Process>,
 }
@@ -1039,6 +1048,7 @@ impl<'a> Engine<'a> {
         Self {
             config,
             hash_mib: match_config.hash_mib,
+            threads: match_config.threads,
             handshake_timeout: match_config.engine_timeout,
             process: None,
         }
@@ -1110,9 +1120,11 @@ impl<'a> Engine<'a> {
     fn handshake(&mut self) -> Result<(), Fault> {
         let aggression = self.config.aggression;
         let hash_mib = self.hash_mib;
+        let threads = self.threads;
         self.send("uci")?;
         self.expect("uciok", self.handshake_timeout)?;
         self.send(&format!("setoption name Hash value {hash_mib}"))?;
+        self.send(&format!("setoption name Threads value {threads}"))?;
         self.send(&format!("setoption name Aggression value {aggression}"))?;
         self.send("isready")?;
         self.expect("readyok", self.handshake_timeout)?;

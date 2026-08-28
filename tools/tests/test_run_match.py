@@ -51,6 +51,7 @@ class RunMatchTests(unittest.TestCase):
                 nodes=50_000,
                 time_control=None,
                 hash=16,
+                threads=1,
                 openings=openings,
                 pgn=pgn,
                 manifest=manifest_path,
@@ -92,6 +93,8 @@ class RunMatchTests(unittest.TestCase):
             self.assertEqual(persisted["provenance"]["dependency_revision"], "cozy-rev")
             self.assertEqual(persisted["inputs"]["candidate"]["revision"], "candidate-rev")
             self.assertEqual(persisted["settings"]["concurrency"], 1)
+            self.assertEqual(persisted["settings"]["threads"], 1)
+            self.assertIn("option.Threads=1", command)
             self.assertEqual(
                 persisted["inputs"]["candidate"]["sha256"],
                 hashlib.sha256(b"candidate").hexdigest(),
@@ -206,6 +209,7 @@ class RunMatchTests(unittest.TestCase):
             nodes=None,
             time_control="10+0.1",
             hash=16,
+            threads=1,
             openings=Path("openings.epd"),
             pgn=Path("match.pgn"),
             cutechess=Path("cutechess-cli"),
@@ -225,6 +229,37 @@ class RunMatchTests(unittest.TestCase):
             with self.subTest(value=value):
                 with self.assertRaises(argparse.ArgumentTypeError):
                     run_match.time_control(value)
+
+
+    def test_threads_option_is_passed_to_both_engines(self) -> None:
+        args = argparse.Namespace(
+            engine=Path("candidate"),
+            baseline_engine=Path("baseline"),
+            candidate_aggression=75,
+            baseline_aggression=75,
+            games=96,
+            nodes=50_000,
+            time_control=None,
+            hash=16,
+            threads=8,
+            openings=Path("openings.epd"),
+            pgn=Path("match.pgn"),
+            cutechess=Path("cutechess-cli"),
+        )
+
+        command = run_match.build_command(args)
+
+        # A shared -each option configures both engines identically.
+        self.assertIn("option.Threads=8", command)
+        self.assertEqual(command.count("option.Threads=8"), 1)
+        self.assertLess(command.index("-each"), command.index("option.Threads=8"))
+
+    def test_threads_are_bounded(self) -> None:
+        self.assertEqual(run_match.threads("128"), 128)
+        for value in ("0", "-1", "129"):
+            with self.subTest(value=value):
+                with self.assertRaises(argparse.ArgumentTypeError):
+                    run_match.threads(value)
 
 
 class BinaryComparisonValidationTests(unittest.TestCase):

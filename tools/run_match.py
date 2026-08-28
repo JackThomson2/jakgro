@@ -50,6 +50,13 @@ def hash_mib(value: str) -> int:
     return parsed
 
 
+def threads(value: str) -> int:
+    parsed = positive(value)
+    if parsed > 128:
+        raise argparse.ArgumentTypeError("Threads must be at most 128")
+    return parsed
+
+
 def engine_name(value: str) -> str:
     name = value.strip()
     if not name or any(character in name for character in "\r\n"):
@@ -275,6 +282,7 @@ def build_manifest(
             "nodes_per_move": args.nodes,
             "time_control": args.time_control,
             "hash_mib": args.hash,
+            "threads": args.threads,
             "concurrency": 1,
             "draw": {"movenumber": 80, "movecount": 10, "score": 10},
             "resign": {"movecount": 4, "score": 800, "twosided": True},
@@ -346,6 +354,7 @@ def build_command(args: argparse.Namespace) -> list[str]:
         "proto=uci",
         *limit,
         f"option.Hash={args.hash}",
+        f"option.Threads={args.threads}",
         "-rounds",
         str(args.games // 2),
         "-games",
@@ -401,6 +410,12 @@ def main() -> int:
         help="Cute Chess fixed time control, such as 10+0.1 or 40/60+0.5",
     )
     parser.add_argument("--hash", type=hash_mib, default=16, help="Hash MiB per engine")
+    parser.add_argument(
+        "--threads",
+        type=threads,
+        default=1,
+        help="Threads per engine; one keeps each search deterministic",
+    )
     parser.add_argument(
         "--openings",
         type=Path,

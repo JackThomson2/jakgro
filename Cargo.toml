@@ -8,6 +8,10 @@ rust-version = "1.85"
 cozy-chess = { version = "0.3.4", git = "https://github.com/JackThomson2/cozy-chess", branch = "board-state-save-restore" }
 mimalloc = "0.1.48"
 
+[[bin]]
+name = "selfplay"
+path = "src/bin/selfplay.rs"
+
 [[bench]]
 name = "search"
 harness = false

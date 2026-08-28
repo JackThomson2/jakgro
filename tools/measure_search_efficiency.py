@@ -442,7 +442,7 @@ def main() -> int:
         "--suite", type=Path, default=Path("tests/data/search-performance.epd")
     )
     parser.add_argument("--aggression", type=int, default=100)
-    parser.add_argument("--depth", type=int, default=4)
+    parser.add_argument("--depth", type=int, default=9)
     parser.add_argument("--samples", type=int, default=3)
     parser.add_argument("--move-time-ms", type=int, default=250)
     parser.add_argument("--minimum-reduction", type=float, default=0.0)

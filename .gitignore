@@ -1,4 +1,5 @@
 /target/
 /artifacts/
 /.jakkoo/
+__pycache__/
 .DS_Store

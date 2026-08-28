@@ -4,8 +4,8 @@ use std::time::{Duration, Instant};
 
 use cozy_chess::util::display_uci_move;
 use cozy_chess::{
-    BitBoard, Board, Color, File, Move, Piece, Rank, Square, get_bishop_moves, get_king_moves,
-    get_knight_moves, get_pawn_attacks, get_rook_moves,
+    BitBoard, Board, Color, File, Move, Piece, Rank, Square, get_bishop_moves, get_bishop_rays,
+    get_king_moves, get_knight_moves, get_pawn_attacks, get_rook_moves, get_rook_rays,
 };
 
 use super::control::DeadlineWindow;
@@ -360,6 +360,28 @@ impl MoveFacts {
 
     fn search_metadata(self, board: &Board, see: Option<Score>) -> MoveMetadata {
         let gives_check = move_gives_check(board, self.chess_move, self.attacker);
+        self.metadata(board, gives_check, see)
+    }
+
+    /// Builds metadata using a per-node mask to skip impossible checks.
+    ///
+    /// The mask only rejects, so a move it accepts still goes through the full
+    /// recomputation. Passing `None` for `masks` declines the filter and always
+    /// recomputes, which is what callers outside quiet generation do.
+    fn search_metadata_with_masks(
+        self,
+        board: &Board,
+        see: Option<Score>,
+        masks: Option<CheckMasks>,
+    ) -> MoveMetadata {
+        let possible = masks.is_none_or(|masks| {
+            masks.may_give_check(
+                self.chess_move,
+                self.attacker,
+                is_en_passant(board, self.chess_move, self.attacker),
+            )
+        });
+        let gives_check = possible && move_gives_check(board, self.chess_move, self.attacker);
         self.metadata(board, gives_check, see)
     }
 
@@ -823,6 +845,7 @@ impl<'a> MovePicker<'a> {
         let preferred = self.preferred;
         let picked_killers = self.picked_killers;
         let mode = self.mode;
+        let masks = CheckMasks::for_board(board);
         let quiets = &mut self.storage.quiets;
         #[cfg(test)]
         let work = &mut self.work;
@@ -837,7 +860,7 @@ impl<'a> MovePicker<'a> {
                 {
                     work.check_detections += 1;
                 }
-                let metadata = facts.search_metadata(board, None);
+                let metadata = facts.search_metadata_with_masks(board, None, Some(masks));
                 if mode.accepts_quiet(metadata) {
                     quiets.push(SearchMove {
                         metadata,
@@ -3494,6 +3517,70 @@ fn is_dead_material(board: &Board) -> bool {
             || (bishops & BitBoard::LIGHT_SQUARES) == bishops)
 }
 
+/// Squares from which each piece type could possibly check the enemy king.
+///
+/// This is a superset filter, not an answer. A quiet move whose destination is
+/// absent from its piece's mask cannot deliver a direct check, so the full
+/// recomputation can be skipped. A move inside the mask still needs
+/// [`move_gives_check`], because rays here ignore blockers. Discovered checks
+/// and castling are handled by `may_give_check`, which does not consult a mask.
+#[derive(Clone, Copy, Debug)]
+struct CheckMasks {
+    direct: [BitBoard; Piece::NUM],
+    discovery_candidates: BitBoard,
+}
+
+impl CheckMasks {
+    fn for_board(board: &Board) -> Self {
+        let color = board.side_to_move();
+        let enemy_king = board.king(!color);
+        let occupied = board.occupied();
+        let bishop_reach = get_bishop_moves(enemy_king, occupied);
+        let rook_reach = get_rook_moves(enemy_king, occupied);
+        let mut direct = [BitBoard::EMPTY; Piece::NUM];
+        direct[Piece::Pawn as usize] = get_pawn_attacks(enemy_king, !color);
+        direct[Piece::Knight as usize] = get_knight_moves(enemy_king);
+        direct[Piece::Bishop as usize] = bishop_reach;
+        direct[Piece::Rook as usize] = rook_reach;
+        direct[Piece::Queen as usize] = bishop_reach | rook_reach;
+        direct[Piece::King as usize] = BitBoard::EMPTY;
+
+        Self {
+            direct,
+            discovery_candidates: (get_bishop_rays(enemy_king) | get_rook_rays(enemy_king))
+                & board.colors(color),
+        }
+    }
+
+    /// Reports whether this move could possibly leave the enemy king in check.
+    ///
+    /// Castling moves a rook and a promotion arrives as a different piece, so
+    /// both bypass the destination mask. A piece standing on a ray through the
+    /// enemy king may uncover a checking slider wherever it moves. An en passant
+    /// capture additionally vacates the captured pawn's square, which can
+    /// uncover a slider from a square this move never touches, so it is also
+    /// treated as possible without consulting the mask.
+    fn may_give_check(self, chess_move: Move, moved: Piece, en_passant: bool) -> bool {
+        if chess_move.promotion.is_some() || moved == Piece::King || en_passant {
+            return true;
+        }
+        if self.discovery_candidates.has(chess_move.from) {
+            return true;
+        }
+        self.direct[moved as usize].has(chess_move.to)
+    }
+}
+
+/// Reports whether this move captures en passant.
+///
+/// A pawn moving diagonally onto an empty square can only be an en passant
+/// capture, which removes a pawn from a square the move itself never occupies.
+fn is_en_passant(board: &Board, chess_move: Move, moved: Piece) -> bool {
+    moved == Piece::Pawn
+        && chess_move.from.file() != chess_move.to.file()
+        && board.piece_on(chess_move.to).is_none()
+}
+
 fn move_gives_check(board: &Board, chess_move: Move, moved: Piece) -> bool {
     let color = board.side_to_move();
     let enemy = !color;
@@ -3531,9 +3618,7 @@ fn move_gives_check(board: &Board, chess_move: Move, moved: Piece) -> bool {
         pieces[placed as usize] |= to;
         enemy_pieces &= !to;
 
-        let is_en_passant = moved == Piece::Pawn
-            && chess_move.from.file() != chess_move.to.file()
-            && board.piece_on(chess_move.to).is_none();
+        let is_en_passant = is_en_passant(board, chess_move, moved);
         if is_en_passant {
             let victim = Square::new(chess_move.to.file(), Rank::Fifth.relative_to(color));
             enemy_pieces &= !victim.bitboard();
@@ -5822,6 +5907,80 @@ mod tests {
             position.board().side_to_move(),
             0,
         ));
+    }
+
+    #[test]
+    fn check_masks_never_reject_a_real_check() {
+        let fens = [
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+            "r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8",
+            "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+            "4k3/8/8/8/8/8/4P3/4K2R w K - 0 1",
+            "8/2P5/8/8/8/8/k7/4K3 w - - 0 1",
+            "r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 0 1",
+            "8/8/8/3qk3/8/8/3PK3/8 w - - 0 1",
+        ];
+        let mut boards = fens
+            .iter()
+            .map(|fen| fen.parse::<cozy_chess::Board>().unwrap())
+            .collect::<Vec<_>>();
+
+        // Extend the sample with deterministic playouts so that pinned pieces,
+        // discovered checks, and promotions all occur in quantity. A randomly
+        // played game ends quickly, so each seed restarts from the initial
+        // position on reaching a terminal node rather than stopping early.
+        for seed in 0..24_u64 {
+            let mut board = cozy_chess::Board::default();
+            let mut state = seed
+                .wrapping_mul(0x9E37_79B9_7F4A_7C15)
+                .wrapping_add(0x2545_F491_4F6C_DD1D);
+            for _ in 0..400 {
+                let moves = generate_moves(&board);
+                if moves.is_empty() {
+                    board = cozy_chess::Board::default();
+                    continue;
+                }
+                state = state
+                    .wrapping_mul(6_364_136_223_846_793_005)
+                    .wrapping_add(1);
+                board.play_unchecked(moves[(state >> 33) as usize % moves.len()]);
+                boards.push(board.clone());
+            }
+        }
+
+        let mut accepted_checks = 0;
+        let mut rejected = 0;
+        let mut total = 0;
+        for board in &boards {
+            let masks = super::CheckMasks::for_board(board);
+            for chess_move in generate_moves(board) {
+                let moved = board.piece_on(chess_move.from).unwrap();
+                let truth = super::move_gives_check(board, chess_move, moved);
+                let possible = masks.may_give_check(
+                    chess_move,
+                    moved,
+                    super::is_en_passant(board, chess_move, moved),
+                );
+                assert!(
+                    !truth || possible,
+                    "mask rejected a real check: {chess_move} on {board}",
+                );
+                total += 1;
+                accepted_checks += usize::from(truth);
+                rejected += usize::from(!possible);
+            }
+        }
+
+        assert!(
+            accepted_checks > 1_000,
+            "the sample must contain many checking moves to be meaningful: \
+             {accepted_checks} checks, {rejected} rejected of {total}",
+        );
+        assert!(
+            rejected * 2 > total,
+            "the mask must reject most moves or it saves little work: {rejected} of {total}",
+        );
     }
 
     #[test]

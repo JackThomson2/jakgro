@@ -149,7 +149,7 @@ fn public_runner_handles_a_protocol_transcript() {
         concat!(
             "id name Jakgro ",
             env!("CARGO_PKG_VERSION"),
-            "\nid author Jakgro contributors\noption name Hash type spin default 16 min 1 max 1024\noption name Aggression type spin default 75 min 0 max 100\noption name Move Overhead type spin default 10 min 0 max 5000\noption name Clear Hash type button\nuciok\nreadyok\n"
+            "\nid author Jakgro contributors\noption name Hash type spin default 16 min 1 max 1024\noption name Threads type spin default 1 min 1 max 128\noption name Aggression type spin default 75 min 0 max 100\noption name Move Overhead type spin default 10 min 0 max 5000\noption name Clear Hash type button\nuciok\nreadyok\n"
         )
     );
 }
@@ -273,6 +273,43 @@ fn clock_search_honors_persistent_move_overhead_and_hard_limit() {
 
     assert!(result.last().unwrap().starts_with("bestmove e2e4"));
     assert!(started.elapsed() < Duration::from_secs(1));
+    engine.send("quit");
+    assert!(engine.wait_for_exit(TEST_TIMEOUT).success());
+}
+#[test]
+fn threads_option_drives_a_parallel_search_and_survives_clamping() {
+    let mut engine = EngineProcess::spawn();
+    engine.send("setoption name Threads value 4");
+    engine.send("ucinewgame");
+    engine
+        .send("position fen r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8");
+    engine.send("go movetime 200");
+
+    let parallel = engine.receive_until(TEST_TIMEOUT, |line| line.starts_with("bestmove "));
+    assert_eq!(
+        parallel
+            .iter()
+            .filter(|line| line.starts_with("bestmove "))
+            .count(),
+        1,
+        "a parallel search must report exactly one bestmove",
+    );
+    assert!(
+        parallel.iter().any(|line| line.starts_with("info depth ")),
+        "a parallel search must still report progress",
+    );
+
+    // Out-of-range and malformed counts are clamped or ignored rather than
+    // leaving the engine unable to search.
+    for value in ["0", "999999", "not-a-number"] {
+        engine.send(&format!("setoption name Threads value {value}"));
+    }
+    engine.send("ucinewgame");
+    engine.send("position startpos");
+    engine.send("go depth 3");
+    let recovered = engine.receive_until(TEST_TIMEOUT, |line| line.starts_with("bestmove "));
+
+    assert!(recovered.last().unwrap().starts_with("bestmove "));
     engine.send("quit");
     assert!(engine.wait_for_exit(TEST_TIMEOUT).success());
 }

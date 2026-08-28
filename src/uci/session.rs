@@ -5,9 +5,10 @@ use std::thread;
 use std::time::Duration;
 
 use crate::engine::{
-    DEFAULT_AGGRESSION, DEFAULT_HASH_MIB, DEFAULT_MOVE_OVERHEAD_MS, Engine, MAX_AGGRESSION,
-    MAX_HASH_MIB, MAX_MOVE_OVERHEAD_MS, MIN_AGGRESSION, MIN_HASH_MIB, MIN_MOVE_OVERHEAD_MS,
-    Position, SearchInfo, SearchLimits, SearchResult, SearchScore,
+    DEFAULT_AGGRESSION, DEFAULT_HASH_MIB, DEFAULT_MOVE_OVERHEAD_MS, DEFAULT_THREADS, Engine,
+    MAX_AGGRESSION, MAX_HASH_MIB, MAX_MOVE_OVERHEAD_MS, MAX_THREADS, MIN_AGGRESSION, MIN_HASH_MIB,
+    MIN_MOVE_OVERHEAD_MS, MIN_THREADS, Position, SearchInfo, SearchLimits, SearchResult,
+    SearchScore,
 };
 
 use super::command::{Command, PositionCommand, PositionSource, parse};
@@ -175,6 +176,10 @@ where
         )?;
         writeln!(
             self.output,
+            "option name Threads type spin default {DEFAULT_THREADS} min {MIN_THREADS} max {MAX_THREADS}",
+        )?;
+        writeln!(
+            self.output,
             "option name Aggression type spin default {DEFAULT_AGGRESSION} min {MIN_AGGRESSION} max {MAX_AGGRESSION}",
         )?;
         writeln!(
@@ -199,6 +204,20 @@ where
             if let Err(error) = self.engine.set_hash_size_mib(size_mib) {
                 return self.debug_info(&format!("Hash rejected: {error}"));
             }
+            return Ok(());
+        }
+
+        if name.eq_ignore_ascii_case("Threads") {
+            let Some(value) = value.filter(|value| !value.is_empty()) else {
+                return self.debug_info("Threads requires a count");
+            };
+            let Some(threads) = parse_clamped_spin(value, MIN_THREADS as u64, MAX_THREADS as u64)
+            else {
+                return self.debug_info(&format!("invalid Threads value: {value}"));
+            };
+
+            self.cancel_active();
+            self.engine.set_threads(threads as usize);
             return Ok(());
         }
 
@@ -403,7 +422,7 @@ mod tests {
             concat!(
                 "id name Jakgro ",
                 env!("CARGO_PKG_VERSION"),
-                "\nid author Jakgro contributors\noption name Hash type spin default 16 min 1 max 1024\noption name Aggression type spin default 75 min 0 max 100\noption name Move Overhead type spin default 10 min 0 max 5000\noption name Clear Hash type button\nuciok\nreadyok\n"
+                "\nid author Jakgro contributors\noption name Hash type spin default 16 min 1 max 1024\noption name Threads type spin default 1 min 1 max 128\noption name Aggression type spin default 75 min 0 max 100\noption name Move Overhead type spin default 10 min 0 max 5000\noption name Clear Hash type button\nuciok\nreadyok\n"
             )
         );
     }
@@ -448,7 +467,7 @@ mod tests {
     fn persistent_spin_options_accept_and_clamp_values_without_protocol_noise() {
         assert_eq!(
             transcript(
-                "setoption name Aggression value 37\nsetoption name Aggression value -1\nsetoption name Aggression value 999999\nsetoption name Move Overhead value 250\nsetoption name Move Overhead value -1\nsetoption name Move Overhead value 999999\nucinewgame\nisready\nquit\n",
+                "setoption name Aggression value 37\nsetoption name Aggression value -1\nsetoption name Aggression value 999999\nsetoption name Move Overhead value 250\nsetoption name Move Overhead value -1\nsetoption name Move Overhead value 999999\nsetoption name Threads value 4\nsetoption name Threads value 0\nsetoption name Threads value 999999\nucinewgame\nisready\nquit\n",
             ),
             "readyok\n",
         );

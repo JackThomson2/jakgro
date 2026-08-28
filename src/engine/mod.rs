@@ -33,6 +33,12 @@ pub const MIN_MOVE_OVERHEAD_MS: u64 = search::MIN_MOVE_OVERHEAD_MS;
 pub const DEFAULT_MOVE_OVERHEAD_MS: u64 = search::DEFAULT_MOVE_OVERHEAD_MS;
 /// Highest supported UCI move-overhead setting in milliseconds.
 pub const MAX_MOVE_OVERHEAD_MS: u64 = search::MAX_MOVE_OVERHEAD_MS;
+/// Smallest supported number of search threads.
+pub const MIN_THREADS: usize = search::MIN_THREADS;
+/// Default number of search threads.
+pub const DEFAULT_THREADS: usize = search::DEFAULT_THREADS;
+/// Largest supported number of search threads.
+pub const MAX_THREADS: usize = search::MAX_THREADS;
 
 /// Failure to validate or allocate a requested transposition-table size.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -69,6 +75,7 @@ pub struct Engine {
     position: Position,
     evaluation: evaluation::EvaluationConfig,
     move_overhead: Duration,
+    threads: usize,
     table: Arc<Mutex<Arc<search::TranspositionTable>>>,
 }
 
@@ -80,6 +87,7 @@ impl Default for Engine {
             position: Position::default(),
             evaluation: evaluation::EvaluationConfig::default(),
             move_overhead: Duration::from_millis(DEFAULT_MOVE_OVERHEAD_MS),
+            threads: DEFAULT_THREADS,
             table: Arc::new(Mutex::new(Arc::new(table))),
         }
     }
@@ -123,6 +131,21 @@ impl Engine {
     /// Changes the latency reserve used by clock-managed searches.
     pub fn set_move_overhead(&mut self, move_overhead: Duration) {
         self.move_overhead = move_overhead.min(Duration::from_millis(MAX_MOVE_OVERHEAD_MS));
+    }
+
+    /// Returns the number of threads a search may use.
+    #[must_use]
+    pub fn threads(&self) -> usize {
+        self.threads
+    }
+
+    /// Changes how many threads a search may use.
+    ///
+    /// Values outside [`MIN_THREADS`]..=[`MAX_THREADS`] are clamped. One thread
+    /// searches deterministically; more than one does not, because the tree the
+    /// helpers explore depends on how their timing interleaves.
+    pub fn set_threads(&mut self, threads: usize) {
+        self.threads = threads.clamp(MIN_THREADS, MAX_THREADS);
     }
 
     /// Resets game state while retaining configured resources.
@@ -181,7 +204,7 @@ impl Engine {
             search::SearchSettings {
                 evaluation: self.evaluation,
                 move_overhead: self.move_overhead,
-                threads: search::DEFAULT_THREADS,
+                threads: self.threads,
             },
             &table,
             report,
@@ -218,8 +241,8 @@ impl Engine {
 #[cfg(test)]
 mod tests {
     use super::{
-        DEFAULT_AGGRESSION, DEFAULT_MOVE_OVERHEAD_MS, Engine, MAX_AGGRESSION, MAX_MOVE_OVERHEAD_MS,
-        Position,
+        DEFAULT_AGGRESSION, DEFAULT_MOVE_OVERHEAD_MS, DEFAULT_THREADS, Engine, MAX_AGGRESSION,
+        MAX_MOVE_OVERHEAD_MS, MAX_THREADS, MIN_THREADS, Position,
     };
     use std::time::Duration;
 
@@ -271,6 +294,23 @@ mod tests {
         engine.set_aggression(u8::MAX);
         assert_eq!(engine.aggression(), MAX_AGGRESSION);
     }
+    #[test]
+    fn threads_are_clamped_and_preserved_across_new_games() {
+        let mut engine = Engine::new();
+        assert_eq!(engine.threads(), DEFAULT_THREADS);
+
+        engine.set_threads(4);
+        let clone = engine.clone();
+        engine.new_game();
+
+        assert_eq!(engine.threads(), 4);
+        assert_eq!(clone.threads(), 4);
+        engine.set_threads(0);
+        assert_eq!(engine.threads(), MIN_THREADS);
+        engine.set_threads(usize::MAX);
+        assert_eq!(engine.threads(), MAX_THREADS);
+    }
+
     #[test]
     fn move_overhead_is_clamped_and_preserved_across_new_games() {
         let mut engine = Engine::new();

@@ -11,11 +11,18 @@ pub(crate) use time::TimeBudget;
 pub(super) use time::{DEFAULT_MOVE_OVERHEAD_MS, MAX_MOVE_OVERHEAD_MS, MIN_MOVE_OVERHEAD_MS};
 pub(super) use transposition::{DEFAULT_HASH_MIB, MAX_HASH_MIB, MIN_HASH_MIB, TranspositionTable};
 
+/// Smallest supported number of search threads.
+pub(super) const MIN_THREADS: usize = 1;
 /// Number of search threads used unless configured otherwise.
 ///
 /// One thread keeps a search deterministic, which every fixed-node fixture and
 /// measurement gate depends on, so parallel search is opt-in.
 pub(super) const DEFAULT_THREADS: usize = 1;
+/// Largest supported number of search threads.
+///
+/// Each searcher keeps its own move ordering, per-ply tables, and move-picker
+/// storage, so the ceiling bounds memory as well as oversubscription.
+pub(super) const MAX_THREADS: usize = 128;
 
 use super::Position;
 use super::evaluation::{EvaluationConfig, MATE_SCORE, MATE_THRESHOLD, Score};

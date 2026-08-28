@@ -227,8 +227,10 @@ mod tests {
         let centre = placement(Piece::Knight, Square::E4, Color::White);
         let corner = placement(Piece::Knight, Square::A1, Color::White);
 
-        assert!(centre.middle_game() > corner.middle_game());
-        assert!(centre.end_game() > corner.end_game());
+        // Exact margins rather than inequalities, so the preference cannot be
+        // satisfied by two equal entries.
+        assert_eq!(centre.middle_game() - corner.middle_game(), 133);
+        assert_eq!(centre.end_game() - corner.end_game(), 45);
     }
 
     #[test]
@@ -236,8 +238,8 @@ mod tests {
         let shelter = placement(Piece::King, Square::G1, Color::White);
         let centre = placement(Piece::King, Square::E4, Color::White);
 
-        assert!(shelter.middle_game() > centre.middle_game());
-        assert!(centre.end_game() > shelter.end_game());
+        assert_eq!(shelter.middle_game() - centre.middle_game(), 70);
+        assert_eq!(centre.end_game() - shelter.end_game(), 51);
     }
 
     #[test]
@@ -245,8 +247,8 @@ mod tests {
         let advanced = placement(Piece::Pawn, Square::D7, Color::White);
         let home = placement(Piece::Pawn, Square::D2, Color::White);
 
-        assert!(advanced.end_game() > home.end_game());
-        assert!(advanced.end_game() > advanced.middle_game());
+        assert_eq!(advanced.end_game() - home.end_game(), 124);
+        assert_eq!(advanced.end_game() - advanced.middle_game(), 39);
     }
 
     #[test]
@@ -271,6 +273,57 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    /// Checks each table against the published set's aggregate structure.
+    ///
+    /// The values are transcribed rather than re-derived, so a single mistyped
+    /// interior entry would otherwise be invisible: the symmetry tests only catch
+    /// asymmetric corruption. These sums and extremes are computed from the
+    /// published PeSTO tables, so a typo anywhere in a table changes its sum and
+    /// fails here.
+    #[test]
+    fn tables_match_the_published_aggregates() {
+        let expectations = [
+            (Piece::Pawn, 759, 2_043, -35, 187),
+            (Piece::Knight, -59, -1_018, -167, 129),
+            (Piece::Bishop, 341, -268, -82, 59),
+            (Piece::Rook, 505, 52, -71, 80),
+            (Piece::Queen, 146, 565, -50, 59),
+            (Piece::King, -999, 176, -74, 45),
+        ];
+
+        for (piece, middle_sum, end_sum, minimum, maximum) in expectations {
+            let table = super::table_for(piece);
+            let middle: i32 = table.middle_game.iter().sum();
+            let end: i32 = table.end_game.iter().sum();
+            let low = *table
+                .middle_game
+                .iter()
+                .chain(table.end_game.iter())
+                .min()
+                .unwrap();
+            let high = *table
+                .middle_game
+                .iter()
+                .chain(table.end_game.iter())
+                .max()
+                .unwrap();
+
+            assert_eq!(middle, middle_sum, "{piece:?} middlegame sum");
+            assert_eq!(end, end_sum, "{piece:?} endgame sum");
+            assert_eq!(low, minimum, "{piece:?} smallest entry");
+            assert_eq!(high, maximum, "{piece:?} largest entry");
+        }
+    }
+
+    /// A pawn can never stand on the first or last rank.
+    #[test]
+    fn pawn_tables_are_empty_on_the_back_ranks() {
+        for index in (0..8).chain(56..64) {
+            assert_eq!(super::PAWN.middle_game[index], 0);
+            assert_eq!(super::PAWN.end_game[index], 0);
         }
     }
 }

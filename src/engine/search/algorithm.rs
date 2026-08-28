@@ -803,14 +803,11 @@ impl<'a> MovePicker<'a> {
                     continue;
                 }
                 let compute_see = true;
+                let see = facts.see(board, compute_see);
                 #[cfg(test)]
-                if facts
-                    .captured
-                    .is_some_and(|piece| piece_value(piece) < piece_value(facts.attacker))
-                {
+                if see.is_some() {
                     work.see_evaluations += 1;
                 }
-                let see = facts.see(board, compute_see);
                 let capture_history = ordering.capture_history_score(board.side_to_move(), facts);
                 let order_score = capture_order_score(facts, see, evaluation, capture_history)
                     .expect("tactical destination without a capture or promotion");
@@ -954,7 +951,11 @@ const fn build_lmr_table() -> [[u8; LMR_INDEX_ENTRIES]; LMR_DEPTH_ENTRIES] {
         while index < LMR_INDEX_ENTRIES {
             let product = scaled_ln(depth as u32) * scaled_ln(index as u32) / 1024;
             let reduction = (768 + product * 1024 / 2304) / 1024;
-            table[depth][index] = if reduction > 31 { 31 } else { reduction as u8 };
+            // Narrowing cannot lose information here: the deepest and latest
+            // entry is an order of magnitude below the representable range, and
+            // `lmr_table_entries_fit_in_one_byte` checks that against the built
+            // table rather than trusting this comment.
+            table[depth][index] = reduction as u8;
             index += 1;
         }
         depth += 1;
@@ -966,9 +967,10 @@ const fn build_lmr_table() -> [[u8; LMR_INDEX_ENTRIES]; LMR_DEPTH_ENTRIES] {
 ///
 /// `ln(v)` is recovered from the bit length as `ln(2) * floor(log2 v)` plus a
 /// linear interpolation across the mantissa, which is accurate to about one part
-/// in a hundred over the range the table needs and is monotone throughout.
+/// in a hundred over the range the table needs and is monotone throughout. One
+/// maps to zero through the general path rather than through a special case.
 const fn scaled_ln(value: u32) -> u32 {
-    if value <= 1 {
+    if value == 0 {
         return 0;
     }
     let floor_log2 = 31 - value.leading_zeros();
@@ -4281,6 +4283,65 @@ mod tests {
         }
     }
 
+    /// Counting stops once the threefold claim is available.
+    ///
+    /// The cap exists so a long repetition-heavy window does not keep scanning
+    /// after the answer is settled. A position occurring four times must still
+    /// report three, because every caller compares against three and a cap that
+    /// stopped one short would lose the claim entirely.
+    #[test]
+    fn repetition_occurrences_report_the_threefold_claim_on_a_fourth_visit() {
+        let mut position = Position::default();
+        position
+            .apply_uci_moves([
+                "g1f3", "g8f6", "f3g1", "f6g8", "g1f3", "g8f6", "f3g1", "f6g8", "g1f3", "g8f6",
+                "f3g1", "f6g8",
+            ])
+            .unwrap();
+        let tracker = RepetitionTracker::new(position.hash_history());
+        let key = super::repetition_key(position.board());
+        let naive = position
+            .hash_history()
+            .iter()
+            .filter(|&&entry| entry == key)
+            .count();
+
+        assert_eq!(naive, 4, "the starting position has occurred four times");
+        assert_eq!(
+            tracker.occurrences(position.board().halfmove_clock()),
+            3,
+            "a fourth occurrence still reports the threefold claim",
+        );
+    }
+
+    /// The scan must reach the entry exactly at the end of its window.
+    ///
+    /// A repetition four plies back with a halfmove clock of exactly four sits on
+    /// the last index the stride visits. An off-by-one in the loop bound skips it
+    /// and reports the position as unrepeated, which would silently lose threefold
+    /// claims at the boundary.
+    #[test]
+    fn repetition_occurrences_reach_the_last_entry_in_the_window() {
+        let mut position = Position::default();
+        position
+            .apply_uci_moves(["g1f3", "g8f6", "f3g1", "f6g8"])
+            .unwrap();
+        let tracker = RepetitionTracker::new(position.hash_history());
+
+        assert_eq!(position.board().halfmove_clock(), 4);
+        assert_eq!(position.hash_history().len(), 5);
+        assert_eq!(
+            super::repetition_key(position.board()),
+            position.hash_history()[0],
+            "the starting position has returned",
+        );
+        assert_eq!(
+            tracker.occurrences(4),
+            2,
+            "the entry four plies back is inside the window",
+        );
+    }
+
     #[test]
     fn an_irreversible_move_ends_the_repetition_window() {
         let mut position = Position::default();
@@ -5468,6 +5529,27 @@ mod tests {
         assert!(!super::SearchMode::Verification.allows_null());
     }
 
+    /// The table's entries must fit the byte they are stored in.
+    ///
+    /// `build_lmr_table` narrows each reduction to `u8`. This checks the built
+    /// table directly, so the narrowing is justified by the values rather than by
+    /// a runtime guard that could never fire.
+    #[test]
+    fn lmr_table_entries_fit_in_one_byte() {
+        let mut largest = 0_u8;
+        for row in &super::LMR_TABLE {
+            for &entry in row {
+                largest = largest.max(entry);
+            }
+        }
+
+        assert!(largest > 0, "the table should not be empty");
+        assert!(
+            largest < 32,
+            "the deepest reduction was {largest}, close to the stored width",
+        );
+    }
+
     #[test]
     fn late_move_reductions_protect_tactics_and_use_bounded_history() {
         let position = Position::default();
@@ -5711,10 +5793,50 @@ mod tests {
             75,
             super::SearchMode::Normal
         ));
-        // Deep nodes are left to reductions instead.
+        // The mode guard is what keeps null verification agreeing with a search
+        // that has pruning disabled, so every non-normal mode is pinned.
+        for mode in [
+            super::SearchMode::NullProbe,
+            super::SearchMode::Verification,
+        ] {
+            assert!(
+                !super::should_prune_late_move(
+                    2, late, quiet, false, false, false, 0, false, 75, mode
+                ),
+                "{mode:?} must not prune",
+            );
+        }
+        // Move-count pruning applies at exactly its maximum depth and stops one
+        // ply deeper, so both sides of that boundary are pinned.
+        assert!(super::should_prune_late_move(
+            super::LMP_MAX_DEPTH,
+            super::late_move_pruning_limit(super::LMP_MAX_DEPTH, false),
+            quiet,
+            false,
+            false,
+            false,
+            0,
+            false,
+            75,
+            super::SearchMode::Normal
+        ));
+        // Deep nodes are left to reductions instead. This holds at a very late
+        // move index too, where the limit itself would otherwise permit pruning.
         assert!(!super::should_prune_late_move(
             super::LMP_MAX_DEPTH + 1,
             late,
+            quiet,
+            false,
+            false,
+            false,
+            0,
+            false,
+            75,
+            super::SearchMode::Normal
+        ));
+        assert!(!super::should_prune_late_move(
+            super::LMP_MAX_DEPTH + 4,
+            super::late_move_pruning_limit(super::LMP_MAX_DEPTH + 4, true) + 64,
             quiet,
             false,
             false,

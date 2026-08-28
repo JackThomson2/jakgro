@@ -898,6 +898,36 @@ mod tests {
     /// compares them, so a hit is exact rather than probabilistic. The walk visits
     /// many positions that collide into the same slots, which is what exercises
     /// eviction and mismatched keys rather than only fresh inserts.
+    /// Structure terms must be signed from White's perspective.
+    ///
+    /// The differential test above compares the cache against recomputation, and
+    /// both share this sign convention, so neither would notice if it inverted.
+    /// This pins exact values rather than inequalities, so no comparison here can
+    /// be loosened without failing.
+    #[test]
+    fn structure_terms_are_signed_from_whites_perspective() {
+        // White has a doubled, isolated, passed a-file pair; Black has nothing.
+        let white_weak: Board = "4k3/8/8/8/8/P7/P7/4K3 w - - 0 1".parse().unwrap();
+        let terms = super::compute_structure_terms(&white_weak);
+        assert_eq!(terms.doubled, 1);
+        assert_eq!(terms.isolated, 2);
+
+        // The mirror image inverts every term exactly.
+        let black_weak: Board = "4k3/p7/p7/8/8/8/8/4K3 w - - 0 1".parse().unwrap();
+        let mirrored = super::compute_structure_terms(&black_weak);
+        assert_eq!(mirrored.doubled, -1);
+        assert_eq!(mirrored.isolated, -2);
+
+        // A passed pawn is signed by its owner. The pair is a true vertical
+        // mirror, e5 against e4, so the magnitudes match as well as the signs.
+        let white_passer: Board = "4k3/8/8/4P3/8/8/8/4K3 w - - 0 1".parse().unwrap();
+        let black_passer: Board = "4k3/8/8/8/4p3/8/8/4K3 w - - 0 1".parse().unwrap();
+        let white_passed = super::compute_structure_terms(&white_passer).passed;
+        let black_passed = super::compute_structure_terms(&black_passer).passed;
+        assert_eq!(white_passed, 4);
+        assert_eq!(black_passed, -4);
+    }
+
     #[test]
     fn cached_structure_matches_recomputation_over_a_playout() {
         let mut board = Board::default();
@@ -921,7 +951,7 @@ mod tests {
             board.play_unchecked(chess_move);
         }
 
-        assert!(checked > 40, "expected a long playout, checked {checked}");
+        assert_eq!(checked, 160, "the playout should have compared every ply",);
     }
 
     /// Repeated queries for one position must agree with each other.

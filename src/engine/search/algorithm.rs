@@ -3462,12 +3462,7 @@ fn quiescence(
         .flatten();
     if let Some(entry) = hash_entry {
         let score = entry.score_at_ply(ply);
-        let usable = match entry.bound() {
-            Bound::Exact => true,
-            Bound::Lower => score >= beta,
-            Bound::Upper => score <= alpha,
-        };
-        if usable {
+        if quiescence_entry_is_usable(entry.bound(), score, alpha, beta) {
             context.telemetry.tt_cutoffs += 1;
             return Ok(NodeResult {
                 score,
@@ -3645,6 +3640,19 @@ fn quiescence(
         context,
     );
     Ok(best)
+}
+
+/// Reports whether a stored quiescence result settles the current window.
+///
+/// An exact score always does. A lower bound settles it only by failing high, and
+/// an upper bound only by failing low, and both are inclusive: a bound sitting
+/// exactly on the window edge is precisely the cutoff worth taking.
+fn quiescence_entry_is_usable(bound: Bound, score: Score, alpha: Score, beta: Score) -> bool {
+    match bound {
+        Bound::Exact => true,
+        Bound::Lower => score >= beta,
+        Bound::Upper => score <= alpha,
+    }
 }
 
 /// Records a settled quiescence result in the transposition table.
@@ -4389,6 +4397,72 @@ mod tests {
     /// inherit a draw score it never earned. The store is also confined to modes
     /// that write the table at all, which is what keeps null verification able to
     /// agree with a search that has pruning disabled.
+    /// The quiescence cutoff must accept a bound exactly at the window edge.
+    ///
+    /// A lower bound equal to beta is a fail-high and a upper bound equal to alpha
+    /// is a fail-low, so both are usable. Tightening either comparison would
+    /// silently discard the cutoffs that sit precisely on the boundary, which are
+    /// the common case rather than a rarity.
+    #[test]
+    fn quiescence_cutoffs_accept_bounds_at_the_window_edge() {
+        for (bound, score, alpha, beta, usable) in [
+            (super::Bound::Lower, 50, -50, 50, true),
+            (super::Bound::Lower, 49, -50, 50, false),
+            (super::Bound::Upper, -50, -50, 50, true),
+            (super::Bound::Upper, -49, -50, 50, false),
+            (super::Bound::Exact, 0, -50, 50, true),
+        ] {
+            assert_eq!(
+                super::quiescence_entry_is_usable(bound, score, alpha, beta),
+                usable,
+                "{bound:?} at {score} against [{alpha}, {beta}]",
+            );
+        }
+    }
+
+    /// A stored bound must be classified at the window edges as well as inside.
+    #[test]
+    fn quiescence_stores_classify_bounds_at_the_window_edges() {
+        let position = Position::default();
+        let tracker = super::RepetitionTracker::new(position.hash_history());
+        let control = super::SearchControl::new();
+        let key = tracker.current_key();
+
+        for (score, alpha_original, beta, expected) in [
+            // Exactly at alpha is a fail-low, not an exact score.
+            (-50, -50, 50, super::Bound::Upper),
+            (-49, -50, 50, super::Bound::Exact),
+            // Exactly at beta is a fail-high.
+            (50, -50, 50, super::Bound::Lower),
+            (49, -50, 50, super::Bound::Exact),
+        ] {
+            let mut table = super::TranspositionTable::new(1).unwrap();
+            table.start_search(0);
+            let mut context =
+                super::SearchContext::for_test(&mut table, &control, super::SearchMode::Normal);
+            super::store_quiescence_result(
+                position.board(),
+                &tracker,
+                0,
+                &super::NodeResult {
+                    score,
+                    path_dependent: false,
+                },
+                alpha_original,
+                beta,
+                Some(score),
+                &mut context,
+            );
+
+            let entry = table.probe_key(key, 0).expect("a settled result is stored");
+            assert_eq!(
+                entry.bound(),
+                expected,
+                "score {score} against [{alpha_original}, {beta}]",
+            );
+        }
+    }
+
     #[test]
     fn quiescence_stores_are_refused_for_path_dependent_and_unsearched_results() {
         let position = Position::default();

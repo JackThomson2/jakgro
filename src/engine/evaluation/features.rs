@@ -1,9 +1,109 @@
 use cozy_chess::{
-    Board, Color, Piece, Square, get_bishop_moves, get_king_moves, get_knight_moves,
-    get_pawn_attacks, get_rook_moves,
+    BitBoard, Board, Color, File, Piece, Rank, Square, get_bishop_moves, get_king_moves,
+    get_knight_moves, get_pawn_attacks, get_rook_moves,
 };
 
 use super::{AttackProfile, EvalFeatures, piece_value};
+
+/// Files ahead of each square from White's perspective, on the file and both
+/// neighbours.
+///
+/// A pawn is passed when no enemy pawn stands anywhere in this span, which is a
+/// single mask test in place of a scan over every enemy pawn.
+static WHITE_PASSER_SPANS: [BitBoard; 64] = build_passer_spans(true);
+static BLACK_PASSER_SPANS: [BitBoard; 64] = build_passer_spans(false);
+/// Squares one and two ranks ahead of each square, on the file and both
+/// neighbours, used for king shelter.
+static WHITE_SHELTER_ZONES: [BitBoard; 64] = build_shelter_zones(true);
+static BLACK_SHELTER_ZONES: [BitBoard; 64] = build_shelter_zones(false);
+/// The file of each square together with both neighbouring files.
+static KING_FILE_SPANS: [BitBoard; 64] = build_king_file_spans();
+
+const fn square_mask(file: usize, rank: usize) -> u64 {
+    1_u64 << (rank * 8 + file)
+}
+
+const fn build_passer_spans(white: bool) -> [BitBoard; 64] {
+    let mut spans = [BitBoard::EMPTY; 64];
+    let mut index = 0;
+    while index < 64 {
+        let file = index % 8;
+        let rank = index / 8;
+        let mut mask = 0_u64;
+        let mut other_file = if file == 0 { 0 } else { file - 1 };
+        let last_file = if file == 7 { 7 } else { file + 1 };
+        while other_file <= last_file {
+            let mut other_rank = 0;
+            while other_rank < 8 {
+                let ahead = if white {
+                    other_rank > rank
+                } else {
+                    other_rank < rank
+                };
+                if ahead {
+                    mask |= square_mask(other_file, other_rank);
+                }
+                other_rank += 1;
+            }
+            other_file += 1;
+        }
+        spans[index] = BitBoard(mask);
+        index += 1;
+    }
+    spans
+}
+
+const fn build_shelter_zones(white: bool) -> [BitBoard; 64] {
+    let mut zones = [BitBoard::EMPTY; 64];
+    let mut index = 0_usize;
+    while index < 64 {
+        let file = index % 8;
+        let rank = index / 8;
+        let mut mask = 0_u64;
+        let mut other_file = if file == 0 { 0 } else { file - 1 };
+        let last_file = if file == 7 { 7 } else { file + 1 };
+        while other_file <= last_file {
+            let mut step = 1_usize;
+            while step <= 2 {
+                let target = if white {
+                    rank + step
+                } else {
+                    rank.wrapping_sub(step)
+                };
+                if target < 8 {
+                    mask |= square_mask(other_file, target);
+                }
+                step += 1;
+            }
+            other_file += 1;
+        }
+        zones[index] = BitBoard(mask);
+        index += 1;
+    }
+    zones
+}
+
+const fn build_king_file_spans() -> [BitBoard; 64] {
+    let mut spans = [BitBoard::EMPTY; 64];
+    let mut index = 0;
+    while index < 64 {
+        let file = index % 8;
+        let mut mask = 0_u64;
+        let mut other_file = if file == 0 { 0 } else { file - 1 };
+        let last_file = if file == 7 { 7 } else { file + 1 };
+        while other_file <= last_file {
+            let mut rank = 0;
+            while rank < 8 {
+                mask |= square_mask(other_file, rank);
+                rank += 1;
+            }
+            other_file += 1;
+        }
+        spans[index] = BitBoard(mask);
+        index += 1;
+    }
+    spans
+}
 
 pub(super) fn extract(board: &Board) -> EvalFeatures {
     extract_with_style(board, true)
@@ -32,7 +132,7 @@ pub(super) fn extract_with_style(board: &Board, style: bool) -> EvalFeatures {
 
         let bishops = board.colored_pieces(color, Piece::Bishop).len();
         features.bishop_pair += sign * i32::from(bishops >= 2);
-        features.activity += sign * activity(board, color);
+        features.activity += sign * attacks.activity[color as usize];
         features.mobility += sign * attacks.mobility[color as usize];
         features.pawn_mobility +=
             sign * attacks.piece_mobility[color as usize][piece_index(Piece::Pawn) as usize];
@@ -86,6 +186,8 @@ pub(super) fn phase(board: &Board) -> i32 {
     (queens * 4 + rooks * 2 + bishops + knights).min(24)
 }
 
+/// Reference activity accumulation, retained to check the fused piece pass.
+#[cfg(test)]
 fn activity(board: &Board, color: Color) -> i32 {
     let mut score = 0;
     for piece in [Piece::Knight, Piece::Bishop, Piece::Rook, Piece::Queen] {
@@ -139,6 +241,7 @@ struct AttackSummary {
     profiles: [AttackProfile; 2],
     mobility: [i32; 2],
     piece_mobility: [[i32; 6]; 2],
+    activity: [i32; 2],
 }
 
 #[cfg(test)]
@@ -155,6 +258,7 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
     let mut profiles = [AttackProfile::default(); 2];
     let mut mobility = [0_i32; 2];
     let mut piece_mobility = [[0_i32; 6]; 2];
+    let mut activity = [0_i32; 2];
     let mut attack_counts = [[0_u8; 64]; 2];
     let mut zone_defenders = [0_i32; 2];
 
@@ -177,6 +281,23 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
             Piece::King,
         ] {
             for square in board.colored_pieces(color, piece) {
+                // Activity is accumulated in the same pass rather than in a
+                // second loop over every piece: the terms differ but the
+                // iteration is identical.
+                activity[index] += match piece {
+                    Piece::Knight | Piece::Bishop | Piece::Rook | Piece::Queen => {
+                        centrality(square)
+                    }
+                    Piece::Pawn => {
+                        let rank = square.rank() as i32;
+                        if color == Color::White {
+                            (rank - 1).max(0)
+                        } else {
+                            (6 - rank).max(0)
+                        }
+                    }
+                    Piece::King => 0,
+                };
                 let raw_attacks = attacks_from(piece, square, color, occupied);
                 let attacks = raw_attacks & !friendly_pieces;
                 mobility[index] += attacks.len() as i32;
@@ -290,6 +411,7 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
         profiles,
         mobility,
         piece_mobility,
+        activity,
     }
 }
 
@@ -472,14 +594,19 @@ fn attacks_from(
     }
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 struct PawnFeatures {
     doubled: i32,
     isolated: i32,
     passed: i32,
 }
 
-fn pawn_features(board: &Board, color: Color) -> PawnFeatures {
+/// Reference pawn structure, retained to check the mask-based extraction.
+///
+/// This is the scanning form the masks replaced: for each pawn it walks every
+/// enemy pawn looking for one ahead on its own or an adjacent file.
+#[cfg(test)]
+fn reference_pawn_features(board: &Board, color: Color) -> PawnFeatures {
     let pawns = board.colored_pieces(color, Piece::Pawn);
     let enemy_pawns = board.colored_pieces(!color, Piece::Pawn);
     let mut files = [0_u8; 8];
@@ -521,7 +648,9 @@ fn pawn_features(board: &Board, color: Color) -> PawnFeatures {
     result
 }
 
-fn king_safety(board: &Board, color: Color) -> (i32, i32) {
+/// Reference king safety, retained to check the mask-based extraction.
+#[cfg(test)]
+fn reference_king_safety(board: &Board, color: Color) -> (i32, i32) {
     let king = board.king(color);
     let king_file = king.file() as i32;
     let king_rank = king.rank() as i32;
@@ -550,6 +679,68 @@ fn king_safety(board: &Board, color: Color) -> (i32, i32) {
     (shelter, open_files)
 }
 
+fn pawn_features(board: &Board, color: Color) -> PawnFeatures {
+    let pawns = board.colored_pieces(color, Piece::Pawn);
+    let enemy_pawns = board.colored_pieces(!color, Piece::Pawn);
+    let spans = if color == Color::White {
+        &WHITE_PASSER_SPANS
+    } else {
+        &BLACK_PASSER_SPANS
+    };
+
+    let mut result = PawnFeatures::default();
+    for file in File::ALL {
+        let count = (pawns & file.bitboard()).len();
+        result.doubled += count.saturating_sub(1) as i32;
+        if count > 0 && (pawns & file.adjacent()).is_empty() {
+            result.isolated += count as i32;
+        }
+    }
+
+    for square in pawns {
+        // A pawn is passed when no enemy pawn stands ahead of it on its own or
+        // an adjacent file, which the precomputed span answers in one test.
+        if (enemy_pawns & spans[square as usize]).is_empty() {
+            let rank = square.rank() as i32;
+            let advance = if color == Color::White {
+                rank
+            } else {
+                7 - rank
+            };
+            result.passed += advance.max(1);
+        }
+    }
+
+    result
+}
+
+fn king_safety(board: &Board, color: Color) -> (i32, i32) {
+    let king = board.king(color);
+    let pawns = board.colored_pieces(color, Piece::Pawn);
+    let zones = if color == Color::White {
+        &WHITE_SHELTER_ZONES
+    } else {
+        &BLACK_SHELTER_ZONES
+    };
+    // Shelter counts friendly pawns one or two ranks ahead of the king on its own
+    // or an adjacent file, which the precomputed zone answers in one test.
+    let shelter = (pawns & zones[king as usize]).len() as i32;
+
+    // An open king file is one of the king's own or adjacent files carrying no
+    // friendly pawn. Files off the edge of the board are not counted, so a king
+    // on a rim file has two neighbouring files rather than three.
+    let mut open_files = 0;
+    for file in File::ALL {
+        if KING_FILE_SPANS[king as usize].has(Square::new(file, Rank::First))
+            && (pawns & file.bitboard()).is_empty()
+        {
+            open_files += 1;
+        }
+    }
+
+    (shelter, open_files)
+}
+
 #[cfg(test)]
 mod tests {
     use cozy_chess::{Board, Color, Move};
@@ -568,6 +759,21 @@ mod tests {
                 cached.mobility[color as usize],
                 reference_mobility(board, color),
                 "mobility differs for {color:?} in {board}"
+            );
+            assert_eq!(
+                cached.activity[color as usize],
+                super::activity(board, color),
+                "activity differs for {color:?} in {board}"
+            );
+            assert_eq!(
+                super::pawn_features(board, color),
+                super::reference_pawn_features(board, color),
+                "pawn structure differs for {color:?} in {board}"
+            );
+            assert_eq!(
+                super::king_safety(board, color),
+                super::reference_king_safety(board, color),
+                "king safety differs for {color:?} in {board}"
             );
         }
     }

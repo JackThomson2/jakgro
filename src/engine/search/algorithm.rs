@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use cozy_chess::util::display_uci_move;
@@ -1616,12 +1617,22 @@ struct SearchContext<'a> {
     null_move_enabled: bool,
     node_limit: Option<u64>,
     nodes: u64,
+    /// Local nodes already folded into the shared counter.
+    published_nodes: u64,
+    stats: &'a SearchStats,
     started: Instant,
     pv: Vec<Vec<Move>>,
     hash_pv_depths: Vec<Option<u32>>,
     static_evaluations: Vec<Option<Score>>,
     picker_storage: Vec<MovePickerStorage>,
     ordering: MoveOrdering,
+}
+
+/// Node accounting for contexts that exercise one node outside a real search.
+#[cfg(test)]
+fn test_stats() -> &'static SearchStats {
+    static STATS: std::sync::OnceLock<SearchStats> = std::sync::OnceLock::new();
+    STATS.get_or_init(SearchStats::default)
 }
 
 impl<'a> SearchContext<'a> {
@@ -1631,6 +1642,17 @@ impl<'a> SearchContext<'a> {
         table: &'a TranspositionTable,
         control: &'a SearchControl,
         mode: SearchMode,
+    ) -> Self {
+        Self::for_test_with_stats(table, control, mode, test_stats())
+    }
+
+    /// Builds a context sharing explicit node accounting.
+    #[cfg(test)]
+    fn for_test_with_stats(
+        table: &'a TranspositionTable,
+        control: &'a SearchControl,
+        mode: SearchMode,
+        stats: &'a SearchStats,
     ) -> Self {
         Self {
             control,
@@ -1642,6 +1664,8 @@ impl<'a> SearchContext<'a> {
             null_move_enabled: true,
             node_limit: None,
             nodes: 0,
+            published_nodes: 0,
+            stats,
             started: Instant::now(),
             pv: (0..=MAX_PLY)
                 .map(|ply| Vec::with_capacity((MAX_PLY - ply) as usize))
@@ -1663,6 +1687,9 @@ impl SearchContext<'_> {
         {
             return Err(Aborted);
         }
+        if should_poll_control(self.nodes) {
+            self.publish_nodes();
+        }
         self.nodes += 1;
         match self.mode {
             SearchMode::NullProbe => self.telemetry.null_probe_nodes += 1,
@@ -1670,6 +1697,28 @@ impl SearchContext<'_> {
             SearchMode::Normal => {}
         }
         Ok(())
+    }
+
+    /// Folds nodes counted since the last publication into the shared total.
+    fn publish_nodes(&mut self) {
+        let unpublished = self.nodes.saturating_sub(self.published_nodes);
+        if unpublished == 0 {
+            return;
+        }
+        self.stats.nodes.fetch_add(unpublished, Ordering::Relaxed);
+        self.published_nodes = self.nodes;
+    }
+
+    /// Returns the nodes every searcher in this search has counted.
+    ///
+    /// This searcher's own unpublished nodes are added to what the others have
+    /// already contributed, so the total never counts a node twice and never
+    /// omits work this searcher has done since it last published.
+    fn total_nodes(&self) -> u64 {
+        self.stats
+            .nodes()
+            .saturating_sub(self.published_nodes)
+            .saturating_add(self.nodes)
     }
 
     fn should_stop(&self) -> bool {
@@ -1785,6 +1834,42 @@ impl SearchContext<'_> {
     }
 }
 
+/// Node accounting shared by every searcher in one search.
+///
+/// A searcher counts its own nodes locally and folds them in on the same cadence
+/// it polls for cancellation, which keeps the shared counter off the hot path.
+#[derive(Debug, Default)]
+struct SearchStats {
+    nodes: AtomicU64,
+}
+
+impl SearchStats {
+    fn nodes(&self) -> u64 {
+        self.nodes.load(Ordering::Relaxed)
+    }
+}
+
+/// The parts of a search every searcher reads.
+struct SharedSearch<'a> {
+    root_board: Board,
+    root_moves: Vec<Move>,
+    hash_history: &'a [u64],
+    limits: &'a SearchLimits,
+    control: &'a SearchControl,
+    table: &'a TranspositionTable,
+    evaluation: EvaluationConfig,
+    scoring: EvaluationConfig,
+    maximum_depth: u32,
+    started: Instant,
+    stats: SearchStats,
+}
+
+/// What one searcher established before it stopped.
+struct WorkerOutcome {
+    info: Option<SearchInfo>,
+    telemetry: SearchTelemetry,
+}
+
 pub(super) fn run<F>(
     position: &Position,
     limits: &SearchLimits,
@@ -1797,7 +1882,6 @@ pub(super) fn run<F>(
 where
     F: FnMut(SearchInfo),
 {
-    let scoring = evaluation.objective_scoring();
     table.start_search(evaluation.aggression());
     let time_budget = allocate_time(position.board().side_to_move(), limits, move_overhead);
     if !control.has_time_budget()
@@ -1837,17 +1921,74 @@ where
         .map(|(_, chess_move)| chess_move)
         .collect::<Vec<_>>();
 
-    let mut context = SearchContext {
+    let shared = SharedSearch {
+        root_board,
+        root_moves,
+        hash_history: position.hash_history(),
+        limits,
         control,
         table,
-        scoring,
-        personality: evaluation,
+        evaluation,
+        scoring: evaluation.objective_scoring(),
+        maximum_depth: maximum_depth(limits, has_time_budget),
+        started: Instant::now(),
+        stats: SearchStats::default(),
+    };
+
+    let history = RepetitionTracker::new(shared.hash_history);
+    if !search_stopped_before_starting(limits, control)
+        && terminal_score(&shared.root_board, &history, 0, false)
+            .is_some_and(|result| result.score == 0)
+    {
+        let info = SearchInfo::new(
+            0,
+            SearchScore::Centipawns(0),
+            0,
+            shared.started.elapsed(),
+            vec![fallback.clone().expect("root moves are non-empty")],
+        );
+        report(info.clone());
+        return SearchResult::from_parts(fallback, Some(info), SearchTelemetry::default());
+    }
+
+    let outcome = drive_search(&shared, &mut report);
+    let best_move = outcome
+        .info
+        .as_ref()
+        .and_then(|info| info.pv().first().cloned())
+        .or(fallback);
+    SearchResult::from_parts(best_move, outcome.info, outcome.telemetry)
+}
+
+/// Reports whether a search is over before any node is visited.
+///
+/// A node limit of zero and an already cancelled or expired control both leave
+/// the root without a searched result, which is the state the first node check
+/// would otherwise detect.
+fn search_stopped_before_starting(limits: &SearchLimits, control: &SearchControl) -> bool {
+    limits.nodes == Some(0) || control.is_stopped() || control.hard_deadline_reached()
+}
+
+/// Runs the searchers this search is configured for and returns the main result.
+fn drive_search(shared: &SharedSearch<'_>, report: &mut dyn FnMut(SearchInfo)) -> WorkerOutcome {
+    run_worker(shared, report)
+}
+
+/// Deepens the root position until this searcher's limits or clock stop it.
+fn run_worker(shared: &SharedSearch<'_>, report: &mut dyn FnMut(SearchInfo)) -> WorkerOutcome {
+    let mut context = SearchContext {
+        control: shared.control,
+        table: shared.table,
+        scoring: shared.scoring,
+        personality: shared.evaluation,
         mode: SearchMode::Normal,
         telemetry: SearchTelemetry::default(),
-        null_move_enabled: limits.null_move.unwrap_or(true),
-        node_limit: limits.nodes,
+        null_move_enabled: shared.limits.null_move.unwrap_or(true),
+        node_limit: shared.limits.nodes,
         nodes: 0,
-        started: Instant::now(),
+        published_nodes: 0,
+        stats: &shared.stats,
+        started: shared.started,
         pv: (0..=MAX_PLY)
             .map(|ply| Vec::with_capacity((MAX_PLY - ply) as usize))
             .collect(),
@@ -1858,28 +1999,14 @@ where
             .collect(),
         ordering: MoveOrdering::new(),
     };
-    let mut history = RepetitionTracker::new(position.hash_history());
-    if !context.should_stop()
-        && terminal_score(&root_board, &history, 0, false).is_some_and(|result| result.score == 0)
-    {
-        let info = SearchInfo::new(
-            0,
-            SearchScore::Centipawns(0),
-            0,
-            context.started.elapsed(),
-            vec![fallback.clone().expect("root moves are non-empty")],
-        );
-        report(info.clone());
-        return SearchResult::from_parts(fallback, Some(info), context.telemetry);
-    }
+    let mut history = RepetitionTracker::new(shared.hash_history);
     let mut previous_pv = Vec::new();
     let mut previous_score = None;
     let mut stability = IterationStability::default();
     let mut extension_used = false;
     let mut final_info = None;
-    let maximum_depth = maximum_depth(limits, has_time_budget);
 
-    'iterative: for depth in 1..=maximum_depth {
+    'iterative: for depth in 1..=shared.maximum_depth {
         if context.should_stop() {
             break;
         }
@@ -1901,8 +2028,8 @@ where
             aspiration_searches += 1;
             let nodes_before = context.nodes;
             let iteration = search_root(
-                &root_board,
-                &root_moves,
+                &shared.root_board,
+                &shared.root_moves,
                 &mut history,
                 depth,
                 (alpha, beta),
@@ -1946,11 +2073,11 @@ where
         previous_score = Some(iteration.primary_score);
         previous_pv.clear();
         previous_pv.extend_from_slice(context.pv(0));
-        let pv = format_pv(&root_board, &previous_pv);
+        let pv = format_pv(&shared.root_board, &previous_pv);
         let info = SearchInfo::new(
             depth,
             SearchScore::from_internal(iteration.selected.score),
-            context.nodes,
+            context.total_nodes(),
             context.started.elapsed(),
             pv,
         );
@@ -1962,7 +2089,7 @@ where
             break;
         }
         match next_iteration_decision(
-            control.deadline_window(),
+            shared.control.deadline_window(),
             iteration_duration,
             is_volatile,
             extension_used,
@@ -1973,11 +2100,11 @@ where
         }
     }
 
-    let best_move = final_info
-        .as_ref()
-        .and_then(|info| info.pv().first().cloned())
-        .or(fallback);
-    SearchResult::from_parts(best_move, final_info, context.telemetry)
+    context.publish_nodes();
+    WorkerOutcome {
+        info: final_info,
+        telemetry: context.telemetry,
+    }
 }
 
 fn maximum_depth(limits: &SearchLimits, has_deadline: bool) -> u32 {

@@ -2,7 +2,7 @@
 
 Jakgro is a Rust chess engine aimed at playing aggressive, tactical, and interesting chess while remaining compatible with the Universal Chess Interface (UCI).
 
-> **Current status:** Jakgro runs a cancellable, single-threaded iterative-deepening alpha-beta search with quiescence, principal variations, repetition and draw handling, a persistent fixed-size transposition table, tapered positional evaluation with piece-square tables, a bounded attacking personality, and volatility-aware soft/hard clock management. It is UCI-playable and exposes a reproducibly gated `Aggression` profile from 0 to 100. The most recent measured series is confirmed at +108 Elo at the default profile and +203 Elo at the objective profile, and at +125 Elo under a real clock; see [`docs/tuning/strength-series.md`](docs/tuning/strength-series.md).
+> **Current status:** Jakgro runs a cancellable, single-threaded iterative-deepening alpha-beta search with quiescence, principal variations, repetition and draw handling, a persistent fixed-size transposition table consulted in quiescence as well as in the main search, tapered positional evaluation with piece-square tables and a cached pawn structure, a bounded attacking personality, and volatility-aware soft/hard clock management. It is UCI-playable and exposes a reproducibly gated `Aggression` profile from 0 to 100. Two measured series are recorded: [`docs/tuning/strength-series.md`](docs/tuning/strength-series.md) at +108 Elo at the default profile, and [`docs/tuning/strength-series-two.md`](docs/tuning/strength-series-two.md) at a further +65 Elo on top of it.
 
 ## Goals
 
@@ -190,7 +190,7 @@ measurement protocol and interpretation rules.
 - Static evaluation tapers material, tuned piece-square placement, tempo, activity, mobility, bishop-pair, pawn-structure, passed-pawn, and king-shelter features between middlegame and endgame. Search scores and transposition bounds remain personality-neutral; aggression instead controls tactical search policy and root interest in coordinated king attacks, supported threats, open attacking lines, and pawn breaks.
 - Higher aggression spends additional search effort on checks and forcing continuations. Root personality work threshold-probes diverse alternatives, fully verifies at most two inside a deterministic node budget, and keeps only completed verification when that local budget expires. Ordinary choices use a 30-centipawn cap, winning conversions use 20, non-negative objective results cannot cross below zero, and only independently verified sacrifices may use the absolute 120-centipawn ceiling.
 - Search is single-threaded internally and uses one worker per active UCI search.
-- Every child clones the `cozy-chess` board. A make/unmake layer was implemented and measured for an earlier series and rejected: `size_of::<Board>()` equals `size_of::<BoardState>()`, so a snapshot costs as much as the copy it avoids. A persistent fixed-size transposition table reuses exact and bounded search results.
+- Every child clones the `cozy-chess` board. A make/unmake layer was implemented and measured for an earlier series and rejected: `size_of::<Board>()` equals `size_of::<BoardState>()`, so a snapshot costs as much as the copy it avoids. A persistent fixed-size transposition table reuses exact and bounded search results, and quiescence consults it as well, which matters because quiescence is roughly 97% of all nodes.
 - Move ordering combines hash and previous-PV moves, promotions, swap-list static-exchange values, killers, signed butterfly history, and agreement-bounded continuation history. Principal-variation search, aspiration windows, table-driven late-move reductions, depth-indexed move-count pruning, always-verified null-move pruning, and conservative quiescence pruning reduce repeated work. Move-count pruning exempts checks, castling, king-zone moves, killers, hash and PV moves, moves with positive history, and — at non-zero aggression — attacking pawn pushes, so the attacking profile keeps its forcing continuations. Null pruning is disabled in checks, PV and mate windows, rule-fifty boundaries, pawn-only and single-minor endings, and synthetic or verification searches; every fail-high is verified from the original legal board.
 - A `go` command without an effective time, node, depth, mate, infinite, or ponder limit defaults to depth four so accidental limit-free searches terminate.
 - Clock-managed searches use a normal soft budget and a reserved hard limit. Stable iterations stop at the soft limit; best-move changes or large score swings can spend toward the hard limit. `Move Overhead` reserves 0–5000 ms for GUI and operating-system latency, while an explicit `movetime` remains fixed.
@@ -237,7 +237,7 @@ The initial protocol and search foundations now include:
 
 1. **Search efficiency and repeatability**
    - Tune the bounded continuation-history signal against held-out fixed-depth positions. A make/unmake layer was measured and rejected, since a board snapshot is the same size as the board it replaces.
-   - Add internal iterative reduction and singular extensions, the two largest remaining tree-shape gaps.
+   - Retry singular extensions with a cheaper probe. A full implementation measured neutral because the exclusion search re-expands a large quiescence subtree; capping its quiescence depth or reusing the parent's move list is the obvious next attempt. Internal iterative reduction also measured neutral to negative and is recorded in [`docs/tuning/strength-series-two.md`](docs/tuning/strength-series-two.md).
    - Repeat verified-null and old/new differential benchmarks across more positions and platforms.
 2. **Aggressive evaluation**
    - Retry king safety from safe checks and per-square attack units. A non-linear attacker-count term was measured at -14 Elo and rejected; see [`docs/tuning/strength-series.md`](docs/tuning/strength-series.md).
@@ -246,6 +246,7 @@ The initial protocol and search foundations now include:
    - Measure whether verified sacrifices survive deeper searches and human PGN review before changing the 120-centipawn hard guard.
 3. **Time and protocol refinement**
    - Scale the soft clock by best-move stability and root node effort, then confirm through timed matches rather than fixed-move-time ones.
+   - Report at least one `info` line for every completed search. Some positions currently return a `bestmove` alone, which the measurement tools cannot read.
    - Evaluate thread-safe shared search structures before advertising a `Threads` option.
    - Expand ponder, mate-limit, and malformed-command regression suites.
 4. **Tuning and match testing**

@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-use std::hash::{BuildHasherDefault, Hasher};
 use std::time::{Duration, Instant};
 
 use cozy_chess::util::display_uci_move;
@@ -131,46 +129,15 @@ impl IterationStability {
     }
 }
 
-#[derive(Default)]
-struct ZobristHasher(u64);
-
-impl Hasher for ZobristHasher {
-    fn finish(&self) -> u64 {
-        self.0
-    }
-
-    fn write(&mut self, bytes: &[u8]) {
-        let mut hash = 0xcbf2_9ce4_8422_2325_u64;
-        for &byte in bytes {
-            hash ^= u64::from(byte);
-            hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
-        }
-        self.0 = hash;
-    }
-
-    fn write_u64(&mut self, value: u64) {
-        self.0 = value;
-    }
-}
-
-type RepetitionCounts = HashMap<u64, usize, BuildHasherDefault<ZobristHasher>>;
-
 #[derive(Clone, Debug)]
 struct RepetitionTracker {
     keys: Vec<u64>,
-    counts: RepetitionCounts,
 }
 
 impl RepetitionTracker {
     fn new(history: &[u64]) -> Self {
-        let mut counts = RepetitionCounts::default();
-        for &key in history {
-            *counts.entry(key).or_insert(0) += 1;
-        }
-
         Self {
             keys: history.to_vec(),
-            counts,
         }
     }
 
@@ -183,23 +150,37 @@ impl RepetitionTracker {
 
     fn push_key(&mut self, key: u64) {
         self.keys.push(key);
-        *self.counts.entry(key).or_insert(0) += 1;
     }
 
     fn pop(&mut self) {
-        let key = self.keys.pop().expect("search repetition stack underflow");
-        let count = self
-            .counts
-            .get_mut(&key)
-            .expect("search repetition count missing");
-        *count -= 1;
-        if *count == 0 {
-            self.counts.remove(&key);
-        }
+        self.keys.pop().expect("search repetition stack underflow");
     }
 
-    fn occurrences(&self, key: u64) -> usize {
-        self.counts.get(&key).copied().unwrap_or(0)
+    /// Counts how often the current position occurs, including itself.
+    ///
+    /// The scan walks back at most `halfmove_clock` plies because an irreversible
+    /// move ends every repetition window: a capture or pawn move changes material
+    /// or pawn placement, so no earlier position can share this key. Within that
+    /// window only every second entry can match, since the key covers the side to
+    /// move, so the scan strides two plies at a time. Counting stops at three
+    /// because every caller only asks whether the threefold claim is available.
+    fn occurrences(&self, halfmove_clock: u8) -> usize {
+        let key = self.current_key();
+        let window = usize::from(halfmove_clock).min(self.keys.len() - 1);
+        let mut count = 1;
+        let mut index = self.keys.len() - 1;
+        let mut remaining = window;
+        while remaining >= 2 {
+            index -= 2;
+            remaining -= 2;
+            if self.keys[index] == key {
+                count += 1;
+                if count >= 3 {
+                    break;
+                }
+            }
+        }
+        count
     }
 }
 
@@ -3445,7 +3426,7 @@ fn terminal_score_for_mode(
             path_dependent: false,
         });
     }
-    if mode.tracks_legal_draws() && history.occurrences(history.current_key()) >= 3 {
+    if mode.tracks_legal_draws() && history.occurrences(board.halfmove_clock()) >= 3 {
         return Some(TerminalResult {
             score: 0,
             path_dependent: true,
@@ -3462,7 +3443,7 @@ fn terminal_score_for_mode(
 
 fn draw_state_pending(board: &Board, history: &RepetitionTracker, mode: SearchMode) -> bool {
     (mode.tracks_legal_draws()
-        && (history.occurrences(history.current_key()) >= 3 || board.halfmove_clock() >= 100))
+        && (history.occurrences(board.halfmove_clock()) >= 3 || board.halfmove_clock() >= 100))
         || is_dead_material(board)
 }
 
@@ -4089,16 +4070,101 @@ mod tests {
     use cozy_chess::{Move, Piece, Square};
 
     #[test]
-    fn repetition_tracker_pushes_and_pops_in_constant_time() {
-        let position = Position::default();
-        let mut tracker = RepetitionTracker::new(position.hash_history());
+    fn repetition_occurrences_match_a_full_scan_inside_the_halfmove_window() {
+        let mut position = Position::default();
+        position
+            .apply_uci_moves(["g1f3", "g8f6", "f3g1", "f6g8", "g1f3", "g8f6", "f3g1", "f6g8"])
+            .unwrap();
+        let tracker = RepetitionTracker::new(position.hash_history());
+        let clock = position.board().halfmove_clock();
 
         let key = super::repetition_key(position.board());
-        assert_eq!(tracker.occurrences(key), 1);
-        tracker.push_key(key);
-        assert_eq!(tracker.occurrences(key), 2);
+        let naive = position
+            .hash_history()
+            .iter()
+            .filter(|&&entry| entry == key)
+            .count();
+        assert_eq!(naive, 3);
+        assert_eq!(clock, 8);
+        assert_eq!(tracker.occurrences(clock), 3);
+    }
+
+    /// Checks the scan against a full count over every prefix of a long game.
+    ///
+    /// The stride-two window is only equivalent to counting the whole history
+    /// because repetitions cannot cross an irreversible move, so this walks a
+    /// sequence containing captures, pawn moves, and repeated knight shuffles and
+    /// compares both counts at every ply.
+    #[test]
+    fn repetition_occurrences_match_a_full_scan_over_a_played_game() {
+        let mut position = Position::default();
+        let moves = [
+            "e2e4", "e7e5", "g1f3", "g8f6", "f3g1", "f6g8", "g1f3", "g8f6", "f3g1", "f6g8",
+            "f1c4", "f8c5", "c4f7", "e8f7", "b1c3", "b8c6", "c3b1", "c6b8", "b1c3", "b8c6",
+            "c3b1", "c6b8", "d2d4", "e5d4",
+        ];
+        for chess_move in moves {
+            position.apply_uci_moves([chess_move]).unwrap();
+            let tracker = RepetitionTracker::new(position.hash_history());
+            let key = super::repetition_key(position.board());
+            let clock = position.board().halfmove_clock();
+            let naive = position
+                .hash_history()
+                .iter()
+                .filter(|&&entry| entry == key)
+                .count()
+                .min(3);
+
+            assert_eq!(
+                tracker.occurrences(clock),
+                naive,
+                "after {chess_move} the windowed scan disagreed with a full count",
+            );
+        }
+    }
+
+    #[test]
+    fn an_irreversible_move_ends_the_repetition_window() {
+        let mut position = Position::default();
+        position
+            .apply_uci_moves(["g1f3", "g8f6", "f3g1", "f6g8", "g1f3", "g8f6", "f3g1", "f6g8"])
+            .unwrap();
+        let repeated = RepetitionTracker::new(position.hash_history());
+        assert_eq!(
+            repeated.occurrences(position.board().halfmove_clock()),
+            3,
+            "the starting position has occurred three times"
+        );
+
+        position.apply_uci_moves(["e2e4"]).unwrap();
+        let after_pawn_move = RepetitionTracker::new(position.hash_history());
+
+        assert_eq!(position.board().halfmove_clock(), 0);
+        assert_eq!(after_pawn_move.occurrences(0), 1);
+    }
+
+    #[test]
+    fn repetition_occurrences_track_pushed_and_popped_children() {
+        let mut position = Position::default();
+        position
+            .apply_uci_moves(["g1f3", "g8f6", "f3g1", "f6g8", "g1f3", "g8f6", "f3g1"])
+            .unwrap();
+        let mut tracker = RepetitionTracker::new(position.hash_history());
+        let clock = position.board().halfmove_clock();
+        assert_eq!(tracker.occurrences(clock), 2);
+
+        let mut child = position.clone();
+        child.apply_uci_moves(["f6g8"]).unwrap();
+        let child_key = super::repetition_key(child.board());
+        tracker.push_key(child_key);
+        assert_eq!(
+            tracker.occurrences(clock + 1),
+            3,
+            "the child restores the starting position for the third time"
+        );
+
         tracker.pop();
-        assert_eq!(tracker.occurrences(key), 1);
+        assert_eq!(tracker.occurrences(clock), 2);
     }
 
     #[test]
@@ -4159,9 +4225,11 @@ mod tests {
 
     #[test]
     fn repetition_draws_are_marked_as_path_dependent() {
-        let position = Position::default();
-        let key = position.hash_history()[0];
-        let tracker = RepetitionTracker::new(&[key, key, key]);
+        let mut position = Position::default();
+        position
+            .apply_uci_moves(["g1f3", "g8f6", "f3g1", "f6g8", "g1f3", "g8f6", "f3g1", "f6g8"])
+            .unwrap();
+        let tracker = RepetitionTracker::new(position.hash_history());
 
         let result = terminal_score(position.board(), &tracker, 0, false).unwrap();
 

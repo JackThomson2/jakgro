@@ -1624,6 +1624,38 @@ struct SearchContext<'a> {
     ordering: MoveOrdering,
 }
 
+impl<'a> SearchContext<'a> {
+    /// Builds a context for tests that exercise one node in isolation.
+    #[cfg(test)]
+    fn for_test(
+        table: &'a mut TranspositionTable,
+        control: &'a SearchControl,
+        mode: SearchMode,
+    ) -> Self {
+        Self {
+            control,
+            table,
+            scoring: EvaluationConfig::new(0).objective_scoring(),
+            personality: EvaluationConfig::new(0),
+            mode,
+            telemetry: SearchTelemetry::default(),
+            null_move_enabled: true,
+            node_limit: None,
+            nodes: 0,
+            started: Instant::now(),
+            pv: (0..=MAX_PLY)
+                .map(|ply| Vec::with_capacity((MAX_PLY - ply) as usize))
+                .collect(),
+            hash_pv_depths: vec![None; MAX_PLY as usize + 1],
+            static_evaluations: vec![None; MAX_PLY as usize + 1],
+            picker_storage: (0..=MAX_PLY)
+                .map(|_| MovePickerStorage::default())
+                .collect(),
+            ordering: MoveOrdering::new(),
+        }
+    }
+}
+
 impl SearchContext<'_> {
     fn visit_node(&mut self) -> Result<(), Aborted> {
         if self.node_limit_reached()
@@ -3417,6 +3449,33 @@ fn quiescence(
     }
 
     let in_check = !board.checkers().is_empty();
+
+    // Quiescence is the overwhelming majority of nodes and previously never
+    // consulted the table, so tactical positions reached by different move orders
+    // were re-searched and re-evaluated every time. Entries are stored at depth
+    // zero, which the ordinary search treats as the shallowest possible result, so
+    // a quiescence entry can never satisfy a deeper interior node's depth test.
+    let hash_entry = context
+        .mode
+        .reads_tt()
+        .then(|| context.probe_table(history.current_key(), board.halfmove_clock()))
+        .flatten();
+    if let Some(entry) = hash_entry {
+        let score = entry.score_at_ply(ply);
+        let usable = match entry.bound() {
+            Bound::Exact => true,
+            Bound::Lower => score >= beta,
+            Bound::Upper => score <= alpha,
+        };
+        if usable {
+            context.telemetry.tt_cutoffs += 1;
+            return Ok(NodeResult {
+                score,
+                path_dependent: false,
+            });
+        }
+    }
+
     if remaining == 0 && !in_check {
         if let Some(result) = terminal_without_legal_moves(board, history, ply, context) {
             return Ok(result);
@@ -3430,8 +3489,16 @@ fn quiescence(
     let stand_pat = if in_check {
         None
     } else {
-        Some(evaluate_with_config(board, context.scoring))
+        // A stored evaluation is the same number this node would compute, so
+        // reusing it saves the extraction that dominates the profile.
+        Some(
+            hash_entry
+                .and_then(Entry::static_evaluation)
+                .inspect(|_| context.telemetry.static_evaluation_hits += 1)
+                .unwrap_or_else(|| evaluate_with_config(board, context.scoring)),
+        )
     };
+    let alpha_original = alpha;
     let mut best = NodeResult {
         score: stand_pat.unwrap_or(NEG_INFINITY),
         path_dependent: false,
@@ -3441,6 +3508,16 @@ fn quiescence(
             if let Some(result) = terminal_without_legal_moves(board, history, ply, context) {
                 return Ok(result);
             }
+            store_quiescence_result(
+                board,
+                history,
+                ply,
+                &best,
+                alpha_original,
+                beta,
+                Some(stand_pat),
+                context,
+            );
             return Ok(best);
         }
         alpha = alpha.max(stand_pat);
@@ -3557,7 +3634,57 @@ fn quiescence(
     }
 
     context.recycle_picker_storage(ply, picker.into_storage());
+    store_quiescence_result(
+        board,
+        history,
+        ply,
+        &best,
+        alpha_original,
+        beta,
+        stand_pat,
+        context,
+    );
     Ok(best)
+}
+
+/// Records a settled quiescence result in the transposition table.
+///
+/// Entries are stored at depth zero so they can never satisfy an interior node's
+/// depth test, and a path-dependent result is never stored at all: a repetition
+/// score describes the route taken to a position rather than the position, so
+/// reusing it elsewhere would be wrong. The static evaluation travels with the
+/// entry, which is what lets a later visit skip feature extraction entirely.
+#[allow(clippy::too_many_arguments)]
+fn store_quiescence_result(
+    board: &Board,
+    history: &RepetitionTracker,
+    ply: u32,
+    best: &NodeResult,
+    alpha_original: Score,
+    beta: Score,
+    stand_pat: Option<Score>,
+    context: &mut SearchContext<'_>,
+) {
+    if !context.mode.writes_tt() || best.path_dependent || best.score == NEG_INFINITY {
+        return;
+    }
+    let bound = if best.score <= alpha_original {
+        Bound::Upper
+    } else if best.score >= beta {
+        Bound::Lower
+    } else {
+        Bound::Exact
+    };
+    context.table.store_key(
+        history.current_key(),
+        board.halfmove_clock(),
+        0,
+        ply,
+        best.score,
+        bound,
+        context.pv(ply).first().copied(),
+        stand_pat,
+    );
 }
 
 fn terminal_score(
@@ -4255,6 +4382,89 @@ mod tests {
     /// because repetitions cannot cross an irreversible move, so this walks a
     /// sequence containing captures, pawn moves, and repeated knight shuffles and
     /// compares both counts at every ply.
+    /// A quiescence result that depends on the route taken must not be stored.
+    ///
+    /// A repetition score describes how a position was reached rather than the
+    /// position itself, so publishing it to the table would let an unrelated line
+    /// inherit a draw score it never earned. The store is also confined to modes
+    /// that write the table at all, which is what keeps null verification able to
+    /// agree with a search that has pruning disabled.
+    #[test]
+    fn quiescence_stores_are_refused_for_path_dependent_and_unsearched_results() {
+        let position = Position::default();
+        let tracker = super::RepetitionTracker::new(position.hash_history());
+        let mut table = super::TranspositionTable::new(1).unwrap();
+        table.start_search(0);
+        let control = super::SearchControl::new();
+        let key = tracker.current_key();
+
+        for (name, mode, best) in [
+            (
+                "path dependent",
+                super::SearchMode::Normal,
+                super::NodeResult {
+                    score: 0,
+                    path_dependent: true,
+                },
+            ),
+            (
+                "unsearched",
+                super::SearchMode::Normal,
+                super::NodeResult {
+                    score: super::NEG_INFINITY,
+                    path_dependent: false,
+                },
+            ),
+            (
+                "null probe",
+                super::SearchMode::NullProbe,
+                super::NodeResult {
+                    score: 12,
+                    path_dependent: false,
+                },
+            ),
+        ] {
+            let mut context = super::SearchContext::for_test(&mut table, &control, mode);
+            super::store_quiescence_result(
+                position.board(),
+                &tracker,
+                0,
+                &best,
+                -50,
+                50,
+                Some(12),
+                &mut context,
+            );
+
+            assert!(
+                table.probe_key(key, 0).is_none(),
+                "{name} result should not have been stored",
+            );
+        }
+
+        // A settled, route-independent result in the ordinary search is stored.
+        let mut context =
+            super::SearchContext::for_test(&mut table, &control, super::SearchMode::Normal);
+        super::store_quiescence_result(
+            position.board(),
+            &tracker,
+            0,
+            &super::NodeResult {
+                score: 12,
+                path_dependent: false,
+            },
+            -50,
+            50,
+            Some(12),
+            &mut context,
+        );
+
+        let entry = table.probe_key(key, 0).expect("a settled result is stored");
+        assert_eq!(entry.depth(), 0, "quiescence entries claim no depth");
+        assert_eq!(entry.bound(), super::Bound::Exact);
+        assert_eq!(entry.static_evaluation(), Some(12));
+    }
+
     #[test]
     fn repetition_occurrences_match_a_full_scan_over_a_played_game() {
         let mut position = Position::default();

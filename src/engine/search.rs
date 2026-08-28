@@ -447,7 +447,7 @@ pub(super) fn search_with_reporter<F>(
 where
     F: FnMut(SearchInfo),
 {
-    let mut table = TranspositionTable::new(MIN_HASH_MIB)
+    let table = TranspositionTable::new(MIN_HASH_MIB)
         .expect("the minimum transposition table must be allocatable");
     search_with_table(
         position,
@@ -455,7 +455,7 @@ where
         control,
         EvaluationConfig::default(),
         Duration::from_millis(DEFAULT_MOVE_OVERHEAD_MS),
-        &mut table,
+        &table,
         report,
     )
 }
@@ -466,7 +466,7 @@ pub(super) fn search_with_table<F>(
     control: &SearchControl,
     evaluation: EvaluationConfig,
     move_overhead: Duration,
-    table: &mut TranspositionTable,
+    table: &TranspositionTable,
     report: F,
 ) -> SearchResult
 where
@@ -528,8 +528,8 @@ mod tests {
     fn verified_null_move_reports_attempts_and_cutoffs() {
         let position = Position::default();
         let control = SearchControl::new();
-        let mut disabled_table = TranspositionTable::new(1).unwrap();
-        let mut enabled_table = TranspositionTable::new(1).unwrap();
+        let disabled_table = TranspositionTable::new(1).unwrap();
+        let enabled_table = TranspositionTable::new(1).unwrap();
         let disabled = search_with_table(
             &position,
             &SearchLimits {
@@ -540,7 +540,7 @@ mod tests {
             &control,
             EvaluationConfig::new(0),
             MOVE_OVERHEAD,
-            &mut disabled_table,
+            &disabled_table,
             |_| {},
         );
         let enabled = search_with_table(
@@ -553,7 +553,7 @@ mod tests {
             &control,
             EvaluationConfig::new(0),
             MOVE_OVERHEAD,
-            &mut enabled_table,
+            &enabled_table,
             |_| {},
         );
 
@@ -614,7 +614,7 @@ mod tests {
             ..SearchLimits::default()
         };
         let control = SearchControl::new();
-        let mut table = TranspositionTable::new(1).unwrap();
+        let table = TranspositionTable::new(1).unwrap();
 
         let cold = search_with_table(
             &position,
@@ -622,7 +622,7 @@ mod tests {
             &control,
             EvaluationConfig::default(),
             MOVE_OVERHEAD,
-            &mut table,
+            &table,
             |_| {},
         );
         let warm = search_with_table(
@@ -631,7 +631,7 @@ mod tests {
             &control,
             EvaluationConfig::default(),
             MOVE_OVERHEAD,
-            &mut table,
+            &table,
             |_| {},
         );
 
@@ -649,8 +649,8 @@ mod tests {
             ..SearchLimits::default()
         };
         let control = SearchControl::new();
-        let mut switched_table = TranspositionTable::new(1).unwrap();
-        let mut fresh_table = TranspositionTable::new(1).unwrap();
+        let switched_table = TranspositionTable::new(1).unwrap();
+        let fresh_table = TranspositionTable::new(1).unwrap();
 
         let _conservative = search_with_table(
             &position,
@@ -658,7 +658,7 @@ mod tests {
             &control,
             EvaluationConfig::new(0),
             MOVE_OVERHEAD,
-            &mut switched_table,
+            &switched_table,
             |_| {},
         );
         let switched = search_with_table(
@@ -667,7 +667,7 @@ mod tests {
             &control,
             EvaluationConfig::new(100),
             MOVE_OVERHEAD,
-            &mut switched_table,
+            &switched_table,
             |_| {},
         );
         let fresh = search_with_table(
@@ -676,7 +676,7 @@ mod tests {
             &control,
             EvaluationConfig::new(100),
             MOVE_OVERHEAD,
-            &mut fresh_table,
+            &fresh_table,
             |_| {},
         );
 
@@ -1001,7 +1001,7 @@ mod tests {
         let position = Position::default();
         let legal_moves = position.legal_moves().len() as u64;
         let control = SearchControl::new();
-        let mut table = TranspositionTable::new(1).unwrap();
+        let table = TranspositionTable::new(1).unwrap();
         let result = search_with_table(
             &position,
             &SearchLimits {
@@ -1011,7 +1011,7 @@ mod tests {
             &control,
             EvaluationConfig::new(0),
             MOVE_OVERHEAD,
-            &mut table,
+            &table,
             |_| {},
         );
 

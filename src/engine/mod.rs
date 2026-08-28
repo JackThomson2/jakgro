@@ -60,12 +60,16 @@ impl Display for HashResizeError {
 impl Error for HashResizeError {}
 
 /// Owns the current game position and coordinates searches.
+///
+/// The transposition table is shared rather than owned. Its mutex guards
+/// replacement alone: a search clones the handle and releases the guard
+/// immediately, so searches never serialize against each other.
 #[derive(Clone, Debug)]
 pub struct Engine {
     position: Position,
     evaluation: evaluation::EvaluationConfig,
     move_overhead: Duration,
-    table: Arc<Mutex<search::TranspositionTable>>,
+    table: Arc<Mutex<Arc<search::TranspositionTable>>>,
 }
 
 impl Default for Engine {
@@ -76,7 +80,7 @@ impl Default for Engine {
             position: Position::default(),
             evaluation: evaluation::EvaluationConfig::default(),
             move_overhead: Duration::from_millis(DEFAULT_MOVE_OVERHEAD_MS),
-            table: Arc::new(Mutex::new(table)),
+            table: Arc::new(Mutex::new(Arc::new(table))),
         }
     }
 }
@@ -130,7 +134,7 @@ impl Engine {
     /// Returns the configured transposition-table size in mebibytes.
     #[must_use]
     pub fn hash_size_mib(&self) -> usize {
-        self.lock_table().size_mib()
+        self.shared_table().size_mib()
     }
 
     /// Replaces the shared transposition table with the requested size.
@@ -143,13 +147,13 @@ impl Engine {
 
         let replacement = search::TranspositionTable::new(size_mib)
             .map_err(|_| HashResizeError::AllocationFailed)?;
-        *self.lock_table() = replacement;
+        *self.lock_table() = Arc::new(replacement);
         Ok(())
     }
 
     /// Removes all cached search entries without changing the table size.
     pub fn clear_hash(&self) {
-        self.lock_table().clear();
+        self.shared_table().clear();
     }
 
     /// Searches the current position using the supplied limits.
@@ -169,14 +173,14 @@ impl Engine {
     where
         F: FnMut(SearchInfo),
     {
-        let mut table = self.lock_table();
+        let table = self.shared_table();
         search::search_with_table(
             &self.position,
             limits,
             control,
             self.evaluation,
             self.move_overhead,
-            &mut table,
+            &table,
             report,
         )
     }
@@ -193,7 +197,17 @@ impl Engine {
         search::ponder_time_budget(&self.position, limits, self.move_overhead)
     }
 
-    fn lock_table(&self) -> MutexGuard<'_, search::TranspositionTable> {
+    /// Borrows the shared table without holding the replacement guard.
+    ///
+    /// A search runs for as long as its limits allow, so the guard is released
+    /// before the search begins. Resizing and clearing are sequenced against a
+    /// running search by the protocol layer, which cancels one before changing
+    /// either setting.
+    fn shared_table(&self) -> Arc<search::TranspositionTable> {
+        Arc::clone(&self.lock_table())
+    }
+
+    fn lock_table(&self) -> MutexGuard<'_, Arc<search::TranspositionTable>> {
         self.table.lock().unwrap_or_else(|error| error.into_inner())
     }
 }

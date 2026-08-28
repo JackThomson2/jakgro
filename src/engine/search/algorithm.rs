@@ -1608,7 +1608,7 @@ fn verified_null_move_cutoff(
 
 struct SearchContext<'a> {
     control: &'a SearchControl,
-    table: &'a mut TranspositionTable,
+    table: &'a TranspositionTable,
     scoring: EvaluationConfig,
     personality: EvaluationConfig,
     mode: SearchMode,
@@ -1628,7 +1628,7 @@ impl<'a> SearchContext<'a> {
     /// Builds a context for tests that exercise one node in isolation.
     #[cfg(test)]
     fn for_test(
-        table: &'a mut TranspositionTable,
+        table: &'a TranspositionTable,
         control: &'a SearchControl,
         mode: SearchMode,
     ) -> Self {
@@ -1791,7 +1791,7 @@ pub(super) fn run<F>(
     control: &SearchControl,
     evaluation: EvaluationConfig,
     move_overhead: Duration,
-    table: &mut TranspositionTable,
+    table: &TranspositionTable,
     mut report: F,
 ) -> SearchResult
 where
@@ -4436,10 +4436,10 @@ mod tests {
             (50, -50, 50, super::Bound::Lower),
             (49, -50, 50, super::Bound::Exact),
         ] {
-            let mut table = super::TranspositionTable::new(1).unwrap();
+            let table = super::TranspositionTable::new(1).unwrap();
             table.start_search(0);
             let mut context =
-                super::SearchContext::for_test(&mut table, &control, super::SearchMode::Normal);
+                super::SearchContext::for_test(&table, &control, super::SearchMode::Normal);
             super::store_quiescence_result(
                 position.board(),
                 &tracker,
@@ -4467,7 +4467,7 @@ mod tests {
     fn quiescence_stores_are_refused_for_path_dependent_and_unsearched_results() {
         let position = Position::default();
         let tracker = super::RepetitionTracker::new(position.hash_history());
-        let mut table = super::TranspositionTable::new(1).unwrap();
+        let table = super::TranspositionTable::new(1).unwrap();
         table.start_search(0);
         let control = super::SearchControl::new();
         let key = tracker.current_key();
@@ -4498,7 +4498,7 @@ mod tests {
                 },
             ),
         ] {
-            let mut context = super::SearchContext::for_test(&mut table, &control, mode);
+            let mut context = super::SearchContext::for_test(&table, &control, mode);
             super::store_quiescence_result(
                 position.board(),
                 &tracker,
@@ -4518,7 +4518,7 @@ mod tests {
 
         // A settled, route-independent result in the ordinary search is stored.
         let mut context =
-            super::SearchContext::for_test(&mut table, &control, super::SearchMode::Normal);
+            super::SearchContext::for_test(&table, &control, super::SearchMode::Normal);
         super::store_quiescence_result(
             position.board(),
             &tracker,

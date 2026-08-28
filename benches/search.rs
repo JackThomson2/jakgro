@@ -56,20 +56,32 @@ fn run_null_fixture(fixture: &SearchFixture, enabled: bool) -> NullObservation {
     }
 }
 
+/// Compares one fixture with and without null pruning.
+///
+/// The curated null-move contract in `tests/null_move_regression.rs` pins exact
+/// move and score equivalence on positions chosen for it. This benchmark runs
+/// four general suites instead, where equivalence is not guaranteed: verified
+/// null pruning returns beta on a confirmed fail-high rather than the value a
+/// full search would have produced, so a bound can propagate a different score
+/// and, through it, a different move of equal merit. Requiring exact equality
+/// here asserted a property the search does not have, and it held only because
+/// no fixture happened to exercise it.
+///
+/// What is checked instead is that null pruning does not meaningfully grow the
+/// tree. A few nodes either way follow from different bounds reaching the
+/// transposition table, so the comparison allows a small tolerance while still
+/// catching a change that makes null pruning cost more than it saves.
 fn null_pair(fixture: &SearchFixture) -> NullComparison {
     let disabled = run_null_fixture(fixture, false);
     let enabled = run_null_fixture(fixture, true);
-    assert_eq!(
-        enabled.best_move, disabled.best_move,
-        "{} changed best move with null pruning",
-        fixture.id,
-    );
-    assert_eq!(
-        enabled.score, disabled.score,
-        "{} changed objective score with null pruning",
-        fixture.id,
-    );
     assert_eq!(disabled.telemetry.null_move_attempts(), 0);
+    assert!(
+        enabled.nodes <= disabled.nodes + disabled.nodes / 100 + 64,
+        "{} searched {} nodes with null pruning against {} without it",
+        fixture.id,
+        enabled.nodes,
+        disabled.nodes,
+    );
     let reduction_percent = if disabled.nodes == 0 {
         0.0
     } else {

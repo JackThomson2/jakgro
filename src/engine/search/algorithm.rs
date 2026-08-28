@@ -7,7 +7,7 @@ use cozy_chess::{
 };
 
 use super::control::DeadlineWindow;
-use super::see::{static_exchange_eval, static_exchange_eval_after};
+use super::see::static_exchange_eval;
 use super::time::allocate_time;
 use super::transposition::{Bound, Entry, RULE_FIFTY_EXACT_HORIZON, TranspositionTable};
 use super::{SearchControl, SearchInfo, SearchLimits, SearchResult, SearchScore, SearchTelemetry};
@@ -327,16 +327,27 @@ impl MoveFacts {
         }
     }
 
+    /// Returns the settled exchange value for a capture that may lose material.
+    ///
+    /// A capture whose victim is worth at least as much as the attacker cannot
+    /// lose material on the first exchange, so most-valuable-victim ordering
+    /// already ranks it correctly and the swap list is not consulted. Restricting
+    /// the query this way keeps the ranking of winning captures unchanged while
+    /// still giving every profile a settled value for the captures where the
+    /// naive ranking is wrong.
     fn see(self, board: &Board, enabled: bool) -> Option<Score> {
         self.captured
             .filter(|&piece| enabled && piece_value(piece) < piece_value(self.attacker))
             .map(|_| static_exchange_eval(board, self.chess_move))
     }
 
-    fn see_after(self, board: &Board, child: &Board, enabled: bool) -> Option<Score> {
-        self.captured
-            .filter(|&piece| enabled && piece_value(piece) < piece_value(self.attacker))
-            .map(|_| static_exchange_eval_after(board, self.chess_move, child))
+    /// Returns the settled exchange value, ignoring the already-played child.
+    ///
+    /// The swap list works entirely from the parent position, so a caller that
+    /// happens to hold the child gains nothing by passing it. The parameter is
+    /// retained so the two classification paths stay interchangeable.
+    fn see_after(self, board: &Board, _child: &Board, enabled: bool) -> Option<Score> {
+        self.see(board, enabled)
     }
 
     fn search_metadata(self, board: &Board, see: Option<Score>) -> MoveMetadata {
@@ -787,12 +798,11 @@ impl<'a> MovePicker<'a> {
                     });
                     continue;
                 }
-                let compute_see = evaluation.aggression() > 0;
+                let compute_see = true;
                 #[cfg(test)]
-                if compute_see
-                    && facts
-                        .captured
-                        .is_some_and(|piece| piece_value(piece) < piece_value(facts.attacker))
+                if facts
+                    .captured
+                    .is_some_and(|piece| piece_value(piece) < piece_value(facts.attacker))
                 {
                     work.see_evaluations += 1;
                 }
@@ -878,10 +888,8 @@ fn tactical_move_targets(board: &Board, piece: Piece) -> BitBoard {
     targets
 }
 
-fn capture_is_good(facts: MoveFacts, see: Option<Score>, evaluation: EvaluationConfig) -> bool {
-    if evaluation.aggression() > 0
-        && let Some(see) = see
-    {
+fn capture_is_good(facts: MoveFacts, see: Option<Score>, _evaluation: EvaluationConfig) -> bool {
+    if let Some(see) = see {
         return see >= 0;
     }
     ordering_piece_value(facts.captured.expect("capture facts"))
@@ -3701,7 +3709,7 @@ fn prepare_and_order_moves(
 ) -> Vec<PreparedMove> {
     let prepared = moves
         .into_iter()
-        .map(|chess_move| PreparedMove::new(board, chess_move, evaluation.aggression() > 0))
+        .map(|chess_move| PreparedMove::new(board, chess_move, true))
         .collect();
     order_prepared_moves(
         board, prepared, preferred, ply, previous, ordering, evaluation,
@@ -3737,7 +3745,7 @@ fn prepare_generated_moves_into(
     mut retain: impl FnMut(MoveMetadata) -> bool,
 ) {
     debug_assert!(moves.is_empty());
-    let compute_see = evaluation.aggression() > 0;
+    let compute_see = true;
     board.generate_moves(|piece_moves| {
         for chess_move in piece_moves {
             let metadata = MoveMetadata::classify_for_search(board, chess_move, compute_see);
@@ -3833,7 +3841,7 @@ fn prepare_and_order_root_moves(
     let mover = board.side_to_move();
     let mut prepared = moves
         .into_iter()
-        .map(|chess_move| PreparedMove::new(board, chess_move, evaluation.aggression() > 0))
+        .map(|chess_move| PreparedMove::new(board, chess_move, true))
         .collect::<Vec<_>>();
     for candidate in &mut prepared {
         candidate.order_score = move_order_score(
@@ -3907,9 +3915,7 @@ fn capture_order_score(
     // Retain full influence through the default profile, then taper it to zero.
     let capture_history_scale = i64::from(100_u8.saturating_sub(evaluation.aggression())) * 4;
     let capture_history = i64::from(capture_history) * capture_history_scale.min(100) / 100;
-    if evaluation.aggression() > 0
-        && let Some(see_score) = see
-    {
+    if let Some(see_score) = see {
         let see = i64::from(see_score) * 64;
         return Some(if see_score >= 0 {
             4_000_000 + see + exchange + capture_history
@@ -4073,7 +4079,9 @@ mod tests {
     fn repetition_occurrences_match_a_full_scan_inside_the_halfmove_window() {
         let mut position = Position::default();
         position
-            .apply_uci_moves(["g1f3", "g8f6", "f3g1", "f6g8", "g1f3", "g8f6", "f3g1", "f6g8"])
+            .apply_uci_moves([
+                "g1f3", "g8f6", "f3g1", "f6g8", "g1f3", "g8f6", "f3g1", "f6g8",
+            ])
             .unwrap();
         let tracker = RepetitionTracker::new(position.hash_history());
         let clock = position.board().halfmove_clock();
@@ -4099,9 +4107,9 @@ mod tests {
     fn repetition_occurrences_match_a_full_scan_over_a_played_game() {
         let mut position = Position::default();
         let moves = [
-            "e2e4", "e7e5", "g1f3", "g8f6", "f3g1", "f6g8", "g1f3", "g8f6", "f3g1", "f6g8",
-            "f1c4", "f8c5", "c4f7", "e8f7", "b1c3", "b8c6", "c3b1", "c6b8", "b1c3", "b8c6",
-            "c3b1", "c6b8", "d2d4", "e5d4",
+            "e2e4", "e7e5", "g1f3", "g8f6", "f3g1", "f6g8", "g1f3", "g8f6", "f3g1", "f6g8", "f1c4",
+            "f8c5", "c4f7", "e8f7", "b1c3", "b8c6", "c3b1", "c6b8", "b1c3", "b8c6", "c3b1", "c6b8",
+            "d2d4", "e5d4",
         ];
         for chess_move in moves {
             position.apply_uci_moves([chess_move]).unwrap();
@@ -4127,7 +4135,9 @@ mod tests {
     fn an_irreversible_move_ends_the_repetition_window() {
         let mut position = Position::default();
         position
-            .apply_uci_moves(["g1f3", "g8f6", "f3g1", "f6g8", "g1f3", "g8f6", "f3g1", "f6g8"])
+            .apply_uci_moves([
+                "g1f3", "g8f6", "f3g1", "f6g8", "g1f3", "g8f6", "f3g1", "f6g8",
+            ])
             .unwrap();
         let repeated = RepetitionTracker::new(position.hash_history());
         assert_eq!(
@@ -4227,7 +4237,9 @@ mod tests {
     fn repetition_draws_are_marked_as_path_dependent() {
         let mut position = Position::default();
         position
-            .apply_uci_moves(["g1f3", "g8f6", "f3g1", "f6g8", "g1f3", "g8f6", "f3g1", "f6g8"])
+            .apply_uci_moves([
+                "g1f3", "g8f6", "f3g1", "f6g8", "g1f3", "g8f6", "f3g1", "f6g8",
+            ])
             .unwrap();
         let tracker = RepetitionTracker::new(position.hash_history());
 

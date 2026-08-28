@@ -1,10 +1,10 @@
 rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 ; id starting-development ; category initiative ; nodes 20000 ; bm0 e2e3 ; bm100 e2e3
 rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2 ; id early-king-pressure ; category king-attack ; nodes 20000 ; bm0 f1c4 ; bm100 f1c4
-r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3 ; id central-space ; category initiative ; nodes 20000 ; bm0 f1c4 ; bm100 f1c4
+r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3 ; id central-space ; category initiative ; nodes 20000 ; bm0 d2d4 ; bm100 f1c4
 rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 2 ; id black-king-pressure ; category king-attack ; nodes 20000 ; bm0 f8c5 ; bm100 f8c5
 4k3/8/8/8/8/8/4q3/4R1K1 w - - 0 1 ; id tactical-safety ; category safety ; nodes 20000 ; bm0 e1e2 ; bm100 e1e2
 7k/8/8/8/8/1r6/8/K7 w - - 0 1 ; id defensive-safety ; category safety ; nodes 20000 ; bm0 a1a2 ; bm100 a1a2
-r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8 ; id open-king-gambit ; category forcing-attack ; nodes 20000 ; bm0 c1g5 ; bm100 f3g5
+r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8 ; id open-king-gambit ; category forcing-attack ; nodes 20000 ; bm0 c3a4 ; bm100 f3g5
 2kr3r/pppq1ppp/2n1bn2/3p4/3P4/2P1PN2/PP1N1PPP/R2Q1RK1 w - - 0 10 ; id opposite-castle-storm ; category pawn-storm ; nodes 20000 ; bm0 a2a4 ; bm100 f3e5
 4k3/8/8/3q4/8/3Q4/8/4K3 w - - 0 1 ; id hanging-queen-safety ; category safety ; nodes 20000 ; bm0 d3d5 ; bm100 d3d5
 6k1/5ppp/8/7Q/2B5/8/5PPP/6K1 w - - 0 1 ; id forcing-mate-safety ; category safety ; nodes 20000 ; bm0 h5f7 ; bm100 h5f7

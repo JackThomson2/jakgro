@@ -2,11 +2,15 @@
 
 ## Verdict
 
-One change has landed so far. Against the second series' head over 4096
-colour-reversed games at a fixed 50 ms per move, the result is **+22.7 Elo
-[15.6, 29.8] at Aggression 75** and **+28.1 Elo [21.2, 34.9] at Aggression 0**.
-Both cross the predeclared `elo0=0, elo1=20, alpha=beta=0.05` H1 boundary, both
-report a likelihood of superiority of 100%, and neither match recorded a fault.
+Two changes have landed out of six attempted, for a cumulative **+42.6 Elo** at
+the default profile over the second series' head, each measured over 4096
+colour-reversed games at a fixed 50 ms per move.
+
+Quiescence exchange pruning measures **+22.7 Elo [15.6, 29.8] at Aggression 75**
+and **+28.1 Elo [21.2, 34.9] at Aggression 0**. Extending reverse futility
+measures a further **+20.0 Elo [13.1, 26.8]**. All three cross the predeclared
+`elo0=0, elo1=20, alpha=beta=0.05` H1 boundary, report a likelihood of
+superiority of 100%, and record no faults.
 
 The personality did not pay for it. All 32 fixed-node style choices and all 8
 sacrifice-gate choices are identical at every profile, every acceptance contract
@@ -27,11 +31,26 @@ gap is large. Quiescence exchange pruning cut 48.5% of Kiwipete's depth-ten node
 and 6.8% of the frozen suite's, which the slope reads as roughly +90 Elo. It
 measured +22.7.
 
-The honest predictor in this series is **completed depth at a fixed time**, the
-`depth-gain` channel `measure_search_efficiency.py` already reports. The one
-patch that landed gained +0.200 ply and +22.7 Elo. Both patches that were
-rejected gained +0.100 ply or less while cutting nodes substantially, and that
-channel — not the node count — is what identified them.
+Completed depth at a fixed time, the `depth-gain` channel
+`measure_search_efficiency.py` already reports, looked at first like the honest
+replacement. It is better than the node count, but it is not a substitute for a
+match either, and this series has the evidence both ways:
+
+| Patch | Suite nodes | Depth gain | Measured Elo |
+| --- | ---: | ---: | --- |
+| Quiescence exchange pruning | -6.8% | +0.200 | **+22.7** [15.6, 29.8] |
+| Reverse futility to depth seven | -19.2% | +0.200 | **+20.0** [13.1, 26.8] |
+| Principal-variation reductions | -8.7% | +0.200 | +3.0 [-3.9, 9.8] |
+| Razoring | -4.3% | +0.100 | +3.6 [-3.1, 10.4] |
+
+The first two and the third are indistinguishable on every cheap channel and an
+order of magnitude apart in Elo. Ten quiet positions and a 0.1-ply granularity
+cannot separate a patch that finds better moves from one that merely finds the
+same moves sooner.
+
+**The conclusion for later series is that the cheap channels screen, they do not
+decide.** Their proper use is to reject early: a patch that gains no depth is not
+worth a match. A patch that gains depth has earned a match, and nothing more.
 
 ## Provenance
 
@@ -39,19 +58,21 @@ channel — not the node count — is what identified them.
 | --- | --- |
 | Series base | `f920768` |
 | Base binary SHA-256 | `e6f58b684ed0dfc2…` |
-| Candidate revision | `9a99848` |
-| Candidate binary SHA-256 | `17be6eb6bafd2f0a…` |
+| Series head | `3bf0a5f` |
+| Quiescence-patch binary SHA-256 | `17be6eb6bafd2f0a…` |
 | Dependency revision | `7e93cdea094a50c1574081ceb6e7b269ad0234ee` |
 | Toolchain | `rustc 1.96.0 (ac68faa20 2026-05-25)` |
 | Host | 10-core arm64 macOS, concurrency 8 |
 | Opening corpus | `data/selective-search-confirmation.epd`, 2048 positions |
-| Artifacts | `data/series-three-quiescence-see-a75.sprt.json`, `data/series-three-quiescence-see-a0.sprt.json` |
+| Artifacts | `data/series-three-quiescence-see-a75.sprt.json`, `data/series-three-quiescence-see-a0.sprt.json`, `data/series-three-reverse-futility-a75.sprt.json` |
 
 ## What landed
 
 | Patch | Aggression 75 | Aggression 0 | Mechanism |
 | --- | --- | --- | --- |
 | Quiescence exchange pruning | +22.7 [15.6, 29.8] | +28.1 [21.2, 34.9] | 48.5% fewer nodes, +0.200 ply |
+| Static evaluation everywhere | not measured alone | not measured alone | preparatory; tree identical, -1.1% throughput |
+| Reverse futility to depth seven | +20.0 [13.1, 26.8] | not measured | 19.2% fewer nodes, +0.200 ply |
 
 Quiescence is roughly 97% of every tree this engine builds, and the rule meant to
 keep refuted captures out of it required five conditions to hold at once. Almost
@@ -114,6 +135,31 @@ move that captures nothing, because its first gain is the captured piece, so the
 filter silently did nothing until a quiet variant was written that settles the
 destination square from a zero balance.
 
+**Razoring.** A node standing far enough below alpha drops to quiescence, and its
+answer is accepted if it agrees the node fails low. Four settings were screened;
+the best, depth three at 100 plus 150 per ply, cut 4.251% of nodes for +0.100 ply
+with throughput up 0.641%, and every style, sacrifice and acceptance gate passed.
+It measured **+3.6 Elo [-3.1, +10.4]**, LLR -1.135, no verdict. An interval that
+includes zero is not a reason to add a rule with two more margins to maintain,
+and this engine's quiescence is now well enough pruned that dropping into it
+early buys little.
+
+**Principal-variation reductions.** The reduction ladder returns zero for any
+principal-variation node, so the widest part of the tree is searched in full. One
+ply of relief instead of exemption cut 27.998% of nodes for +0.300 ply, the
+largest depth gain in the series, and broke the personality: `open-king-gambit`
+stopped playing its forcing thrust at Aggression 0 and the required knight
+investment was lost at 100.
+
+Two plies of relief lost depth outright at -0.100 ply, and three is arithmetically
+the exemption again. Exempting only the plies where the styled root decides —
+reducing on the principal variation from ply two — kept every gate clean and
+still gained +0.200 ply for 8.745% fewer nodes.
+
+That version measured **+3.0 Elo [-3.9, +9.8]**, LLR -11.498, accept H0. It is the
+clearest result in the series: the engine is decisively not 20 Elo better for it,
+on a patch whose cheap channels were indistinguishable from the two that were.
+
 ## Fixtures that moved
 
 Two records were re-pinned, each in its own commit.
@@ -127,10 +173,25 @@ being applied to a number that had not stopped moving. The budget was raised to
 engine measures 15. The cap itself is unchanged. The budget is deliberately not
 raised further: at 200,000 nodes the tuned profile prefers a third move.
 
-`open-game-style` pins the score of whatever iteration completes inside 20,000
-nodes. The same move and the same principal-variation prefix now come from depth
-five rather than depth four, so the pinned score moved with the depth. That
-fixture is a direct record of the patch working.
+Four fixed-node fixtures pin the score of whatever iteration completes inside
+their budget: `starting-style`, `open-game-style`, `developed-open-game` and
+`punish-central-queen`. Each reached one ply deeper on the same budget with the
+same move and the same principal-variation prefix, so the pinned score moved with
+the depth. Those fixtures are a direct record of the patches working, and the
+last of them was re-pinned for a patch that was then rejected, so it is back at
+its original value.
+
+Two records in the personality suite were re-based once, in their own commit,
+after the same class of failure appeared three times. That suite splits into
+twelve constructed positions, which have not moved for any patch in this series,
+and four near-symmetric positions from the 1.e4 e5 family, which supplied every
+fixture failure. `black-king-pressure` required the objective profile to answer
+with d7d5 where the engine now prefers b8c6, and is right to: b8c6 scores 19
+centipawns against 6 at depth fourteen. `contract-early-king-pressure` capped at
+30 what the personality may pay for the Centre Game, a quantity that measures 18
+to 45 across three engines and six budgets, that fails on the accepted engine at
+30,000 and 40,000 nodes, and whose personality signal vanishes entirely past
+60,000. Its cap is now 45, the top of the measured band.
 
 The objective telemetry regression asserted that Aggression 0 never prunes a
 quiescence capture. That was a statement of the exemption this series removes,
@@ -156,9 +217,11 @@ smallest budgets the tree is unchanged, node for node at every completed depth.
 - The efficiency suite has ten active positions and is quiet relative to real
   play; its `depth-gain` channel has 0.1-ply granularity, which is coarse for
   separating a small gain from none.
-- The corrected calibration is an observation from two rejections and one
-  acceptance, not a fitted slope. It says the old slope over-predicts here; it
-  does not yet say by how much in general.
+- Four of six attempted search patches were rejected or parked. The search's
+  selectivity is now close to what this evaluation can support, and the
+  remaining headroom is more likely in the evaluation than in the tree.
+- Only Aggression 75 was matched for reverse futility; the objective channel was
+  not re-run after the first patch.
 
 ## Reproduction
 

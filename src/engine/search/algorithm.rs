@@ -65,8 +65,10 @@ const _: () = assert!(
         && NULL_MOVE_RULE_FIFTY_LIMIT >= RULE_FIFTY_EXACT_HORIZON,
     "table entries must be keyed exactly wherever rule-fifty policy changes",
 );
-const REVERSE_FUTILITY_BASE_MARGIN: Score = 100;
-const REVERSE_FUTILITY_DEPTH_MARGIN: Score = 140;
+/// Deepest node at which reverse futility is considered.
+const REVERSE_FUTILITY_MAX_DEPTH: u32 = 7;
+const REVERSE_FUTILITY_BASE_MARGIN: Score = 0;
+const REVERSE_FUTILITY_DEPTH_MARGIN: Score = 80;
 const QUIET_FUTILITY_BASE_MARGIN: Score = 120;
 const QUIET_FUTILITY_DEPTH_MARGIN: Score = 140;
 /// Narrows the reverse-futility margin when the side to move is improving.
@@ -1420,6 +1422,33 @@ fn static_pruning_allowed(
 ) -> bool {
     matches!(mode, SearchMode::Normal)
         && depth <= STATIC_PRUNING_MAX_DEPTH
+        && !pv_node
+        && board.checkers().is_empty()
+        && alpha.abs() < MATE_THRESHOLD
+        && beta.abs() < MATE_THRESHOLD
+        && board.halfmove_clock() < STATIC_PRUNING_RULE_FIFTY_LIMIT
+        && static_pruning_material_ok(board)
+}
+
+/// Reports whether reverse futility may be considered at this node.
+///
+/// This shares every condition with [`static_pruning_allowed`] except the depth
+/// bound, which is deliberately its own. The other rules that gate behind that
+/// function decide which *moves* to skip and are bounded by their own shallow
+/// limits; reverse futility decides whether to search the node at all, and is
+/// the one rule that pays for looking deeper. Sharing one bound would mean
+/// extending its reach also switched move-count pruning on at depths five and
+/// above, which is a different change with a different risk.
+fn reverse_futility_allowed(
+    board: &Board,
+    depth: u32,
+    alpha: Score,
+    beta: Score,
+    pv_node: bool,
+    mode: SearchMode,
+) -> bool {
+    matches!(mode, SearchMode::Normal)
+        && depth <= REVERSE_FUTILITY_MAX_DEPTH
         && !pv_node
         && board.checkers().is_empty()
         && alpha.abs() < MATE_THRESHOLD
@@ -3451,15 +3480,17 @@ fn negamax(
             None
         };
     let improving = context.record_static_evaluation(ply, in_check, pruning_evaluation);
-    if pruning_evaluation.is_some_and(|evaluation| {
-        reverse_futility_cutoff(
-            evaluation,
-            beta,
-            depth,
-            context.personality.aggression(),
-            improving,
-        )
-    }) {
+    if reverse_futility_allowed(board, depth, alpha, beta, pv_node, context.mode)
+        && static_evaluation.is_some_and(|evaluation| {
+            reverse_futility_cutoff(
+                evaluation,
+                beta,
+                depth,
+                context.personality.aggression(),
+                improving,
+            )
+        })
+    {
         if hash_move.is_none()
             && let Some(result) = terminal_without_legal_moves(board, history, ply, context)
         {
@@ -5503,8 +5534,43 @@ mod tests {
 
     #[test]
     fn static_bounds_keep_tactical_and_priority_moves() {
+        // The margin is the per-ply term times the depth with no base, so a node
+        // two plies from the horizon is given up only if it stands that far
+        // above beta. Deriving the boundary from the constant keeps this pinned
+        // to the rule rather than to one tuning of it.
+        let margin = super::REVERSE_FUTILITY_DEPTH_MARGIN * 2;
+        assert!(super::reverse_futility_cutoff(
+            100 + margin,
+            100,
+            2,
+            0,
+            false
+        ));
+        assert!(!super::reverse_futility_cutoff(
+            100 + margin - 1,
+            100,
+            2,
+            0,
+            false
+        ));
         assert!(super::reverse_futility_cutoff(800, 100, 2, 0, false));
-        assert!(!super::reverse_futility_cutoff(439, 100, 2, 0, false));
+
+        // Aggression widens the margin, so the same node survives at profile 100
+        // where it was given up at 0, and improving narrows it again.
+        assert!(!super::reverse_futility_cutoff(
+            100 + margin,
+            100,
+            2,
+            100,
+            false
+        ));
+        assert!(super::reverse_futility_cutoff(
+            100 + margin,
+            100,
+            2,
+            0,
+            true
+        ));
 
         let position = Position::default();
         let metadata = position

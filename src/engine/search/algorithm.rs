@@ -57,6 +57,8 @@ const NULL_MOVE_MIN_DEPTH: u32 = 4;
 const NULL_MOVE_RULE_FIFTY_LIMIT: u8 = 99;
 const STATIC_PRUNING_MAX_DEPTH: u32 = 4;
 const QUIET_FUTILITY_MAX_DEPTH: u32 = 2;
+/// Swap-list score below which a quiescence capture is not searched.
+const QUIESCENCE_SEE_PRUNE_THRESHOLD: Score = -25;
 const STATIC_PRUNING_RULE_FIFTY_LIMIT: u8 = 80;
 const _: () = assert!(
     STATIC_PRUNING_RULE_FIFTY_LIMIT >= RULE_FIFTY_EXACT_HORIZON
@@ -1040,24 +1042,30 @@ fn reduced_search_needs_research(reduction: u32, score: Score, alpha: Score) -> 
     reduction > 0 && score > alpha
 }
 
+/// Reports whether the exchange evaluation refutes a quiescence capture.
+///
+/// Quiescence exists to settle exchanges, so a capture the swap list scores
+/// negative is one it exists to reject: the opponent recaptures and the side to
+/// move is worse off than had it stood pat. Searching it anyway is what made
+/// quiescence 97% of every tree this engine builds, because each such capture
+/// opens a subtree of further captures below it.
+///
+/// The exemptions are the personality, and they are the same set the interior
+/// move-count and futility rules already protect. A checking capture, a capture
+/// into the enemy king's zone, an attacking pawn push and a promotion all stay
+/// searched however badly they score materially, because those are the moves a
+/// sacrifice is made of. So does a recapture on the square the opponent just
+/// moved to, which is the exchange the node was entered to settle.
+///
+/// This applies at every profile. The rule it replaces was conditioned on
+/// non-zero aggression, so the objective profile searched the larger tree, which
+/// is backwards: aggression should buy forcing moves, not pay for quiet ones.
 fn should_prune_quiescence_capture(
     metadata: MoveMetadata,
     in_check: bool,
     recapture_square: Option<cozy_chess::Square>,
-    aggression: u8,
-    stand_pat: Score,
-    alpha: Score,
 ) -> bool {
-    let delta_margin = 50 + Score::from(aggression);
-    let material_ceiling = metadata
-        .captured
-        .map_or(stand_pat, |piece| {
-            stand_pat.saturating_add(piece_value(piece))
-        })
-        .saturating_add(delta_margin);
-    aggression > 0
-        && !in_check
-        && recapture_square.is_some()
+    !in_check
         && metadata.captured.is_some()
         && metadata.chess_move.promotion.is_none()
         && !metadata.gives_check
@@ -1066,8 +1074,7 @@ fn should_prune_quiescence_capture(
         && Some(metadata.chess_move.to) != recapture_square
         && metadata
             .see
-            .is_some_and(|see| see < -piece_value(Piece::Pawn))
-        && material_ceiling <= alpha
+            .is_some_and(|see| see < QUIESCENCE_SEE_PRUNE_THRESHOLD)
 }
 
 const HISTORY_MAX: i32 = 16_384;
@@ -3863,14 +3870,7 @@ fn quiescence(
         debug_assert!(
             in_check || metadata.is_tactical() || (metadata.is_quiet() && metadata.gives_check)
         );
-        if should_prune_quiescence_capture(
-            metadata,
-            in_check,
-            recapture_square,
-            context.personality.aggression(),
-            stand_pat.unwrap_or(NEG_INFINITY),
-            alpha,
-        ) {
+        if should_prune_quiescence_capture(metadata, in_check, recapture_square) {
             context.telemetry.quiescence_pruned_captures += 1;
             if horizon {
                 context.telemetry.horizon_quiescence_pruned_captures += 1;
@@ -5834,43 +5834,55 @@ mod tests {
         let poisoned_capture = find_move(&position, "d1d5");
         let metadata = super::MoveMetadata::classify(position.board(), poisoned_capture);
 
+        let elsewhere = Some(cozy_chess::Square::E5);
         assert!(metadata.see.is_some_and(|see| see < 0));
-        assert!(!super::should_prune_quiescence_capture(
-            metadata, false, None, 100, 0, 300,
-        ));
-        assert!(!super::should_prune_quiescence_capture(
-            metadata,
-            false,
-            Some(cozy_chess::Square::E5),
-            0,
-            0,
-            300,
+
+        // A refuted capture is skipped wherever it is met, with or without
+        // recapture context, and at every profile. Both were previously
+        // exemptions: no context meant no pruning, and so did Aggression 0.
+        assert!(super::should_prune_quiescence_capture(
+            metadata, false, None
         ));
         assert!(super::should_prune_quiescence_capture(
-            metadata,
-            false,
-            Some(cozy_chess::Square::E5),
-            100,
-            0,
-            300,
+            metadata, false, elsewhere
         ));
+
+        // The whole losing half of the swap list goes, not only the part that
+        // loses more than a pawn.
+        let slightly_losing = super::MoveMetadata {
+            see: Some(-50),
+            ..metadata
+        };
+        assert!(super::should_prune_quiescence_capture(
+            slightly_losing,
+            false,
+            elsewhere,
+        ));
+
+        // A capture that settles level or better is what quiescence is for.
+        for sound in [0, 1, 300] {
+            let sound = super::MoveMetadata {
+                see: Some(sound),
+                ..metadata
+            };
+            assert!(!super::should_prune_quiescence_capture(
+                sound, false, elsewhere
+            ));
+        }
+
+        // The exchange this node was entered to settle is always searched, and
+        // so is every evasion while in check.
         assert!(!super::should_prune_quiescence_capture(
             metadata,
             false,
             Some(poisoned_capture.to),
-            100,
-            0,
-            300,
         ));
         assert!(!super::should_prune_quiescence_capture(
-            metadata,
-            true,
-            Some(cozy_chess::Square::E5),
-            100,
-            0,
-            300,
+            metadata, true, elsewhere
         ));
 
+        // The forcing classes are the personality and stay searched however
+        // badly the exchange settles.
         for forcing in [
             super::MoveMetadata {
                 gives_check: true,
@@ -5878,6 +5890,10 @@ mod tests {
             },
             super::MoveMetadata {
                 king_zone_move: true,
+                ..metadata
+            },
+            super::MoveMetadata {
+                attacking_pawn_push: true,
                 ..metadata
             },
             super::MoveMetadata {
@@ -5889,27 +5905,9 @@ mod tests {
             },
         ] {
             assert!(!super::should_prune_quiescence_capture(
-                forcing,
-                false,
-                Some(cozy_chess::Square::E5),
-                100,
-                0,
-                300,
+                forcing, false, elsewhere
             ));
         }
-
-        let aggressive = super::MoveMetadata {
-            attacking_pawn_push: true,
-            ..metadata
-        };
-        assert!(!super::should_prune_quiescence_capture(
-            aggressive,
-            false,
-            Some(cozy_chess::Square::E5),
-            100,
-            0,
-            300,
-        ));
     }
     #[test]
     fn aspiration_and_mate_windows_are_bounded() {

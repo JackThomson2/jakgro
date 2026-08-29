@@ -175,8 +175,13 @@ fn selective_search_telemetry_attributes_objective_work() {
     assert!(telemetry.capture_history_first_move_cutoffs() <= telemetry.capture_cutoffs());
     assert!(telemetry.lmr_shallow_reductions() <= telemetry.lmr_reductions());
     assert!(telemetry.lmr_shallow_researches() <= telemetry.lmr_shallow_reductions());
-    assert_eq!(telemetry.quiescence_pruned_captures(), 0);
-    assert_eq!(telemetry.horizon_quiescence_pruned_captures(), 0);
+    // The objective profile prunes refuted quiescence captures too. It used to
+    // be exempt, which meant Aggression 0 searched the larger tree of the two;
+    // aggression buys forcing moves, so it should not also pay for quiet ones.
+    assert!(telemetry.quiescence_pruned_captures() > 0);
+    assert!(
+        telemetry.horizon_quiescence_pruned_captures() <= telemetry.quiescence_pruned_captures()
+    );
 
     assert!(telemetry.lmr_shallow_reductions() > 0);
 }

@@ -38,7 +38,7 @@ const STYLED_ROOT_TACTICAL_DEPTH_SCALE: u64 = 80;
 const STYLED_ROOT_DEPTH_CAP: u32 = 8;
 const STYLED_ROOT_MIN_NODES: u64 = 256;
 const STYLED_ROOT_MAX_NODES: u64 = 2_048;
-const STYLED_ROOT_TACTICAL_MAX_NODES: u64 = 4_096;
+pub(super) const STYLED_ROOT_TACTICAL_MAX_NODES: u64 = 4_096;
 const STYLED_ROOT_MAX_VERIFICATIONS: usize = 2;
 const ORDINARY_ROOT_MARGIN_MAX: Score = 26;
 const WINNING_ROOT_MARGIN_MAX: Score = 20;
@@ -1628,6 +1628,15 @@ struct SearchContext<'a> {
     helper: bool,
     /// Whether the node limit bounds the whole search rather than this searcher.
     shared_node_budget: bool,
+    /// Whether the reporting searcher still owes its first completed iteration.
+    ///
+    /// A search that is allowed to start completes at least depth one. Until it
+    /// does there is no searched move to report, so a budget that expires inside
+    /// the first iteration would otherwise yield a bare `bestmove` naming the
+    /// alphabetically first legal move. Neither the node limit nor the clock may
+    /// end the search in that window; explicit cancellation still may, because a
+    /// stopped search is entitled to abandon its result entirely.
+    first_iteration_pending: bool,
     started: Instant,
     pv: Vec<Vec<Move>>,
     hash_pv_depths: Vec<Option<u32>>,
@@ -1676,6 +1685,7 @@ impl<'a> SearchContext<'a> {
             stats,
             helper: false,
             shared_node_budget: false,
+            first_iteration_pending: false,
             started: Instant::now(),
             pv: (0..=MAX_PLY)
                 .map(|ply| Vec::with_capacity((MAX_PLY - ply) as usize))
@@ -1737,7 +1747,7 @@ impl SearchContext<'_> {
 
     fn control_stop_requested(&self) -> bool {
         self.control.is_stopped()
-            || self.control.hard_deadline_reached()
+            || (self.control.hard_deadline_reached() && !self.first_iteration_pending)
             || (self.helper && self.stats.helpers_released())
     }
 
@@ -1748,13 +1758,18 @@ impl SearchContext<'_> {
     /// so the shared total is what bounds it; that total is only refreshed on the
     /// polling cadence, so the limit can be overshot by less than one interval
     /// per searcher.
+    ///
+    /// A non-zero budget cannot end the reporting searcher's first iteration, so
+    /// a fixed-node search always returns a searched move. A budget of zero asks
+    /// for no work at all and is honoured exactly.
     fn node_limit_reached(&self) -> bool {
         let counted = if self.shared_node_budget {
             self.total_nodes()
         } else {
             self.nodes
         };
-        self.node_limit.is_some_and(|limit| counted >= limit)
+        self.node_limit
+            .is_some_and(|limit| counted >= limit && (limit == 0 || !self.first_iteration_pending))
     }
 
     fn clear_pv(&mut self, ply: u32) {
@@ -2136,6 +2151,10 @@ fn run_worker(
         stats: &shared.stats,
         helper: !role.is_main(),
         shared_node_budget: shared.threads > 1,
+        // Only the reporting searcher owes an iteration. A helper contributes to
+        // the shared table and is released the moment the main searcher is done,
+        // so exempting it would delay every parallel search by a helper's depth.
+        first_iteration_pending: role.is_main(),
         started: shared.started,
         pv: (0..=MAX_PLY)
             .map(|ply| Vec::with_capacity((MAX_PLY - ply) as usize))
@@ -2236,6 +2255,8 @@ fn run_worker(
         }
         let found_mate = matches!(info.score(), SearchScore::Mate(_));
         final_info = Some(info);
+        // The obligation is discharged: from here the ordinary budgets apply.
+        context.first_iteration_pending = false;
 
         if found_mate || context.should_stop() {
             break;
@@ -2456,6 +2477,13 @@ fn search_root_styled(
     let personality_node_limit =
         styled_root_node_limit(context.nodes, depth, tactical_reserve, original_node_limit);
     context.node_limit = Some(personality_node_limit);
+    // The first-iteration guarantee exempts the search from its *configured*
+    // budget so that a result always exists to report. This budget is a local
+    // bound on optional work whose expiry is an ordinary outcome — the styled
+    // root keeps whatever it finished — so it binds at every depth. Leaving the
+    // exemption in place here would let depth one probe to the global limit.
+    let original_first_iteration_pending = context.first_iteration_pending;
+    context.first_iteration_pending = false;
     let personality_start_nodes = context.nodes;
     let mut probe_passers = Vec::new();
     let mut personality_exhausted = false;
@@ -2653,6 +2681,7 @@ fn search_root_styled(
         personality_exhausted = true;
     }
     context.node_limit = original_node_limit;
+    context.first_iteration_pending = original_first_iteration_pending;
     context.telemetry.personality_root_nodes +=
         context.nodes.saturating_sub(personality_start_nodes);
     if context.should_stop() || (personality_exhausted && candidates.len() == 1) {

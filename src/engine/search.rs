@@ -579,9 +579,10 @@ pub(super) fn ponder_time_budget(
 mod tests {
     use std::time::Duration;
 
+    use super::algorithm::STYLED_ROOT_TACTICAL_MAX_NODES;
     use super::{
-        EvaluationConfig, SearchControl, SearchInfo, SearchLimits, SearchScore, SearchSettings,
-        TranspositionTable, search, search_with_reporter, search_with_table,
+        EvaluationConfig, MIN_HASH_MIB, SearchControl, SearchInfo, SearchLimits, SearchScore,
+        SearchSettings, TranspositionTable, search, search_with_reporter, search_with_table,
     };
     use crate::engine::Position;
 
@@ -867,8 +868,14 @@ mod tests {
         );
     }
 
+    /// An expired clock still owes the caller a searched move.
+    ///
+    /// A zero move time expires before the first node is visited, which used to
+    /// return the alphabetically first legal move and no `info` line at all. The
+    /// clock cannot end the search before one iteration completes, so the result
+    /// is a real depth-one choice with its principal variation.
     #[test]
-    fn zero_move_time_returns_a_legal_fallback() {
+    fn zero_move_time_still_completes_one_iteration() {
         let position = Position::default();
         let result = search(
             &position,
@@ -878,8 +885,14 @@ mod tests {
             },
         );
 
-        assert!(result.info().is_none());
-        assert!(result.best_move().is_some());
+        let info = result.info().expect("an expired clock still reports");
+        assert_eq!(info.depth(), 1);
+        assert_eq!(result.best_move(), info.pv().first().map(String::as_str));
+        assert!(
+            position
+                .legal_moves()
+                .contains(&result.best_move().unwrap().to_owned())
+        );
     }
 
     #[test]
@@ -922,8 +935,14 @@ mod tests {
         assert_eq!(immediate.nodes_per_second(), 1_000_000_000);
     }
 
+    /// A node limit stops the search without discarding its first iteration.
+    ///
+    /// The budget still binds: a twenty-ply request under a one-node budget stops
+    /// at depth one rather than deepening. What it may no longer do is return
+    /// before that iteration exists, because the fixed-node measurement tools read
+    /// the reported line and a bare `bestmove` is unreadable to them.
     #[test]
-    fn node_limit_interrupts_an_incomplete_iteration() {
+    fn node_limit_stops_after_the_first_iteration() {
         let position = Position::default();
         let result = search(
             &position,
@@ -934,8 +953,68 @@ mod tests {
             },
         );
 
-        assert!(result.info().is_none());
+        let info = result.info().expect("a fixed-node search still reports");
+        assert_eq!(info.depth(), 1);
         assert!(result.best_move().is_some());
+    }
+
+    /// The styled root's local budget binds during the guaranteed iteration.
+    ///
+    /// The first-iteration guarantee suspends the search's *configured* node
+    /// budget so a result always exists to report. The personality budget is a
+    /// different thing: a local bound on optional root work whose expiry is an
+    /// ordinary outcome. Suspending it too let depth one probe until the global
+    /// limit, which tripled the first iteration and changed every tree below it.
+    #[test]
+    fn the_personality_budget_binds_during_the_first_iteration() {
+        let position = Position::from_fen(
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+        )
+        .unwrap();
+        let table = TranspositionTable::new(MIN_HASH_MIB).unwrap();
+        let result = search_with_table(
+            &position,
+            &SearchLimits {
+                depth: Some(1),
+                ..SearchLimits::default()
+            },
+            &SearchControl::new(),
+            SearchSettings::for_test(EvaluationConfig::new(100)),
+            &table,
+            |_| {},
+        );
+
+        let personality = result.telemetry().personality_root_nodes();
+        assert!(personality > 0, "the styled root did no work to bound");
+        assert!(
+            personality <= STYLED_ROOT_TACTICAL_MAX_NODES,
+            "personality probing spent {personality} nodes against a bound of {STYLED_ROOT_TACTICAL_MAX_NODES}",
+        );
+    }
+
+    /// A budget of zero asks for no work and is honoured exactly.
+    ///
+    /// This is the one case that still returns a bare fallback, and it is the
+    /// boundary that keeps the first-iteration guarantee from becoming an
+    /// unconditional refusal to respect the node limit.
+    #[test]
+    fn a_zero_node_budget_searches_nothing() {
+        let position = Position::default();
+        let result = search(
+            &position,
+            &SearchLimits {
+                depth: Some(20),
+                nodes: Some(0),
+                ..SearchLimits::default()
+            },
+        );
+
+        assert!(result.info().is_none());
+        assert!(
+            position
+                .legal_moves()
+                .contains(&result.best_move().unwrap().to_owned())
+        );
     }
 
     #[test]

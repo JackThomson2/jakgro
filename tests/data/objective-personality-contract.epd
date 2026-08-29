@@ -1,7 +1,7 @@
 # Frozen objective/personality contract. Six-field FEN; id; category; nodes; obm; bm0; bm100; maxloss; gate; motif.
 rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 ; id contract-starting-development ; category initiative ; nodes 20000 ; obm b1c3,d2d4 ; bm0 d2d4 ; bm100 d2d4 ; maxloss 0 ; gate personality ; motif development
 rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2 ; id contract-early-king-pressure ; category king-attack ; nodes 20000 ; obm g1f3 ; bm0 g1f3 ; bm100 d2d4 ; maxloss 30 ; gate personality ; motif queen-pressure
-r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3 ; id contract-central-space ; category initiative ; nodes 20000 ; obm d2d4,f1c4 ; bm0 d2d4 ; bm100 f1c4 ; maxloss 30 ; gate personality ; motif development
+r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3 ; id contract-central-space ; category initiative ; nodes 100000 ; obm d2d4,f1c4 ; bm0 d2d4 ; bm100 f1c4 ; maxloss 30 ; gate personality ; motif development
 rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 2 ; id contract-black-king-pressure ; category king-attack ; nodes 20000 ; obm f8c5,d7d5 ; bm0 d7d5 ; bm100 d8h4 ; maxloss 30 ; gate personality ; motif queen-pressure
 4k3/8/8/8/8/8/4q3/4R1K1 w - - 0 1 ; id contract-tactical-safety ; category safety ; nodes 20000 ; obm e1e2 ; bm0 e1e2 ; bm100 e1e2 ; maxloss 0 ; gate control ; motif forced-capture
 7k/8/8/8/8/1r6/8/K7 w - - 0 1 ; id contract-defensive-safety ; category safety ; nodes 20000 ; obm a1a2 ; bm0 a1a2 ; bm100 a1a2 ; maxloss 0 ; gate control ; motif forced-defense

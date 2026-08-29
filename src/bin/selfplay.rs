@@ -1647,7 +1647,7 @@ mod tests {
 
         let start = Board::default();
         assert_eq!(terminal_outcome(&[], &start), None);
-        assert_eq!(terminal_outcome(&[start.clone()], &start), None);
+        assert_eq!(terminal_outcome(std::slice::from_ref(&start), &start), None);
     }
 
     #[test]

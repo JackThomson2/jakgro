@@ -3412,20 +3412,46 @@ fn negamax(
 
     let in_check = !board.checkers().is_empty();
     let pv_node = beta.saturating_sub(alpha) > 1;
-    let static_evaluation =
+    // Every interior node outside check now knows what it is worth statically.
+    //
+    // The value was previously computed only where a pruning rule was about to
+    // consult it, which is at most depth four and never on the principal
+    // variation. That left the improving signal undefined almost everywhere and
+    // capped reverse futility at a depth it can barely serve. Interior nodes are
+    // a very small share of this tree — quiescence is about 97% of it — and most
+    // probes hit a stored value, so the cost is far below what the signal is
+    // worth.
+    //
+    // Which nodes may *act* on it is a separate question, and
+    // `static_pruning_allowed` still answers it. This commit changes
+    // availability alone and no search decision with it.
+    //
+    // That includes the improving signal, which is deliberately still derived
+    // from the narrower set. Widening it is a real change of policy rather than
+    // of availability: it decides the move-count limit up to depth eight, where
+    // an undefined signal currently counts as improving and doubles the limit.
+    // Feeding it the wider set once turned move-count pruning up enough that
+    // Aggression 100 stopped playing the knight investment the acceptance
+    // contract requires, so it belongs in its own patch with its own match.
+    let static_evaluation = if matches!(context.mode, SearchMode::Normal) && !in_check {
+        Some(
+            hash_entry
+                .and_then(Entry::static_evaluation)
+                .inspect(|_| context.telemetry.static_evaluation_hits += 1)
+                .unwrap_or_else(|| evaluate_with_config(board, context.scoring)),
+        )
+    } else {
+        None
+    };
+    let pruning_evaluation =
         if static_pruning_allowed(board, depth, alpha, beta, pv_node, context.mode) {
             context.telemetry.static_pruning_attempts += 1;
-            Some(
-                hash_entry
-                    .and_then(Entry::static_evaluation)
-                    .inspect(|_| context.telemetry.static_evaluation_hits += 1)
-                    .unwrap_or_else(|| evaluate_with_config(board, context.scoring)),
-            )
+            static_evaluation
         } else {
             None
         };
-    let improving = context.record_static_evaluation(ply, in_check, static_evaluation);
-    if static_evaluation.is_some_and(|evaluation| {
+    let improving = context.record_static_evaluation(ply, in_check, pruning_evaluation);
+    if pruning_evaluation.is_some_and(|evaluation| {
         reverse_futility_cutoff(
             evaluation,
             beta,
@@ -3522,7 +3548,7 @@ fn negamax(
         let history_score = context
             .ordering
             .quiet_history_score(board, chess_move, previous_move);
-        if static_evaluation.is_some_and(|evaluation| {
+        if pruning_evaluation.is_some_and(|evaluation| {
             should_prune_quiet_move(
                 depth,
                 index,
@@ -3540,7 +3566,7 @@ fn negamax(
             picker.record_failed_quiet(metadata);
             continue;
         }
-        if static_evaluation.is_some()
+        if pruning_evaluation.is_some()
             && should_prune_late_move(
                 depth,
                 index,

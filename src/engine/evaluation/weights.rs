@@ -68,3 +68,27 @@ pub(super) fn attacking_style(features: EvalFeatures) -> ScorePair {
         + OPEN_LINE * features.open_lines
         + PAWN_BREAK * features.pawn_breaks
 }
+
+/// Returns the scalar weights in the order the tuning feature vector uses.
+///
+/// The order is the one [`score`] combines them in, so a fitted value maps back
+/// onto exactly one constant above without an intervening table.
+#[cfg(feature = "tuning")]
+pub(super) const fn tuning_weights() -> [ScorePair; 14] {
+    [
+        PAWN,
+        KNIGHT,
+        BISHOP,
+        ROOK,
+        QUEEN,
+        ACTIVITY,
+        TEMPO,
+        MOBILITY,
+        BISHOP_PAIR,
+        DOUBLED_PAWN,
+        ISOLATED_PAWN,
+        PASSED_PAWN,
+        KING_SHELTER,
+        OPEN_KING_FILE,
+    ]
+}

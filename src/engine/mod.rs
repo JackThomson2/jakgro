@@ -9,6 +9,11 @@ mod evaluation;
 mod position;
 mod search;
 
+/// Linear feature vector for offline weight fitting.
+///
+/// Behind the `tuning` feature, so the shipped engine does not carry it.
+#[cfg(feature = "tuning")]
+pub use evaluation::tuning;
 pub use position::{Position, PositionError};
 pub(crate) use search::TimeBudget;
 pub use search::{

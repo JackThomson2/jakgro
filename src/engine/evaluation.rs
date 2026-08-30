@@ -1,6 +1,8 @@
 mod features;
 mod placement;
 mod tactics;
+#[cfg(feature = "tuning")]
+pub mod tuning;
 mod weights;
 
 pub(super) use tactics::{
@@ -36,12 +38,12 @@ impl ScorePair {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "tuning"))]
     pub(super) const fn middle_game(self) -> Score {
         self.middle_game
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "tuning"))]
     pub(super) const fn end_game(self) -> Score {
         self.end_game
     }

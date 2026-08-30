@@ -26,6 +26,19 @@ pub(super) fn placement(piece: Piece, square: Square, color: Color) -> ScorePair
 }
 
 /// Maps a square onto a table index written from White's perspective.
+#[cfg(feature = "tuning")]
+pub(super) const fn table_index_for_tuning(square: Square, color: Color) -> usize {
+    table_index(square, color)
+}
+
+/// Returns one table entry by its row index, for offline fitting.
+#[cfg(feature = "tuning")]
+pub(super) fn table_entry(piece: Piece, index: usize) -> ScorePair {
+    let table = table_for(piece);
+    ScorePair::new(table.middle_game[index], table.end_game[index])
+}
+
+/// Maps a square onto a table index written from White's perspective.
 const fn table_index(square: Square, color: Color) -> usize {
     let square = square as usize;
     let file = square % 8;

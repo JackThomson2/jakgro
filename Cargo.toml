@@ -4,6 +4,11 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
 
+[features]
+# Exposes the linear feature vector the offline weight fitter reads. Not built
+# into the shipped engine.
+tuning = []
+
 [dependencies]
 cozy-chess = { version = "0.3.4", git = "https://github.com/JackThomson2/cozy-chess", branch = "board-state-save-restore" }
 mimalloc = "0.1.48"

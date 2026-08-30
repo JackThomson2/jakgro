@@ -2,7 +2,7 @@
 
 Jakgro is a Rust chess engine aimed at playing aggressive, tactical, and interesting chess while remaining compatible with the Universal Chess Interface (UCI).
 
-> **Current status:** Jakgro runs a cancellable iterative-deepening alpha-beta search with quiescence, principal variations, repetition and draw handling, a lock-free fixed-size transposition table consulted in quiescence as well as in the main search, optional lazy SMP across a configurable thread count, tapered positional evaluation with piece-square tables and a cached pawn structure, a bounded attacking personality, and volatility-aware soft/hard clock management. It is UCI-playable and exposes a reproducibly gated `Aggression` profile from 0 to 100. Three measured series are recorded: [`docs/tuning/strength-series.md`](docs/tuning/strength-series.md) at +108 Elo at the default profile, [`docs/tuning/strength-series-two.md`](docs/tuning/strength-series-two.md) at a further +65 Elo on top of it, and [`docs/tuning/strength-series-three.md`](docs/tuning/strength-series-three.md) at a further +42.6 Elo, which also records why neither node count nor completed depth substitutes for a match when pricing a change that alters the tree. Parallel search defaults to one thread and carries no measured Elo claim yet; see [`docs/tuning/lazy-smp.md`](docs/tuning/lazy-smp.md).
+> **Current status:** Jakgro runs a cancellable iterative-deepening alpha-beta search with quiescence, principal variations, repetition and draw handling, a lock-free fixed-size transposition table consulted in quiescence as well as in the main search, optional lazy SMP across a configurable thread count, tapered positional evaluation whose weights and piece-square tables are fitted offline against recorded games, with a cached pawn structure, a bounded attacking personality, and volatility-aware soft/hard clock management. It is UCI-playable and exposes a reproducibly gated `Aggression` profile from 0 to 100. Three measured series are recorded: [`docs/tuning/strength-series.md`](docs/tuning/strength-series.md) at +108 Elo at the default profile, [`docs/tuning/strength-series-two.md`](docs/tuning/strength-series-two.md) at a further +65 Elo on top of it, and [`docs/tuning/strength-series-three.md`](docs/tuning/strength-series-three.md) at a further +94.2 Elo, of which the evaluation refit is +56.3; that series also records why neither node count nor completed depth substitutes for a match when pricing a change, and why the engine plays 53% more checks than before it. Parallel search defaults to one thread and carries no measured Elo claim yet; see [`docs/tuning/lazy-smp.md`](docs/tuning/lazy-smp.md).
 
 ## Goals
 
@@ -233,6 +233,28 @@ The initial protocol and search foundations now include:
 - threshold-probed root personality work, table-driven late-move reductions, move-count pruning with forcing-move exemptions, swap-list static-exchange ordering/pruning, and always-verified null pruning;
 - fixed-node old-versus-new style gates, conservative Elo acceptance, deterministic paired-match tooling, in-repo sequential testing, and null-on/null-off telemetry; and
 - asynchronous `stop`, `ponderhit`, replacement-search, EOF, and shutdown behavior.
+
+### Fitting the evaluation
+
+The objective weights and piece-square tables are fitted offline rather than
+hand-chosen, against positions drawn from recorded games:
+
+```sh
+cargo build --release --locked --features tuning --bin tune
+./target/release/tune extract --pgn artifacts/*.pgn \
+  --out artifacts/tuning/positions.txt --skip-plies 8
+./target/release/tune fit --positions artifacts/tuning/positions.txt \
+  --out artifacts/tuning/weights.txt --epochs 1200 --l2 1e-7
+```
+
+`extract` keeps only positions a static evaluation can be held accountable for:
+not in check, and not about to win material. `fit` holds features the corpus
+barely contains at their published values and pulls the rest toward them, which
+is what stops rarely-seen piece-square entries from absorbing noise. The
+attacking-style weights and the profile mobility adjustment are never fitted, so
+the personality cannot be tuned away by an optimiser that only sees results.
+
+Both are behind the `tuning` feature and are not built into the shipped engine.
 
 ## Roadmap
 

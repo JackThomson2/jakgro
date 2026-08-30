@@ -2,21 +2,27 @@
 
 ## Verdict
 
-Two changes have landed out of seven attempted, for a cumulative **+42.6 Elo** at
-the default profile over the second series' head, each measured over 4096
-colour-reversed games at a fixed 50 ms per move.
+Three changes landed out of eight attempted. Measured head against base over 4096
+colour-reversed games at a fixed 50 ms per move, the series is worth
+**+94.2 Elo [86.5, 101.9]** at Aggression 75, LLR 122.4, accept H1, no faults.
 
-Quiescence exchange pruning measures **+22.7 Elo [15.6, 29.8] at Aggression 75**
-and **+28.1 Elo [21.2, 34.9] at Aggression 0**. Extending reverse futility
-measures a further **+20.0 Elo [13.1, 26.8]**. All three cross the predeclared
-`elo0=0, elo1=20, alpha=beta=0.05` H1 boundary, report a likelihood of
-superiority of 100%, and record no faults.
+**The engine did not become duller in exchange.** Over those same games it plays
+13.07 checks per hundred moves against the base's 8.55, and 34.33 forcing moves
+against 29.48: **53% more checks** and 116% of the forcing play, while being
+ninety Elo stronger. That is the result the series was for.
 
-The personality did not pay for it. All 32 fixed-node style choices and all 8
-sacrifice-gate choices are identical at every profile, every acceptance contract
-passes, and complete-game forcing play rose slightly rather than eroding:
-32.44 forcing moves per hundred against the baseline's 31.82, a retention of
-**101.9%** against a 90% floor.
+Per patch, each against its immediate predecessor:
+
+| Patch | Aggression 75 | Aggression 0 |
+| --- | --- | --- |
+| Quiescence exchange pruning | +22.7 [15.6, 29.8] | +28.1 [21.2, 34.9] |
+| Reverse futility to depth seven | +20.0 [13.1, 26.8] | not measured |
+| Evaluation refit | **+56.3 [49.0, 63.6]** | **+79.4 [72.0, 86.8]** |
+
+The refit is worth more than everything else combined, and it is the answer to
+the question the middle of the series kept asking: after four search patches in
+a row passed every deterministic gate and then failed their matches, the
+remaining headroom was not in the tree.
 
 ## Calibration, corrected
 
@@ -74,6 +80,7 @@ worth a match. A patch that gains depth has earned a match, and nothing more.
 | Quiescence exchange pruning | +22.7 [15.6, 29.8] | +28.1 [21.2, 34.9] | 48.5% fewer nodes, +0.200 ply |
 | Static evaluation everywhere | not measured alone | not measured alone | preparatory; tree identical, -1.1% throughput |
 | Reverse futility to depth seven | +20.0 [13.1, 26.8] | not measured | 19.2% fewer nodes, +0.200 ply |
+| Evaluation refit | +56.3 [49.0, 63.6] | +79.4 [72.0, 86.8] | fitted weights and tables |
 
 Quiescence is roughly 97% of every tree this engine builds, and the rule meant to
 keep refuted captures out of it required five conditions to hold at once. Almost
@@ -103,6 +110,54 @@ Tree size is not monotone in it, because pruning a capture changes the score a
 node returns and so the cutoffs above it: -25 both prunes less than 0 and
 searches less. Zero measured the largest suite reduction, 10.849% and +0.300 ply,
 but moved four fixtures; -25 keeps every style choice and every contract.
+
+### The evaluation refit
+
+The objective weights were hand-picked round numbers and the placement tables
+were the published PeSTO set, tuned together for a feature set other than the one
+that grew up around them. `tune` replaces both by fitting the model the
+evaluation already is: fourteen scalar weights and three hundred and eighty-four
+placement entries, each with a middlegame and an endgame value, against whether
+the side to move went on to win.
+
+| Input | Value |
+| --- | --- |
+| Corpus | 1,136,304 unique quiet positions from 24,576 games |
+| Source | this series' own recorded SPRT matches |
+| Scaling constant | K = 0.7566, fitted by ternary search |
+| Loss, training | 0.088205 to 0.082871 |
+| Loss, held out | 0.088089 to 0.082793 |
+| Held-out share | every tenth position, taken deterministically |
+| Regularisation | L2 1e-7 toward the published weights |
+| Features held fixed | 41 of 398, seen fewer than 2,000 times |
+
+Held-out loss tracks training loss to four decimal places throughout, which is
+what a million positions and eight hundred parameters should do.
+
+**The regularisation is not a detail.** Adam normalises each parameter by its own
+gradient magnitude, so a feature the corpus barely contains takes steps exactly
+as large as one it contains a million times and its weight walks off wherever the
+noise points. Fitting without the observation floor put the king's eighth-rank
+squares — where White's king essentially never stands — above five hundred
+centipawns, and the queen at 1315. Both are visible nonsense; what makes them
+dangerous is that they *lowered* the loss, because held-out positions share the
+same blind spot. The floor and the L2 term together are what turn a lower loss
+into a better evaluation.
+
+The attacking-style weights and the profile mobility adjustment were held at
+their published values and appear nowhere in the fit. Game results do not reward
+interesting chess, so an optimiser handed those would have tuned the personality
+out of the engine while every number on this page improved. That exclusion is why
+the refit is style-preserving by construction rather than by luck — and the
+measured forcing rates say it worked.
+
+Two style records lost their discrimination and are recorded as such rather than
+replaced: in `open-king-gambit` and `kingside-pawn-storm` the styled profile no
+longer prefers the forcing thrust or the storm, at any budget tried, even though
+the engine plays markedly more forcing chess overall. Two others regained their
+contracts at a larger budget, including `avoid-equal-queen-trade`, where at
+100,000 nodes the objective profile takes the queen trade and the styled profile
+still avoids it.
 
 ## What did not land, and why
 
@@ -246,6 +301,18 @@ smallest budgets the tree is unchanged, node for node at every completed depth.
   more likely in the evaluation itself than in the tree it drives.
 - Only Aggression 75 was matched for reverse futility; the objective channel was
   not re-run after the first patch.
+- The tuning corpus is this engine's own play at 50 ms from one 2048-position
+  opening book, so it carries whatever this engine already believed. Fitting
+  against a stronger or more varied source is the obvious next improvement and
+  was not attempted.
+- Every measured game starts from that book, so the refit's opening play from the
+  true starting position is untested by any match here. Three opening fixtures
+  now prefer b1c3, which is playable but unusual, and nothing in this series
+  weighs it.
+- The fit targets the default profile, where the mobility adjustment applies at
+  full intensity. That adjustment is scaled to zero at both endpoint profiles, so
+  Aggression 0 and 100 read a slightly different objective evaluation than the
+  one fitted.
 
 ## Reproduction
 

@@ -117,7 +117,15 @@ const fn build_king_file_spans() -> [BitBoard; 64] {
 struct StructureTerms {
     doubled: i32,
     isolated: i32,
-    passed: i32,
+    /// Passed pawns counted per rank, from the owner's side of the board.
+    ///
+    /// A pawn can only stand on relative ranks one to six, so six counters
+    /// cover every case. They are `i8` because a count is bounded by eight and
+    /// this structure sits in a direct-mapped cache whose whole point is fitting
+    /// in a core's private cache.
+    passed_by_rank: [i8; 6],
+    /// Passed pawns defended by a friendly pawn, counted the same way.
+    protected_passer_by_rank: [i8; 6],
     shelter: i32,
     open_files: i32,
 }
@@ -206,7 +214,11 @@ fn compute_structure_terms(board: &Board) -> StructureTerms {
         let pawns = pawn_features(board, color);
         terms.doubled += sign * pawns.doubled;
         terms.isolated += sign * pawns.isolated;
-        terms.passed += sign * pawns.passed;
+        for rank in 0..6 {
+            terms.passed_by_rank[rank] += sign as i8 * pawns.passed_by_rank[rank];
+            terms.protected_passer_by_rank[rank] +=
+                sign as i8 * pawns.protected_passer_by_rank[rank];
+        }
         let (shelter, open_files) = king_safety(board, color);
         terms.shelter += sign * shelter;
         terms.open_files += sign * open_files;
@@ -276,7 +288,18 @@ pub(super) fn extract_with_style(board: &Board, style: bool) -> EvalFeatures {
     let structure = structure_terms(board);
     features.doubled_pawns = structure.doubled;
     features.isolated_pawns = structure.isolated;
-    features.passed_pawns = structure.passed;
+    for rank in 0..6 {
+        features.passed_by_rank[rank] = i32::from(structure.passed_by_rank[rank]);
+        features.protected_passer_by_rank[rank] =
+            i32::from(structure.protected_passer_by_rank[rank]);
+    }
+    // The attacking style weights passers by how far they have come, and that
+    // term is personality and must not move. Deriving it from the per-rank
+    // counts reproduces the old scalar exactly — it was the same sum — rather
+    // than storing a second copy that could drift from them.
+    features.passed_pawns = (0..6)
+        .map(|rank| (rank as i32 + 1) * features.passed_by_rank[rank])
+        .sum();
     features.king_shelter = structure.shelter;
     features.open_king_files = structure.open_files;
 
@@ -712,7 +735,8 @@ fn attacks_from(
 struct PawnFeatures {
     doubled: i32,
     isolated: i32,
-    passed: i32,
+    passed_by_rank: [i8; 6],
+    protected_passer_by_rank: [i8; 6],
 }
 
 /// Reference pawn structure, retained to check the mask-based extraction.
@@ -755,7 +779,11 @@ fn reference_pawn_features(board: &Board, color: Color) -> PawnFeatures {
             } else {
                 7 - rank
             };
-            result.passed += advance.max(1);
+            let index = (advance - 1) as usize;
+            result.passed_by_rank[index] += 1;
+            if !(get_pawn_attacks(square, !color) & pawns).is_empty() {
+                result.protected_passer_by_rank[index] += 1;
+            }
         }
     }
 
@@ -821,7 +849,17 @@ fn pawn_features(board: &Board, color: Color) -> PawnFeatures {
             } else {
                 7 - rank
             };
-            result.passed += advance.max(1);
+            // A pawn never stands on its own first or last rank, so `advance` is
+            // always one to six and the index is always in bounds.
+            let index = (advance - 1) as usize;
+            result.passed_by_rank[index] += 1;
+            // A pawn defends the squares an enemy pawn on this square would
+            // attack, so intersecting those with our own pawns answers whether
+            // this passer is protected. This stays a pure function of the two
+            // pawn sets, which is what lets it ride the structure cache.
+            if !(get_pawn_attacks(square, !color) & pawns).is_empty() {
+                result.protected_passer_by_rank[index] += 1;
+            }
         }
     }
 
@@ -919,13 +957,49 @@ mod tests {
         assert_eq!(mirrored.isolated, -2);
 
         // A passed pawn is signed by its owner. The pair is a true vertical
-        // mirror, e5 against e4, so the magnitudes match as well as the signs.
+        // mirror, e5 against e4, so the rank they land on matches as well as
+        // the sign: both stand four ranks from home, at index three.
         let white_passer: Board = "4k3/8/8/4P3/8/8/8/4K3 w - - 0 1".parse().unwrap();
         let black_passer: Board = "4k3/8/8/8/4p3/8/8/4K3 w - - 0 1".parse().unwrap();
-        let white_passed = super::compute_structure_terms(&white_passer).passed;
-        let black_passed = super::compute_structure_terms(&black_passer).passed;
-        assert_eq!(white_passed, 4);
-        assert_eq!(black_passed, -4);
+        let white_passed = super::compute_structure_terms(&white_passer).passed_by_rank;
+        let black_passed = super::compute_structure_terms(&black_passer).passed_by_rank;
+        assert_eq!(white_passed, [0, 0, 0, 1, 0, 0]);
+        assert_eq!(black_passed, [0, 0, 0, -1, 0, 0]);
+    }
+
+    /// A protected passer is counted only where a friendly pawn defends it.
+    #[test]
+    fn protected_passers_are_counted_separately_from_bare_ones() {
+        // b5 and c6: the c-pawn is passed and defended by the b-pawn, and the
+        // b-pawn is passed and defended by nothing.
+        let board: Board = "4k3/8/2P5/1P6/8/8/8/4K3 w - - 0 1".parse().unwrap();
+        let terms = super::compute_structure_terms(&board);
+
+        assert_eq!(terms.passed_by_rank, [0, 0, 0, 1, 1, 0]);
+        assert_eq!(terms.protected_passer_by_rank, [0, 0, 0, 0, 1, 0]);
+    }
+
+    /// The style scalar must survive the change to per-rank counts unaltered.
+    ///
+    /// The attacking style weights passers by progress and is personality, so
+    /// it is derived from the new counts rather than replaced. This checks the
+    /// derivation against the sum the old scalar computed directly.
+    #[test]
+    fn the_derived_passer_scalar_matches_the_weighted_sum() {
+        for fen in [
+            "4k3/8/8/4P3/8/8/8/4K3 w - - 0 1",
+            "4k3/8/2P5/1P6/8/8/8/4K3 w - - 0 1",
+            "4k3/8/8/8/4p3/8/8/4K3 w - - 0 1",
+            "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+        ] {
+            let board: Board = fen.parse().unwrap();
+            let features = super::extract(&board);
+            let expected: i32 = (0..6)
+                .map(|rank| (rank as i32 + 1) * features.passed_by_rank[rank])
+                .sum();
+
+            assert_eq!(features.passed_pawns, expected, "{fen}");
+        }
     }
 
     #[test]

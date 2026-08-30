@@ -75,6 +75,16 @@ const fn table(name: &'static str, offset: usize) -> FeatureBlock {
     }
 }
 
+/// Declares an indexed block written as a `[ScorePair; N]`.
+const fn array(name: &'static str, offset: usize, len: usize) -> FeatureBlock {
+    FeatureBlock {
+        name,
+        offset,
+        len,
+        kind: BlockKind::Array,
+    }
+}
+
 /// Every block in the vector, in index order.
 ///
 /// The scalars come first, in the order `weights::score` combines them, then the
@@ -93,9 +103,10 @@ pub const BLOCKS: &[FeatureBlock] = &[
     scalar("BISHOP_PAIR", 8),
     scalar("DOUBLED_PAWN", 9),
     scalar("ISOLATED_PAWN", 10),
-    scalar("PASSED_PAWN", 11),
-    scalar("KING_SHELTER", 12),
-    scalar("OPEN_KING_FILE", 13),
+    array("PASSED_PAWN_BY_RANK", 11, 6),
+    array("PROTECTED_PASSED_PAWN_BY_RANK", 17, 6),
+    scalar("KING_SHELTER", 23),
+    scalar("OPEN_KING_FILE", 24),
     table("PAWN", PLACEMENT_OFFSET),
     table("KNIGHT", PLACEMENT_OFFSET + 64),
     table("BISHOP", PLACEMENT_OFFSET + 128),
@@ -105,7 +116,7 @@ pub const BLOCKS: &[FeatureBlock] = &[
 ];
 
 /// Scalar features, in the order [`super::weights::score`] combines them.
-pub const SCALAR_FEATURES: usize = 14;
+pub const SCALAR_FEATURES: usize = 25;
 /// Piece-square entries: six pieces over sixty-four squares.
 pub const PLACEMENT_FEATURES: usize = 6 * 64;
 /// Length of the feature vector.
@@ -163,7 +174,18 @@ pub fn tuning_features(board: &Board) -> TuningPosition {
         extracted.bishop_pair,
         extracted.doubled_pawns,
         extracted.isolated_pawns,
-        extracted.passed_pawns,
+        extracted.passed_by_rank[0],
+        extracted.passed_by_rank[1],
+        extracted.passed_by_rank[2],
+        extracted.passed_by_rank[3],
+        extracted.passed_by_rank[4],
+        extracted.passed_by_rank[5],
+        extracted.protected_passer_by_rank[0],
+        extracted.protected_passer_by_rank[1],
+        extracted.protected_passer_by_rank[2],
+        extracted.protected_passer_by_rank[3],
+        extracted.protected_passer_by_rank[4],
+        extracted.protected_passer_by_rank[5],
         extracted.king_shelter,
         extracted.open_king_files,
     ];
@@ -431,11 +453,15 @@ mod tests {
             "the blocks cover {next} features but the vector holds {FEATURE_COUNT}",
         );
         assert_eq!(current_weights().len(), FEATURE_COUNT);
+        // `SCALAR_FEATURES` counts slots, not blocks: one array block of six
+        // contributes six. Everything that is not a piece-square table lives in
+        // the region `weights.rs` owns and `PLACEMENT_OFFSET` ends.
         assert_eq!(
             BLOCKS
                 .iter()
-                .filter(|block| block.kind == BlockKind::Scalar)
-                .count(),
+                .filter(|block| block.kind != BlockKind::Table)
+                .map(|block| block.len)
+                .sum::<usize>(),
             SCALAR_FEATURES,
         );
         assert_eq!(

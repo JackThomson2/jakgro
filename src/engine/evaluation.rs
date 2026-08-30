@@ -220,6 +220,16 @@ pub(super) struct EvalFeatures {
     pub(super) bishop_pair: Score,
     pub(super) doubled_pawns: Score,
     pub(super) isolated_pawns: Score,
+    /// Passed pawns counted per rank, from the owner's side of the board.
+    pub(super) passed_by_rank: [Score; 6],
+    /// Passed pawns defended by a friendly pawn, counted the same way.
+    pub(super) protected_passer_by_rank: [Score; 6],
+    /// Passers weighted by how far they have come.
+    ///
+    /// Derived from [`Self::passed_by_rank`] and read only by the attacking
+    /// style, which values a runner by its progress. The objective evaluation
+    /// scores passers per rank instead, so it is not forced onto a straight
+    /// line through the origin.
     pub(super) passed_pawns: Score,
     pub(super) king_shelter: Score,
     pub(super) open_king_files: Score,

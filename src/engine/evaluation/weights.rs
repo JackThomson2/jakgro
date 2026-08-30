@@ -1,4 +1,4 @@
-use super::{EvalFeatures, ScorePair};
+use super::{EvalFeatures, Score, ScorePair};
 
 const PAWN: ScorePair = ScorePair::new(94, 149);
 const KNIGHT: ScorePair = ScorePair::new(330, 290);
@@ -17,7 +17,26 @@ const KING_MOBILITY_ADJUSTMENT: ScorePair = ScorePair::new(-3, -2);
 const BISHOP_PAIR: ScorePair = ScorePair::new(36, 47);
 const DOUBLED_PAWN: ScorePair = ScorePair::new(-17, -21);
 const ISOLATED_PAWN: ScorePair = ScorePair::new(-9, -10);
-const PASSED_PAWN: ScorePair = ScorePair::new(5, 16);
+/// Passed pawn value by rank, from the owner's side of the board.
+///
+/// These six values are exactly `PASSED_PAWN * rank` for the single weight they
+/// replace, which is why adopting them changes no score. The point is not the
+/// numbers but the shape: the old term multiplied one weight by how far the
+/// pawn had come, which forced the value of a passer to be a straight line
+/// through the origin in its rank. A passer on the seventh is not seven times a
+/// passer on the second, and a fit can now say so.
+const PASSED_PAWN_BY_RANK: [ScorePair; 6] = [
+    ScorePair::new(5, 16),
+    ScorePair::new(10, 32),
+    ScorePair::new(15, 48),
+    ScorePair::new(20, 64),
+    ScorePair::new(25, 80),
+    ScorePair::new(30, 96),
+];
+/// Extra value for a passed pawn defended by a friendly pawn, by rank.
+///
+/// Zero until fitted, so this commit adds the feature without moving a score.
+const PROTECTED_PASSED_PAWN_BY_RANK: [ScorePair; 6] = [ScorePair::new(0, 0); 6];
 const KING_SHELTER: ScorePair = ScorePair::new(23, -12);
 const OPEN_KING_FILE: ScorePair = ScorePair::new(-18, -3);
 const KING_PRESSURE: ScorePair = ScorePair::new(9, 2);
@@ -43,9 +62,22 @@ pub(super) fn score(features: EvalFeatures) -> ScorePair {
         + BISHOP_PAIR * features.bishop_pair
         + DOUBLED_PAWN * features.doubled_pawns
         + ISOLATED_PAWN * features.isolated_pawns
-        + PASSED_PAWN * features.passed_pawns
+        + indexed(&PASSED_PAWN_BY_RANK, features.passed_by_rank)
+        + indexed(
+            &PROTECTED_PASSED_PAWN_BY_RANK,
+            features.protected_passer_by_rank,
+        )
         + KING_SHELTER * features.king_shelter
         + OPEN_KING_FILE * features.open_king_files
+}
+
+/// Returns the dot product of an indexed weight block with its counts.
+fn indexed<const N: usize>(weights: &[ScorePair; N], features: [Score; N]) -> ScorePair {
+    let mut total = ScorePair::new(0, 0);
+    for index in 0..N {
+        total = total + weights[index] * features[index];
+    }
+    total
 }
 
 pub(super) fn profile_mobility_adjustment(features: EvalFeatures) -> ScorePair {
@@ -74,7 +106,7 @@ pub(super) fn attacking_style(features: EvalFeatures) -> ScorePair {
 /// The order is the one [`score`] combines them in, so a fitted value maps back
 /// onto exactly one constant above without an intervening table.
 #[cfg(feature = "tuning")]
-pub(super) const fn tuning_weights() -> [ScorePair; 14] {
+pub(super) const fn tuning_weights() -> [ScorePair; super::tuning::SCALAR_FEATURES] {
     [
         PAWN,
         KNIGHT,
@@ -87,7 +119,18 @@ pub(super) const fn tuning_weights() -> [ScorePair; 14] {
         BISHOP_PAIR,
         DOUBLED_PAWN,
         ISOLATED_PAWN,
-        PASSED_PAWN,
+        PASSED_PAWN_BY_RANK[0],
+        PASSED_PAWN_BY_RANK[1],
+        PASSED_PAWN_BY_RANK[2],
+        PASSED_PAWN_BY_RANK[3],
+        PASSED_PAWN_BY_RANK[4],
+        PASSED_PAWN_BY_RANK[5],
+        PROTECTED_PASSED_PAWN_BY_RANK[0],
+        PROTECTED_PASSED_PAWN_BY_RANK[1],
+        PROTECTED_PASSED_PAWN_BY_RANK[2],
+        PROTECTED_PASSED_PAWN_BY_RANK[3],
+        PROTECTED_PASSED_PAWN_BY_RANK[4],
+        PROTECTED_PASSED_PAWN_BY_RANK[5],
         KING_SHELTER,
         OPEN_KING_FILE,
     ]

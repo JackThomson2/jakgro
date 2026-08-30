@@ -156,6 +156,12 @@ def measure_rows(
             if active and depth_baseline.nodes > 0
             else None
         )
+        # A preparatory patch claims to change only speed. That claim is exactly
+        # that the fixed-depth search visited the same nodes and returned the
+        # same result, which is stronger than a node count near zero percent.
+        identical_tree = active and deterministic_signature(
+            depth_candidate
+        ) == deterministic_signature(depth_baseline)
         nps_gain = (
             percent_gain(node_candidate.nps, node_baseline.nps)
             if node_baseline.nps > 0
@@ -178,6 +184,7 @@ def measure_rows(
                 },
                 "active": active,
                 "repeatable": repeatable,
+                "identical_tree": identical_tree,
                 "fixed_depth_repeats": {
                     "candidate": observation_json(depth_candidate_repeat),
                     "baseline": observation_json(depth_baseline_repeat),
@@ -253,6 +260,7 @@ def summarize(
     samples: int = 3,
     move_time_ms: int = 250,
     provenance: dict[str, str] | None = None,
+    require_identical_tree: bool = False,
 ) -> dict[str, Any]:
     active = [
         row
@@ -306,6 +314,9 @@ def summarize(
     ]
     candidate_nodes = sum(int(row["candidate"]["nodes"]) for row in active)
     baseline_nodes = sum(int(row["baseline"]["nodes"]) for row in active)
+    divergent_positions = [
+        str(row["id"]) for row in rows if not bool(row["identical_tree"])
+    ]
     provenance = provenance or {}
     passed = (
         not inactive_positions
@@ -313,12 +324,13 @@ def summarize(
         and not missing_throughput_positions
         and not candidate_failures
         and not baseline_failures
+        and (not require_identical_tree or not divergent_positions)
         and reduction >= minimum_reduction
         and nps_gain >= minimum_nps_gain
         and depth_gain >= minimum_depth_gain
     )
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "inputs": {
             "candidate": {
                 "path": str(candidate_path.resolve()),
@@ -373,6 +385,8 @@ def summarize(
             "inactive_positions": inactive_positions,
             "nonrepeatable_positions": nonrepeatable_positions,
             "missing_throughput_positions": missing_throughput_positions,
+            "identical_tree_positions": len(rows) - len(divergent_positions),
+            "divergent_positions": divergent_positions,
         },
         "positions": rows,
         "thresholds": {
@@ -401,6 +415,11 @@ def summarize(
             "all_positions_report_throughput": {
                 "passed": not missing_throughput_positions,
                 "failed_positions": missing_throughput_positions,
+            },
+            "identical_tree": {
+                "required": require_identical_tree,
+                "passed": not require_identical_tree or not divergent_positions,
+                "failed_positions": divergent_positions,
             },
             "candidate_expected_moves": {
                 "passed": not candidate_failures,
@@ -448,6 +467,12 @@ def main() -> int:
     parser.add_argument("--minimum-reduction", type=float, default=0.0)
     parser.add_argument("--minimum-nps-gain", type=float, default=-2.0)
     parser.add_argument("--minimum-depth-gain", type=float, default=-0.25)
+    parser.add_argument(
+        "--require-identical-tree",
+        action="store_true",
+        help="fail unless every position searches the same tree to the same "
+        "result, which is what a preparatory patch claims",
+    )
     parser.add_argument("--timeout", type=float, default=30.0)
     parser.add_argument("--summary-json", type=Path)
     parser.add_argument("--check", action="store_true")
@@ -511,6 +536,7 @@ def main() -> int:
             args.samples,
             args.move_time_ms,
             provenance,
+            args.require_identical_tree,
         )
     except (OSError, RuntimeError, TimeoutError, ValueError) as error:
         print(f"measure_search_efficiency: {error}", file=sys.stderr)
@@ -519,6 +545,7 @@ def main() -> int:
     print(
         f"positions={len(rows)} active={summary['metrics']['active_positions']} "
         f"repeatable={summary['metrics']['repeatable_positions']} "
+        f"identical={summary['metrics']['identical_tree_positions']} "
         f"node-reduction={summary['metrics']['geometric_node_reduction_percent']:.3f}% "
         f"nps-gain={summary['metrics']['geometric_nps_gain_percent']:.3f}% "
         f"depth-gain={summary['metrics']['mean_completed_depth_gain']:.3f}"

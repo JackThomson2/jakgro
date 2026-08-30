@@ -187,6 +187,100 @@ class SearchEfficiencyTests(unittest.TestCase):
         self.assertEqual(summary["metrics"]["nonrepeatable_positions"], ["start"])
         self.assertFalse(summary["passed"])
 
+    def test_identical_tree_is_only_required_when_asked(self) -> None:
+        """A preparatory patch claims speed alone; this is what checks it.
+
+        The same rows are summarized twice. A patch that searched a smaller
+        tree is a perfectly good ordinary patch and must still pass, so the
+        gate reports its finding either way and only fails the run when the
+        caller declared the claim.
+        """
+        fixture = measure_style.Fixture(
+            "start",
+            "initiative",
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            100,
+            {100: frozenset({"e2e4"})},
+        )
+        rows = measure_search_efficiency.measure_rows(
+            FakeEngine(80, nps=1_200, timed_depth=6),
+            FakeEngine(100, nps=1_000, timed_depth=5),
+            [fixture],
+            aggression=100,
+            depth=4,
+        )
+
+        def summarize(require: bool) -> dict[str, Any]:
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                candidate = root / "candidate"
+                baseline = root / "baseline"
+                suite = root / "suite.epd"
+                candidate.write_bytes(b"candidate")
+                baseline.write_bytes(b"baseline")
+                suite.write_text("suite\n", encoding="utf-8")
+                return measure_search_efficiency.summarize(
+                    rows,
+                    candidate,
+                    baseline,
+                    suite,
+                    aggression=100,
+                    depth=4,
+                    minimum_reduction=-100.0,
+                    require_identical_tree=require,
+                )
+
+        unrequired = summarize(False)
+        self.assertTrue(unrequired["gates"]["identical_tree"]["passed"])
+        self.assertTrue(unrequired["passed"])
+        self.assertEqual(unrequired["metrics"]["divergent_positions"], ["start"])
+
+        required = summarize(True)
+        self.assertFalse(required["gates"]["identical_tree"]["passed"])
+        self.assertEqual(required["gates"]["identical_tree"]["failed_positions"], ["start"])
+        self.assertFalse(required["passed"])
+
+    def test_identical_tree_passes_when_only_speed_changed(self) -> None:
+        fixture = measure_style.Fixture(
+            "start",
+            "initiative",
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            100,
+            {100: frozenset({"e2e4"})},
+        )
+        rows = measure_search_efficiency.measure_rows(
+            FakeEngine(100, nps=1_200),
+            FakeEngine(100, nps=1_000),
+            [fixture],
+            aggression=100,
+            depth=4,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            candidate = root / "candidate"
+            baseline = root / "baseline"
+            suite = root / "suite.epd"
+            candidate.write_bytes(b"candidate")
+            baseline.write_bytes(b"baseline")
+            suite.write_text("suite\n", encoding="utf-8")
+            summary = measure_search_efficiency.summarize(
+                rows,
+                candidate,
+                baseline,
+                suite,
+                aggression=100,
+                depth=4,
+                minimum_reduction=0.0,
+                minimum_depth_gain=0.0,
+                require_identical_tree=True,
+            )
+
+        self.assertTrue(summary["gates"]["identical_tree"]["passed"])
+        self.assertEqual(summary["metrics"]["divergent_positions"], [])
+        self.assertEqual(summary["metrics"]["geometric_node_reduction_percent"], 0.0)
+        self.assertEqual(summary["metrics"]["geometric_nps_gain_percent"], 20.0)
+        self.assertTrue(summary["passed"])
+
 
 class StrengthPersonalityGateTests(unittest.TestCase):
     def write_json(self, path: Path, value: object) -> None:

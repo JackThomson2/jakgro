@@ -518,7 +518,7 @@ struct GameRecord {
     black: String,
     result: GameResult,
     termination: &'static str,
-    san_moves: Vec<String>,
+    moves: Vec<PlayedMove>,
     fault: Option<Fault>,
 }
 
@@ -570,7 +570,7 @@ fn run_match(config: &MatchConfig) -> Result<MatchReport, String> {
                             black: black.clone(),
                             result: played.result,
                             termination: played.termination,
-                            san_moves: played.san_moves,
+                            moves: played.moves,
                             fault: played.fault,
                         };
                         if let Ok(mut guard) = records.lock() {
@@ -643,8 +643,24 @@ fn summarize(config: &MatchConfig, records: &[GameRecord]) -> MatchReport {
 struct PlayedGame {
     result: GameResult,
     termination: &'static str,
-    san_moves: Vec<String>,
+    moves: Vec<PlayedMove>,
     fault: Option<Fault>,
+}
+
+/// One played move together with what the engine reported when it chose it.
+///
+/// The score and depth travel with the move rather than beside it because a
+/// game ends at nine different points in `play_game`, and two parallel vectors
+/// would have nine opportunities to fall out of step. The offline fitter reads
+/// these back as position labels, so a move paired with the previous move's
+/// score is not a lesser bug than a missing one.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct PlayedMove {
+    san: String,
+    /// Centipawns from the perspective of the side that played the move, which
+    /// is the convention `cutechess-cli` writes and readers expect.
+    score: Option<i32>,
+    depth: Option<u32>,
 }
 
 /// Per-game clock state for a fixed time control.
@@ -832,14 +848,14 @@ fn play_game<'a>(
             return PlayedGame {
                 result: GameResult::Draw,
                 termination: "invalid opening",
-                san_moves: Vec::new(),
+                moves: Vec::new(),
                 fault: None,
             };
         }
     };
     let mut history: Vec<Board> = Vec::new();
     let mut uci_moves: Vec<String> = Vec::new();
-    let mut san_moves: Vec<String> = Vec::new();
+    let mut moves: Vec<PlayedMove> = Vec::new();
     let mut scores = ScoreHistory::default();
     let mut clocks = match config.limit {
         Limit::Clock { base, increment } => Clocks {
@@ -862,7 +878,7 @@ fn play_game<'a>(
             return PlayedGame {
                 result,
                 termination,
-                san_moves,
+                moves,
                 fault: None,
             };
         }
@@ -870,7 +886,7 @@ fn play_game<'a>(
             return PlayedGame {
                 result: GameResult::Draw,
                 termination: "adjudication: move limit",
-                san_moves,
+                moves,
                 fault: None,
             };
         }
@@ -897,7 +913,7 @@ fn play_game<'a>(
                 return PlayedGame {
                     result: GameResult::loss_for(mover),
                     termination: fault.kind,
-                    san_moves,
+                    moves,
                     fault: Some(fault),
                 };
             }
@@ -908,7 +924,7 @@ fn play_game<'a>(
             return PlayedGame {
                 result: GameResult::loss_for(mover),
                 termination: fault.kind,
-                san_moves,
+                moves,
                 fault: Some(fault),
             };
         };
@@ -918,7 +934,7 @@ fn play_game<'a>(
             return PlayedGame {
                 result: GameResult::loss_for(mover),
                 termination: fault.kind,
-                san_moves,
+                moves,
                 fault: Some(fault),
             };
         }
@@ -932,13 +948,17 @@ fn play_game<'a>(
             return PlayedGame {
                 result: GameResult::loss_for(mover),
                 termination: fault.kind,
-                san_moves,
+                moves,
                 fault: Some(fault),
             };
         }
 
         scores.record(mover, outcome.score);
-        san_moves.push(display_san_move(&board, chess_move).to_string());
+        moves.push(PlayedMove {
+            san: display_san_move(&board, chess_move).to_string(),
+            score: outcome.score,
+            depth: outcome.depth,
+        });
         uci_moves.push(display_uci_move(&board, chess_move).to_string());
         let fullmove = u32::from(board.fullmove_number());
         history.push(board.clone());
@@ -948,7 +968,7 @@ fn play_game<'a>(
             return PlayedGame {
                 result: GameResult::loss_for(resigning),
                 termination: "adjudication: resignation",
-                san_moves,
+                moves,
                 fault: None,
             };
         }
@@ -956,7 +976,7 @@ fn play_game<'a>(
             return PlayedGame {
                 result: GameResult::Draw,
                 termination: "adjudication: drawn score",
-                san_moves,
+                moves,
                 fault: None,
             };
         }
@@ -998,6 +1018,7 @@ fn go_command(limit: Limit, clocks: Clocks) -> String {
 struct SearchOutcome {
     best_move: String,
     score: Option<i32>,
+    depth: Option<u32>,
     elapsed: Duration,
 }
 
@@ -1013,6 +1034,13 @@ fn parse_info_score(line: &str) -> Option<i32> {
         }),
         _ => None,
     }
+}
+
+/// Extracts the completed depth from an `info` line, if it reports one.
+fn parse_info_depth(line: &str) -> Option<u32> {
+    let tokens = line.split_whitespace().collect::<Vec<_>>();
+    let index = tokens.iter().position(|token| *token == "depth")?;
+    tokens.get(index + 1)?.parse::<u32>().ok()
 }
 
 /// Extracts the move from a `bestmove` line.
@@ -1191,12 +1219,19 @@ impl<'a> Engine<'a> {
         self.send(go)?;
         let deadline = started + allowance;
         let mut score = None;
+        let mut depth = None;
         loop {
             let line = self.read_line(deadline)?;
             let trimmed = line.trim();
             if trimmed.starts_with("info ") {
+                // Both are taken from whichever `info` line reported them last,
+                // which is the deepest completed iteration and so the estimate
+                // the engine actually acted on.
                 if let Some(value) = parse_info_score(trimmed) {
                     score = Some(value);
+                }
+                if let Some(value) = parse_info_depth(trimmed) {
+                    depth = Some(value);
                 }
                 continue;
             }
@@ -1210,6 +1245,7 @@ impl<'a> Engine<'a> {
                 return Ok(SearchOutcome {
                     best_move,
                     score,
+                    depth,
                     elapsed,
                 });
             }
@@ -1247,7 +1283,7 @@ fn render_game(event: &str, record: &GameRecord) -> String {
     let _ = writeln!(text, "[Result \"{}\"]", record.result.pgn());
     let _ = writeln!(text, "[FEN \"{}\"]", escape_header(&record.fen));
     let _ = writeln!(text, "[SetUp \"1\"]");
-    let _ = writeln!(text, "[PlyCount \"{}\"]", record.san_moves.len());
+    let _ = writeln!(text, "[PlyCount \"{}\"]", record.moves.len());
     let _ = writeln!(
         text,
         "[Termination \"{}\"]",
@@ -1262,6 +1298,28 @@ fn render_game(event: &str, record: &GameRecord) -> String {
 
 fn escape_header(value: &str) -> String {
     value.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+/// Renders one move's `{score/depth}` comment, if the engine reported a score.
+///
+/// The form is the one `cutechess-cli` writes and every PGN reader already
+/// understands: pawns to two decimal places, always signed, from the moving
+/// side's perspective, then the completed depth. A mate score is written in the
+/// centipawn magnitude the arbiter assigned it rather than as `#N`, because the
+/// fitter reads these back through a sigmoid and a mate is simply a very large
+/// score there; a reader wanting mate distance has the score's distance from
+/// [`MATE_SCORE_CP`].
+///
+/// A move with no score is emitted bare rather than with an empty comment, so a
+/// search that reported nothing stays distinguishable from one that reported
+/// zero.
+fn move_comment(played: &PlayedMove) -> Option<String> {
+    let score = played.score?;
+    let pawns = f64::from(score) / 100.0;
+    Some(match played.depth {
+        Some(depth) => format!("{{{pawns:+.2}/{depth}}}"),
+        None => format!("{{{pawns:+.2}}}"),
+    })
 }
 
 /// Renders numbered movetext ending in the result token, wrapped for PGN.
@@ -1280,16 +1338,19 @@ fn render_movetext(record: &GameRecord) -> String {
     let mut tokens = Vec::new();
     let mut number = first_number;
     let mut black_to_move = black_first;
-    for san in &record.san_moves {
+    for played in &record.moves {
         if black_to_move {
             if tokens.is_empty() {
                 tokens.push(format!("{number}..."));
             }
-            tokens.push(san.clone());
+            tokens.push(played.san.clone());
             number += 1;
         } else {
             tokens.push(format!("{number}."));
-            tokens.push(san.clone());
+            tokens.push(played.san.clone());
+        }
+        if let Some(comment) = move_comment(played) {
+            tokens.push(comment);
         }
         black_to_move = !black_to_move;
     }
@@ -1366,11 +1427,11 @@ fn results_json(config: &MatchConfig, report: &MatchReport) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        Adjudication, Clocks, GameRecord, GameResult, Limit, Opening, ScoreHistory, charge_clock,
-        draw_adjudicated, engine_names, go_command, is_insufficient_material,
-        is_threefold_repetition, parse_best_move, parse_info_score, parse_openings,
-        parse_time_control, position_command, render_movetext, resign_adjudicated,
-        terminal_outcome,
+        Adjudication, Clocks, GameRecord, GameResult, Limit, MATE_SCORE_CP, Opening, PlayedMove,
+        ScoreHistory, charge_clock, draw_adjudicated, engine_names, go_command,
+        is_insufficient_material, is_threefold_repetition, move_comment, parse_best_move,
+        parse_info_depth, parse_info_score, parse_openings, parse_time_control, position_command,
+        render_movetext, resign_adjudicated, terminal_outcome,
     };
     use cozy_chess::util::parse_uci_move;
     use cozy_chess::{Board, Color};
@@ -1489,6 +1550,17 @@ mod tests {
             Some(-(super::MATE_SCORE_CP - 4))
         );
         assert_eq!(parse_info_score("info depth 5 nodes 10"), None);
+        assert_eq!(
+            parse_info_depth("info depth 5 score cp -37 nodes 10 pv e2e4"),
+            Some(5)
+        );
+        // `seldepth` must not be mistaken for the completed depth, and a line
+        // carrying neither reports nothing rather than zero.
+        assert_eq!(
+            parse_info_depth("info depth 12 seldepth 30 score cp 4"),
+            Some(12)
+        );
+        assert_eq!(parse_info_depth("info nodes 10 nps 1000"), None);
         assert_eq!(
             parse_best_move("bestmove e2e4 ponder e7e5"),
             Some("e2e4".to_owned())
@@ -1688,6 +1760,60 @@ mod tests {
         assert!(is_threefold_repetition(&history, &board));
     }
 
+    /// A move with no reported score, for tests about numbering rather than
+    /// annotation.
+    fn unscored_move(san: &str) -> PlayedMove {
+        PlayedMove {
+            san: san.to_owned(),
+            score: None,
+            depth: None,
+        }
+    }
+
+    #[test]
+    fn scored_moves_are_annotated_in_pawns_from_the_mover_perspective() {
+        let record = GameRecord {
+            round: 1,
+            opening: "start".to_owned(),
+            fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".to_owned(),
+            white: "A".to_owned(),
+            black: "B".to_owned(),
+            result: GameResult::WhiteWin,
+            termination: "checkmate",
+            moves: vec![
+                PlayedMove {
+                    san: "e4".to_owned(),
+                    score: Some(31),
+                    depth: Some(12),
+                },
+                PlayedMove {
+                    san: "e5".to_owned(),
+                    score: Some(-8),
+                    depth: Some(11),
+                },
+                // A search that reported a depth but no score stays bare, so a
+                // silent search is distinguishable from one that scored zero.
+                unscored_move("Nf3"),
+            ],
+            fault: None,
+        };
+
+        let movetext = render_movetext(&record);
+
+        assert_eq!(movetext, "1. e4 {+0.31/12} e5 {-0.08/11} 2. Nf3 1-0\n");
+    }
+
+    #[test]
+    fn a_mate_score_is_annotated_in_the_magnitude_the_arbiter_assigned() {
+        let played = PlayedMove {
+            san: "Qf7#".to_owned(),
+            score: Some(MATE_SCORE_CP - 2),
+            depth: Some(6),
+        };
+
+        assert_eq!(move_comment(&played).unwrap(), "{+299.98/6}");
+    }
+
     #[test]
     fn movetext_numbers_from_the_opening_side_and_ends_with_the_result() {
         let white_first = GameRecord {
@@ -1698,13 +1824,13 @@ mod tests {
             black: "B".to_owned(),
             result: GameResult::WhiteWin,
             termination: "checkmate",
-            san_moves: vec!["e4".to_owned(), "e5".to_owned(), "Nf3".to_owned()],
+            moves: ["e4", "e5", "Nf3"].map(unscored_move).to_vec(),
             fault: None,
         };
         let black_first = GameRecord {
             fen: "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 3".to_owned(),
             result: GameResult::Draw,
-            san_moves: vec!["e5".to_owned(), "Nf3".to_owned()],
+            moves: ["e5", "Nf3"].map(unscored_move).to_vec(),
             ..white_first.clone()
         };
 

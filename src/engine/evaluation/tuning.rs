@@ -190,6 +190,61 @@ pub fn normalized(weights: &[(Score, Score)]) -> Vec<(Score, Score)> {
     normalized
 }
 
+/// The middlegame pawn weight every fit is rescaled to land on.
+///
+/// This is the scale the search's margins were last measured against, not a
+/// round number chosen for looking like one. See [`anchored`].
+pub const ANCHOR_MIDDLEGAME_PAWN: Score = 94;
+
+/// Rescales a weight vector so the middlegame pawn lands on the anchor.
+///
+/// A logistic fit determines the evaluation only up to a positive scale: double
+/// every weight and the same positions still rank the same way, and the loss is
+/// recovered exactly by halving `K`. Nothing in the fit pins where along that
+/// ray the answer lands, so each refit lands somewhere new.
+///
+/// Inside the objective evaluation that freedom is harmless, because a uniform
+/// positive scale cannot reorder two scores. It is not harmless outside it,
+/// because several numbers the search compares against an evaluation are fixed
+/// centipawn constants that were tuned against whatever scale was current when
+/// they were measured:
+///
+/// - the reverse-futility and quiet-futility margins, and the aspiration radius;
+/// - the quiescence exchange threshold;
+/// - [`super::piece_value`], a separate hardcoded table driving the swap list;
+/// - and [`super::EvaluationConfig::style_middle_game_cap`], which bounds how
+///   far the personality may move a score.
+///
+/// A refit that shrinks the evaluation by a tenth therefore widens every one of
+/// those margins by a tenth and loosens the personality's cap, silently and
+/// everywhere, having changed no line of search code. The third series' refit
+/// moved the middlegame pawn from a round hundred to 94 and nothing recorded it.
+///
+/// Anchoring removes the freedom rather than compensating for it: the scale is
+/// held where the margins were calibrated, so a later fit is free to change what
+/// the evaluation *believes* without changing what the search's constants
+/// *mean*. Moving the anchor is then a deliberate, separately measurable change
+/// rather than a side effect of refitting.
+#[must_use]
+pub fn anchored(weights: &[(Score, Score)]) -> Vec<(Score, Score)> {
+    let pawn = weights[material_feature(Piece::Pawn).expect("the pawn has a material weight")].0;
+    if pawn <= 0 {
+        // A fit that made a pawn worthless has failed in a way rescaling cannot
+        // repair, and dividing by it would only hide that.
+        return weights.to_vec();
+    }
+    weights
+        .iter()
+        .map(|&(middle_game, end_game)| (rescale(middle_game, pawn), rescale(end_game, pawn)))
+        .collect()
+}
+
+/// Scales one weight by the anchor ratio, rounding half away from zero.
+fn rescale(weight: Score, pawn: Score) -> Score {
+    let scaled = f64::from(weight) * f64::from(ANCHOR_MIDDLEGAME_PAWN) / f64::from(pawn);
+    scaled.round() as Score
+}
+
 /// Returns the scalar feature holding a piece's material weight, if it has one.
 const fn material_feature(piece: Piece) -> Option<usize> {
     match piece {
@@ -205,7 +260,8 @@ const fn material_feature(piece: Piece) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::{
-        FEATURE_COUNT, PLACEMENT_OFFSET, Piece, Score, current_weights, normalized, tuning_features,
+        ANCHOR_MIDDLEGAME_PAWN, FEATURE_COUNT, PLACEMENT_OFFSET, Piece, Score, anchored,
+        current_weights, normalized, tuning_features,
     };
     use crate::engine::Position;
     use crate::engine::evaluation::{EvaluationConfig, MIN_AGGRESSION, weights};
@@ -271,6 +327,72 @@ mod tests {
             published,
             "re-centring moved the shipped weights, so a mean has crept back in",
         );
+    }
+
+    /// The anchor is a no-op on the shipped weights, which define it.
+    #[test]
+    fn the_shipped_weights_are_already_anchored() {
+        let published = current_weights();
+
+        assert_eq!(
+            published[0].0, ANCHOR_MIDDLEGAME_PAWN,
+            "the anchor no longer describes the shipped middlegame pawn",
+        );
+        assert_eq!(
+            anchored(&published),
+            published,
+            "anchoring moved the shipped weights",
+        );
+    }
+
+    /// A fit landing on a different scale is pulled back onto the anchor.
+    ///
+    /// This is the case the anchor exists for: the logistic fit is invariant
+    /// under a positive scale, so a refit can land anywhere along the ray, and
+    /// the search's fixed centipawn margins would silently change meaning.
+    #[test]
+    fn a_rescaled_fit_is_pulled_back_onto_the_anchor() {
+        let published = current_weights();
+        let inflated: Vec<(Score, Score)> = published
+            .iter()
+            .map(|&(middle_game, end_game)| (middle_game * 3, end_game * 3))
+            .collect();
+
+        let restored = anchored(&inflated);
+
+        assert_eq!(restored[0].0, ANCHOR_MIDDLEGAME_PAWN);
+        assert_eq!(
+            restored, published,
+            "an exactly tripled fit should divide back onto the published scale",
+        );
+    }
+
+    /// Anchoring cannot reorder two positions, which is why it is safe to apply.
+    #[test]
+    fn anchoring_preserves_the_ranking_of_every_position() {
+        let published = current_weights();
+        let inflated: Vec<(Score, Score)> = published
+            .iter()
+            .map(|&(middle_game, end_game)| (middle_game * 7 / 2, end_game * 7 / 2))
+            .collect();
+        let restored = anchored(&inflated);
+
+        let mut scores = Vec::new();
+        for fen in POSITIONS {
+            let position = Position::from_fen(fen).unwrap();
+            let vector = tuning_features(position.board());
+            scores.push((vector.score(&inflated), vector.score(&restored)));
+        }
+
+        for (index, left) in scores.iter().enumerate() {
+            for right in &scores[index + 1..] {
+                assert_eq!(
+                    left.0.cmp(&right.0),
+                    left.1.cmp(&right.1),
+                    "anchoring reordered two positions",
+                );
+            }
+        }
     }
 
     /// Re-centring moves weight between the tables and the material values

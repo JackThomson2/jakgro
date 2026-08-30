@@ -42,8 +42,8 @@ use std::process::ExitCode;
 
 use cozy_chess::{Board, Piece};
 use jakgro::engine::tuning::{
-    FEATURE_COUNT, MAX_PHASE, PLACEMENT_OFFSET, SCALAR_FEATURES, TuningPosition, current_weights,
-    normalized, tuning_features,
+    FEATURE_COUNT, MAX_PHASE, PLACEMENT_OFFSET, SCALAR_FEATURES, TuningPosition, anchored,
+    current_weights, normalized, tuning_features,
 };
 
 /// Scaling constant relating a centipawn score to a winning probability.
@@ -488,11 +488,14 @@ fn fit(arguments: &[String]) -> Result<(), String> {
             observations[index as usize] += 1;
         }
     }
-    let anchored: Vec<bool> = observations
+    let held_at_published: Vec<bool> = observations
         .iter()
         .map(|&count| count < min_observations)
         .collect();
-    let pinned = anchored.iter().filter(|&&is_pinned| is_pinned).count();
+    let pinned = held_at_published
+        .iter()
+        .filter(|&&is_pinned| is_pinned)
+        .count();
 
     let start_weights = weights.clone();
     println!(
@@ -529,7 +532,7 @@ fn fit(arguments: &[String]) -> Result<(), String> {
         &training,
         &mut weights,
         &start_weights,
-        &anchored,
+        &held_at_published,
         k,
         epochs,
         rate,
@@ -550,8 +553,36 @@ fn fit(arguments: &[String]) -> Result<(), String> {
             )
         })
         .collect();
-    let final_weights = normalized(&rounded);
-    verify_round_trip(&samples, &rounded, &final_weights);
+    // Centre the tables, then pull the whole vector back onto the scale the
+    // search's fixed margins were measured against. The fit is invariant under a
+    // positive scale, so without the anchor each refit quietly re-calibrates
+    // every futility margin, the swap-list piece values, and the personality's
+    // style cap.
+    let centred = normalized(&rounded);
+    if centred[0].0 <= 0 {
+        // Anchoring cannot rescue this and must not try: dividing by a
+        // non-positive pawn would flip the sign of every weight. A fit that
+        // decided a pawn is worth nothing has failed, and an unregularised run
+        // on a small corpus reaches -9 readily, so this is a real outcome rather
+        // than a defensive impossibility.
+        return Err(format!(
+            "the fit put the middlegame pawn at {}, so the scale is meaningless; \
+             raise --l2 or --min-observations, or fit a larger corpus",
+            centred[0].0,
+        ));
+    }
+    let final_weights = anchored(&centred);
+    println!(
+        "fit: middlegame pawn {} fitted, {} after anchoring",
+        centred[0].0, final_weights[0].0,
+    );
+
+    // The two steps guarantee different things and are checked separately.
+    // Re-centring moves weight between the tables and the material values and
+    // must not move a score at all. Anchoring scales every score on purpose, so
+    // what it must preserve is the order.
+    verify_round_trip(&samples, &rounded, &centred);
+    verify_anchor_preserves_order(&samples, &centred, &final_weights);
 
     fs::write(out, render_source(&final_weights)).map_err(|error| format!("{out}: {error}"))?;
     println!("fit: wrote {out}");
@@ -600,7 +631,7 @@ fn adam(
     samples: &[&Sample],
     weights: &mut [f64],
     start: &[f64],
-    anchored: &[bool],
+    held_at_published: &[bool],
     k: f64,
     epochs: usize,
     rate: f64,
@@ -634,7 +665,7 @@ fn adam(
         let correction1 = 1.0 - BETA1.powi(epoch as i32);
         let correction2 = 1.0 - BETA2.powi(epoch as i32);
         for index in 0..weights.len() {
-            if anchored[index % FEATURE_COUNT] {
+            if held_at_published[index % FEATURE_COUNT] {
                 weights[index] = start[index];
                 continue;
             }
@@ -669,6 +700,49 @@ fn verify_round_trip(samples: &[Sample], before: &[(i32, i32)], after: &[(i32, i
     assert!(
         worst <= 1,
         "re-centring moved a score by {worst} centipawns, which it must not",
+    );
+}
+
+/// Checks that anchoring rescaled every score without reordering any two.
+///
+/// Anchoring multiplies the whole vector by a constant, so scores change and
+/// must; what cannot change is which of two positions the evaluation prefers.
+/// Rounding each weight to an integer is what makes this worth checking rather
+/// than assuming: a genuine uniform scale could not reorder anything, but a
+/// rounded one can, and only for positions the evaluation already considers
+/// near-equal.
+fn verify_anchor_preserves_order(samples: &[Sample], before: &[(i32, i32)], after: &[(i32, i32)]) {
+    let scored: Vec<(i32, i32)> = samples
+        .iter()
+        .take(4_000)
+        .map(|sample| {
+            let position = TuningPosition {
+                entries: sample.entries.clone(),
+                phase: (sample.middle_game_share * f64::from(MAX_PHASE)).round() as i32,
+            };
+            (position.score(before), position.score(after))
+        })
+        .collect();
+
+    let mut inversions = 0_usize;
+    let mut comparisons = 0_usize;
+    for (index, left) in scored.iter().enumerate() {
+        for right in &scored[index + 1..] {
+            comparisons += 1;
+            if left.0.cmp(&right.0) != left.1.cmp(&right.1) {
+                inversions += 1;
+            }
+        }
+    }
+
+    // A handful of ties broken differently is rounding, not a defect. A
+    // meaningful share would mean the anchor ratio is extreme enough that
+    // integer weights can no longer represent the fit.
+    let limit = comparisons / 1_000;
+    assert!(
+        inversions <= limit,
+        "anchoring reordered {inversions} of {comparisons} position pairs, above the \
+         {limit} rounding allows",
     );
 }
 

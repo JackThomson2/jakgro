@@ -204,7 +204,9 @@ const fn material_feature(piece: Piece) -> Option<usize> {
 
 #[cfg(test)]
 mod tests {
-    use super::{FEATURE_COUNT, current_weights, normalized, tuning_features};
+    use super::{
+        FEATURE_COUNT, PLACEMENT_OFFSET, Piece, Score, current_weights, normalized, tuning_features,
+    };
     use crate::engine::Position;
     use crate::engine::evaluation::{EvaluationConfig, MIN_AGGRESSION, weights};
 
@@ -246,17 +248,58 @@ mod tests {
         }
     }
 
+    /// The shipped weights are already centred, so re-centring is a no-op.
+    ///
+    /// This was previously asserted the other way round, as a guard that the
+    /// published tables still had a mean to fold out. That guard described the
+    /// PeSTO tables the engine shipped before the evaluation refit; the refit
+    /// adopted the output of `normalized`, which made the guard false and left
+    /// the test failing on every checkout. It only ever ran under the `tuning`
+    /// feature, which the default `cargo test` does not enable, so nothing said
+    /// so.
+    ///
+    /// Centredness is the more useful property to pin anyway: it is what makes
+    /// each material weight say only what a piece is worth and each table say
+    /// only where it belongs, and a later fit that quietly reintroduced a mean
+    /// would be a real regression.
+    #[test]
+    fn the_shipped_weights_are_already_centred() {
+        let published = current_weights();
+
+        assert_eq!(
+            normalized(&published),
+            published,
+            "re-centring moved the shipped weights, so a mean has crept back in",
+        );
+    }
+
     /// Re-centring moves weight between the tables and the material values
     /// without moving any score.
     #[test]
     fn normalization_preserves_every_score() {
-        let before = current_weights();
-        let after = normalized(&before);
-        assert_ne!(
-            before, after,
-            "the published tables are not already centred"
-        );
+        // Offset every knight square by a constant to build a deliberately
+        // uncentred set. The shipped weights are centred, so normalizing them
+        // exercises none of the arithmetic this test exists to check; a constant
+        // added to one piece's table is exactly the mean `normalized` should
+        // fold back into that piece's material weight.
+        const OFFSET: Score = 7;
+        let mut before = current_weights();
+        let knight = PLACEMENT_OFFSET + Piece::Knight as usize * 64;
+        for entry in &mut before[knight..knight + 64] {
+            entry.0 += OFFSET;
+            entry.1 += OFFSET;
+        }
 
+        let after = normalized(&before);
+        assert_ne!(before, after, "the offset tables were left uncentred");
+
+        // Deliberately not asserting that this recovers the shipped weights.
+        // The mean is an integer division, so folding 7 back out of a table
+        // whose own mean already truncates leaves a residue of a centipawn per
+        // square — knight material lands on 336 rather than 330. Score
+        // preservation is exact anyway, and it is the property that matters:
+        // subtracting m from each of a piece's squares and adding m to its
+        // material cannot move a score whatever m is.
         for fen in POSITIONS {
             let position = Position::from_fen(fen).unwrap();
             let vector = tuning_features(position.board());

@@ -13,12 +13,27 @@
 //!
 //! ```text
 //! tune extract --pgn <file>... --out positions.txt [--skip-plies N]
-//! tune fit --positions positions.txt --out weights.txt [--epochs N] [--seed N]
+//! tune fit --positions positions.txt --out weights.txt [--epochs N] [--lambda F]
 //! ```
 //!
 //! `extract` replays games and writes the quiet positions worth learning from,
-//! labelled by the result of the game they came from. `fit` reads those, turns
+//! labelled by the result of the game they came from and, where the PGN records
+//! one, by the score the engine reported when it moved. `fit` reads those, turns
 //! each into a feature vector once, and runs Adam over the whole corpus.
+//!
+//! The label `fit` optimises against is
+//!
+//! ```text
+//! label = lambda * outcome + (1 - lambda) * sigmoid(score / K)
+//! ```
+//!
+//! A game result is a very noisy label for a single position, because a won game
+//! is full of positions that were not winning; the engine's own estimate is less
+//! noisy but only as good as the evaluation being fitted. `--lambda` picks the
+//! mixture and defaults to 1.0, the game result alone, which is what every fit
+//! before this one used. The score is kept in the corpus rather than folded into
+//! a label at extraction time so the mixture can be screened without paying for
+//! extraction again.
 
 use std::collections::HashSet;
 use std::fmt::Write as _;
@@ -46,6 +61,10 @@ struct Sample {
     middle_game_share: f64,
     /// Result from White's perspective: 1.0, 0.5 or 0.0.
     outcome: f64,
+    /// White-relative centipawns the engine reported here, where recorded.
+    search_score: Option<f64>,
+    /// The label actually fitted against, once `--lambda` has been applied.
+    label: f64,
 }
 
 impl Sample {
@@ -83,7 +102,8 @@ fn main() -> ExitCode {
 const USAGE: &str = "\
 usage:
   tune extract --pgn <file>... --out <positions> [--skip-plies N] [--max-positions N]
-  tune fit --positions <file> --out <weights> [--epochs N] [--rate F] [--holdout F]";
+  tune fit --positions <file> --out <weights> [--epochs N] [--rate F] [--holdout F]
+                                              [--lambda F] [--l2 F] [--min-observations N]";
 
 /// Returns the value following a flag, if the flag is present.
 fn flag<'a>(arguments: &'a [String], name: &str) -> Option<&'a str> {
@@ -122,6 +142,7 @@ fn extract(arguments: &[String]) -> Result<(), String> {
     let mut written = String::new();
     let mut games = 0_usize;
     let mut kept = 0_usize;
+    let mut scored = 0_usize;
 
     for path in &pgns {
         let text = fs::read_to_string(path).map_err(|error| format!("{path}: {error}"))?;
@@ -140,7 +161,25 @@ fn extract(arguments: &[String]) -> Result<(), String> {
                 if ply >= skip_plies && is_learnable(&board, chess_move) {
                     let fen = format!("{board}");
                     if seen.insert(fen.clone()) {
-                        let _ = writeln!(written, "{fen};{outcome}");
+                        // Features are White-positive, so the mover-relative
+                        // score the PGN carries is flipped to match before it is
+                        // ever compared with a weight.
+                        let score = game.scores.get(ply).copied().flatten().map(|score| {
+                            if board.side_to_move() == cozy_chess::Color::White {
+                                score
+                            } else {
+                                -score
+                            }
+                        });
+                        match score {
+                            Some(score) => {
+                                let _ = writeln!(written, "{fen};{outcome};{score}");
+                                scored += 1;
+                            }
+                            None => {
+                                let _ = writeln!(written, "{fen};{outcome}");
+                            }
+                        }
                         kept += 1;
                         if kept >= max_positions {
                             break;
@@ -156,7 +195,10 @@ fn extract(arguments: &[String]) -> Result<(), String> {
     }
 
     fs::write(out, &written).map_err(|error| format!("{out}: {error}"))?;
-    println!("extract: {games} games, {kept} positions written to {out}");
+    println!(
+        "extract: {games} games, {kept} positions written to {out}, {scored} carrying a search \
+         score"
+    );
     Ok(())
 }
 
@@ -177,6 +219,8 @@ fn is_learnable(board: &Board, chess_move: cozy_chess::Move) -> bool {
 struct Game {
     start: String,
     moves: Vec<String>,
+    /// Centipawns the mover reported for each ply, where the PGN annotated it.
+    scores: Vec<Option<f64>>,
     outcome: Option<f64>,
 }
 
@@ -221,21 +265,85 @@ fn split_games(text: &str) -> Vec<Game> {
 }
 
 fn finish_game(start: &str, movetext: &str, outcome: Option<f64>) -> Game {
+    let mut moves: Vec<String> = Vec::new();
+    let mut scores: Vec<Option<f64>> = Vec::new();
+    let mut token = String::new();
+    let mut comment = String::new();
+    let mut in_comment = false;
+
+    // Comments are attached to the move they follow, so the scan cannot be a
+    // `split_whitespace` filter: a `{...}` may contain spaces, and dropping it
+    // token by token would lose which move it described.
+    let flush = |token: &mut String, moves: &mut Vec<String>, scores: &mut Vec<_>| {
+        if is_move_token(token) {
+            moves.push(std::mem::take(token));
+            scores.push(None);
+        } else {
+            token.clear();
+        }
+    };
+    for character in movetext.chars() {
+        if in_comment {
+            if character == '}' {
+                in_comment = false;
+                if let Some(last) = scores.last_mut() {
+                    *last = comment_score(&comment);
+                }
+                comment.clear();
+            } else {
+                comment.push(character);
+            }
+            continue;
+        }
+        match character {
+            '{' => {
+                flush(&mut token, &mut moves, &mut scores);
+                in_comment = true;
+            }
+            character if character.is_whitespace() => {
+                flush(&mut token, &mut moves, &mut scores);
+            }
+            character => token.push(character),
+        }
+    }
+    flush(&mut token, &mut moves, &mut scores);
+
     Game {
         start: start.to_owned(),
-        moves: movetext
-            .split_whitespace()
-            .filter(|token| {
-                !token.is_empty()
-                    && !token.ends_with('.')
-                    && !token.starts_with('$')
-                    && result_value(token).is_none()
-                    && token.chars().next().is_some_and(char::is_alphabetic)
-            })
-            .map(str::to_owned)
-            .collect(),
+        moves,
+        scores,
         outcome,
     }
+}
+
+/// Reports whether a movetext token is a move rather than punctuation.
+fn is_move_token(token: &str) -> bool {
+    !token.is_empty()
+        && !token.ends_with('.')
+        && !token.starts_with('$')
+        && result_value(token).is_none()
+        && token.chars().next().is_some_and(char::is_alphabetic)
+}
+
+/// Extracts the centipawn score from a `{+0.31/12}` comment, if it carries one.
+///
+/// The comment is written in pawns from the mover's perspective, which is the
+/// convention `cutechess-cli` and this repository's arbiter share. Anything else
+/// inside the braces — a termination note, a clock reading — yields nothing
+/// rather than a wrong number.
+fn comment_score(comment: &str) -> Option<f64> {
+    let text = comment.trim();
+    let value = text.split('/').next()?.trim();
+    if !value.starts_with('+') && !value.starts_with('-') {
+        return None;
+    }
+    // Rounded because the source is centipawns rendered to two decimal places,
+    // so the product is integral up to binary floating-point error, and writing
+    // `-7.000000000000001` into the corpus helps nobody read it.
+    value
+        .parse::<f64>()
+        .ok()
+        .map(|pawns| (pawns * 100.0).round())
 }
 
 fn tag_value(tag: &str, name: &str) -> Option<String> {
@@ -275,21 +383,37 @@ fn fit(arguments: &[String]) -> Result<(), String> {
     let holdout: f64 = parse_flag(arguments, "--holdout", 0.1)?;
     let l2: f64 = parse_flag(arguments, "--l2", 2e-4)?;
     let min_observations: u64 = parse_flag(arguments, "--min-observations", 2_000)?;
+    // 1.0 is the game result alone, which is what every fit before this one
+    // used. Lower values mix in the engine's own estimate for the position.
+    let lambda: f64 = parse_flag(arguments, "--lambda", 1.0)?;
+    if !(0.0..=1.0).contains(&lambda) {
+        return Err(format!("--lambda expects a value in [0, 1], got {lambda}"));
+    }
 
     let text = fs::read_to_string(positions).map_err(|error| format!("{positions}: {error}"))?;
     let mut samples = Vec::new();
     for line in text.lines() {
-        let Some((fen, outcome)) = line.rsplit_once(';') else {
+        // Two forms are accepted. `fen;outcome` is what every corpus written
+        // before search scores were recorded contains, and stays readable;
+        // `fen;outcome;score` carries the mover's own estimate as well.
+        let mut fields = line.split(';');
+        let (Some(fen), Some(outcome)) = (fields.next(), fields.next()) else {
             continue;
         };
         let (Ok(board), Ok(outcome)) = (fen.parse::<Board>(), outcome.parse::<f64>()) else {
             continue;
         };
+        let search_score = fields
+            .next()
+            .and_then(|score| score.trim().parse::<f64>().ok());
         let vector = tuning_features(&board);
         samples.push(Sample {
             entries: vector.entries,
             middle_game_share: f64::from(vector.phase) / f64::from(MAX_PHASE),
             outcome,
+            search_score,
+            // Replaced below, once K is known.
+            label: outcome,
         });
     }
     if samples.is_empty() {
@@ -303,21 +427,54 @@ fn fit(arguments: &[String]) -> Result<(), String> {
     } else {
         usize::MAX
     };
-    let mut training: Vec<&Sample> = Vec::new();
-    let mut held_out: Vec<&Sample> = Vec::new();
-    for (index, sample) in samples.iter().enumerate() {
-        if holdout_stride != usize::MAX && index % holdout_stride == 0 {
-            held_out.push(sample);
-        } else {
-            training.push(sample);
-        }
-    }
+    let is_held_out = |index: usize| holdout_stride != usize::MAX && index % holdout_stride == 0;
 
     let start = current_weights();
     let mut weights = vec![0.0_f64; 2 * FEATURE_COUNT];
     for (index, &(middle_game, end_game)) in start.iter().enumerate() {
         weights[index] = f64::from(middle_game);
         weights[FEATURE_COUNT + index] = f64::from(end_game);
+    }
+
+    // K is fitted against the game result alone, before any blending, for two
+    // reasons. It keeps the constant comparable with the value other engines
+    // report, which is the whole point of writing it in the Elo-style form; and
+    // blending with a sigmoid whose K was itself fitted to the blended label
+    // would be circular.
+    let k = {
+        let training: Vec<&Sample> = samples
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| !is_held_out(*index))
+            .map(|(_, sample)| sample)
+            .collect();
+        fit_scaling(&training, &weights)
+    };
+
+    let scored = samples
+        .iter()
+        .filter(|sample| sample.search_score.is_some())
+        .count();
+    if lambda < 1.0 {
+        for sample in &mut samples {
+            // A position with no recorded score keeps the pure outcome label.
+            // Blending it toward a score that does not exist would quietly
+            // relabel part of the corpus as a draw.
+            if let Some(score) = sample.search_score {
+                sample.label =
+                    lambda * sample.outcome + (1.0 - lambda) * winning_probability(score, k);
+            }
+        }
+    }
+
+    let mut training: Vec<&Sample> = Vec::new();
+    let mut held_out: Vec<&Sample> = Vec::new();
+    for (index, sample) in samples.iter().enumerate() {
+        if is_held_out(index) {
+            held_out.push(sample);
+        } else {
+            training.push(sample);
+        }
     }
 
     // Count what the corpus actually supports. Adam normalises each parameter by
@@ -338,13 +495,26 @@ fn fit(arguments: &[String]) -> Result<(), String> {
     let pinned = anchored.iter().filter(|&&is_pinned| is_pinned).count();
 
     let start_weights = weights.clone();
-    let k = fit_scaling(&training, &weights);
     println!(
         "fit: {} positions ({} training, {} held out), K = {k:.4}",
         samples.len(),
         training.len(),
         held_out.len(),
     );
+    println!(
+        "fit: lambda {lambda:.2}, {scored} of {} positions carrying a search score",
+        samples.len(),
+    );
+    if lambda < 1.0 {
+        // The label moved, so the loss is against a different target and is not
+        // comparable with a run at another lambda. Only the improvement from
+        // starting to final loss within one run means anything, and only a match
+        // decides between two runs.
+        println!(
+            "fit: losses below are against the blended label and are not comparable \
+             across lambda",
+        );
+    }
     println!(
         "fit: L2 {l2:e} toward the published weights, {pinned} of {FEATURE_COUNT} features held \
          there for fewer than {min_observations} observations",
@@ -412,7 +582,7 @@ fn loss(samples: &[&Sample], weights: &[f64], k: f64) -> f64 {
     let total: f64 = samples
         .iter()
         .map(|sample| {
-            let error = sample.outcome - winning_probability(sample.score(weights), k);
+            let error = sample.label - winning_probability(sample.score(weights), k);
             error * error
         })
         .sum();
@@ -451,7 +621,7 @@ fn adam(
             let probability = winning_probability(sample.score(weights), k);
             // d/ds of (y - sigma(s))^2, with the sigmoid's own derivative folded in.
             let outer =
-                -2.0 * (sample.outcome - probability) * probability * (1.0 - probability) * scale;
+                -2.0 * (sample.label - probability) * probability * (1.0 - probability) * scale;
             let middle_game_share = sample.middle_game_share;
             for &(index, value) in &sample.entries {
                 let value = f64::from(value);
@@ -562,3 +732,70 @@ const SCALAR_NAMES: [&str; SCALAR_FEATURES] = [
     "KING_SHELTER",
     "OPEN_KING_FILE",
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::{comment_score, split_games, winning_probability};
+
+    /// A PGN in the form `selfplay` now writes, wrapped mid-comment.
+    ///
+    /// The wrap is deliberate. Movetext is folded at 79 columns without regard
+    /// for comment boundaries, so a scan that assumed a comment lived on one
+    /// line would mis-associate every score after the first long game.
+    const ANNOTATED: &str = "\
+[FEN \"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1\"]
+[Result \"1-0\"]
+
+1. e4 {+0.31/12} e5 {-0.08/11} 2. Nf3 {+0.35/12}
+Nc6 {-0.11/12} 1-0
+";
+
+    #[test]
+    fn comments_are_paired_with_the_move_they_follow() {
+        let games = split_games(ANNOTATED);
+
+        assert_eq!(games.len(), 1);
+        let game = &games[0];
+        assert_eq!(game.moves, ["e4", "e5", "Nf3", "Nc6"]);
+        assert_eq!(
+            game.scores,
+            [Some(31.0), Some(-8.0), Some(35.0), Some(-11.0)]
+        );
+        assert_eq!(game.outcome, Some(1.0));
+    }
+
+    #[test]
+    fn an_unannotated_game_still_parses_with_no_scores() {
+        let games = split_games("[Result \"1/2-1/2\"]\n\n1. e4 e5 2. Nf3 Nc6 1/2-1/2\n");
+
+        assert_eq!(games.len(), 1);
+        assert_eq!(games[0].moves, ["e4", "e5", "Nf3", "Nc6"]);
+        assert_eq!(games[0].scores, [None, None, None, None]);
+    }
+
+    #[test]
+    fn only_a_signed_leading_value_is_read_as_a_score() {
+        assert_eq!(comment_score("+0.31/12"), Some(31.0));
+        assert_eq!(comment_score("-1.50/8"), Some(-150.0));
+        assert_eq!(comment_score(" +0.00/1 "), Some(0.0));
+        // An unsigned number is not the convention and is more likely to be a
+        // clock reading than an evaluation, so it is refused rather than
+        // guessed at.
+        assert_eq!(comment_score("0.31/12"), None);
+        assert_eq!(comment_score("book"), None);
+        assert_eq!(comment_score(""), None);
+    }
+
+    /// The blend is only meaningful if the two terms are on one scale.
+    #[test]
+    fn the_blend_moves_the_label_between_the_result_and_the_score() {
+        let k = 0.75;
+        // A drawn-looking position from a game White went on to win.
+        let (outcome, score) = (1.0, 0.0);
+        let blend = |lambda: f64| lambda * outcome + (1.0 - lambda) * winning_probability(score, k);
+
+        assert!((blend(1.0) - 1.0).abs() < 1e-9);
+        assert!((blend(0.0) - 0.5).abs() < 1e-9);
+        assert!((blend(0.5) - 0.75).abs() < 1e-9);
+    }
+}

@@ -26,6 +26,84 @@ use cozy_chess::{Board, Color, Piece, Square};
 
 use super::{Score, features, placement, weights};
 
+/// How a block of weights is written back into the engine's source.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BlockKind {
+    /// One `const NAME: ScorePair`.
+    Scalar,
+    /// A `const NAME: [ScorePair; N]`.
+    Array,
+    /// A `static NAME: Table`, laid out as two eight-by-eight grids.
+    Table,
+}
+
+/// One contiguous group of features, named for the constant it is written to.
+///
+/// The vector's layout was previously stated in three places that had to agree
+/// by hand: the order [`super::weights::score`] combines its terms in, the
+/// arity of [`super::weights::tuning_weights`], and a parallel array of names in
+/// the fitter used to emit source. Adding a feature meant editing all three, and
+/// nothing would have caught a mismatch except a wrong evaluation.
+///
+/// Declaring it once here makes a new feature group one entry plus its
+/// extraction, and lets the fitter emit source by walking this table.
+#[derive(Clone, Copy, Debug)]
+pub struct FeatureBlock {
+    pub name: &'static str,
+    pub offset: usize,
+    pub len: usize,
+    pub kind: BlockKind,
+}
+
+/// Declares a scalar block, so the table below reads as a list of names.
+const fn scalar(name: &'static str, offset: usize) -> FeatureBlock {
+    FeatureBlock {
+        name,
+        offset,
+        len: 1,
+        kind: BlockKind::Scalar,
+    }
+}
+
+/// Declares a piece-square table block.
+const fn table(name: &'static str, offset: usize) -> FeatureBlock {
+    FeatureBlock {
+        name,
+        offset,
+        len: 64,
+        kind: BlockKind::Table,
+    }
+}
+
+/// Every block in the vector, in index order.
+///
+/// The scalars come first, in the order `weights::score` combines them, then the
+/// six piece-square tables. New groups append after the tables so that existing
+/// indices, and therefore every recorded corpus and fitted weight file, keep
+/// their meaning.
+pub const BLOCKS: &[FeatureBlock] = &[
+    scalar("PAWN", 0),
+    scalar("KNIGHT", 1),
+    scalar("BISHOP", 2),
+    scalar("ROOK", 3),
+    scalar("QUEEN", 4),
+    scalar("ACTIVITY", 5),
+    scalar("TEMPO", 6),
+    scalar("MOBILITY", 7),
+    scalar("BISHOP_PAIR", 8),
+    scalar("DOUBLED_PAWN", 9),
+    scalar("ISOLATED_PAWN", 10),
+    scalar("PASSED_PAWN", 11),
+    scalar("KING_SHELTER", 12),
+    scalar("OPEN_KING_FILE", 13),
+    table("PAWN", PLACEMENT_OFFSET),
+    table("KNIGHT", PLACEMENT_OFFSET + 64),
+    table("BISHOP", PLACEMENT_OFFSET + 128),
+    table("ROOK", PLACEMENT_OFFSET + 192),
+    table("QUEEN", PLACEMENT_OFFSET + 256),
+    table("KING", PLACEMENT_OFFSET + 320),
+];
+
 /// Scalar features, in the order [`super::weights::score`] combines them.
 pub const SCALAR_FEATURES: usize = 14;
 /// Piece-square entries: six pieces over sixty-four squares.
@@ -260,8 +338,9 @@ const fn material_feature(piece: Piece) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ANCHOR_MIDDLEGAME_PAWN, FEATURE_COUNT, PLACEMENT_OFFSET, Piece, Score, anchored,
-        current_weights, normalized, tuning_features,
+        ANCHOR_MIDDLEGAME_PAWN, BLOCKS, BlockKind, FEATURE_COUNT, PLACEMENT_FEATURES,
+        PLACEMENT_OFFSET, Piece, SCALAR_FEATURES, Score, anchored, current_weights, normalized,
+        tuning_features,
     };
     use crate::engine::Position;
     use crate::engine::evaluation::{EvaluationConfig, MIN_AGGRESSION, weights};
@@ -326,6 +405,46 @@ mod tests {
             normalized(&published),
             published,
             "re-centring moved the shipped weights, so a mean has crept back in",
+        );
+    }
+
+    /// The block table must describe exactly the vector everything else uses.
+    ///
+    /// This is the check that lets the layout be stated once. A block added
+    /// without extraction, or extraction added without a block, shows up here
+    /// as a gap, an overlap, or a length that does not reach `FEATURE_COUNT`.
+    #[test]
+    fn the_block_table_tiles_the_feature_vector() {
+        let mut next = 0;
+        for block in BLOCKS {
+            assert_eq!(
+                block.offset, next,
+                "block {} starts at {} but the previous block ended at {next}",
+                block.name, block.offset,
+            );
+            assert!(block.len > 0, "block {} is empty", block.name);
+            next += block.len;
+        }
+
+        assert_eq!(
+            next, FEATURE_COUNT,
+            "the blocks cover {next} features but the vector holds {FEATURE_COUNT}",
+        );
+        assert_eq!(current_weights().len(), FEATURE_COUNT);
+        assert_eq!(
+            BLOCKS
+                .iter()
+                .filter(|block| block.kind == BlockKind::Scalar)
+                .count(),
+            SCALAR_FEATURES,
+        );
+        assert_eq!(
+            BLOCKS
+                .iter()
+                .filter(|block| block.kind == BlockKind::Table)
+                .map(|block| block.len)
+                .sum::<usize>(),
+            PLACEMENT_FEATURES,
         );
     }
 

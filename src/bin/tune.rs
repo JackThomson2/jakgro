@@ -40,9 +40,9 @@ use std::fmt::Write as _;
 use std::fs;
 use std::process::ExitCode;
 
-use cozy_chess::{Board, Piece};
+use cozy_chess::Board;
 use jakgro::engine::tuning::{
-    FEATURE_COUNT, MAX_PHASE, PLACEMENT_OFFSET, SCALAR_FEATURES, TuningPosition, anchored,
+    BLOCKS, BlockKind, FEATURE_COUNT, FeatureBlock, MAX_PHASE, TuningPosition, anchored,
     current_weights, normalized, tuning_features,
 };
 
@@ -749,67 +749,75 @@ fn verify_anchor_preserves_order(samples: &[Sample], before: &[(i32, i32)], afte
 // ------------------------------------------------------------------ emission
 
 fn render_source(weights: &[(i32, i32)]) -> String {
+    render_blocks(weights, BLOCKS)
+}
+
+/// Renders one weight vector against a given layout.
+///
+/// Taking the blocks as an argument rather than reading the constant keeps the
+/// emitter testable against a small synthetic layout, which is how the array
+/// form is covered before any real feature group uses it.
+fn render_blocks(weights: &[(i32, i32)], blocks: &[FeatureBlock]) -> String {
     let mut out = String::new();
     out.push_str("// Fitted by `tune fit`. Paste into the files named below.\n\n");
     out.push_str("// ---- src/engine/evaluation/weights.rs ----\n");
-    for (index, name) in SCALAR_NAMES.iter().enumerate() {
-        let (middle_game, end_game) = weights[index];
-        let _ = writeln!(
-            out,
-            "const {name}: ScorePair = ScorePair::new({middle_game}, {end_game});"
-        );
-    }
-    out.push_str("\n// ---- src/engine/evaluation/placement.rs ----\n");
-    for piece in Piece::ALL {
-        let name = match piece {
-            Piece::Pawn => "PAWN",
-            Piece::Knight => "KNIGHT",
-            Piece::Bishop => "BISHOP",
-            Piece::Rook => "ROOK",
-            Piece::Queen => "QUEEN",
-            Piece::King => "KING",
-        };
-        let base = PLACEMENT_OFFSET + piece as usize * 64;
-        let _ = writeln!(out, "static {name}: Table = Table {{");
-        for (label, pick) in [("middle_game", 0_usize), ("end_game", 1)] {
-            let _ = writeln!(out, "    {label}: [");
-            for rank in 0..8 {
-                let row: Vec<String> = (0..8)
-                    .map(|file| {
-                        let entry = weights[base + rank * 8 + file];
-                        let value = if pick == 0 { entry.0 } else { entry.1 };
-                        value.to_string()
+    let mut in_tables = false;
+    for block in blocks {
+        if block.kind == BlockKind::Table && !in_tables {
+            out.push_str("\n// ---- src/engine/evaluation/placement.rs ----\n");
+            in_tables = true;
+        }
+        match block.kind {
+            BlockKind::Scalar => {
+                let (middle_game, end_game) = weights[block.offset];
+                let _ = writeln!(
+                    out,
+                    "const {}: ScorePair = ScorePair::new({middle_game}, {end_game});",
+                    block.name,
+                );
+            }
+            BlockKind::Array => {
+                let entries: Vec<String> = (0..block.len)
+                    .map(|index| {
+                        let (middle_game, end_game) = weights[block.offset + index];
+                        format!("ScorePair::new({middle_game}, {end_game})")
                     })
                     .collect();
-                let _ = writeln!(out, "        {}, //", row.join(", "));
+                let _ = writeln!(
+                    out,
+                    "const {}: [ScorePair; {}] = [\n    {},\n];",
+                    block.name,
+                    block.len,
+                    entries.join(",\n    "),
+                );
             }
-            let _ = writeln!(out, "    ],");
+            BlockKind::Table => {
+                let _ = writeln!(out, "static {}: Table = Table {{", block.name);
+                for (label, pick) in [("middle_game", 0_usize), ("end_game", 1)] {
+                    let _ = writeln!(out, "    {label}: [");
+                    for rank in 0..8 {
+                        let row: Vec<String> = (0..8)
+                            .map(|file| {
+                                let entry = weights[block.offset + rank * 8 + file];
+                                let value = if pick == 0 { entry.0 } else { entry.1 };
+                                value.to_string()
+                            })
+                            .collect();
+                        let _ = writeln!(out, "        {}, //", row.join(", "));
+                    }
+                    let _ = writeln!(out, "    ],");
+                }
+                out.push_str("};\n");
+            }
         }
-        out.push_str("};\n");
     }
     out
 }
 
-const SCALAR_NAMES: [&str; SCALAR_FEATURES] = [
-    "PAWN",
-    "KNIGHT",
-    "BISHOP",
-    "ROOK",
-    "QUEEN",
-    "ACTIVITY",
-    "TEMPO",
-    "MOBILITY",
-    "BISHOP_PAIR",
-    "DOUBLED_PAWN",
-    "ISOLATED_PAWN",
-    "PASSED_PAWN",
-    "KING_SHELTER",
-    "OPEN_KING_FILE",
-];
-
 #[cfg(test)]
 mod tests {
-    use super::{comment_score, split_games, winning_probability};
+    use super::{FeatureBlock, comment_score, render_blocks, split_games, winning_probability};
+    use jakgro::engine::tuning::BlockKind;
 
     /// A PGN in the form `selfplay` now writes, wrapped mid-comment.
     ///
@@ -823,6 +831,36 @@ mod tests {
 1. e4 {+0.31/12} e5 {-0.08/11} 2. Nf3 {+0.35/12}
 Nc6 {-0.11/12} 1-0
 ";
+
+    /// The array form has no user yet, so it is covered against a synthetic
+    /// layout rather than waiting for the first feature group to rely on it.
+    #[test]
+    fn each_block_kind_renders_the_constant_it_names() {
+        let blocks = [
+            FeatureBlock {
+                name: "TEMPO",
+                offset: 0,
+                len: 1,
+                kind: BlockKind::Scalar,
+            },
+            FeatureBlock {
+                name: "PASSED_PAWN_BY_RANK",
+                offset: 1,
+                len: 3,
+                kind: BlockKind::Array,
+            },
+        ];
+        let weights = [(12, 0), (5, 16), (20, 40), (60, 120)];
+
+        let rendered = render_blocks(&weights, &blocks);
+
+        assert!(rendered.contains("const TEMPO: ScorePair = ScorePair::new(12, 0);"));
+        assert!(rendered.contains("const PASSED_PAWN_BY_RANK: [ScorePair; 3] = ["));
+        assert!(rendered.contains("ScorePair::new(5, 16),"));
+        assert!(rendered.contains("ScorePair::new(60, 120),"));
+        // No table block, so the placement banner must not be emitted.
+        assert!(!rendered.contains("placement.rs"));
+    }
 
     #[test]
     fn comments_are_paired_with_the_move_they_follow() {

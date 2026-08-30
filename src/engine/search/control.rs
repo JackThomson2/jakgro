@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering, fence};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -126,7 +126,15 @@ impl SearchControl {
             }
             let soft = self.shared.soft_deadline_nanos.load(Ordering::Relaxed);
             let hard = self.shared.hard_deadline_nanos.load(Ordering::Relaxed);
-            let after = self.shared.deadline_version.load(Ordering::Acquire);
+            // The two values above are read relaxed, so nothing in the hardware
+            // or the compiler otherwise stops them being satisfied after the
+            // version is re-read. If that happens the check below compares two
+            // equal versions while the data came from a later write, which is
+            // exactly the torn pair the version counter exists to prevent. The
+            // fence closes that window; without it this is a correct seqlock
+            // only on a strongly ordered machine.
+            fence(Ordering::Acquire);
+            let after = self.shared.deadline_version.load(Ordering::Relaxed);
             if before == after {
                 return (soft, hard);
             }
@@ -210,7 +218,10 @@ mod tests {
 
         for _ in 0..10_000 {
             let (soft, hard) = control.deadline_snapshot();
-            assert!((soft == 0 && hard == 0) || (soft != 0 && hard >= soft));
+            assert!(
+                (soft == 0 && hard == 0) || (soft != 0 && hard >= soft),
+                "torn deadline pair: soft={soft} hard={hard}",
+            );
         }
         setter.join().unwrap();
         clearer.join().unwrap();

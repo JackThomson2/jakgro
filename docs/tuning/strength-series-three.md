@@ -2,7 +2,7 @@
 
 ## Verdict
 
-Two changes have landed out of six attempted, for a cumulative **+42.6 Elo** at
+Two changes have landed out of seven attempted, for a cumulative **+42.6 Elo** at
 the default profile over the second series' head, each measured over 4096
 colour-reversed games at a fixed 50 ms per move.
 
@@ -42,6 +42,7 @@ match either, and this series has the evidence both ways:
 | Reverse futility to depth seven | -19.2% | +0.200 | **+20.0** [13.1, 26.8] |
 | Principal-variation reductions | -8.7% | +0.200 | +3.0 [-3.9, 9.8] |
 | Razoring | -4.3% | +0.100 | +3.6 [-3.1, 10.4] |
+| Correction history | +4.0% | +0.000 | +1.1 [-5.5, 7.7] |
 
 The first two and the third are indistinguishable on every cheap channel and an
 order of magnitude apart in Elo. Ten quiet positions and a 0.1-ply granularity
@@ -160,6 +161,28 @@ That version measured **+3.0 Elo [-3.9, +9.8]**, LLR -11.498, accept H0. It is t
 clearest result in the series: the engine is decisively not 20 Elo better for it,
 on a patch whose cheap channels were indistinguishable from the two that were.
 
+**Correction history.** The evaluation is a fixed function of the position, so
+where it is wrong it is wrong the same way each time the same pawn structure
+appears, and search already knows: the score it returns after looking disagrees
+with the static score in a direction that repeats. A table keyed by pawn
+structure and side to move accumulated that disagreement as a decaying average
+weighted by depth, and every rule that reads the evaluation — reverse futility,
+quiet futility, the null-move guard and the improving signal — read the corrected
+value. The table stored the raw value, so what the transposition table caches
+stays a pure function of the position.
+
+It measured **+1.1 Elo [-5.5, +7.7]**, LLR -3.457, accept H0, with every gate
+clean. The correction was demonstrably live rather than inert — Kiwipete at depth
+eleven searched 30,106,586 nodes against 30,417,013 — it simply did not change
+enough decisions to matter.
+
+The likely reason is where it was *not* applied. Quiescence is about 97% of this
+tree and its stand-pat score is the evaluation used most, and it was left
+uncorrected because correcting it changes the score the engine reports rather
+than only the score it prunes by. Correcting the stand-pat, and keying a second
+table by non-pawn material, are the two obvious next attempts and neither was
+tried.
+
 ## Fixtures that moved
 
 Two records were re-pinned, each in its own commit.
@@ -217,9 +240,10 @@ smallest budgets the tree is unchanged, node for node at every completed depth.
 - The efficiency suite has ten active positions and is quiet relative to real
   play; its `depth-gain` channel has 0.1-ply granularity, which is coarse for
   separating a small gain from none.
-- Four of six attempted search patches were rejected or parked. The search's
-  selectivity is now close to what this evaluation can support, and the
-  remaining headroom is more likely in the evaluation than in the tree.
+- Five of seven attempted search patches were rejected or parked, four of them
+  on a match after passing every deterministic gate. The search's selectivity is
+  now close to what this evaluation can support, and the remaining headroom is
+  more likely in the evaluation itself than in the tree it drives.
 - Only Aggression 75 was matched for reverse futility; the objective channel was
   not re-run after the first patch.
 

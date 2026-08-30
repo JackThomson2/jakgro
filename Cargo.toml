@@ -17,6 +17,12 @@ mimalloc = "0.1.48"
 name = "selfplay"
 path = "src/bin/selfplay.rs"
 
+# Offline weight fitter. Needs the `tuning` feature for the feature vector.
+[[bin]]
+name = "tune"
+path = "src/bin/tune.rs"
+required-features = ["tuning"]
+
 [[bench]]
 name = "search"
 harness = false

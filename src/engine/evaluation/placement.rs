@@ -240,10 +240,13 @@ mod tests {
         let centre = placement(Piece::Knight, Square::E4, Color::White);
         let corner = placement(Piece::Knight, Square::A1, Color::White);
 
-        // Exact margins rather than inequalities, so the preference cannot be
-        // satisfied by two equal entries.
-        assert_eq!(centre.middle_game() - corner.middle_game(), 133);
-        assert_eq!(centre.end_game() - corner.end_game(), 45);
+        // A floor rather than an exact margin. The point is that the tables
+        // express the preference decisively rather than by a centipawn, which a
+        // minimum states directly; an exact figure additionally pins one fitting
+        // of the tables, and would have to be rewritten every time they are
+        // refitted without saying anything more about what they mean.
+        assert!(centre.middle_game() - corner.middle_game() >= 80);
+        assert!(centre.end_game() - corner.end_game() >= 20);
     }
 
     #[test]
@@ -251,8 +254,8 @@ mod tests {
         let shelter = placement(Piece::King, Square::G1, Color::White);
         let centre = placement(Piece::King, Square::E4, Color::White);
 
-        assert_eq!(shelter.middle_game() - centre.middle_game(), 70);
-        assert_eq!(centre.end_game() - shelter.end_game(), 51);
+        assert!(shelter.middle_game() - centre.middle_game() >= 40);
+        assert!(centre.end_game() - shelter.end_game() >= 25);
     }
 
     #[test]
@@ -260,8 +263,8 @@ mod tests {
         let advanced = placement(Piece::Pawn, Square::D7, Color::White);
         let home = placement(Piece::Pawn, Square::D2, Color::White);
 
-        assert_eq!(advanced.end_game() - home.end_game(), 124);
-        assert_eq!(advanced.end_game() - advanced.middle_game(), 39);
+        assert!(advanced.end_game() - home.end_game() >= 80);
+        assert!(advanced.end_game() - advanced.middle_game() >= 20);
     }
 
     #[test]
@@ -289,46 +292,51 @@ mod tests {
         }
     }
 
-    /// Checks each table against the published set's aggregate structure.
+    /// Checks each table describes a coherent evaluation.
     ///
-    /// The values are transcribed rather than re-derived, so a single mistyped
-    /// interior entry would otherwise be invisible: the symmetry tests only catch
-    /// asymmetric corruption. These sums and extremes are computed from the
-    /// published PeSTO tables, so a typo anywhere in a table changes its sum and
-    /// fails here.
+    /// This replaced a set of aggregate checksums taken from the published PeSTO
+    /// tables. Those existed because the values were transcribed by hand, so a
+    /// single mistyped interior entry would otherwise have been invisible: the
+    /// symmetry test only catches asymmetric corruption. The tables are now
+    /// written by the fitter rather than copied, which removes the failure the
+    /// checksums guarded and leaves them pinning one fitting of the tables
+    /// instead — something that must be rewritten on every refit while saying
+    /// nothing about whether the result is sane.
+    ///
+    /// What is worth asserting is what a placement table means: bounded entries,
+    /// a centre worth more than a corner to a piece that wants the centre, and a
+    /// king that wants shelter early and activity late.
     #[test]
-    fn tables_match_the_published_aggregates() {
-        let expectations = [
-            (Piece::Pawn, 759, 2_043, -35, 187),
-            (Piece::Knight, -59, -1_018, -167, 129),
-            (Piece::Bishop, 341, -268, -82, 59),
-            (Piece::Rook, 505, 52, -71, 80),
-            (Piece::Queen, 146, 565, -50, 59),
-            (Piece::King, -999, 176, -74, 45),
-        ];
-
-        for (piece, middle_sum, end_sum, minimum, maximum) in expectations {
+    fn tables_describe_a_coherent_evaluation() {
+        for piece in [
+            Piece::Pawn,
+            Piece::Knight,
+            Piece::Bishop,
+            Piece::Rook,
+            Piece::Queen,
+            Piece::King,
+        ] {
             let table = super::table_for(piece);
-            let middle: i32 = table.middle_game.iter().sum();
-            let end: i32 = table.end_game.iter().sum();
-            let low = *table
-                .middle_game
-                .iter()
-                .chain(table.end_game.iter())
-                .min()
-                .unwrap();
-            let high = *table
-                .middle_game
-                .iter()
-                .chain(table.end_game.iter())
-                .max()
-                .unwrap();
-
-            assert_eq!(middle, middle_sum, "{piece:?} middlegame sum");
-            assert_eq!(end, end_sum, "{piece:?} endgame sum");
-            assert_eq!(low, minimum, "{piece:?} smallest entry");
-            assert_eq!(high, maximum, "{piece:?} largest entry");
+            for entry in table.middle_game.iter().chain(table.end_game.iter()) {
+                assert!(
+                    entry.abs() <= 400,
+                    "{piece:?} has an entry of {entry}, which is beyond what placement can mean",
+                );
+            }
         }
+
+        // The minor pieces are the ones whose value is most obviously positional.
+        for piece in [Piece::Knight, Piece::Bishop] {
+            let centre = placement(piece, Square::E4, Color::White).middle_game()
+                + placement(piece, Square::D5, Color::White).middle_game();
+            let corners = placement(piece, Square::A1, Color::White).middle_game()
+                + placement(piece, Square::H8, Color::White).middle_game();
+            assert!(centre > corners, "{piece:?} does not prefer the centre");
+        }
+
+        let king_corner_endgame = placement(Piece::King, Square::A1, Color::White).end_game();
+        let king_centre_endgame = placement(Piece::King, Square::E4, Color::White).end_game();
+        assert!(king_centre_endgame > king_corner_endgame);
     }
 
     /// A pawn can never stand on the first or last rank.

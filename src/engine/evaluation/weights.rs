@@ -83,6 +83,11 @@ const BISHOP_OUTPOST: ScorePair = ScorePair::new(0, 0);
 /// Pawn structure beyond doubled and isolated, zero until fitted.
 const BACKWARD_PAWN: ScorePair = ScorePair::new(0, 0);
 const CONNECTED_PAWN_BY_RANK: [ScorePair; 6] = [ScorePair::new(0, 0); 6];
+/// Passer refinements, zero until fitted: a blockade by rank, and the
+/// distance of each king to the square ahead of the passer.
+const BLOCKED_PASSER_BY_RANK: [ScorePair; 6] = [ScorePair::new(0, 0); 6];
+const PASSER_OWN_KING_DISTANCE: [ScorePair; 8] = [ScorePair::new(0, 0); 8];
+const PASSER_ENEMY_KING_DISTANCE: [ScorePair; 8] = [ScorePair::new(0, 0); 8];
 const KING_PRESSURE: ScorePair = ScorePair::new(9, 2);
 const PAWN_STORM: ScorePair = ScorePair::new(7, 1);
 const THREAT: ScorePair = ScorePair::new(11, 7);
@@ -121,6 +126,12 @@ pub(super) fn score(features: EvalFeatures) -> ScorePair {
         + BISHOP_OUTPOST * features.bishop_outposts
         + BACKWARD_PAWN * features.backward_pawns
         + indexed(&CONNECTED_PAWN_BY_RANK, features.connected_by_rank)
+        + indexed(&BLOCKED_PASSER_BY_RANK, features.blocked_passer_by_rank)
+        + indexed(&PASSER_OWN_KING_DISTANCE, features.passer_own_king_distance)
+        + indexed(
+            &PASSER_ENEMY_KING_DISTANCE,
+            features.passer_enemy_king_distance,
+        )
 }
 
 /// The four curves laid end to end, which is how the piece loop reads them.
@@ -264,6 +275,9 @@ pub(super) fn trailing_tuning_weights() -> [ScorePair; super::tuning::TRAILING_F
         &MOBILITY_CURVES[..],
         &trailing_scalars()[..],
         &CONNECTED_PAWN_BY_RANK[..],
+        &BLOCKED_PASSER_BY_RANK[..],
+        &PASSER_OWN_KING_DISTANCE[..],
+        &PASSER_ENEMY_KING_DISTANCE[..],
     ] {
         weights[next..next + block.len()].copy_from_slice(block);
         next += block.len();

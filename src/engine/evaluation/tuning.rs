@@ -144,6 +144,9 @@ pub const BLOCKS: &[FeatureBlock] = &[
     scalar("BISHOP_OUTPOST", TRAILING_SCALAR_OFFSET + 4),
     scalar("BACKWARD_PAWN", TRAILING_SCALAR_OFFSET + 5),
     array("CONNECTED_PAWN_BY_RANK", CONNECTED_OFFSET, 6),
+    array("BLOCKED_PASSER_BY_RANK", BLOCKED_PASSER_OFFSET, 6),
+    array("PASSER_OWN_KING_DISTANCE", OWN_KING_DISTANCE_OFFSET, 8),
+    array("PASSER_ENEMY_KING_DISTANCE", ENEMY_KING_DISTANCE_OFFSET, 8),
 ];
 
 /// Scalar features before the tables, in the order [`super::weights::score`]
@@ -159,7 +162,7 @@ const MOBILITY_CURVE_ENTRIES: usize = KNIGHT_MOBILITY_ENTRIES
 /// Scalar features after the mobility curves.
 pub const TRAILING_SCALARS: usize = 6;
 /// Features in the groups added after the tables.
-pub const TRAILING_FEATURES: usize = MOBILITY_CURVE_ENTRIES + TRAILING_SCALARS + 6;
+pub const TRAILING_FEATURES: usize = MOBILITY_CURVE_ENTRIES + TRAILING_SCALARS + 6 + 6 + 8 + 8;
 /// Length of the feature vector.
 pub const FEATURE_COUNT: usize = SCALAR_FEATURES + PLACEMENT_FEATURES + TRAILING_FEATURES;
 /// Index of the first piece-square feature.
@@ -170,6 +173,10 @@ pub const TRAILING_OFFSET: usize = PLACEMENT_OFFSET + PLACEMENT_FEATURES;
 const TRAILING_SCALAR_OFFSET: usize = TRAILING_OFFSET + MOBILITY_CURVE_ENTRIES;
 /// Index of the connected-pawn block, after the trailing scalars.
 const CONNECTED_OFFSET: usize = TRAILING_SCALAR_OFFSET + TRAILING_SCALARS;
+/// Indices of the passer refinement blocks, in order.
+const BLOCKED_PASSER_OFFSET: usize = CONNECTED_OFFSET + 6;
+const OWN_KING_DISTANCE_OFFSET: usize = BLOCKED_PASSER_OFFSET + 6;
+const ENEMY_KING_DISTANCE_OFFSET: usize = OWN_KING_DISTANCE_OFFSET + 8;
 /// The mobility curves as piece, offset within the trailing region and length.
 const MOBILITY_CURVES: [(Piece, usize, usize); 4] = [
     (Piece::Knight, 0, KNIGHT_MOBILITY_ENTRIES),
@@ -320,6 +327,21 @@ pub fn tuning_features(board: &Board) -> TuningPosition {
     for (index, value) in extracted.connected_by_rank.into_iter().enumerate() {
         if value != 0 {
             entries.push(((CONNECTED_OFFSET + index) as u16, value as i16));
+        }
+    }
+    for (index, value) in extracted.blocked_passer_by_rank.into_iter().enumerate() {
+        if value != 0 {
+            entries.push(((BLOCKED_PASSER_OFFSET + index) as u16, value as i16));
+        }
+    }
+    for (index, value) in extracted.passer_own_king_distance.into_iter().enumerate() {
+        if value != 0 {
+            entries.push(((OWN_KING_DISTANCE_OFFSET + index) as u16, value as i16));
+        }
+    }
+    for (index, value) in extracted.passer_enemy_king_distance.into_iter().enumerate() {
+        if value != 0 {
+            entries.push(((ENEMY_KING_DISTANCE_OFFSET + index) as u16, value as i16));
         }
     }
 

@@ -154,6 +154,10 @@ struct StructureTerms {
     /// Connected pawns, counted the same way.
     connected_by_rank: [i8; 6],
     backward: i32,
+    /// Passers by the distance from their owner's king to the square in
+    /// front of them, and by the distance from the enemy king to it.
+    passer_own_king_distance: [i8; 8],
+    passer_enemy_king_distance: [i8; 8],
     shelter: i32,
     open_files: i32,
 }
@@ -252,8 +256,52 @@ fn compute_structure_terms(board: &Board) -> StructureTerms {
         let (shelter, open_files) = king_safety(board, color);
         terms.shelter += sign * shelter;
         terms.open_files += sign * open_files;
+        let (own, enemy) = passer_king_distances(board, color);
+        for distance in 0..8 {
+            terms.passer_own_king_distance[distance] += sign as i8 * own[distance];
+            terms.passer_enemy_king_distance[distance] += sign as i8 * enemy[distance];
+        }
     }
     terms
+}
+
+/// Counts a colour's passers by each king's distance to the square ahead.
+///
+/// The square in front is what a king must reach to stop or escort a passer,
+/// so it is the square the distance is measured to. Chebyshev distance is the
+/// king's own metric. The counts are functions of the pawns and the two king
+/// squares, so they ride the structure cache.
+fn passer_king_distances(board: &Board, color: Color) -> ([i8; 8], [i8; 8]) {
+    let pawns = board.colored_pieces(color, Piece::Pawn);
+    let enemy_pawns = board.colored_pieces(!color, Piece::Pawn);
+    let (spans, forward) = if color == Color::White {
+        (&WHITE_PASSER_SPANS, 1)
+    } else {
+        (&BLACK_PASSER_SPANS, -1)
+    };
+    let own_king = board.king(color);
+    let enemy_king = board.king(!color);
+    let mut own = [0_i8; 8];
+    let mut enemy = [0_i8; 8];
+    for square in pawns {
+        if !(enemy_pawns & spans[square as usize]).is_empty() {
+            continue;
+        }
+        // A passer stands on ranks two to seven, so the square ahead exists.
+        let Some(stop) = square.try_offset(0, forward) else {
+            continue;
+        };
+        own[king_distance(own_king, stop)] += 1;
+        enemy[king_distance(enemy_king, stop)] += 1;
+    }
+    (own, enemy)
+}
+
+/// Number of king moves between two squares.
+fn king_distance(from: Square, to: Square) -> usize {
+    let files = (from.file() as i32 - to.file() as i32).unsigned_abs();
+    let ranks = (from.rank() as i32 - to.rank() as i32).unsigned_abs();
+    files.max(ranks) as usize
 }
 
 pub(super) fn extract(board: &Board) -> EvalFeatures {
@@ -307,6 +355,10 @@ pub(super) fn extract_with_style(board: &Board, style: bool) -> EvalFeatures {
         let [knights, bishops] = attacks.outposts[color as usize];
         features.knight_outposts += sign * knights;
         features.bishop_outposts += sign * bishops;
+        for rank in 0..6 {
+            features.blocked_passer_by_rank[rank] +=
+                sign * attacks.blocked_passers[color as usize][rank];
+        }
         let attack = if color == Color::White {
             white_attack
         } else {
@@ -333,6 +385,12 @@ pub(super) fn extract_with_style(board: &Board, style: bool) -> EvalFeatures {
         features.protected_passer_by_rank[rank] =
             i32::from(structure.protected_passer_by_rank[rank]);
         features.connected_by_rank[rank] = i32::from(structure.connected_by_rank[rank]);
+    }
+    for distance in 0..8 {
+        features.passer_own_king_distance[distance] =
+            i32::from(structure.passer_own_king_distance[distance]);
+        features.passer_enemy_king_distance[distance] =
+            i32::from(structure.passer_enemy_king_distance[distance]);
     }
     // The attacking style weights passers by how far they have come, and that
     // term is personality and must not move. Deriving it from the per-rank
@@ -421,6 +479,8 @@ struct AttackSummary {
     rook_files: [[i32; 3]; 2],
     /// Knights and bishops on outposts, per colour.
     outposts: [[i32; 2]; 2],
+    /// Passers with a piece of either colour on the square ahead, by rank.
+    blocked_passers: [[i32; 6]; 2],
     activity: [i32; 2],
     placement: [ScorePair; 2],
 }
@@ -442,6 +502,7 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
     let mut mobility_curves = [ScorePair::default(); 2];
     let mut rook_files = [[0_i32; 3]; 2];
     let mut outposts = [[0_i32; 2]; 2];
+    let mut blocked_passers = [[0_i32; 6]; 2];
     let all_pawns = board.pieces(Piece::Pawn);
     let mut activity = [0_i32; 2];
     let mut placement = [ScorePair::default(); 2];
@@ -461,6 +522,11 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
             (Rank::Seventh, Rank::Eighth)
         } else {
             (Rank::Second, Rank::First)
+        };
+        let (passer_spans, forward) = if color == Color::White {
+            (&WHITE_PASSER_SPANS, 1)
+        } else {
+            (&BLACK_PASSER_SPANS, -1)
         };
         // Outposts are on the owner's fourth to sixth ranks, defended by a
         // pawn, and beyond the reach of every enemy pawn.
@@ -523,6 +589,22 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
                 if let Some(offset) = curve {
                     mobility_curves[index] = mobility_curves[index]
                         + weights::mobility_curve_at(offset + attacks.len() as usize);
+                }
+                // A blockaded passer is one with any piece on the square ahead.
+                // The passer test is a function of the pawns, but the blocker
+                // is a piece, which is why this is here and not in the cache.
+                if piece == Piece::Pawn
+                    && (enemy_pawns & passer_spans[square as usize]).is_empty()
+                    && square
+                        .try_offset(0, forward)
+                        .is_some_and(|stop| occupied.has(stop))
+                {
+                    let advance = if color == Color::White {
+                        square.rank() as usize
+                    } else {
+                        7 - square.rank() as usize
+                    };
+                    blocked_passers[index][advance - 1] += 1;
                 }
                 if matches!(piece, Piece::Knight | Piece::Bishop)
                     && pawn_held.has(square)
@@ -659,6 +741,7 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
         mobility_curves,
         rook_files,
         outposts,
+        blocked_passers,
         activity,
         placement,
     }

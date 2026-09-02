@@ -253,6 +253,12 @@ pub(super) struct EvalFeatures {
     pub(super) passed_by_rank: [Score; 6],
     /// Passed pawns defended by a friendly pawn, counted the same way.
     pub(super) protected_passer_by_rank: [Score; 6],
+    /// Passed pawns with a piece of either colour on the square ahead.
+    pub(super) blocked_passer_by_rank: [Score; 6],
+    /// Passed pawns by the king distance from the owner's king, and from the
+    /// enemy king, to the square ahead of them.
+    pub(super) passer_own_king_distance: [Score; 8],
+    pub(super) passer_enemy_king_distance: [Score; 8],
     /// Passers weighted by how far they have come.
     ///
     /// Derived from [`Self::passed_by_rank`] and read only by the attacking
@@ -868,6 +874,54 @@ mod tests {
         let scored = EvalFeatures {
             backward_pawns: 1,
             connected_by_rank: [1; 6],
+            ..EvalFeatures::default()
+        };
+        assert_eq!(
+            super::weights::score(scored),
+            super::weights::score(EvalFeatures::default())
+        );
+    }
+
+    #[test]
+    fn passers_report_blockade_and_king_distance() {
+        let features =
+            |fen: &str| evaluate_with_trace(Position::from_fen(fen).unwrap().board()).features;
+
+        // A free passer on d4: its stop square d5 is four king moves from e1
+        // and three from e8.
+        let free = features("4k3/8/8/8/3P4/8/8/4K3 w - - 0 1");
+        assert_eq!(free.passed_by_rank, [0, 0, 1, 0, 0, 0]);
+        assert_eq!(free.blocked_passer_by_rank, [0; 6]);
+        assert_eq!(free.passer_own_king_distance, [0, 0, 0, 0, 1, 0, 0, 0]);
+        assert_eq!(free.passer_enemy_king_distance, [0, 0, 0, 1, 0, 0, 0, 0]);
+
+        // Any piece on the square ahead is a blockade, the owner's own
+        // included.
+        assert_eq!(
+            features("4k3/8/8/3n4/3P4/8/8/4K3 w - - 0 1").blocked_passer_by_rank,
+            [0, 0, 1, 0, 0, 0]
+        );
+        assert_eq!(
+            features("4k3/8/8/3N4/3P4/8/8/4K3 w - - 0 1").blocked_passer_by_rank,
+            [0, 0, 1, 0, 0, 0]
+        );
+        // A pawn that is not passed is not counted whatever stands ahead.
+        assert_eq!(
+            features("4k3/8/2p5/3n4/3P4/8/8/4K3 w - - 0 1").blocked_passer_by_rank,
+            [0; 6]
+        );
+
+        // Black's passer on d4 is on Black's fifth; its stop square d3 is five
+        // from e8 and two from e1, counted with the opposite sign.
+        let black = features("4k3/8/8/8/3p4/8/8/4K3 w - - 0 1");
+        assert_eq!(black.passed_by_rank, [0, 0, 0, -1, 0, 0]);
+        assert_eq!(black.passer_own_king_distance, [0, 0, 0, 0, 0, -1, 0, 0]);
+        assert_eq!(black.passer_enemy_king_distance, [0, 0, -1, 0, 0, 0, 0, 0]);
+
+        let scored = EvalFeatures {
+            blocked_passer_by_rank: [1; 6],
+            passer_own_king_distance: [1; 8],
+            passer_enemy_king_distance: [1; 8],
             ..EvalFeatures::default()
         };
         assert_eq!(

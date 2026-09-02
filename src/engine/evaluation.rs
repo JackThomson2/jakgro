@@ -280,6 +280,13 @@ pub(super) struct EvalFeatures {
     pub(super) king_danger_by_bucket: [Score; KING_DANGER_BUCKETS],
     /// Safe checking squares for knights, bishops, rooks and queens.
     pub(super) safe_checks: [Score; 4],
+    /// Enemy minor pieces attacked by a pawn, side-relative.
+    pub(super) threat_minor_by_pawn: Score,
+    /// Enemy pieces, pawns and kings aside, attacked and defended by nothing.
+    pub(super) threat_hanging: Score,
+    /// Enemy rooks and queens attacked by a pawn or a minor, and queens
+    /// attacked by a rook.
+    pub(super) threat_by_lower_value: Score,
     /// Rooks on a file with no pawn of either colour, side-relative.
     pub(super) rook_open_files: Score,
     /// Rooks on a file with enemy pawns but none of their own.
@@ -1041,6 +1048,48 @@ mod tests {
         let scored = EvalFeatures {
             shelter_king_file_by_distance: [1; 6],
             shelter_adjacent_file_by_distance: [1; 6],
+            ..EvalFeatures::default()
+        };
+        assert_eq!(
+            super::weights::score(scored),
+            super::weights::score(EvalFeatures::default())
+        );
+    }
+
+    #[test]
+    fn objective_threats_count_attacked_pieces_by_kind() {
+        let features =
+            |fen: &str| evaluate_with_trace(Position::from_fen(fen).unwrap().board()).features;
+
+        // A pawn on e4 attacks an undefended knight on d5: a minor attacked
+        // by a pawn, and a hanging piece.
+        let forked = features("4k3/8/8/3n4/4P3/8/8/4K3 w - - 0 1");
+        assert_eq!(forked.threat_minor_by_pawn, 1);
+        assert_eq!(forked.threat_hanging, 1);
+        assert_eq!(forked.threat_by_lower_value, 0);
+        // Defended by c6, it is still attacked by a pawn but no longer hangs.
+        let defended = features("4k3/8/2p5/3n4/4P3/8/8/4K3 w - - 0 1");
+        assert_eq!(defended.threat_minor_by_pawn, 1);
+        assert_eq!(defended.threat_hanging, 0);
+        // A knight on c3 attacks a rook on d5: worth less than its target.
+        let rook = features("4k3/8/8/3r4/8/2N5/8/4K3 w - - 0 1");
+        assert_eq!(rook.threat_by_lower_value, 1);
+        assert_eq!(rook.threat_hanging, 1);
+        // A rook on d1 attacks a queen on d5; the queen attacks the rook back
+        // but is worth more, and the rook is defended by its king.
+        let queen = features("4k3/8/8/3q4/8/8/8/3RK3 w - - 0 1");
+        assert_eq!(queen.threat_by_lower_value, 1);
+        assert_eq!(queen.threat_hanging, 1);
+        // Black's threats count against.
+        assert_eq!(
+            features("4k3/8/8/8/3p4/4N3/8/4K3 w - - 0 1").threat_minor_by_pawn,
+            -1
+        );
+
+        let scored = EvalFeatures {
+            threat_minor_by_pawn: 1,
+            threat_hanging: 1,
+            threat_by_lower_value: 1,
             ..EvalFeatures::default()
         };
         assert_eq!(

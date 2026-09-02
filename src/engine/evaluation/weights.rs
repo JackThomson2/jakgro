@@ -82,6 +82,11 @@ const KNIGHT_OUTPOST: ScorePair = ScorePair::new(0, 0);
 const BISHOP_OUTPOST: ScorePair = ScorePair::new(0, 0);
 /// Pawn structure beyond doubled and isolated, zero until fitted.
 const BACKWARD_PAWN: ScorePair = ScorePair::new(0, 0);
+/// Threats in the objective evaluation, zero until fitted. The style's own
+/// threat terms are untouched.
+const THREAT_MINOR_BY_PAWN: ScorePair = ScorePair::new(0, 0);
+const THREAT_HANGING: ScorePair = ScorePair::new(0, 0);
+const THREAT_BY_LOWER_VALUE: ScorePair = ScorePair::new(0, 0);
 const CONNECTED_PAWN_BY_RANK: [ScorePair; 6] = [ScorePair::new(0, 0); 6];
 /// Passer refinements, zero until fitted: a blockade by rank, and the
 /// distance of each king to the square ahead of the passer.
@@ -137,6 +142,9 @@ pub(super) fn score(features: EvalFeatures) -> ScorePair {
         + KNIGHT_OUTPOST * features.knight_outposts
         + BISHOP_OUTPOST * features.bishop_outposts
         + BACKWARD_PAWN * features.backward_pawns
+        + THREAT_MINOR_BY_PAWN * features.threat_minor_by_pawn
+        + THREAT_HANGING * features.threat_hanging
+        + THREAT_BY_LOWER_VALUE * features.threat_by_lower_value
         + indexed(&CONNECTED_PAWN_BY_RANK, features.connected_by_rank)
         + indexed(&BLOCKED_PASSER_BY_RANK, features.blocked_passer_by_rank)
         + indexed(&PASSER_OWN_KING_DISTANCE, features.passer_own_king_distance)
@@ -323,5 +331,8 @@ pub(super) const fn trailing_scalars() -> [ScorePair; super::tuning::TRAILING_SC
         KNIGHT_OUTPOST,
         BISHOP_OUTPOST,
         BACKWARD_PAWN,
+        THREAT_MINOR_BY_PAWN,
+        THREAT_HANGING,
+        THREAT_BY_LOWER_VALUE,
     ]
 }

@@ -405,6 +405,10 @@ pub(super) fn extract_with_style(board: &Board, style: bool) -> EvalFeatures {
         for slot in 0..4 {
             features.safe_checks[slot] += sign * attacks.safe_checks[color as usize][slot];
         }
+        let [by_pawn, hanging, by_lower] = attacks.threats[color as usize];
+        features.threat_minor_by_pawn += sign * by_pawn;
+        features.threat_hanging += sign * hanging;
+        features.threat_by_lower_value += sign * by_lower;
         let attack = if color == Color::White {
             white_attack
         } else {
@@ -538,6 +542,9 @@ struct AttackSummary {
     /// Safe checking squares available to each colour's knights, bishops,
     /// rooks and queens.
     safe_checks: [[i32; 4]; 2],
+    /// Enemy minors attacked by a pawn, enemy pieces attacked and undefended,
+    /// and enemy pieces attacked by something worth less, per colour.
+    threats: [[i32; 3]; 2],
     activity: [i32; 2],
     placement: [ScorePair; 2],
 }
@@ -567,6 +574,7 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
     let mut attacked = [BitBoard::EMPTY; 2];
     let mut attacked_twice = [BitBoard::EMPTY; 2];
     let mut type_attacks = [[BitBoard::EMPTY; 4]; 2];
+    let mut pawn_attacks = [BitBoard::EMPTY; 2];
     let all_pawns = board.pieces(Piece::Pawn);
     let mut activity = [0_i32; 2];
     let mut placement = [ScorePair::default(); 2];
@@ -696,6 +704,9 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
                 if piece != Piece::King {
                     attacked_twice[index] |= attacked[index] & raw_attacks;
                     attacked[index] |= raw_attacks;
+                    if piece == Piece::Pawn {
+                        pawn_attacks[index] |= raw_attacks;
+                    }
                     if let Some(slot) = weights::mobility_curve_offset(piece)
                         .map(|_| piece_index(piece) as usize - 1)
                     {
@@ -816,11 +827,29 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
     // squares are the attacks of each piece type from the enemy king's square,
     // so the count is one intersection per type rather than a walk over moves.
     let mut safe_checks = [[0_i32; 4]; 2];
+    let mut threats = [[0_i32; 3]; 2];
     for color in [Color::White, Color::Black] {
         let index = color as usize;
         let enemy = !color;
         let enemy_king = board.king(enemy);
         let king_reach = get_king_moves(enemy_king);
+
+        // Threats against the enemy's pieces, kings excluded on both sides of
+        // the ledger: a minor attacked by a pawn, a piece attacked and left
+        // undefended, and a piece attacked by something worth less than it.
+        let enemy_pieces =
+            board.colors(enemy) & !board.pieces(Piece::Pawn) & !board.pieces(Piece::King);
+        let enemy_minors =
+            enemy_pieces & (board.pieces(Piece::Knight) | board.pieces(Piece::Bishop));
+        let enemy_majors = enemy_pieces & (board.pieces(Piece::Rook) | board.pieces(Piece::Queen));
+        let enemy_queens = enemy_pieces & board.pieces(Piece::Queen);
+        let own_reach = attacked[index] | get_king_moves(board.king(color));
+        let enemy_defends = attacked[enemy as usize] | king_reach;
+        let minor_attacks = type_attacks[index][0] | type_attacks[index][1];
+        threats[index][0] = (enemy_minors & pawn_attacks[index]).len() as i32;
+        threats[index][1] = (enemy_pieces & own_reach & !enemy_defends).len() as i32;
+        threats[index][2] = (enemy_majors & (pawn_attacks[index] | minor_attacks)).len() as i32
+            + (enemy_queens & type_attacks[index][2]).len() as i32;
         let safe = !attacked[enemy as usize] & (!king_reach | attacked_twice[index]);
         let diagonals = get_bishop_moves(enemy_king, occupied);
         let lines = get_rook_moves(enemy_king, occupied);
@@ -847,6 +876,7 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
         blocked_passers,
         attack_units,
         safe_checks,
+        threats,
         activity,
         placement,
     }

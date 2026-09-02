@@ -143,6 +143,9 @@ pub const BLOCKS: &[FeatureBlock] = &[
     scalar("KNIGHT_OUTPOST", TRAILING_SCALAR_OFFSET + 3),
     scalar("BISHOP_OUTPOST", TRAILING_SCALAR_OFFSET + 4),
     scalar("BACKWARD_PAWN", TRAILING_SCALAR_OFFSET + 5),
+    scalar("THREAT_MINOR_BY_PAWN", TRAILING_SCALAR_OFFSET + 6),
+    scalar("THREAT_HANGING", TRAILING_SCALAR_OFFSET + 7),
+    scalar("THREAT_BY_LOWER_VALUE", TRAILING_SCALAR_OFFSET + 8),
     array("CONNECTED_PAWN_BY_RANK", CONNECTED_OFFSET, 6),
     array("BLOCKED_PASSER_BY_RANK", BLOCKED_PASSER_OFFSET, 6),
     array("PASSER_OWN_KING_DISTANCE", OWN_KING_DISTANCE_OFFSET, 8),
@@ -172,7 +175,7 @@ const MOBILITY_CURVE_ENTRIES: usize = KNIGHT_MOBILITY_ENTRIES
     + ROOK_MOBILITY_ENTRIES
     + QUEEN_MOBILITY_ENTRIES;
 /// Scalar features after the mobility curves.
-pub const TRAILING_SCALARS: usize = 6;
+pub const TRAILING_SCALARS: usize = 9;
 /// Features in the groups added after the tables.
 pub const TRAILING_FEATURES: usize =
     MOBILITY_CURVE_ENTRIES + TRAILING_SCALARS + 6 + 6 + 8 + 8 + KING_DANGER_BUCKETS + 4 + 6 + 6;
@@ -337,6 +340,9 @@ pub fn tuning_features(board: &Board) -> TuningPosition {
         extracted.knight_outposts,
         extracted.bishop_outposts,
         extracted.backward_pawns,
+        extracted.threat_minor_by_pawn,
+        extracted.threat_hanging,
+        extracted.threat_by_lower_value,
     ];
     for (index, value) in trailing_scalars.into_iter().enumerate() {
         if value != 0 {

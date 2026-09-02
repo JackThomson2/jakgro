@@ -40,10 +40,11 @@ use std::fmt::Write as _;
 use std::fs;
 use std::process::ExitCode;
 
-use cozy_chess::Board;
+use cozy_chess::{Board, Piece};
 use jakgro::engine::tuning::{
-    BLOCKS, BlockKind, FEATURE_COUNT, FeatureBlock, MAX_PHASE, TuningPosition, anchored,
-    current_weights, normalized, tuning_features,
+    ANCHOR_MIDDLEGAME_PAWN, BLOCKS, BlockKind, FEATURE_COUNT, FeatureBlock, MAX_PHASE,
+    PLACEMENT_OFFSET, TuningPosition, anchored, current_weights, material_feature, normalized,
+    tuning_features,
 };
 
 /// Scaling constant relating a centipawn score to a winning probability.
@@ -548,6 +549,13 @@ fn fit(arguments: &[String]) -> Result<(), String> {
         outcome_loss(&held_out, &weights, k),
     );
 
+    // Centre the tables, then pull the whole vector back onto the scale the
+    // search's fixed margins were measured against. The fit is invariant under a
+    // positive scale, so without the anchor each refit quietly re-calibrates
+    // every futility margin, the swap-list piece values, and the personality's
+    // style cap. Both steps happen here in floating point, so the weights are
+    // rounded once; the integer forms below then verify rather than transform.
+    let fitted_pawn = centre_and_anchor(&mut weights)?;
     let rounded: Vec<(i32, i32)> = (0..FEATURE_COUNT)
         .map(|index| {
             (
@@ -556,11 +564,6 @@ fn fit(arguments: &[String]) -> Result<(), String> {
             )
         })
         .collect();
-    // Centre the tables, then pull the whole vector back onto the scale the
-    // search's fixed margins were measured against. The fit is invariant under a
-    // positive scale, so without the anchor each refit quietly re-calibrates
-    // every futility margin, the swap-list piece values, and the personality's
-    // style cap.
     let centred = normalized(&rounded);
     if centred[0].0 <= 0 {
         // Anchoring cannot rescue this and must not try: dividing by a
@@ -576,8 +579,8 @@ fn fit(arguments: &[String]) -> Result<(), String> {
     }
     let final_weights = anchored(&centred);
     println!(
-        "fit: middlegame pawn {} fitted, {} after anchoring",
-        centred[0].0, final_weights[0].0,
+        "fit: middlegame pawn {fitted_pawn:.1} fitted, {} after anchoring",
+        final_weights[0].0,
     );
 
     // The two steps guarantee different things and are checked separately.
@@ -590,6 +593,55 @@ fn fit(arguments: &[String]) -> Result<(), String> {
     fs::write(out, render_source(&final_weights)).map_err(|error| format!("{out}: {error}"))?;
     println!("fit: wrote {out}");
     Ok(())
+}
+
+/// Centres each placement table and rescales the vector onto the anchor.
+///
+/// This is `normalized` followed by `anchored`, in floating point, on the
+/// fitted weights before they are rounded. Doing it on the rounded integers
+/// rounds every weight twice, and with several hundred entries of a few
+/// centipawns each the second rounding reorders enough near-equal positions
+/// to fail the ordering check that guards the anchor. Rounding once, after
+/// both steps, leaves the integer steps with nothing to do but verify.
+///
+/// Returns the middlegame pawn the fit landed on before rescaling.
+fn centre_and_anchor(weights: &mut [f64]) -> Result<f64, String> {
+    for piece in Piece::ALL {
+        let start = PLACEMENT_OFFSET + piece as usize * 64;
+        let occupiable: Vec<usize> = (0..64)
+            .filter(|&index| piece != Piece::Pawn || (8..56).contains(&index))
+            .collect();
+        for half in [0, FEATURE_COUNT] {
+            let mean = occupiable
+                .iter()
+                .map(|&index| weights[half + start + index])
+                .sum::<f64>()
+                / occupiable.len() as f64;
+            for &index in &occupiable {
+                weights[half + start + index] -= mean;
+            }
+            if piece == Piece::Pawn {
+                for index in (0..8).chain(56..64) {
+                    weights[half + start + index] = 0.0;
+                }
+            }
+            if let Some(material) = material_feature(piece) {
+                weights[half + material] += mean;
+            }
+        }
+    }
+    let pawn = weights[material_feature(Piece::Pawn).expect("the pawn has a material weight")];
+    if pawn <= 0.0 {
+        return Err(format!(
+            "the fit put the middlegame pawn at {pawn:.1}, so the scale is meaningless; \
+             raise --l2 or --min-observations, or fit a larger corpus",
+        ));
+    }
+    let scale = f64::from(ANCHOR_MIDDLEGAME_PAWN) / pawn;
+    for weight in weights.iter_mut() {
+        *weight *= scale;
+    }
+    Ok(pawn)
 }
 
 /// Chooses the scaling constant that best relates the current scores to results.
@@ -848,10 +900,13 @@ fn render_blocks(weights: &[(i32, i32)], blocks: &[FeatureBlock]) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        FeatureBlock, Sample, comment_score, loss, outcome_loss, render_blocks, split_games,
-        winning_probability,
+        FeatureBlock, Sample, centre_and_anchor, comment_score, loss, outcome_loss, render_blocks,
+        split_games, winning_probability,
     };
-    use jakgro::engine::tuning::{BlockKind, FEATURE_COUNT};
+    use cozy_chess::Piece;
+    use jakgro::engine::tuning::{
+        ANCHOR_MIDDLEGAME_PAWN, BlockKind, FEATURE_COUNT, PLACEMENT_OFFSET, current_weights,
+    };
 
     /// A PGN in the form `selfplay` now writes, wrapped mid-comment.
     ///
@@ -977,6 +1032,40 @@ Nc6 {-0.11/12} 1-0
         assert!((blend(1.0) - 1.0).abs() < 1e-9);
         assert!((blend(0.0) - 0.5).abs() < 1e-9);
         assert!((blend(0.5) - 0.75).abs() < 1e-9);
+    }
+
+    /// Centring and anchoring in floating point lands the pawn exactly on
+    /// the anchor and leaves every table with a zero mean, so the integer
+    /// steps afterwards have nothing left to move.
+    #[test]
+    fn centring_and_anchoring_happen_before_rounding() {
+        let mut weights: Vec<f64> = current_weights()
+            .iter()
+            .map(|&(middle_game, _)| f64::from(middle_game) * 1.5 + 0.3)
+            .chain(
+                current_weights()
+                    .iter()
+                    .map(|&(_, end_game)| f64::from(end_game) * 1.5 + 0.3),
+            )
+            .collect();
+
+        let fitted_pawn = centre_and_anchor(&mut weights).unwrap();
+
+        assert!(fitted_pawn > 0.0);
+        assert!((weights[0] - f64::from(ANCHOR_MIDDLEGAME_PAWN)).abs() < 1e-9);
+        let knight = PLACEMENT_OFFSET + Piece::Knight as usize * 64;
+        let mean: f64 = weights[knight..knight + 64].iter().sum::<f64>() / 64.0;
+        assert!(mean.abs() < 1e-9);
+        let pawn_table = PLACEMENT_OFFSET + Piece::Pawn as usize * 64;
+        assert!(
+            weights[pawn_table..pawn_table + 8]
+                .iter()
+                .all(|&w| w == 0.0)
+        );
+
+        let mut worthless = vec![0.0; 2 * FEATURE_COUNT];
+        worthless[0] = -5.0;
+        assert!(centre_and_anchor(&mut worthless).is_err());
     }
 
     #[test]

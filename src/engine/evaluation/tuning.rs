@@ -537,7 +537,8 @@ fn rescale(weight: Score, pawn: Score) -> Score {
 }
 
 /// Returns the scalar feature holding a piece's material weight, if it has one.
-const fn material_feature(piece: Piece) -> Option<usize> {
+#[must_use]
+pub const fn material_feature(piece: Piece) -> Option<usize> {
     match piece {
         Piece::Pawn => Some(0),
         Piece::Knight => Some(1),

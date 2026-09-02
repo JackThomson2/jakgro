@@ -5,7 +5,7 @@ use cozy_chess::{
     get_knight_moves, get_pawn_attacks, get_rook_moves,
 };
 
-use super::{AttackProfile, EvalFeatures, ScorePair, piece_value, placement};
+use super::{AttackProfile, EvalFeatures, ScorePair, piece_value, placement, weights};
 
 /// Files ahead of each square from White's perspective, on the file and both
 /// neighbours.
@@ -268,6 +268,8 @@ pub(super) fn extract_with_style(board: &Board, style: bool) -> EvalFeatures {
             sign * attacks.piece_mobility[color as usize][piece_index(Piece::Queen) as usize];
         features.king_mobility +=
             sign * attacks.piece_mobility[color as usize][piece_index(Piece::King) as usize];
+        features.mobility_curves =
+            features.mobility_curves + attacks.mobility_curves[color as usize] * sign;
         let attack = if color == Color::White {
             white_attack
         } else {
@@ -374,6 +376,8 @@ struct AttackSummary {
     profiles: [AttackProfile; 2],
     mobility: [i32; 2],
     piece_mobility: [[i32; 6]; 2],
+    /// Per-piece mobility curves, already weighted, per colour.
+    mobility_curves: [ScorePair; 2],
     activity: [i32; 2],
     placement: [ScorePair; 2],
 }
@@ -392,6 +396,7 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
     let mut profiles = [AttackProfile::default(); 2];
     let mut mobility = [0_i32; 2];
     let mut piece_mobility = [[0_i32; 6]; 2];
+    let mut mobility_curves = [ScorePair::default(); 2];
     let mut activity = [0_i32; 2];
     let mut placement = [ScorePair::default(); 2];
     let mut attack_counts = [[0_u8; 64]; 2];
@@ -415,6 +420,7 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
             Piece::Queen,
             Piece::King,
         ] {
+            let curve = weights::mobility_curve_offset(piece);
             for square in board.colored_pieces(color, piece) {
                 // Placement and activity are accumulated in the same pass rather
                 // than in a second loop over every piece: the terms differ but
@@ -438,6 +444,13 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
                 let attacks = raw_attacks & !friendly_pieces;
                 mobility[index] += attacks.len() as i32;
                 piece_mobility[index][piece_index(piece) as usize] += attacks.len() as i32;
+                // Weighted here for the same reason placement is: the curve is
+                // a table lookup per piece, and expanding it into one count per
+                // move count is work only the fitter needs.
+                if let Some(offset) = curve {
+                    mobility_curves[index] = mobility_curves[index]
+                        + weights::mobility_curve_at(offset + attacks.len() as usize);
+                }
                 if !style {
                     continue;
                 }
@@ -547,9 +560,16 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
         profiles,
         mobility,
         piece_mobility,
+        mobility_curves,
         activity,
         placement,
     }
+}
+
+/// Returns how many squares a piece may move to, for the fitter's expansion.
+#[cfg(feature = "tuning")]
+pub(super) fn mobility_count(board: &Board, piece: Piece, square: Square, color: Color) -> usize {
+    (attacks_from(piece, square, color, board.occupied()) & !board.colors(color)).len() as usize
 }
 
 #[cfg(test)]

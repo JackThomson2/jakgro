@@ -196,6 +196,15 @@ impl AttackProfile {
     }
 }
 
+/// Distinct move counts a knight can have, zero through eight.
+pub(super) const KNIGHT_MOBILITY_ENTRIES: usize = 9;
+/// Distinct move counts a bishop can have, zero through thirteen.
+pub(super) const BISHOP_MOBILITY_ENTRIES: usize = 14;
+/// Distinct move counts a rook can have, zero through fourteen.
+pub(super) const ROOK_MOBILITY_ENTRIES: usize = 15;
+/// Distinct move counts a queen can have, zero through twenty-seven.
+pub(super) const QUEEN_MOBILITY_ENTRIES: usize = 28;
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) struct EvalFeatures {
     pub(super) pawns: Score,
@@ -210,7 +219,23 @@ pub(super) struct EvalFeatures {
     /// blend directly rather than multiplied by a single weight.
     pub(super) placement: ScorePair,
     pub(super) tempo: Score,
+    /// Side-relative sum of every piece's move count, kings and pawns included.
+    ///
+    /// The objective evaluation no longer reads this directly: pawns and kings
+    /// are weighted through their own counts and the four piece types through
+    /// the curves below. It is kept as the total the trace and the tests
+    /// reason about.
     pub(super) mobility: Score,
+    /// Side-relative sum of the per-piece mobility curves.
+    ///
+    /// Knights, bishops, rooks and queens are scored by a table indexed by
+    /// their move count rather than by one weight times the count, so a fit
+    /// can say that a piece's third square is worth more than its thirteenth,
+    /// or that a trapped piece costs more than a line through the origin can
+    /// express. Like placement, the term is accumulated as a pair in the
+    /// piece loop and added to the blend directly; the fitter expands it back
+    /// into one count per piece type and move count.
+    pub(super) mobility_curves: ScorePair,
     pub(super) pawn_mobility: Score,
     pub(super) knight_mobility: Score,
     pub(super) bishop_mobility: Score,
@@ -356,11 +381,11 @@ pub(super) const fn piece_value(piece: Piece) -> Score {
 mod tests {
     use super::{
         DEFAULT_AGGRESSION, EvalFeatures, EvaluationConfig, MATE_THRESHOLD, MAX_AGGRESSION,
-        MIN_AGGRESSION, evaluate, evaluate_with_config, evaluate_with_trace,
+        MIN_AGGRESSION, Score, evaluate, evaluate_with_config, evaluate_with_trace,
         evaluate_with_trace_and_config, root_complexity_bonus, weights,
     };
     use crate::engine::Position;
-    use cozy_chess::Color;
+    use cozy_chess::{Color, Piece};
 
     #[test]
     fn objective_fast_path_matches_the_general_evaluation() {
@@ -570,7 +595,7 @@ mod tests {
         );
 
         let generic = EvalFeatures {
-            mobility: 10,
+            pawn_mobility: 10,
             ..EvalFeatures::default()
         };
         let pieces = EvalFeatures {
@@ -614,6 +639,67 @@ mod tests {
             + super::ScorePair::new(2, 4) * features.rook_mobility
             + super::ScorePair::new(1, 2) * features.queen_mobility;
         assert_eq!(profiled, explicit);
+    }
+
+    /// The per-piece curves ship as the linear term they replaced.
+    ///
+    /// Until a fit moves them, a knight with five moves must score exactly
+    /// what five units of the shared mobility weight score, for every count
+    /// of every piece, which is what makes adopting the curves a change to no
+    /// score at all.
+    #[test]
+    fn mobility_curves_start_on_the_linear_term() {
+        let unit = super::weights::score(EvalFeatures {
+            pawn_mobility: 1,
+            ..EvalFeatures::default()
+        });
+        for (piece, entries) in [
+            (Piece::Knight, super::KNIGHT_MOBILITY_ENTRIES),
+            (Piece::Bishop, super::BISHOP_MOBILITY_ENTRIES),
+            (Piece::Rook, super::ROOK_MOBILITY_ENTRIES),
+            (Piece::Queen, super::QUEEN_MOBILITY_ENTRIES),
+        ] {
+            for count in 0..entries {
+                assert_eq!(
+                    super::weights::mobility_curve(piece, count),
+                    unit * count as Score,
+                    "{piece:?} with {count} moves left the linear term",
+                );
+            }
+        }
+        for piece in [Piece::Pawn, Piece::King] {
+            for count in 0..super::QUEEN_MOBILITY_ENTRIES {
+                assert_eq!(
+                    super::weights::mobility_curve(piece, count),
+                    super::ScorePair::new(0, 0)
+                );
+            }
+        }
+
+        // In a real position the accumulated pair says what the per-piece
+        // counts say, and the objective score reads it.
+        let position = Position::from_fen(
+            "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4",
+        )
+        .unwrap();
+        let features = evaluate_with_trace(position.board()).features;
+        let curved = features.knight_mobility
+            + features.bishop_mobility
+            + features.rook_mobility
+            + features.queen_mobility;
+        assert_eq!(features.mobility_curves, unit * curved);
+        assert_eq!(
+            features.mobility,
+            curved + features.pawn_mobility + features.king_mobility
+        );
+        let without = EvalFeatures {
+            mobility_curves: super::ScorePair::new(0, 0),
+            ..features
+        };
+        assert_eq!(
+            super::weights::score(features),
+            super::weights::score(without) + features.mobility_curves
+        );
     }
 
     #[test]

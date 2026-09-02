@@ -1,8 +1,9 @@
 //! Linear feature vector for offline weight fitting.
 //!
 //! The objective evaluation is a dot product. [`super::weights::score`] combines
-//! fourteen scalar features with one weight pair each, and adds a placement term
-//! that is itself a sum of piece-square entries. Written out, the whole thing is
+//! scalar and indexed features with one weight pair each, and adds a placement
+//! term that is itself a sum of piece-square entries. Written out, the whole
+//! thing is
 //!
 //! ```text
 //! score_mg = Σ w_mg[i] · x[i]      score_eg = Σ w_eg[i] · x[i]
@@ -24,7 +25,10 @@
 
 use cozy_chess::{Board, Color, Piece, Square};
 
-use super::{Score, features, placement, weights};
+use super::{
+    BISHOP_MOBILITY_ENTRIES, KNIGHT_MOBILITY_ENTRIES, QUEEN_MOBILITY_ENTRIES,
+    ROOK_MOBILITY_ENTRIES, Score, features, placement, weights,
+};
 
 /// How a block of weights is written back into the engine's source.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -99,7 +103,7 @@ pub const BLOCKS: &[FeatureBlock] = &[
     scalar("QUEEN", 4),
     scalar("ACTIVITY", 5),
     scalar("TEMPO", 6),
-    scalar("MOBILITY", 7),
+    scalar("PAWN_KING_MOBILITY", 7),
     scalar("BISHOP_PAIR", 8),
     scalar("DOUBLED_PAWN", 9),
     scalar("ISOLATED_PAWN", 10),
@@ -113,16 +117,63 @@ pub const BLOCKS: &[FeatureBlock] = &[
     table("ROOK", PLACEMENT_OFFSET + 192),
     table("QUEEN", PLACEMENT_OFFSET + 256),
     table("KING", PLACEMENT_OFFSET + 320),
+    array(
+        "KNIGHT_MOBILITY",
+        TRAILING_OFFSET + MOBILITY_CURVES[0].1,
+        MOBILITY_CURVES[0].2,
+    ),
+    array(
+        "BISHOP_MOBILITY",
+        TRAILING_OFFSET + MOBILITY_CURVES[1].1,
+        MOBILITY_CURVES[1].2,
+    ),
+    array(
+        "ROOK_MOBILITY",
+        TRAILING_OFFSET + MOBILITY_CURVES[2].1,
+        MOBILITY_CURVES[2].2,
+    ),
+    array(
+        "QUEEN_MOBILITY",
+        TRAILING_OFFSET + MOBILITY_CURVES[3].1,
+        MOBILITY_CURVES[3].2,
+    ),
 ];
 
-/// Scalar features, in the order [`super::weights::score`] combines them.
+/// Scalar features before the tables, in the order [`super::weights::score`]
+/// combines them.
 pub const SCALAR_FEATURES: usize = 25;
 /// Piece-square entries: six pieces over sixty-four squares.
 pub const PLACEMENT_FEATURES: usize = 6 * 64;
+/// Features in the groups added after the tables.
+pub const TRAILING_FEATURES: usize = KNIGHT_MOBILITY_ENTRIES
+    + BISHOP_MOBILITY_ENTRIES
+    + ROOK_MOBILITY_ENTRIES
+    + QUEEN_MOBILITY_ENTRIES;
 /// Length of the feature vector.
-pub const FEATURE_COUNT: usize = SCALAR_FEATURES + PLACEMENT_FEATURES;
+pub const FEATURE_COUNT: usize = SCALAR_FEATURES + PLACEMENT_FEATURES + TRAILING_FEATURES;
 /// Index of the first piece-square feature.
 pub const PLACEMENT_OFFSET: usize = SCALAR_FEATURES;
+/// Index of the first feature after the tables.
+pub const TRAILING_OFFSET: usize = PLACEMENT_OFFSET + PLACEMENT_FEATURES;
+/// The mobility curves as piece, offset within the trailing region and length.
+const MOBILITY_CURVES: [(Piece, usize, usize); 4] = [
+    (Piece::Knight, 0, KNIGHT_MOBILITY_ENTRIES),
+    (
+        Piece::Bishop,
+        KNIGHT_MOBILITY_ENTRIES,
+        BISHOP_MOBILITY_ENTRIES,
+    ),
+    (
+        Piece::Rook,
+        KNIGHT_MOBILITY_ENTRIES + BISHOP_MOBILITY_ENTRIES,
+        ROOK_MOBILITY_ENTRIES,
+    ),
+    (
+        Piece::Queen,
+        KNIGHT_MOBILITY_ENTRIES + BISHOP_MOBILITY_ENTRIES + ROOK_MOBILITY_ENTRIES,
+        QUEEN_MOBILITY_ENTRIES,
+    ),
+];
 /// Largest phase value, at which the middlegame weight applies alone.
 pub const MAX_PHASE: i32 = 24;
 
@@ -170,7 +221,9 @@ pub fn tuning_features(board: &Board) -> TuningPosition {
         extracted.queens,
         extracted.activity,
         extracted.tempo,
-        extracted.mobility,
+        // The shared weight now covers only the two piece types without a
+        // curve; the curves follow the tables.
+        extracted.pawn_mobility + extracted.king_mobility,
         extracted.bishop_pair,
         extracted.doubled_pawns,
         extracted.isolated_pawns,
@@ -215,6 +268,25 @@ pub fn tuning_features(board: &Board) -> TuningPosition {
         }
     }
 
+    // The mobility curves are expanded the same way: the engine accumulates a
+    // weighted pair, and the fitter needs the count of pieces at each move
+    // count that produced it.
+    let mut curve_counts = [0_i16; TRAILING_FEATURES];
+    for color in [Color::White, Color::Black] {
+        let sign = if color == Color::White { 1 } else { -1 };
+        for (piece, start, _) in MOBILITY_CURVES {
+            debug_assert_eq!(weights::mobility_curve_offset(piece), Some(start));
+            for square in board.colored_pieces(color, piece) {
+                curve_counts[start + features::mobility_count(board, piece, square, color)] += sign;
+            }
+        }
+    }
+    for (offset, count) in curve_counts.into_iter().enumerate() {
+        if count != 0 {
+            entries.push(((TRAILING_OFFSET + offset) as u16, count));
+        }
+    }
+
     TuningPosition {
         entries,
         phase: features::phase(board),
@@ -234,6 +306,11 @@ pub fn current_weights() -> Vec<(Score, Score)> {
             (entry.middle_game(), entry.end_game())
         })
     }));
+    weights.extend(
+        weights::trailing_tuning_weights()
+            .into_iter()
+            .map(|pair| (pair.middle_game(), pair.end_game())),
+    );
     debug_assert_eq!(weights.len(), FEATURE_COUNT);
     weights
 }
@@ -361,8 +438,8 @@ const fn material_feature(piece: Piece) -> Option<usize> {
 mod tests {
     use super::{
         ANCHOR_MIDDLEGAME_PAWN, BLOCKS, BlockKind, FEATURE_COUNT, PLACEMENT_FEATURES,
-        PLACEMENT_OFFSET, Piece, SCALAR_FEATURES, Score, anchored, current_weights, normalized,
-        tuning_features,
+        PLACEMENT_OFFSET, Piece, SCALAR_FEATURES, Score, TRAILING_FEATURES, TRAILING_OFFSET,
+        anchored, current_weights, normalized, tuning_features,
     };
     use crate::engine::Position;
     use crate::engine::evaluation::{EvaluationConfig, MIN_AGGRESSION, weights};
@@ -454,15 +531,30 @@ mod tests {
         );
         assert_eq!(current_weights().len(), FEATURE_COUNT);
         // `SCALAR_FEATURES` counts slots, not blocks: one array block of six
-        // contributes six. Everything that is not a piece-square table lives in
-        // the region `weights.rs` owns and `PLACEMENT_OFFSET` ends.
+        // contributes six. The region before the tables is what `weights.rs`
+        // reads first and `PLACEMENT_OFFSET` ends; groups added later follow
+        // the tables so the leading indices keep their meaning.
         assert_eq!(
             BLOCKS
                 .iter()
-                .filter(|block| block.kind != BlockKind::Table)
+                .filter(|block| block.offset < PLACEMENT_OFFSET)
                 .map(|block| block.len)
                 .sum::<usize>(),
             SCALAR_FEATURES,
+        );
+        assert_eq!(
+            BLOCKS
+                .iter()
+                .filter(|block| block.offset >= TRAILING_OFFSET)
+                .map(|block| block.len)
+                .sum::<usize>(),
+            TRAILING_FEATURES,
+        );
+        assert!(
+            BLOCKS
+                .iter()
+                .filter(|block| block.offset >= TRAILING_OFFSET)
+                .all(|block| block.kind != BlockKind::Table),
         );
         assert_eq!(
             BLOCKS

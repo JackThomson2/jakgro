@@ -781,12 +781,22 @@ fn render_source(weights: &[(i32, i32)]) -> String {
 fn render_blocks(weights: &[(i32, i32)], blocks: &[FeatureBlock]) -> String {
     let mut out = String::new();
     out.push_str("// Fitted by `tune fit`. Paste into the files named below.\n\n");
-    out.push_str("// ---- src/engine/evaluation/weights.rs ----\n");
-    let mut in_tables = false;
+    // Tables and everything else are written to different files, and groups
+    // added after the tables are read back by `weights.rs` like the ones
+    // before them, so the banner is emitted wherever the destination changes.
+    let mut in_tables: Option<bool> = None;
     for block in blocks {
-        if block.kind == BlockKind::Table && !in_tables {
-            out.push_str("\n// ---- src/engine/evaluation/placement.rs ----\n");
-            in_tables = true;
+        let is_table = block.kind == BlockKind::Table;
+        if in_tables != Some(is_table) {
+            if in_tables.is_some() {
+                out.push('\n');
+            }
+            out.push_str(if is_table {
+                "// ---- src/engine/evaluation/placement.rs ----\n"
+            } else {
+                "// ---- src/engine/evaluation/weights.rs ----\n"
+            });
+            in_tables = Some(is_table);
         }
         match block.kind {
             BlockKind::Scalar => {
@@ -884,6 +894,40 @@ Nc6 {-0.11/12} 1-0
         assert!(rendered.contains("ScorePair::new(60, 120),"));
         // No table block, so the placement banner must not be emitted.
         assert!(!rendered.contains("placement.rs"));
+    }
+
+    /// A group that follows the tables is written back to `weights.rs`.
+    #[test]
+    fn blocks_after_the_tables_return_to_the_weights_file() {
+        let blocks = [
+            FeatureBlock {
+                name: "TEMPO",
+                offset: 0,
+                len: 1,
+                kind: BlockKind::Scalar,
+            },
+            FeatureBlock {
+                name: "KING",
+                offset: 1,
+                len: 64,
+                kind: BlockKind::Table,
+            },
+            FeatureBlock {
+                name: "KNIGHT_MOBILITY",
+                offset: 65,
+                len: 2,
+                kind: BlockKind::Array,
+            },
+        ];
+        let weights = vec![(1, 1); 67];
+
+        let rendered = render_blocks(&weights, &blocks);
+
+        let first_weights = rendered.find("weights.rs").unwrap();
+        let tables = rendered.find("placement.rs").unwrap();
+        let second_weights = rendered.rfind("weights.rs").unwrap();
+        assert!(first_weights < tables && tables < second_weights);
+        assert!(rendered[second_weights..].contains("const KNIGHT_MOBILITY: [ScorePair; 2]"));
     }
 
     #[test]

@@ -1,4 +1,9 @@
-use super::{EvalFeatures, Score, ScorePair};
+use cozy_chess::Piece;
+
+use super::{
+    BISHOP_MOBILITY_ENTRIES, EvalFeatures, KNIGHT_MOBILITY_ENTRIES, QUEEN_MOBILITY_ENTRIES,
+    ROOK_MOBILITY_ENTRIES, Score, ScorePair,
+};
 
 const PAWN: ScorePair = ScorePair::new(94, 149);
 const KNIGHT: ScorePair = ScorePair::new(330, 290);
@@ -7,7 +12,32 @@ const ROOK: ScorePair = ScorePair::new(503, 547);
 const QUEEN: ScorePair = ScorePair::new(926, 932);
 const ACTIVITY: ScorePair = ScorePair::new(3, -3);
 const TEMPO: ScorePair = ScorePair::new(12, 0);
-const MOBILITY: ScorePair = ScorePair::new(3, 7);
+/// Weight per move for the two piece types without a mobility curve.
+const PAWN_KING_MOBILITY: ScorePair = ScorePair::new(3, 7);
+/// Mobility by move count, one entry per count a piece of that type can have.
+///
+/// These ship as exactly the linear term they replace: entry `n` is
+/// `PAWN_KING_MOBILITY * n`, so adopting them moves no score. What they add is
+/// the shape a fit may now give them — a knight's third square is not worth
+/// what its eighth is, and one shared weight per move could never say so.
+const KNIGHT_MOBILITY: [ScorePair; KNIGHT_MOBILITY_ENTRIES] = linear_mobility();
+const BISHOP_MOBILITY: [ScorePair; BISHOP_MOBILITY_ENTRIES] = linear_mobility();
+const ROOK_MOBILITY: [ScorePair; ROOK_MOBILITY_ENTRIES] = linear_mobility();
+const QUEEN_MOBILITY: [ScorePair; QUEEN_MOBILITY_ENTRIES] = linear_mobility();
+
+/// Builds a mobility curve that reproduces the shared linear weight.
+const fn linear_mobility<const N: usize>() -> [ScorePair; N] {
+    let mut curve = [ScorePair::new(0, 0); N];
+    let mut count = 0;
+    while count < N {
+        curve[count] = ScorePair::new(
+            PAWN_KING_MOBILITY.middle_game * count as Score,
+            PAWN_KING_MOBILITY.end_game * count as Score,
+        );
+        count += 1;
+    }
+    curve
+}
 const PAWN_MOBILITY_ADJUSTMENT: ScorePair = ScorePair::new(-3, -2);
 const KNIGHT_MOBILITY_ADJUSTMENT: ScorePair = ScorePair::new(1, 2);
 const BISHOP_MOBILITY_ADJUSTMENT: ScorePair = ScorePair::new(2, 3);
@@ -58,7 +88,8 @@ pub(super) fn score(features: EvalFeatures) -> ScorePair {
         + features.placement
         + ACTIVITY * features.activity
         + TEMPO * features.tempo
-        + MOBILITY * features.mobility
+        + PAWN_KING_MOBILITY * (features.pawn_mobility + features.king_mobility)
+        + features.mobility_curves
         + BISHOP_PAIR * features.bishop_pair
         + DOUBLED_PAWN * features.doubled_pawns
         + ISOLATED_PAWN * features.isolated_pawns
@@ -69,6 +100,70 @@ pub(super) fn score(features: EvalFeatures) -> ScorePair {
         )
         + KING_SHELTER * features.king_shelter
         + OPEN_KING_FILE * features.open_king_files
+}
+
+/// The four curves laid end to end, which is how the piece loop reads them.
+static MOBILITY_CURVES: [ScorePair; MOBILITY_CURVE_ENTRIES] = concatenated_curves();
+
+/// Entries across the four mobility curves.
+const MOBILITY_CURVE_ENTRIES: usize = KNIGHT_MOBILITY_ENTRIES
+    + BISHOP_MOBILITY_ENTRIES
+    + ROOK_MOBILITY_ENTRIES
+    + QUEEN_MOBILITY_ENTRIES;
+
+const fn concatenated_curves() -> [ScorePair; MOBILITY_CURVE_ENTRIES] {
+    let mut flat = [ScorePair::new(0, 0); MOBILITY_CURVE_ENTRIES];
+    let curves: [&[ScorePair]; 4] = [
+        &KNIGHT_MOBILITY,
+        &BISHOP_MOBILITY,
+        &ROOK_MOBILITY,
+        &QUEEN_MOBILITY,
+    ];
+    let mut next = 0;
+    let mut curve = 0;
+    while curve < curves.len() {
+        let mut index = 0;
+        while index < curves[curve].len() {
+            flat[next] = curves[curve][index];
+            next += 1;
+            index += 1;
+        }
+        curve += 1;
+    }
+    flat
+}
+
+/// Returns where a piece's mobility curve starts, if it has one.
+///
+/// Pawns and kings have no curve and score through [`score`]'s shared weight:
+/// a pawn's "mobility" is its pushes and captures, which the structure terms
+/// describe better, and a king's is its exposure as much as its freedom. The
+/// piece loop asks once per piece type, so the half of the pieces without a
+/// curve cost nothing per square.
+pub(super) const fn mobility_curve_offset(piece: Piece) -> Option<usize> {
+    match piece {
+        Piece::Knight => Some(0),
+        Piece::Bishop => Some(KNIGHT_MOBILITY_ENTRIES),
+        Piece::Rook => Some(KNIGHT_MOBILITY_ENTRIES + BISHOP_MOBILITY_ENTRIES),
+        Piece::Queen => {
+            Some(KNIGHT_MOBILITY_ENTRIES + BISHOP_MOBILITY_ENTRIES + ROOK_MOBILITY_ENTRIES)
+        }
+        Piece::Pawn | Piece::King => None,
+    }
+}
+
+/// Returns the weight at a curve offset plus a move count.
+pub(super) fn mobility_curve_at(index: usize) -> ScorePair {
+    MOBILITY_CURVES[index]
+}
+
+/// Returns the mobility weight for a piece with the given number of moves.
+#[cfg(test)]
+pub(super) fn mobility_curve(piece: Piece, count: usize) -> ScorePair {
+    match mobility_curve_offset(piece) {
+        Some(offset) => mobility_curve_at(offset + count),
+        None => ScorePair::new(0, 0),
+    }
 }
 
 /// Returns the dot product of an indexed weight block with its counts.
@@ -115,7 +210,7 @@ pub(super) const fn tuning_weights() -> [ScorePair; super::tuning::SCALAR_FEATUR
         QUEEN,
         ACTIVITY,
         TEMPO,
-        MOBILITY,
+        PAWN_KING_MOBILITY,
         BISHOP_PAIR,
         DOUBLED_PAWN,
         ISOLATED_PAWN,
@@ -134,4 +229,13 @@ pub(super) const fn tuning_weights() -> [ScorePair; super::tuning::SCALAR_FEATUR
         KING_SHELTER,
         OPEN_KING_FILE,
     ]
+}
+
+/// Returns the weights of the blocks that follow the placement tables.
+///
+/// Groups added after the tables live here, in the order [`score`] reads them,
+/// so the vector's leading indices keep their meaning across additions.
+#[cfg(feature = "tuning")]
+pub(super) fn trailing_tuning_weights() -> [ScorePair; super::tuning::TRAILING_FEATURES] {
+    MOBILITY_CURVES
 }

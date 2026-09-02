@@ -140,6 +140,8 @@ pub const BLOCKS: &[FeatureBlock] = &[
     scalar("ROOK_OPEN_FILE", TRAILING_SCALAR_OFFSET),
     scalar("ROOK_SEMI_OPEN_FILE", TRAILING_SCALAR_OFFSET + 1),
     scalar("ROOK_ON_SEVENTH", TRAILING_SCALAR_OFFSET + 2),
+    scalar("KNIGHT_OUTPOST", TRAILING_SCALAR_OFFSET + 3),
+    scalar("BISHOP_OUTPOST", TRAILING_SCALAR_OFFSET + 4),
 ];
 
 /// Scalar features before the tables, in the order [`super::weights::score`]
@@ -153,7 +155,7 @@ const MOBILITY_CURVE_ENTRIES: usize = KNIGHT_MOBILITY_ENTRIES
     + ROOK_MOBILITY_ENTRIES
     + QUEEN_MOBILITY_ENTRIES;
 /// Scalar features after the mobility curves.
-pub const TRAILING_SCALARS: usize = 3;
+pub const TRAILING_SCALARS: usize = 5;
 /// Features in the groups added after the tables.
 pub const TRAILING_FEATURES: usize = MOBILITY_CURVE_ENTRIES + TRAILING_SCALARS;
 /// Length of the feature vector.
@@ -302,6 +304,8 @@ pub fn tuning_features(board: &Board) -> TuningPosition {
         extracted.rook_open_files,
         extracted.rook_semi_open_files,
         extracted.rooks_on_seventh,
+        extracted.knight_outposts,
+        extracted.bishop_outposts,
     ];
     for (index, value) in trailing_scalars.into_iter().enumerate() {
         if value != 0 {

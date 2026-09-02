@@ -265,6 +265,11 @@ pub(super) struct EvalFeatures {
     /// Rooks on their seventh rank with the enemy king on the eighth or enemy
     /// pawns still on the seventh to attack.
     pub(super) rooks_on_seventh: Score,
+    /// Minor pieces on an outpost: a square on the fourth to sixth rank from
+    /// the owner's side, defended by a friendly pawn, that no enemy pawn can
+    /// ever attack.
+    pub(super) knight_outposts: Score,
+    pub(super) bishop_outposts: Score,
     pub(super) king_pressure: Score,
     pub(super) pawn_storm: Score,
     pub(super) threats: Score,
@@ -759,6 +764,50 @@ mod tests {
             rook_open_files: 1,
             rook_semi_open_files: 1,
             rooks_on_seventh: 1,
+            ..EvalFeatures::default()
+        };
+        assert_eq!(
+            super::weights::score(scored),
+            super::weights::score(EvalFeatures::default())
+        );
+    }
+
+    #[test]
+    fn outposts_need_pawn_support_and_no_pawn_challenge() {
+        let features =
+            |fen: &str| evaluate_with_trace(Position::from_fen(fen).unwrap().board()).features;
+
+        // A knight on d5 held by e4, with no black pawn on the c or e files
+        // ahead of it, is the textbook case.
+        let held = features("4k3/pp3ppp/8/3N4/4P3/8/PP3PPP/4K3 w - - 0 1");
+        assert_eq!(held.knight_outposts, 1);
+        assert_eq!(held.bishop_outposts, 0);
+        // An enemy pawn that can still advance to challenge it removes it.
+        assert_eq!(
+            features("4k3/ppp2ppp/8/3N4/4P3/8/PP3PPP/4K3 w - - 0 1").knight_outposts,
+            0
+        );
+        // So does the absence of the defending pawn.
+        assert_eq!(
+            features("4k3/pp3ppp/8/3N4/8/8/PP3PPP/4K3 w - - 0 1").knight_outposts,
+            0
+        );
+        // The fourth rank is the nearest an outpost may be; the third is not one.
+        assert_eq!(
+            features("4k3/pp3ppp/8/8/8/3N4/PP2PPPP/4K3 w - - 0 1").knight_outposts,
+            0
+        );
+        // Black's outposts count against, on Black's own fourth to sixth.
+        let black = features("4k3/pp3ppp/8/4p3/3n4/8/PP3PPP/4K3 w - - 0 1");
+        assert_eq!(black.knight_outposts, -1);
+        assert_eq!(
+            features("4k3/pp3ppp/8/4p3/3b4/8/PP3PPP/4K3 w - - 0 1").bishop_outposts,
+            -1
+        );
+
+        let scored = EvalFeatures {
+            knight_outposts: 1,
+            bishop_outposts: 1,
             ..EvalFeatures::default()
         };
         assert_eq!(

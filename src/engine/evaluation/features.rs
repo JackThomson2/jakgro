@@ -14,6 +14,13 @@ use super::{AttackProfile, EvalFeatures, ScorePair, piece_value, placement, weig
 /// single mask test in place of a scan over every enemy pawn.
 static WHITE_PASSER_SPANS: [BitBoard; 64] = build_passer_spans(true);
 static BLACK_PASSER_SPANS: [BitBoard; 64] = build_passer_spans(false);
+/// Files adjacent to each square, ahead of it from White's perspective.
+///
+/// An enemy pawn anywhere in this span could one day attack the square, so a
+/// piece there is not on an outpost. It is the passer span without the
+/// square's own file.
+static WHITE_OUTPOST_CHALLENGES: [BitBoard; 64] = build_outpost_challenges(true);
+static BLACK_OUTPOST_CHALLENGES: [BitBoard; 64] = build_outpost_challenges(false);
 /// Squares one and two ranks ahead of each square, on the file and both
 /// neighbours, used for king shelter.
 static WHITE_SHELTER_ZONES: [BitBoard; 64] = build_shelter_zones(true);
@@ -53,6 +60,24 @@ const fn build_passer_spans(white: bool) -> [BitBoard; 64] {
         index += 1;
     }
     spans
+}
+
+const fn build_outpost_challenges(white: bool) -> [BitBoard; 64] {
+    let spans = build_passer_spans(white);
+    let mut challenges = [BitBoard::EMPTY; 64];
+    let mut index = 0;
+    while index < 64 {
+        let file = index % 8;
+        let mut own_file = 0_u64;
+        let mut rank = 0;
+        while rank < 8 {
+            own_file |= square_mask(file, rank);
+            rank += 1;
+        }
+        challenges[index] = BitBoard(spans[index].0 & !own_file);
+        index += 1;
+    }
+    challenges
 }
 
 const fn build_shelter_zones(white: bool) -> [BitBoard; 64] {
@@ -274,6 +299,9 @@ pub(super) fn extract_with_style(board: &Board, style: bool) -> EvalFeatures {
         features.rook_open_files += sign * open;
         features.rook_semi_open_files += sign * semi_open;
         features.rooks_on_seventh += sign * seventh;
+        let [knights, bishops] = attacks.outposts[color as usize];
+        features.knight_outposts += sign * knights;
+        features.bishop_outposts += sign * bishops;
         let attack = if color == Color::White {
             white_attack
         } else {
@@ -384,6 +412,8 @@ struct AttackSummary {
     mobility_curves: [ScorePair; 2],
     /// Rooks on open files, semi-open files and the seventh, per colour.
     rook_files: [[i32; 3]; 2],
+    /// Knights and bishops on outposts, per colour.
+    outposts: [[i32; 2]; 2],
     activity: [i32; 2],
     placement: [ScorePair; 2],
 }
@@ -404,6 +434,7 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
     let mut piece_mobility = [[0_i32; 6]; 2];
     let mut mobility_curves = [ScorePair::default(); 2];
     let mut rook_files = [[0_i32; 3]; 2];
+    let mut outposts = [[0_i32; 2]; 2];
     let all_pawns = board.pieces(Piece::Pawn);
     let mut activity = [0_i32; 2];
     let mut placement = [ScorePair::default(); 2];
@@ -423,6 +454,26 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
             (Rank::Seventh, Rank::Eighth)
         } else {
             (Rank::Second, Rank::First)
+        };
+        // Outposts are on the owner's fourth to sixth ranks, defended by a
+        // pawn, and beyond the reach of every enemy pawn.
+        let (outpost_ranks, challenges) = if color == Color::White {
+            (
+                Rank::Fourth.bitboard() | Rank::Fifth.bitboard() | Rank::Sixth.bitboard(),
+                &WHITE_OUTPOST_CHALLENGES,
+            )
+        } else {
+            (
+                Rank::Fifth.bitboard() | Rank::Fourth.bitboard() | Rank::Third.bitboard(),
+                &BLACK_OUTPOST_CHALLENGES,
+            )
+        };
+        let pawn_held = {
+            let mut held = BitBoard::EMPTY;
+            for pawn in own_pawns {
+                held |= get_pawn_attacks(pawn, color);
+            }
+            held & outpost_ranks
         };
         let mut result = AttackProfile::default();
         let mut attacker_mask = 0_u8;
@@ -465,6 +516,12 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
                 if let Some(offset) = curve {
                     mobility_curves[index] = mobility_curves[index]
                         + weights::mobility_curve_at(offset + attacks.len() as usize);
+                }
+                if matches!(piece, Piece::Knight | Piece::Bishop)
+                    && pawn_held.has(square)
+                    && (enemy_pawns & challenges[square as usize]).is_empty()
+                {
+                    outposts[index][usize::from(piece == Piece::Bishop)] += 1;
                 }
                 if piece == Piece::Rook {
                     let file = square.file().bitboard();
@@ -594,6 +651,7 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
         piece_mobility,
         mobility_curves,
         rook_files,
+        outposts,
         activity,
         placement,
     }

@@ -77,6 +77,9 @@ const OPEN_KING_FILE: ScorePair = ScorePair::new(-18, -3);
 const ROOK_OPEN_FILE: ScorePair = ScorePair::new(0, 0);
 const ROOK_SEMI_OPEN_FILE: ScorePair = ScorePair::new(0, 0);
 const ROOK_ON_SEVENTH: ScorePair = ScorePair::new(0, 0);
+/// Minor pieces on outposts, zero until fitted.
+const KNIGHT_OUTPOST: ScorePair = ScorePair::new(0, 0);
+const BISHOP_OUTPOST: ScorePair = ScorePair::new(0, 0);
 const KING_PRESSURE: ScorePair = ScorePair::new(9, 2);
 const PAWN_STORM: ScorePair = ScorePair::new(7, 1);
 const THREAT: ScorePair = ScorePair::new(11, 7);
@@ -111,6 +114,8 @@ pub(super) fn score(features: EvalFeatures) -> ScorePair {
         + ROOK_OPEN_FILE * features.rook_open_files
         + ROOK_SEMI_OPEN_FILE * features.rook_semi_open_files
         + ROOK_ON_SEVENTH * features.rooks_on_seventh
+        + KNIGHT_OUTPOST * features.knight_outposts
+        + BISHOP_OUTPOST * features.bishop_outposts
 }
 
 /// The four curves laid end to end, which is how the piece loop reads them.
@@ -258,5 +263,11 @@ pub(super) fn trailing_tuning_weights() -> [ScorePair; super::tuning::TRAILING_F
 /// them and [`super::tuning::BLOCKS`] declares them.
 #[cfg(feature = "tuning")]
 pub(super) const fn trailing_scalars() -> [ScorePair; super::tuning::TRAILING_SCALARS] {
-    [ROOK_OPEN_FILE, ROOK_SEMI_OPEN_FILE, ROOK_ON_SEVENTH]
+    [
+        ROOK_OPEN_FILE,
+        ROOK_SEMI_OPEN_FILE,
+        ROOK_ON_SEVENTH,
+        KNIGHT_OUTPOST,
+        BISHOP_OUTPOST,
+    ]
 }

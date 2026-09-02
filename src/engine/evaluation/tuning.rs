@@ -137,6 +137,9 @@ pub const BLOCKS: &[FeatureBlock] = &[
         TRAILING_OFFSET + MOBILITY_CURVES[3].1,
         MOBILITY_CURVES[3].2,
     ),
+    scalar("ROOK_OPEN_FILE", TRAILING_SCALAR_OFFSET),
+    scalar("ROOK_SEMI_OPEN_FILE", TRAILING_SCALAR_OFFSET + 1),
+    scalar("ROOK_ON_SEVENTH", TRAILING_SCALAR_OFFSET + 2),
 ];
 
 /// Scalar features before the tables, in the order [`super::weights::score`]
@@ -144,17 +147,23 @@ pub const BLOCKS: &[FeatureBlock] = &[
 pub const SCALAR_FEATURES: usize = 25;
 /// Piece-square entries: six pieces over sixty-four squares.
 pub const PLACEMENT_FEATURES: usize = 6 * 64;
-/// Features in the groups added after the tables.
-pub const TRAILING_FEATURES: usize = KNIGHT_MOBILITY_ENTRIES
+/// Entries across the four mobility curves.
+const MOBILITY_CURVE_ENTRIES: usize = KNIGHT_MOBILITY_ENTRIES
     + BISHOP_MOBILITY_ENTRIES
     + ROOK_MOBILITY_ENTRIES
     + QUEEN_MOBILITY_ENTRIES;
+/// Scalar features after the mobility curves.
+pub const TRAILING_SCALARS: usize = 3;
+/// Features in the groups added after the tables.
+pub const TRAILING_FEATURES: usize = MOBILITY_CURVE_ENTRIES + TRAILING_SCALARS;
 /// Length of the feature vector.
 pub const FEATURE_COUNT: usize = SCALAR_FEATURES + PLACEMENT_FEATURES + TRAILING_FEATURES;
 /// Index of the first piece-square feature.
 pub const PLACEMENT_OFFSET: usize = SCALAR_FEATURES;
 /// Index of the first feature after the tables.
 pub const TRAILING_OFFSET: usize = PLACEMENT_OFFSET + PLACEMENT_FEATURES;
+/// Index of the first scalar after the mobility curves.
+const TRAILING_SCALAR_OFFSET: usize = TRAILING_OFFSET + MOBILITY_CURVE_ENTRIES;
 /// The mobility curves as piece, offset within the trailing region and length.
 const MOBILITY_CURVES: [(Piece, usize, usize); 4] = [
     (Piece::Knight, 0, KNIGHT_MOBILITY_ENTRIES),
@@ -284,6 +293,19 @@ pub fn tuning_features(board: &Board) -> TuningPosition {
     for (offset, count) in curve_counts.into_iter().enumerate() {
         if count != 0 {
             entries.push(((TRAILING_OFFSET + offset) as u16, count));
+        }
+    }
+
+    // Scalars after the curves, in the order `weights::trailing_scalars` lists
+    // their weights.
+    let trailing_scalars: [Score; TRAILING_SCALARS] = [
+        extracted.rook_open_files,
+        extracted.rook_semi_open_files,
+        extracted.rooks_on_seventh,
+    ];
+    for (index, value) in trailing_scalars.into_iter().enumerate() {
+        if value != 0 {
+            entries.push(((TRAILING_SCALAR_OFFSET + index) as u16, value as i16));
         }
     }
 

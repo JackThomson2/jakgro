@@ -270,6 +270,10 @@ pub(super) fn extract_with_style(board: &Board, style: bool) -> EvalFeatures {
             sign * attacks.piece_mobility[color as usize][piece_index(Piece::King) as usize];
         features.mobility_curves =
             features.mobility_curves + attacks.mobility_curves[color as usize] * sign;
+        let [open, semi_open, seventh] = attacks.rook_files[color as usize];
+        features.rook_open_files += sign * open;
+        features.rook_semi_open_files += sign * semi_open;
+        features.rooks_on_seventh += sign * seventh;
         let attack = if color == Color::White {
             white_attack
         } else {
@@ -378,6 +382,8 @@ struct AttackSummary {
     piece_mobility: [[i32; 6]; 2],
     /// Per-piece mobility curves, already weighted, per colour.
     mobility_curves: [ScorePair; 2],
+    /// Rooks on open files, semi-open files and the seventh, per colour.
+    rook_files: [[i32; 3]; 2],
     activity: [i32; 2],
     placement: [ScorePair; 2],
 }
@@ -397,6 +403,8 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
     let mut mobility = [0_i32; 2];
     let mut piece_mobility = [[0_i32; 6]; 2];
     let mut mobility_curves = [ScorePair::default(); 2];
+    let mut rook_files = [[0_i32; 3]; 2];
+    let all_pawns = board.pieces(Piece::Pawn);
     let mut activity = [0_i32; 2];
     let mut placement = [ScorePair::default(); 2];
     let mut attack_counts = [[0_u8; 64]; 2];
@@ -409,6 +417,13 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
         let enemy_king_zone = king_zones[enemy as usize];
         let enemy_pieces = board.colors(enemy);
         let friendly_pieces = board.colors(color);
+        let own_pawns = board.colored_pieces(color, Piece::Pawn);
+        let enemy_pawns = board.colored_pieces(enemy, Piece::Pawn);
+        let (seventh, eighth) = if color == Color::White {
+            (Rank::Seventh, Rank::Eighth)
+        } else {
+            (Rank::Second, Rank::First)
+        };
         let mut result = AttackProfile::default();
         let mut attacker_mask = 0_u8;
 
@@ -450,6 +465,23 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
                 if let Some(offset) = curve {
                     mobility_curves[index] = mobility_curves[index]
                         + weights::mobility_curve_at(offset + attacks.len() as usize);
+                }
+                if piece == Piece::Rook {
+                    let file = square.file().bitboard();
+                    if (all_pawns & file).is_empty() {
+                        rook_files[index][0] += 1;
+                    } else if (own_pawns & file).is_empty() {
+                        rook_files[index][1] += 1;
+                    }
+                    // A rook on the seventh earns its name against a king it
+                    // confines or pawns it attacks along the rank, not for the
+                    // square alone.
+                    if square.rank() == seventh
+                        && (enemy_king.rank() == eighth
+                            || !(enemy_pawns & seventh.bitboard()).is_empty())
+                    {
+                        rook_files[index][2] += 1;
+                    }
                 }
                 if !style {
                     continue;
@@ -561,6 +593,7 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
         mobility,
         piece_mobility,
         mobility_curves,
+        rook_files,
         activity,
         placement,
     }

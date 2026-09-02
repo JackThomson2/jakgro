@@ -69,6 +69,14 @@ const PASSED_PAWN_BY_RANK: [ScorePair; 6] = [
 const PROTECTED_PASSED_PAWN_BY_RANK: [ScorePair; 6] = [ScorePair::new(0, 0); 6];
 const KING_SHELTER: ScorePair = ScorePair::new(23, -12);
 const OPEN_KING_FILE: ScorePair = ScorePair::new(-18, -3);
+/// Rook placement, zero until fitted so adding the terms moves no score.
+///
+/// A hand-set file bonus was screened once and reversed sign on a holdout,
+/// which is the case for letting the data set it rather than for leaving the
+/// term out.
+const ROOK_OPEN_FILE: ScorePair = ScorePair::new(0, 0);
+const ROOK_SEMI_OPEN_FILE: ScorePair = ScorePair::new(0, 0);
+const ROOK_ON_SEVENTH: ScorePair = ScorePair::new(0, 0);
 const KING_PRESSURE: ScorePair = ScorePair::new(9, 2);
 const PAWN_STORM: ScorePair = ScorePair::new(7, 1);
 const THREAT: ScorePair = ScorePair::new(11, 7);
@@ -100,6 +108,9 @@ pub(super) fn score(features: EvalFeatures) -> ScorePair {
         )
         + KING_SHELTER * features.king_shelter
         + OPEN_KING_FILE * features.open_king_files
+        + ROOK_OPEN_FILE * features.rook_open_files
+        + ROOK_SEMI_OPEN_FILE * features.rook_semi_open_files
+        + ROOK_ON_SEVENTH * features.rooks_on_seventh
 }
 
 /// The four curves laid end to end, which is how the piece loop reads them.
@@ -237,5 +248,15 @@ pub(super) const fn tuning_weights() -> [ScorePair; super::tuning::SCALAR_FEATUR
 /// so the vector's leading indices keep their meaning across additions.
 #[cfg(feature = "tuning")]
 pub(super) fn trailing_tuning_weights() -> [ScorePair; super::tuning::TRAILING_FEATURES] {
-    MOBILITY_CURVES
+    let mut weights = [ScorePair::new(0, 0); super::tuning::TRAILING_FEATURES];
+    weights[..MOBILITY_CURVE_ENTRIES].copy_from_slice(&MOBILITY_CURVES);
+    weights[MOBILITY_CURVE_ENTRIES..].copy_from_slice(&trailing_scalars());
+    weights
+}
+
+/// The scalar weights after the mobility curves, in the order [`score`] reads
+/// them and [`super::tuning::BLOCKS`] declares them.
+#[cfg(feature = "tuning")]
+pub(super) const fn trailing_scalars() -> [ScorePair; super::tuning::TRAILING_SCALARS] {
+    [ROOK_OPEN_FILE, ROOK_SEMI_OPEN_FILE, ROOK_ON_SEVENTH]
 }

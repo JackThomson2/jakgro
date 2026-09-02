@@ -258,6 +258,13 @@ pub(super) struct EvalFeatures {
     pub(super) passed_pawns: Score,
     pub(super) king_shelter: Score,
     pub(super) open_king_files: Score,
+    /// Rooks on a file with no pawn of either colour, side-relative.
+    pub(super) rook_open_files: Score,
+    /// Rooks on a file with enemy pawns but none of their own.
+    pub(super) rook_semi_open_files: Score,
+    /// Rooks on their seventh rank with the enemy king on the eighth or enemy
+    /// pawns still on the seventh to attack.
+    pub(super) rooks_on_seventh: Score,
     pub(super) king_pressure: Score,
     pub(super) pawn_storm: Score,
     pub(super) threats: Score,
@@ -699,6 +706,64 @@ mod tests {
         assert_eq!(
             super::weights::score(features),
             super::weights::score(without) + features.mobility_curves
+        );
+    }
+
+    #[test]
+    fn rook_files_and_the_seventh_are_counted_for_each_side() {
+        let features =
+            |fen: &str| evaluate_with_trace(Position::from_fen(fen).unwrap().board()).features;
+
+        let open = features("4k3/8/8/8/8/8/4P3/R3K3 w - - 0 1");
+        assert_eq!(open.rook_open_files, 1);
+        assert_eq!(open.rook_semi_open_files, 0);
+
+        let semi_open = features("4k3/p7/8/8/8/8/4P3/R3K3 w - - 0 1");
+        assert_eq!(semi_open.rook_open_files, 0);
+        assert_eq!(semi_open.rook_semi_open_files, 1);
+
+        let closed = features("4k3/p7/8/8/8/8/P7/R3K3 w - - 0 1");
+        assert_eq!(closed.rook_open_files, 0);
+        assert_eq!(closed.rook_semi_open_files, 0);
+
+        // The seventh counts against a king on the eighth or pawns to attack,
+        // and not otherwise.
+        assert_eq!(
+            features("4k3/R7/8/8/8/8/8/4K3 w - - 0 1").rooks_on_seventh,
+            1
+        );
+        assert_eq!(
+            features("8/R6p/4k3/8/8/8/8/4K3 w - - 0 1").rooks_on_seventh,
+            1
+        );
+        assert_eq!(
+            features("8/R7/4k3/8/8/8/8/4K3 w - - 0 1").rooks_on_seventh,
+            0
+        );
+        // Black's seventh is the second rank, counted with the opposite sign.
+        assert_eq!(
+            features("4k3/8/8/8/8/8/r7/4K3 w - - 0 1").rooks_on_seventh,
+            -1
+        );
+        assert_eq!(
+            features("4k3/8/8/8/8/8/P6r/R3K3 w - - 0 1").rook_open_files,
+            -1
+        );
+        assert_eq!(
+            features("4k3/8/8/8/8/7P/P6r/R3K3 w - - 0 1").rook_semi_open_files,
+            -1
+        );
+
+        // The weights ship at zero, so none of this moves a score yet.
+        let scored = EvalFeatures {
+            rook_open_files: 1,
+            rook_semi_open_files: 1,
+            rooks_on_seventh: 1,
+            ..EvalFeatures::default()
+        };
+        assert_eq!(
+            super::weights::score(scored),
+            super::weights::score(EvalFeatures::default())
         );
     }
 

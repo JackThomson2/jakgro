@@ -188,6 +188,10 @@ struct StructureTerms {
     passer_enemy_king_distance: [i8; 8],
     shelter: i32,
     open_files: i32,
+    /// The nearest friendly pawn ahead of the king on its own file and on
+    /// each adjacent file, by rank distance.
+    shelter_king_file_by_distance: [i8; 6],
+    shelter_adjacent_file_by_distance: [i8; 6],
 }
 
 /// The inputs a [`StructureTerms`] depends on, stored so a hit is exact.
@@ -284,6 +288,11 @@ fn compute_structure_terms(board: &Board) -> StructureTerms {
         let (shelter, open_files) = king_safety(board, color);
         terms.shelter += sign * shelter;
         terms.open_files += sign * open_files;
+        let (king_file, adjacent) = shelter_distances(board, color);
+        for distance in 0..6 {
+            terms.shelter_king_file_by_distance[distance] += sign as i8 * king_file[distance];
+            terms.shelter_adjacent_file_by_distance[distance] += sign as i8 * adjacent[distance];
+        }
         let (own, enemy) = passer_king_distances(board, color);
         for distance in 0..8 {
             terms.passer_own_king_distance[distance] += sign as i8 * own[distance];
@@ -437,6 +446,12 @@ pub(super) fn extract_with_style(board: &Board, style: bool) -> EvalFeatures {
         .map(|rank| (rank as i32 + 1) * features.passed_by_rank[rank])
         .sum();
     features.king_shelter = structure.shelter;
+    for distance in 0..6 {
+        features.shelter_king_file_by_distance[distance] =
+            i32::from(structure.shelter_king_file_by_distance[distance]);
+        features.shelter_adjacent_file_by_distance[distance] =
+            i32::from(structure.shelter_adjacent_file_by_distance[distance]);
+    }
     features.open_king_files = structure.open_files;
 
     features.tempo = if board.side_to_move() == Color::White {
@@ -1241,6 +1256,46 @@ fn king_safety(board: &Board, color: Color) -> (i32, i32) {
     }
 
     (shelter, open_files)
+}
+
+/// Grades the king's shelter by where its nearest pawn stands on each file.
+///
+/// The shelter count says how many pawns stand in a box ahead of the king;
+/// it cannot say that an unmoved g2 and h2 are a different shelter from a
+/// g3 and h4 that have been lured forward. For the king's own file and each
+/// adjacent file on the board, the nearest friendly pawn ahead is found and
+/// counted by its rank distance, one to six. A file with no pawn ahead is
+/// the open-file term's business and counts nowhere here. The three files
+/// ahead of the king are the passer span, so no new table is needed.
+fn shelter_distances(board: &Board, color: Color) -> ([i8; 6], [i8; 6]) {
+    let king = board.king(color);
+    let pawns = board.colored_pieces(color, Piece::Pawn);
+    let spans = if color == Color::White {
+        &WHITE_PASSER_SPANS
+    } else {
+        &BLACK_PASSER_SPANS
+    };
+    let ahead = pawns & spans[king as usize];
+    let mut king_file = [0_i8; 6];
+    let mut adjacent = [0_i8; 6];
+    for file in File::ALL {
+        let file_pawns = ahead & file.bitboard();
+        if file_pawns.is_empty() {
+            continue;
+        }
+        let nearest = file_pawns
+            .into_iter()
+            .map(|pawn| (pawn.rank() as i32 - king.rank() as i32).unsigned_abs() as usize)
+            .min()
+            .expect("the file holds a pawn");
+        let counts = if file == king.file() {
+            &mut king_file
+        } else {
+            &mut adjacent
+        };
+        counts[nearest - 1] += 1;
+    }
+    (king_file, adjacent)
 }
 
 #[cfg(test)]

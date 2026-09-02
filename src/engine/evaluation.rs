@@ -270,6 +270,10 @@ pub(super) struct EvalFeatures {
     pub(super) passed_pawns: Score,
     pub(super) king_shelter: Score,
     pub(super) open_king_files: Score,
+    /// The nearest friendly pawn ahead of the king on its own file, and on
+    /// each adjacent file, by rank distance from one to six.
+    pub(super) shelter_king_file_by_distance: [Score; 6],
+    pub(super) shelter_adjacent_file_by_distance: [Score; 6],
     /// Attacks on the enemy king by bucketed attack units, side-relative: a
     /// colour bringing units against the enemy king counts once in the bucket
     /// those units fall in. A colour bringing nothing counts nowhere.
@@ -994,6 +998,49 @@ mod tests {
         let scored = EvalFeatures {
             king_danger_by_bucket: [1; super::KING_DANGER_BUCKETS],
             safe_checks: [1; 4],
+            ..EvalFeatures::default()
+        };
+        assert_eq!(
+            super::weights::score(scored),
+            super::weights::score(EvalFeatures::default())
+        );
+    }
+
+    #[test]
+    fn shelter_is_graded_by_the_nearest_pawn_on_each_file() {
+        let features =
+            |fen: &str| evaluate_with_trace(Position::from_fen(fen).unwrap().board()).features;
+
+        let unmoved = features("4k3/8/8/8/8/8/4P3/4K3 w - - 0 1");
+        assert_eq!(unmoved.shelter_king_file_by_distance, [1, 0, 0, 0, 0, 0]);
+        assert_eq!(unmoved.shelter_adjacent_file_by_distance, [0; 6]);
+        let advanced = features("4k3/8/8/8/8/5P2/8/4K3 w - - 0 1");
+        assert_eq!(advanced.shelter_king_file_by_distance, [0; 6]);
+        assert_eq!(
+            advanced.shelter_adjacent_file_by_distance,
+            [0, 1, 0, 0, 0, 0]
+        );
+        // Only the nearest pawn on a file counts, and a pawn level with or
+        // behind the king is not shelter.
+        assert_eq!(
+            features("4k3/8/8/8/4P3/8/4P3/4K3 w - - 0 1").shelter_king_file_by_distance,
+            [1, 0, 0, 0, 0, 0]
+        );
+        assert_eq!(
+            features("4k3/8/8/8/8/4K3/3P4/8 w - - 0 1").shelter_adjacent_file_by_distance,
+            [0; 6]
+        );
+        // Black's shelter counts against, measured from Black's side.
+        assert_eq!(
+            features("4k3/3p4/8/8/8/8/8/4K3 w - - 0 1").shelter_adjacent_file_by_distance,
+            [-1, 0, 0, 0, 0, 0]
+        );
+        // The shelter count is unchanged by the grading.
+        assert_eq!(unmoved.king_shelter, 1);
+
+        let scored = EvalFeatures {
+            shelter_king_file_by_distance: [1; 6],
+            shelter_adjacent_file_by_distance: [1; 6],
             ..EvalFeatures::default()
         };
         assert_eq!(

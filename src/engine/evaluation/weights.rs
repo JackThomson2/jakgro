@@ -96,6 +96,10 @@ const PASSER_ENEMY_KING_DISTANCE: [ScorePair; 8] = [ScorePair::new(0, 0); 8];
 const KING_DANGER_BY_BUCKET: [ScorePair; KING_DANGER_BUCKETS] =
     [ScorePair::new(0, 0); KING_DANGER_BUCKETS];
 const SAFE_CHECK_BY_PIECE: [ScorePair; 4] = [ScorePair::new(0, 0); 4];
+/// Shelter graded by the nearest pawn's distance on each file, zero until
+/// fitted; the shelter count above stays as it was.
+const SHELTER_KING_FILE_BY_DISTANCE: [ScorePair; 6] = [ScorePair::new(0, 0); 6];
+const SHELTER_ADJACENT_FILE_BY_DISTANCE: [ScorePair; 6] = [ScorePair::new(0, 0); 6];
 const KING_PRESSURE: ScorePair = ScorePair::new(9, 2);
 const PAWN_STORM: ScorePair = ScorePair::new(7, 1);
 const THREAT: ScorePair = ScorePair::new(11, 7);
@@ -142,6 +146,14 @@ pub(super) fn score(features: EvalFeatures) -> ScorePair {
         )
         + indexed(&KING_DANGER_BY_BUCKET, features.king_danger_by_bucket)
         + indexed(&SAFE_CHECK_BY_PIECE, features.safe_checks)
+        + indexed(
+            &SHELTER_KING_FILE_BY_DISTANCE,
+            features.shelter_king_file_by_distance,
+        )
+        + indexed(
+            &SHELTER_ADJACENT_FILE_BY_DISTANCE,
+            features.shelter_adjacent_file_by_distance,
+        )
 }
 
 /// The four curves laid end to end, which is how the piece loop reads them.
@@ -290,6 +302,8 @@ pub(super) fn trailing_tuning_weights() -> [ScorePair; super::tuning::TRAILING_F
         &PASSER_ENEMY_KING_DISTANCE[..],
         &KING_DANGER_BY_BUCKET[..],
         &SAFE_CHECK_BY_PIECE[..],
+        &SHELTER_KING_FILE_BY_DISTANCE[..],
+        &SHELTER_ADJACENT_FILE_BY_DISTANCE[..],
     ] {
         weights[next..next + block.len()].copy_from_slice(block);
         next += block.len();

@@ -257,6 +257,10 @@ impl TuningPosition {
 #[must_use]
 pub fn tuning_features(board: &Board) -> TuningPosition {
     let extracted = features::extract_with_style(board, false);
+    // The engine carries the indexed structure and piece blocks as weighted
+    // pairs; the fitter needs the counts behind them, recomputed here.
+    let structure = features::structure_counts(board);
+    let summary = features::attack_summary_with_style(board, false);
     let scalars = [
         extracted.pawns,
         extracted.knights,
@@ -271,18 +275,18 @@ pub fn tuning_features(board: &Board) -> TuningPosition {
         extracted.bishop_pair,
         extracted.doubled_pawns,
         extracted.isolated_pawns,
-        extracted.passed_by_rank[0],
-        extracted.passed_by_rank[1],
-        extracted.passed_by_rank[2],
-        extracted.passed_by_rank[3],
-        extracted.passed_by_rank[4],
-        extracted.passed_by_rank[5],
-        extracted.protected_passer_by_rank[0],
-        extracted.protected_passer_by_rank[1],
-        extracted.protected_passer_by_rank[2],
-        extracted.protected_passer_by_rank[3],
-        extracted.protected_passer_by_rank[4],
-        extracted.protected_passer_by_rank[5],
+        structure.passed_by_rank[0],
+        structure.passed_by_rank[1],
+        structure.passed_by_rank[2],
+        structure.passed_by_rank[3],
+        structure.passed_by_rank[4],
+        structure.passed_by_rank[5],
+        structure.protected_passer_by_rank[0],
+        structure.protected_passer_by_rank[1],
+        structure.protected_passer_by_rank[2],
+        structure.protected_passer_by_rank[3],
+        structure.protected_passer_by_rank[4],
+        structure.protected_passer_by_rank[5],
         extracted.king_shelter,
         extracted.open_king_files,
     ];
@@ -349,52 +353,51 @@ pub fn tuning_features(board: &Board) -> TuningPosition {
             entries.push(((TRAILING_SCALAR_OFFSET + index) as u16, value as i16));
         }
     }
-    for (index, value) in extracted.connected_by_rank.into_iter().enumerate() {
-        if value != 0 {
-            entries.push(((CONNECTED_OFFSET + index) as u16, value as i16));
+    let mut blocked = [0_i32; 6];
+    let mut king_danger = [0_i32; KING_DANGER_BUCKETS];
+    let mut safe_checks = [0_i32; 4];
+    for color in [Color::White, Color::Black] {
+        let sign = if color == Color::White { 1 } else { -1 };
+        let index = color as usize;
+        for (total, &count) in blocked.iter_mut().zip(&summary.blocked_passers[index]) {
+            *total += sign * count;
+        }
+        let units = summary.scans[index].attack_units();
+        if units > 0 {
+            king_danger[features::king_danger_bucket(units)] += sign;
+        }
+        for (total, &count) in safe_checks.iter_mut().zip(&summary.safe_checks[index]) {
+            *total += sign * count;
         }
     }
-    for (index, value) in extracted.blocked_passer_by_rank.into_iter().enumerate() {
-        if value != 0 {
-            entries.push(((BLOCKED_PASSER_OFFSET + index) as u16, value as i16));
-        }
-    }
-    for (index, value) in extracted.passer_own_king_distance.into_iter().enumerate() {
-        if value != 0 {
-            entries.push(((OWN_KING_DISTANCE_OFFSET + index) as u16, value as i16));
-        }
-    }
-    for (index, value) in extracted.passer_enemy_king_distance.into_iter().enumerate() {
-        if value != 0 {
-            entries.push(((ENEMY_KING_DISTANCE_OFFSET + index) as u16, value as i16));
-        }
-    }
-    for (index, value) in extracted.king_danger_by_bucket.into_iter().enumerate() {
-        if value != 0 {
-            entries.push(((KING_DANGER_OFFSET + index) as u16, value as i16));
-        }
-    }
-    for (index, value) in extracted.safe_checks.into_iter().enumerate() {
-        if value != 0 {
-            entries.push(((SAFE_CHECK_OFFSET + index) as u16, value as i16));
-        }
-    }
-    for (index, value) in extracted
-        .shelter_king_file_by_distance
-        .into_iter()
-        .enumerate()
-    {
-        if value != 0 {
-            entries.push(((SHELTER_KING_FILE_OFFSET + index) as u16, value as i16));
-        }
-    }
-    for (index, value) in extracted
-        .shelter_adjacent_file_by_distance
-        .into_iter()
-        .enumerate()
-    {
-        if value != 0 {
-            entries.push(((SHELTER_ADJACENT_OFFSET + index) as u16, value as i16));
+    let indexed_blocks: [(usize, &[Score]); 9] = [
+        (CONNECTED_OFFSET, &structure.connected_by_rank),
+        (BLOCKED_PASSER_OFFSET, &blocked),
+        (
+            OWN_KING_DISTANCE_OFFSET,
+            &structure.passer_own_king_distance,
+        ),
+        (
+            ENEMY_KING_DISTANCE_OFFSET,
+            &structure.passer_enemy_king_distance,
+        ),
+        (KING_DANGER_OFFSET, &king_danger),
+        (SAFE_CHECK_OFFSET, &safe_checks),
+        (
+            SHELTER_KING_FILE_OFFSET,
+            &structure.shelter_king_file_by_distance,
+        ),
+        (
+            SHELTER_ADJACENT_OFFSET,
+            &structure.shelter_adjacent_file_by_distance,
+        ),
+        (0, &[]),
+    ];
+    for (offset, counts) in indexed_blocks {
+        for (index, &value) in counts.iter().enumerate() {
+            if value != 0 {
+                entries.push(((offset + index) as u16, value as i16));
+            }
         }
     }
 
@@ -574,7 +577,7 @@ mod tests {
         for fen in POSITIONS {
             let position = Position::from_fen(fen).unwrap();
             let extracted = super::features::extract_with_style(position.board(), false);
-            let expected = weights::score(extracted);
+            let expected = weights::score(&extracted);
             let vector = tuning_features(position.board());
 
             let mut middle_game = 0;

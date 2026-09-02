@@ -1,5 +1,6 @@
 use cozy_chess::Piece;
 
+use super::features::StructureCounts;
 use super::{
     BISHOP_MOBILITY_ENTRIES, EvalFeatures, KING_DANGER_BUCKETS, KNIGHT_MOBILITY_ENTRIES,
     QUEEN_MOBILITY_ENTRIES, ROOK_MOBILITY_ENTRIES, Score, ScorePair,
@@ -115,7 +116,7 @@ const SUPPORTED_THREAT: ScorePair = ScorePair::new(18, 5);
 const OPEN_LINE: ScorePair = ScorePair::new(14, 1);
 const PAWN_BREAK: ScorePair = ScorePair::new(12, 1);
 
-pub(super) fn score(features: EvalFeatures) -> ScorePair {
+pub(super) fn score(features: &EvalFeatures) -> ScorePair {
     PAWN * features.pawns
         + KNIGHT * features.knights
         + BISHOP * features.bishops
@@ -129,11 +130,7 @@ pub(super) fn score(features: EvalFeatures) -> ScorePair {
         + BISHOP_PAIR * features.bishop_pair
         + DOUBLED_PAWN * features.doubled_pawns
         + ISOLATED_PAWN * features.isolated_pawns
-        + indexed(&PASSED_PAWN_BY_RANK, features.passed_by_rank)
-        + indexed(
-            &PROTECTED_PASSED_PAWN_BY_RANK,
-            features.protected_passer_by_rank,
-        )
+        + features.structure_indexed
         + KING_SHELTER * features.king_shelter
         + OPEN_KING_FILE * features.open_king_files
         + ROOK_OPEN_FILE * features.rook_open_files
@@ -145,23 +142,51 @@ pub(super) fn score(features: EvalFeatures) -> ScorePair {
         + THREAT_MINOR_BY_PAWN * features.threat_minor_by_pawn
         + THREAT_HANGING * features.threat_hanging
         + THREAT_BY_LOWER_VALUE * features.threat_by_lower_value
-        + indexed(&CONNECTED_PAWN_BY_RANK, features.connected_by_rank)
-        + indexed(&BLOCKED_PASSER_BY_RANK, features.blocked_passer_by_rank)
-        + indexed(&PASSER_OWN_KING_DISTANCE, features.passer_own_king_distance)
+        + features.piece_indexed
+}
+
+/// Weights every rank- or distance-indexed structure block at once.
+///
+/// Called on a structure-cache miss, so the sixty multiply-adds happen once
+/// per pawn-and-king configuration rather than once per node.
+pub(super) fn structure_indexed(counts: &StructureCounts) -> ScorePair {
+    indexed(&PASSED_PAWN_BY_RANK, counts.passed_by_rank)
+        + indexed(
+            &PROTECTED_PASSED_PAWN_BY_RANK,
+            counts.protected_passer_by_rank,
+        )
+        + indexed(&CONNECTED_PAWN_BY_RANK, counts.connected_by_rank)
+        + indexed(&PASSER_OWN_KING_DISTANCE, counts.passer_own_king_distance)
         + indexed(
             &PASSER_ENEMY_KING_DISTANCE,
-            features.passer_enemy_king_distance,
+            counts.passer_enemy_king_distance,
         )
-        + indexed(&KING_DANGER_BY_BUCKET, features.king_danger_by_bucket)
-        + indexed(&SAFE_CHECK_BY_PIECE, features.safe_checks)
         + indexed(
             &SHELTER_KING_FILE_BY_DISTANCE,
-            features.shelter_king_file_by_distance,
+            counts.shelter_king_file_by_distance,
         )
         + indexed(
             &SHELTER_ADJACENT_FILE_BY_DISTANCE,
-            features.shelter_adjacent_file_by_distance,
+            counts.shelter_adjacent_file_by_distance,
         )
+}
+
+/// Weight of one blockaded passer on the given rank index.
+#[inline(always)]
+pub(super) fn blocked_passer_weight(rank: usize) -> ScorePair {
+    BLOCKED_PASSER_BY_RANK[rank]
+}
+
+/// Weight of an attack landing in the given king-danger bucket.
+#[inline(always)]
+pub(super) fn king_danger_weight(bucket: usize) -> ScorePair {
+    KING_DANGER_BY_BUCKET[bucket]
+}
+
+/// Weight of one safe checking square for the given piece slot.
+#[inline(always)]
+pub(super) fn safe_check_weight(slot: usize) -> ScorePair {
+    SAFE_CHECK_BY_PIECE[slot]
 }
 
 /// The four curves laid end to end, which is how the piece loop reads them.
@@ -202,6 +227,7 @@ const fn concatenated_curves() -> [ScorePair; MOBILITY_CURVE_ENTRIES] {
 /// describe better, and a king's is its exposure as much as its freedom. The
 /// piece loop asks once per piece type, so the half of the pieces without a
 /// curve cost nothing per square.
+#[inline(always)]
 pub(super) const fn mobility_curve_offset(piece: Piece) -> Option<usize> {
     match piece {
         Piece::Knight => Some(0),
@@ -215,6 +241,7 @@ pub(super) const fn mobility_curve_offset(piece: Piece) -> Option<usize> {
 }
 
 /// Returns the weight at a curve offset plus a move count.
+#[inline(always)]
 pub(super) fn mobility_curve_at(index: usize) -> ScorePair {
     MOBILITY_CURVES[index]
 }
@@ -237,7 +264,7 @@ fn indexed<const N: usize>(weights: &[ScorePair; N], features: [Score; N]) -> Sc
     total
 }
 
-pub(super) fn profile_mobility_adjustment(features: EvalFeatures) -> ScorePair {
+pub(super) fn profile_mobility_adjustment(features: &EvalFeatures) -> ScorePair {
     PAWN_MOBILITY_ADJUSTMENT * features.pawn_mobility
         + KNIGHT_MOBILITY_ADJUSTMENT * features.knight_mobility
         + BISHOP_MOBILITY_ADJUSTMENT * features.bishop_mobility
@@ -246,7 +273,7 @@ pub(super) fn profile_mobility_adjustment(features: EvalFeatures) -> ScorePair {
         + KING_MOBILITY_ADJUSTMENT * features.king_mobility
 }
 
-pub(super) fn attacking_style(features: EvalFeatures) -> ScorePair {
+pub(super) fn attacking_style(features: &EvalFeatures) -> ScorePair {
     KING_PRESSURE * features.king_pressure
         + PAWN_STORM * features.pawn_storm
         + THREAT * features.threats

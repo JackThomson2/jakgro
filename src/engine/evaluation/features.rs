@@ -11,6 +11,7 @@ use super::{
 
 /// Attack units a piece contributes when it attacks the enemy king zone, on
 /// top of one unit per zone square it attacks.
+#[inline(always)]
 const fn king_attack_units(piece: Piece) -> i32 {
     match piece {
         Piece::Pawn => 1,
@@ -26,7 +27,7 @@ const fn king_attack_units(piece: Piece) -> i32 {
 /// Two units per bucket keeps a lone minor piece with one zone square in the
 /// first bucket and a full assault of queen, rook and both minors in the top
 /// few, which is the range a fit has to describe.
-const fn king_danger_bucket(units: i32) -> usize {
+pub(super) const fn king_danger_bucket(units: i32) -> usize {
     let bucket = (units / 2) as usize;
     if bucket >= KING_DANGER_BUCKETS {
         KING_DANGER_BUCKETS - 1
@@ -170,28 +171,48 @@ const fn build_king_file_spans() -> [BitBoard; 64] {
 struct StructureTerms {
     doubled: i32,
     isolated: i32,
-    /// Passed pawns counted per rank, from the owner's side of the board.
-    ///
-    /// A pawn can only stand on relative ranks one to six, so six counters
-    /// cover every case. They are `i8` because a count is bounded by eight and
-    /// this structure sits in a direct-mapped cache whose whole point is fitting
-    /// in a core's private cache.
-    passed_by_rank: [i8; 6],
-    /// Passed pawns defended by a friendly pawn, counted the same way.
-    protected_passer_by_rank: [i8; 6],
-    /// Connected pawns, counted the same way.
-    connected_by_rank: [i8; 6],
     backward: i32,
-    /// Passers by the distance from their owner's king to the square in
-    /// front of them, and by the distance from the enemy king to it.
-    passer_own_king_distance: [i8; 8],
-    passer_enemy_king_distance: [i8; 8],
+    /// Passers weighted by how far they have come, which the attacking style
+    /// reads. Derived from the per-rank counts so it cannot drift from them.
+    passed_pawns: i32,
     shelter: i32,
     open_files: i32,
+    /// Every rank- or distance-indexed structure block, already weighted.
+    ///
+    /// The counts behind it — passers, protected passers and connected pawns
+    /// by rank, passers by each king's distance, shelter by pawn distance —
+    /// are sixty entries that the engine would otherwise copy out of the
+    /// cache and multiply by their weights at every node, almost all of them
+    /// zero. Weighting them once, on the miss, makes a hit one pair. The
+    /// counts themselves are recomputed by [`structure_counts`] for the
+    /// fitter and the tests, which are the only readers that need them.
+    indexed: ScorePair,
+}
+
+/// The pawn and king structure counts, side-relative, as the fitter and the
+/// tests read them.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct StructureCounts {
+    pub(super) doubled: i32,
+    pub(super) isolated: i32,
+    pub(super) backward: i32,
+    /// Passed pawns counted per rank, from the owner's side of the board. A
+    /// pawn can only stand on relative ranks one to six.
+    pub(super) passed_by_rank: [i32; 6],
+    /// Passed pawns defended by a friendly pawn, counted the same way.
+    pub(super) protected_passer_by_rank: [i32; 6],
+    /// Connected pawns, counted the same way.
+    pub(super) connected_by_rank: [i32; 6],
+    /// Passers by the distance from their owner's king to the square in
+    /// front of them, and by the distance from the enemy king to it.
+    pub(super) passer_own_king_distance: [i32; 8],
+    pub(super) passer_enemy_king_distance: [i32; 8],
+    pub(super) shelter: i32,
+    pub(super) open_files: i32,
     /// The nearest friendly pawn ahead of the king on its own file and on
     /// each adjacent file, by rank distance.
-    shelter_king_file_by_distance: [i8; 6],
-    shelter_adjacent_file_by_distance: [i8; 6],
+    pub(super) shelter_king_file_by_distance: [i32; 6],
+    pub(super) shelter_adjacent_file_by_distance: [i32; 6],
 }
 
 /// The inputs a [`StructureTerms`] depends on, stored so a hit is exact.
@@ -272,34 +293,51 @@ fn structure_terms(board: &Board) -> StructureTerms {
 
 /// Computes pawn and king structure terms from scratch.
 fn compute_structure_terms(board: &Board) -> StructureTerms {
-    let mut terms = StructureTerms::default();
+    let counts = structure_counts(board);
+    StructureTerms {
+        doubled: counts.doubled,
+        isolated: counts.isolated,
+        backward: counts.backward,
+        passed_pawns: (0..6)
+            .map(|rank| (rank as i32 + 1) * counts.passed_by_rank[rank])
+            .sum(),
+        shelter: counts.shelter,
+        open_files: counts.open_files,
+        indexed: weights::structure_indexed(&counts),
+    }
+}
+
+/// Computes every pawn and king structure count from scratch.
+pub(super) fn structure_counts(board: &Board) -> StructureCounts {
+    let mut counts = StructureCounts::default();
     for color in [Color::White, Color::Black] {
         let sign = if color == Color::White { 1 } else { -1 };
         let pawns = pawn_features(board, color);
-        terms.doubled += sign * pawns.doubled;
-        terms.isolated += sign * pawns.isolated;
-        terms.backward += sign * pawns.backward;
+        counts.doubled += sign * pawns.doubled;
+        counts.isolated += sign * pawns.isolated;
+        counts.backward += sign * pawns.backward;
         for rank in 0..6 {
-            terms.passed_by_rank[rank] += sign as i8 * pawns.passed_by_rank[rank];
-            terms.protected_passer_by_rank[rank] +=
-                sign as i8 * pawns.protected_passer_by_rank[rank];
-            terms.connected_by_rank[rank] += sign as i8 * pawns.connected_by_rank[rank];
+            counts.passed_by_rank[rank] += sign * i32::from(pawns.passed_by_rank[rank]);
+            counts.protected_passer_by_rank[rank] +=
+                sign * i32::from(pawns.protected_passer_by_rank[rank]);
+            counts.connected_by_rank[rank] += sign * i32::from(pawns.connected_by_rank[rank]);
         }
         let (shelter, open_files) = king_safety(board, color);
-        terms.shelter += sign * shelter;
-        terms.open_files += sign * open_files;
+        counts.shelter += sign * shelter;
+        counts.open_files += sign * open_files;
         let (king_file, adjacent) = shelter_distances(board, color);
         for distance in 0..6 {
-            terms.shelter_king_file_by_distance[distance] += sign as i8 * king_file[distance];
-            terms.shelter_adjacent_file_by_distance[distance] += sign as i8 * adjacent[distance];
+            counts.shelter_king_file_by_distance[distance] += sign * i32::from(king_file[distance]);
+            counts.shelter_adjacent_file_by_distance[distance] +=
+                sign * i32::from(adjacent[distance]);
         }
         let (own, enemy) = passer_king_distances(board, color);
         for distance in 0..8 {
-            terms.passer_own_king_distance[distance] += sign as i8 * own[distance];
-            terms.passer_enemy_king_distance[distance] += sign as i8 * enemy[distance];
+            counts.passer_own_king_distance[distance] += sign * i32::from(own[distance]);
+            counts.passer_enemy_king_distance[distance] += sign * i32::from(enemy[distance]);
         }
     }
-    terms
+    counts
 }
 
 /// Counts a colour's passers by each king's distance to the square ahead.
@@ -353,8 +391,8 @@ pub(super) fn extract(board: &Board) -> EvalFeatures {
 pub(super) fn extract_with_style(board: &Board, style: bool) -> EvalFeatures {
     let mut features = EvalFeatures::default();
     let attacks = attack_summary_with_style(board, style);
-    let white_attack = attacks.profiles[Color::White as usize];
-    let black_attack = attacks.profiles[Color::Black as usize];
+    let white_attack = attacks.scans[Color::White as usize].profile;
+    let black_attack = attacks.scans[Color::Black as usize].profile;
     features.white_attack = white_attack;
     features.black_attack = black_attack;
 
@@ -368,42 +406,45 @@ pub(super) fn extract_with_style(board: &Board, style: bool) -> EvalFeatures {
 
         let bishops = board.colored_pieces(color, Piece::Bishop).len();
         features.bishop_pair += sign * i32::from(bishops >= 2);
-        features.activity += sign * attacks.activity[color as usize];
-        features.placement = features.placement + attacks.placement[color as usize] * sign;
-        features.mobility += sign * attacks.mobility[color as usize];
-        features.pawn_mobility +=
-            sign * attacks.piece_mobility[color as usize][piece_index(Piece::Pawn) as usize];
-        features.knight_mobility +=
-            sign * attacks.piece_mobility[color as usize][piece_index(Piece::Knight) as usize];
-        features.bishop_mobility +=
-            sign * attacks.piece_mobility[color as usize][piece_index(Piece::Bishop) as usize];
-        features.rook_mobility +=
-            sign * attacks.piece_mobility[color as usize][piece_index(Piece::Rook) as usize];
-        features.queen_mobility +=
-            sign * attacks.piece_mobility[color as usize][piece_index(Piece::Queen) as usize];
-        features.king_mobility +=
-            sign * attacks.piece_mobility[color as usize][piece_index(Piece::King) as usize];
-        features.mobility_curves =
-            features.mobility_curves + attacks.mobility_curves[color as usize] * sign;
-        let [open, semi_open, seventh] = attacks.rook_files[color as usize];
+        let scan = &attacks.scans[color as usize];
+        features.activity += sign * scan.activity;
+        features.placement = features.placement + scan.placement * sign;
+        features.mobility += sign * scan.mobility;
+        features.pawn_mobility += sign * scan.piece_mobility[piece_index(Piece::Pawn) as usize];
+        features.knight_mobility += sign * scan.piece_mobility[piece_index(Piece::Knight) as usize];
+        features.bishop_mobility += sign * scan.piece_mobility[piece_index(Piece::Bishop) as usize];
+        features.rook_mobility += sign * scan.piece_mobility[piece_index(Piece::Rook) as usize];
+        features.queen_mobility += sign * scan.piece_mobility[piece_index(Piece::Queen) as usize];
+        features.king_mobility += sign * scan.piece_mobility[piece_index(Piece::King) as usize];
+        features.mobility_curves = features.mobility_curves + scan.mobility_curves * sign;
+        let [open, semi_open, seventh] = scan.rook_files;
         features.rook_open_files += sign * open;
         features.rook_semi_open_files += sign * semi_open;
         features.rooks_on_seventh += sign * seventh;
-        let [knights, bishops] = attacks.outposts[color as usize];
+        let [knights, bishops] = scan.outposts;
         features.knight_outposts += sign * knights;
         features.bishop_outposts += sign * bishops;
-        for rank in 0..6 {
-            features.blocked_passer_by_rank[rank] +=
-                sign * attacks.blocked_passers[color as usize][rank];
+        // The piece-loop blocks indexed by rank, bucket or piece are weighted
+        // here, as placement and the mobility curves are in the loop, rather
+        // than carried as counts for the scorer to multiply.
+        for (rank, &blocked) in attacks.blocked_passers[color as usize].iter().enumerate() {
+            if blocked != 0 {
+                features.piece_indexed = features.piece_indexed
+                    + weights::blocked_passer_weight(rank) * (sign * blocked);
+            }
         }
         // A colour that brings nothing against the enemy king is not counted
         // in the first bucket: the term describes an attack, not its absence.
-        let units = attacks.attack_units[color as usize];
+        let units = scan.attack_units();
         if units > 0 {
-            features.king_danger_by_bucket[king_danger_bucket(units)] += sign;
+            features.piece_indexed = features.piece_indexed
+                + weights::king_danger_weight(king_danger_bucket(units)) * sign;
         }
-        for slot in 0..4 {
-            features.safe_checks[slot] += sign * attacks.safe_checks[color as usize][slot];
+        for (slot, &checks) in attacks.safe_checks[color as usize].iter().enumerate() {
+            if checks != 0 {
+                features.piece_indexed =
+                    features.piece_indexed + weights::safe_check_weight(slot) * (sign * checks);
+            }
         }
         let [by_pawn, hanging, by_lower] = attacks.threats[color as usize];
         features.threat_minor_by_pawn += sign * by_pawn;
@@ -430,33 +471,13 @@ pub(super) fn extract_with_style(board: &Board, style: bool) -> EvalFeatures {
     features.doubled_pawns = structure.doubled;
     features.isolated_pawns = structure.isolated;
     features.backward_pawns = structure.backward;
-    for rank in 0..6 {
-        features.passed_by_rank[rank] = i32::from(structure.passed_by_rank[rank]);
-        features.protected_passer_by_rank[rank] =
-            i32::from(structure.protected_passer_by_rank[rank]);
-        features.connected_by_rank[rank] = i32::from(structure.connected_by_rank[rank]);
-    }
-    for distance in 0..8 {
-        features.passer_own_king_distance[distance] =
-            i32::from(structure.passer_own_king_distance[distance]);
-        features.passer_enemy_king_distance[distance] =
-            i32::from(structure.passer_enemy_king_distance[distance]);
-    }
     // The attacking style weights passers by how far they have come, and that
-    // term is personality and must not move. Deriving it from the per-rank
-    // counts reproduces the old scalar exactly — it was the same sum — rather
-    // than storing a second copy that could drift from them.
-    features.passed_pawns = (0..6)
-        .map(|rank| (rank as i32 + 1) * features.passed_by_rank[rank])
-        .sum();
+    // term is personality and must not move. It is derived from the per-rank
+    // counts on the cache miss, so it cannot drift from them.
+    features.passed_pawns = structure.passed_pawns;
     features.king_shelter = structure.shelter;
-    for distance in 0..6 {
-        features.shelter_king_file_by_distance[distance] =
-            i32::from(structure.shelter_king_file_by_distance[distance]);
-        features.shelter_adjacent_file_by_distance[distance] =
-            i32::from(structure.shelter_adjacent_file_by_distance[distance]);
-    }
     features.open_king_files = structure.open_files;
+    features.structure_indexed = structure.indexed;
 
     features.tempo = if board.side_to_move() == Color::White {
         1
@@ -494,6 +515,7 @@ fn activity(board: &Board, color: Color) -> i32 {
     score
 }
 
+#[inline(always)]
 fn centrality(square: Square) -> i32 {
     let file = square.file() as i32;
     let rank = square.rank() as i32;
@@ -525,69 +547,341 @@ fn reference_mobility(board: &Board, color: Color) -> i32 {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-struct AttackSummary {
-    profiles: [AttackProfile; 2],
-    mobility: [i32; 2],
-    piece_mobility: [[i32; 6]; 2],
-    /// Per-piece mobility curves, already weighted, per colour.
-    mobility_curves: [ScorePair; 2],
-    /// Rooks on open files, semi-open files and the seventh, per colour.
-    rook_files: [[i32; 3]; 2],
-    /// Knights and bishops on outposts, per colour.
-    outposts: [[i32; 2]; 2],
+pub(super) struct AttackSummary {
+    /// Each colour's scan, White first.
+    pub(super) scans: [ColourScan; 2],
     /// Passers with a piece of either colour on the square ahead, by rank.
-    blocked_passers: [[i32; 6]; 2],
-    /// Attack units each colour brings against the enemy king zone.
-    attack_units: [i32; 2],
+    pub(super) blocked_passers: [[i32; 6]; 2],
     /// Safe checking squares available to each colour's knights, bishops,
     /// rooks and queens.
-    safe_checks: [[i32; 4]; 2],
+    pub(super) safe_checks: [[i32; 4]; 2],
     /// Enemy minors attacked by a pawn, enemy pieces attacked and undefended,
     /// and enemy pieces attacked by something worth less, per colour.
-    threats: [[i32; 3]; 2],
-    activity: [i32; 2],
-    placement: [ScorePair; 2],
+    pub(super) threats: [[i32; 3]; 2],
 }
 
 #[cfg(test)]
-fn attack_summary(board: &Board) -> AttackSummary {
+pub(super) fn attack_summary(board: &Board) -> AttackSummary {
     attack_summary_with_style(board, true)
 }
 
-fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
+/// What one colour's pieces accumulate in the fused pass.
+///
+/// One struct per colour rather than one `[T; 2]` per term: the square loop
+/// then writes to fields of a single local rather than indexing a dozen
+/// arrays, which is what keeps its live values in registers.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct ColourScan {
+    pub(super) profile: AttackProfile,
+    attacker_mask: u8,
+    zone_defenders: i32,
+    pub(super) mobility: i32,
+    pub(super) piece_mobility: [i32; 6],
+    pub(super) mobility_curves: ScorePair,
+    pub(super) rook_files: [i32; 3],
+    pub(super) outposts: [i32; 2],
+    passers: BitBoard,
+    /// Outpost-rank squares a friendly pawn defends, known once the pawns
+    /// have been scanned and before the minors are.
+    pawn_held: BitBoard,
+    /// Zone squares attacked, summed over pieces, and the type units of the
+    /// pieces attacking any; their sum is the attack-unit total.
+    zone_hits: i32,
+    attacker_units: i32,
+    pub(super) attacked: BitBoard,
+    pub(super) attacked_twice: BitBoard,
+    pub(super) type_attacks: [BitBoard; 4],
+    pub(super) pawn_attacks: BitBoard,
+    pub(super) activity: i32,
+    pub(super) placement: ScorePair,
+}
+
+impl ColourScan {
+    /// Attack units this colour brings against the enemy king zone.
+    pub(super) fn attack_units(&self) -> i32 {
+        self.zone_hits + self.attacker_units
+    }
+}
+
+/// The board facts one colour's scan reads, gathered once per colour.
+#[derive(Clone, Copy)]
+struct ScanContext {
+    color: Color,
+    occupied: BitBoard,
+    friendly_pieces: BitBoard,
+    enemy_pieces: BitBoard,
+    own_pawns: BitBoard,
+    enemy_pawns: BitBoard,
+    all_pawns: BitBoard,
+    enemy_king: Square,
+    enemy_king_zone: BitBoard,
+    own_king_zone: BitBoard,
+    seventh: Rank,
+    eighth: Rank,
+    passer_spans: &'static [BitBoard; 64],
+    challenges: &'static [BitBoard; 64],
+    outpost_ranks: BitBoard,
+}
+
+/// Scans one colour's pieces of one type.
+///
+/// The piece type and whether style terms are wanted are const parameters,
+/// so each of the twelve instantiations is a loop containing only the work
+/// that type and that path need. The objective path, which is what search
+/// evaluates with, compiles with no style code in its loops at all. This
+/// replaced a single generic loop over all six types whose body had grown,
+/// term by term, past what the register allocator could keep in registers;
+/// every addition was cheap and the loop as a whole had doubled in cost.
+#[inline(always)]
+fn scan_pieces<const PIECE: usize, const STYLE: bool>(
+    board: &Board,
+    context: &ScanContext,
+    scan: &mut ColourScan,
+    attack_counts: &mut [u8; 64],
+) {
+    let piece = Piece::ALL[PIECE];
+    let color = context.color;
+    let curve = weights::mobility_curve_offset(piece);
+    let type_slot = curve.map(|_| PIECE - 1);
+    let units = king_attack_units(piece);
+    let is_pawn = piece == Piece::Pawn;
+    let is_minor = matches!(piece, Piece::Knight | Piece::Bishop);
+    let is_rook = piece == Piece::Rook;
+    let is_king = piece == Piece::King;
+    let pressure_weight = match piece {
+        Piece::Pawn => 3,
+        Piece::Knight | Piece::Bishop => 4,
+        Piece::Rook => 3,
+        Piece::Queen => 2,
+        Piece::King => 0,
+    };
+
+    for square in board.colored_pieces(color, piece) {
+        // Placement and activity are accumulated in the same pass rather than
+        // in a second loop over every piece: the terms differ but the
+        // iteration is identical.
+        scan.placement = scan.placement + placement::placement(piece, square, color);
+        scan.activity += match piece {
+            Piece::Knight | Piece::Bishop | Piece::Rook | Piece::Queen => centrality(square),
+            Piece::Pawn => {
+                let rank = square.rank() as i32;
+                if color == Color::White {
+                    (rank - 1).max(0)
+                } else {
+                    (6 - rank).max(0)
+                }
+            }
+            Piece::King => 0,
+        };
+        let raw_attacks = attacks_from(piece, square, color, context.occupied);
+        let attacks = raw_attacks & !context.friendly_pieces;
+        let moves = attacks.len() as i32;
+        scan.mobility += moves;
+        scan.piece_mobility[PIECE] += moves;
+        // Weighted here for the same reason placement is: the curve is a
+        // table lookup per piece, and expanding it into one count per move
+        // count is work only the fitter needs.
+        if let Some(offset) = curve {
+            scan.mobility_curves =
+                scan.mobility_curves + weights::mobility_curve_at(offset + moves as usize);
+        }
+        if is_pawn && (context.enemy_pawns & context.passer_spans[square as usize]).is_empty() {
+            scan.passers |= square.bitboard();
+        }
+        if is_minor
+            && scan.pawn_held.has(square)
+            && (context.enemy_pawns & context.challenges[square as usize]).is_empty()
+        {
+            scan.outposts[usize::from(piece == Piece::Bishop)] += 1;
+        }
+        if is_rook {
+            let file = square.file().bitboard();
+            if (context.all_pawns & file).is_empty() {
+                scan.rook_files[0] += 1;
+            } else if (context.own_pawns & file).is_empty() {
+                scan.rook_files[1] += 1;
+            }
+            // A rook on the seventh earns its name against a king it confines
+            // or pawns it attacks along the rank, not for the square alone.
+            if square.rank() == context.seventh
+                && (context.enemy_king.rank() == context.eighth
+                    || !(context.enemy_pawns & context.seventh.bitboard()).is_empty())
+            {
+                scan.rook_files[2] += 1;
+            }
+        }
+        if !is_king {
+            scan.attacked_twice |= scan.attacked & raw_attacks;
+            scan.attacked |= raw_attacks;
+            if let Some(slot) = type_slot {
+                scan.type_attacks[slot] |= raw_attacks;
+            } else if is_pawn {
+                scan.pawn_attacks |= raw_attacks;
+            }
+            // Branchless: the type units count once for any piece touching
+            // the zone, the squares count each.
+            let zone_squares = (attacks & context.enemy_king_zone).len() as i32;
+            scan.zone_hits += zone_squares;
+            scan.attacker_units += units * i32::from(zone_squares > 0);
+        }
+        if !STYLE {
+            continue;
+        }
+        if !is_king {
+            for target in raw_attacks {
+                attack_counts[target as usize] += 1;
+            }
+            scan.zone_defenders += i32::from(!(raw_attacks & context.own_king_zone).is_empty());
+        }
+
+        let zone_hits = (attacks & context.enemy_king_zone).len() as i32;
+        if zone_hits > 0 && !is_king {
+            scan.profile.attackers += 1;
+            scan.attacker_mask |= 1 << piece_index(piece);
+            scan.profile.king_pressure += zone_hits * pressure_weight;
+            if matches!(piece, Piece::Bishop | Piece::Rook | Piece::Queen) {
+                scan.profile.open_lines += 1;
+            }
+        }
+
+        for target in attacks & context.enemy_pieces {
+            let Some(target_piece) = board.piece_on(target) else {
+                continue;
+            };
+            if !is_king
+                && target_piece != Piece::King
+                && piece_value(piece) < piece_value(target_piece)
+            {
+                scan.profile.threats += 1 + (piece_value(target_piece) - piece_value(piece)) / 100;
+            }
+        }
+
+        scan.profile.space += attacks
+            .into_iter()
+            .filter(|target| {
+                let rank = target.rank() as i32;
+                if color == Color::White {
+                    rank >= 4
+                } else {
+                    rank <= 3
+                }
+            })
+            .count() as i32;
+    }
+}
+
+/// Scans one colour's pawns for the objective path, set-wise.
+///
+/// Pawns are half the pieces and every one of them attacks at most two
+/// squares, one to each side, so everything the generic scan does per pawn
+/// except the placement lookup and the passer test can be done for all of
+/// them at once: the two attack sets are two shifts, a pawn's mobility is
+/// the size of its attack set outside friendly pieces, a square two pawns
+/// attack is one both shifts reach, and the pawns bearing on the king zone
+/// are the pawns the zone shifts back onto. The result is identical to the
+/// per-pawn scan, which the styled path still runs because its per-square
+/// attack counts need every pawn walked; a test holds the two equal.
+#[inline(always)]
+fn scan_pawns(context: &ScanContext, scan: &mut ColourScan) {
+    let color = context.color;
+    let pawns = context.own_pawns;
+    let not_a = !File::A.bitboard();
+    let not_h = !File::H.bitboard();
+    let (left, right, zone_left, zone_right, ranks): (BitBoard, BitBoard, BitBoard, BitBoard, _) =
+        if color == Color::White {
+            (
+                BitBoard((pawns & not_a).0 << 7),
+                BitBoard((pawns & not_h).0 << 9),
+                BitBoard(context.enemy_king_zone.0 >> 7) & not_a,
+                BitBoard(context.enemy_king_zone.0 >> 9) & not_h,
+                [
+                    Rank::Third,
+                    Rank::Fourth,
+                    Rank::Fifth,
+                    Rank::Sixth,
+                    Rank::Seventh,
+                ],
+            )
+        } else {
+            (
+                BitBoard((pawns & not_a).0 >> 9),
+                BitBoard((pawns & not_h).0 >> 7),
+                BitBoard(context.enemy_king_zone.0 << 9) & not_a,
+                BitBoard(context.enemy_king_zone.0 << 7) & not_h,
+                [
+                    Rank::Sixth,
+                    Rank::Fifth,
+                    Rank::Fourth,
+                    Rank::Third,
+                    Rank::Second,
+                ],
+            )
+        };
+
+    for square in pawns {
+        scan.placement = scan.placement + placement::placement(Piece::Pawn, square, color);
+        if (context.enemy_pawns & context.passer_spans[square as usize]).is_empty() {
+            scan.passers |= square.bitboard();
+        }
+    }
+    // Activity counts a pawn's advance from its second rank: one on the
+    // third through five on the seventh.
+    for (advance, rank) in ranks.into_iter().enumerate() {
+        scan.activity += (advance as i32 + 1) * (pawns & rank.bitboard()).len() as i32;
+    }
+
+    let free = !context.friendly_pieces;
+    let moves = (left & free).len() as i32 + (right & free).len() as i32;
+    scan.mobility += moves;
+    scan.piece_mobility[0] += moves;
+
+    scan.attacked_twice |= scan.attacked & (left | right) | (left & right);
+    scan.attacked |= left | right;
+    scan.pawn_attacks |= left | right;
+
+    let zone = context.enemy_king_zone & free;
+    scan.zone_hits += (left & zone).len() as i32 + (right & zone).len() as i32;
+    let bearing = pawns & (zone_left | zone_right);
+    scan.attacker_units += king_attack_units(Piece::Pawn) * bearing.len() as i32;
+}
+
+/// Scans every piece of one colour, one specialised loop per type.
+#[inline(always)]
+fn scan_colour<const STYLE: bool>(
+    board: &Board,
+    context: &ScanContext,
+    scan: &mut ColourScan,
+    attack_counts: &mut [u8; 64],
+) {
+    if STYLE {
+        scan_pieces::<0, STYLE>(board, context, scan, attack_counts);
+    } else {
+        scan_pawns(context, scan);
+    }
+    // The pawn scan has gathered every square a pawn attacks, which is the
+    // outpost support the minor scans need.
+    scan.pawn_held = scan.pawn_attacks & context.outpost_ranks;
+    scan_pieces::<1, STYLE>(board, context, scan, attack_counts);
+    scan_pieces::<2, STYLE>(board, context, scan, attack_counts);
+    scan_pieces::<3, STYLE>(board, context, scan, attack_counts);
+    scan_pieces::<4, STYLE>(board, context, scan, attack_counts);
+    scan_pieces::<5, STYLE>(board, context, scan, attack_counts);
+}
+
+pub(super) fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
     let occupied = board.occupied();
     let king_zones = [
         get_king_moves(board.king(Color::White)) | board.colored_pieces(Color::White, Piece::King),
         get_king_moves(board.king(Color::Black)) | board.colored_pieces(Color::Black, Piece::King),
     ];
-    let mut profiles = [AttackProfile::default(); 2];
-    let mut mobility = [0_i32; 2];
-    let mut piece_mobility = [[0_i32; 6]; 2];
-    let mut mobility_curves = [ScorePair::default(); 2];
-    let mut rook_files = [[0_i32; 3]; 2];
-    let mut outposts = [[0_i32; 2]; 2];
-    let mut blocked_passers = [[0_i32; 6]; 2];
-    let mut attack_units = [0_i32; 2];
-    // Every square a colour's non-king pieces attack, the squares two of them
-    // attack, and the squares each of its checking piece types attacks. These
-    // decide which checks are safe, so they are gathered on both paths.
-    let mut attacked = [BitBoard::EMPTY; 2];
-    let mut attacked_twice = [BitBoard::EMPTY; 2];
-    let mut type_attacks = [[BitBoard::EMPTY; 4]; 2];
-    let mut pawn_attacks = [BitBoard::EMPTY; 2];
     let all_pawns = board.pieces(Piece::Pawn);
-    let mut activity = [0_i32; 2];
-    let mut placement = [ScorePair::default(); 2];
+    let mut summary = AttackSummary::default();
     let mut attack_counts = [[0_u8; 64]; 2];
-    let mut zone_defenders = [0_i32; 2];
 
     for color in [Color::White, Color::Black] {
         let index = color as usize;
         let enemy = !color;
         let enemy_king = board.king(enemy);
-        let enemy_king_zone = king_zones[enemy as usize];
-        let enemy_pieces = board.colors(enemy);
-        let friendly_pieces = board.colors(color);
         let own_pawns = board.colored_pieces(color, Piece::Pawn);
         let enemy_pawns = board.colored_pieces(enemy, Piece::Pawn);
         let (seventh, eighth) = if color == Color::White {
@@ -595,10 +889,10 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
         } else {
             (Rank::Second, Rank::First)
         };
-        let (passer_spans, forward) = if color == Color::White {
-            (&WHITE_PASSER_SPANS, 1)
+        let passer_spans = if color == Color::White {
+            &WHITE_PASSER_SPANS
         } else {
-            (&BLACK_PASSER_SPANS, -1)
+            &BLACK_PASSER_SPANS
         };
         // Outposts are on the owner's fourth to sixth ranks, defended by a
         // pawn, and beyond the reach of every enemy pawn.
@@ -613,211 +907,92 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
                 &BLACK_OUTPOST_CHALLENGES,
             )
         };
-        let pawn_held = {
-            let mut held = BitBoard::EMPTY;
-            for pawn in own_pawns {
-                held |= get_pawn_attacks(pawn, color);
-            }
-            held & outpost_ranks
+        let context = ScanContext {
+            color,
+            occupied,
+            friendly_pieces: board.colors(color),
+            enemy_pieces: board.colors(enemy),
+            own_pawns,
+            enemy_pawns,
+            all_pawns,
+            enemy_king,
+            enemy_king_zone: king_zones[enemy as usize],
+            own_king_zone: king_zones[index],
+            seventh,
+            eighth,
+            passer_spans,
+            challenges,
+            outpost_ranks,
         };
-        let mut result = AttackProfile::default();
-        let mut attacker_mask = 0_u8;
+        let scan = &mut summary.scans[index];
+        if style {
+            scan_colour::<true>(board, &context, scan, &mut attack_counts[index]);
+        } else {
+            scan_colour::<false>(board, &context, scan, &mut attack_counts[index]);
+        }
 
-        for piece in [
-            Piece::Pawn,
-            Piece::Knight,
-            Piece::Bishop,
-            Piece::Rook,
-            Piece::Queen,
-            Piece::King,
-        ] {
-            let curve = weights::mobility_curve_offset(piece);
-            for square in board.colored_pieces(color, piece) {
-                // Placement and activity are accumulated in the same pass rather
-                // than in a second loop over every piece: the terms differ but
-                // the iteration is identical.
-                placement[index] = placement[index] + placement::placement(piece, square, color);
-                activity[index] += match piece {
-                    Piece::Knight | Piece::Bishop | Piece::Rook | Piece::Queen => {
-                        centrality(square)
-                    }
-                    Piece::Pawn => {
-                        let rank = square.rank() as i32;
-                        if color == Color::White {
-                            (rank - 1).max(0)
-                        } else {
-                            (6 - rank).max(0)
-                        }
-                    }
-                    Piece::King => 0,
-                };
-                let raw_attacks = attacks_from(piece, square, color, occupied);
-                let attacks = raw_attacks & !friendly_pieces;
-                mobility[index] += attacks.len() as i32;
-                piece_mobility[index][piece_index(piece) as usize] += attacks.len() as i32;
-                // Weighted here for the same reason placement is: the curve is
-                // a table lookup per piece, and expanding it into one count per
-                // move count is work only the fitter needs.
-                if let Some(offset) = curve {
-                    mobility_curves[index] = mobility_curves[index]
-                        + weights::mobility_curve_at(offset + attacks.len() as usize);
-                }
-                // A blockaded passer is one with any piece on the square ahead.
-                // The passer test is a function of the pawns, but the blocker
-                // is a piece, which is why this is here and not in the cache.
-                if piece == Piece::Pawn
-                    && (enemy_pawns & passer_spans[square as usize]).is_empty()
-                    && square
-                        .try_offset(0, forward)
-                        .is_some_and(|stop| occupied.has(stop))
-                {
-                    let advance = if color == Color::White {
-                        square.rank() as usize
+        // A blockaded passer is one with any piece on the square ahead. The
+        // passer test is a function of the pawns, but the blocker is a piece,
+        // which is why this is here and not in the cache. Shifting the
+        // occupancy back one rank puts every blocker on its passer's square,
+        // so the blocked set is one intersection and is usually empty.
+        let blockers = if color == Color::White {
+            BitBoard(occupied.0 >> 8)
+        } else {
+            BitBoard(occupied.0 << 8)
+        };
+        for square in scan.passers & blockers {
+            let advance = if color == Color::White {
+                square.rank() as usize
+            } else {
+                7 - square.rank() as usize
+            };
+            summary.blocked_passers[index][advance - 1] += 1;
+        }
+
+        scan.profile.attacker_variety = scan.attacker_mask.count_ones() as i32;
+        scan.profile.king_pressure += scan.profile.attackers * scan.profile.attackers * 2;
+        if style {
+            let king_file = enemy_king.file() as i32;
+            let king_rank = enemy_king.rank() as i32;
+            for pawn in own_pawns {
+                if (pawn.file() as i32 - king_file).abs() <= 1 {
+                    let distance = if color == Color::White {
+                        king_rank - pawn.rank() as i32
                     } else {
-                        7 - square.rank() as usize
+                        pawn.rank() as i32 - king_rank
                     };
-                    blocked_passers[index][advance - 1] += 1;
-                }
-                if matches!(piece, Piece::Knight | Piece::Bishop)
-                    && pawn_held.has(square)
-                    && (enemy_pawns & challenges[square as usize]).is_empty()
-                {
-                    outposts[index][usize::from(piece == Piece::Bishop)] += 1;
-                }
-                if piece == Piece::Rook {
-                    let file = square.file().bitboard();
-                    if (all_pawns & file).is_empty() {
-                        rook_files[index][0] += 1;
-                    } else if (own_pawns & file).is_empty() {
-                        rook_files[index][1] += 1;
-                    }
-                    // A rook on the seventh earns its name against a king it
-                    // confines or pawns it attacks along the rank, not for the
-                    // square alone.
-                    if square.rank() == seventh
-                        && (enemy_king.rank() == eighth
-                            || !(enemy_pawns & seventh.bitboard()).is_empty())
-                    {
-                        rook_files[index][2] += 1;
+                    if (1..=4).contains(&distance) {
+                        scan.profile.pawn_storm += 5 - distance;
                     }
                 }
-                if piece != Piece::King {
-                    attacked_twice[index] |= attacked[index] & raw_attacks;
-                    attacked[index] |= raw_attacks;
-                    if piece == Piece::Pawn {
-                        pawn_attacks[index] |= raw_attacks;
-                    }
-                    if let Some(slot) = weights::mobility_curve_offset(piece)
-                        .map(|_| piece_index(piece) as usize - 1)
-                    {
-                        type_attacks[index][slot] |= raw_attacks;
-                    }
-                    let zone_squares = (attacks & enemy_king_zone).len() as i32;
-                    if zone_squares > 0 {
-                        attack_units[index] += king_attack_units(piece) + zone_squares;
-                    }
-                }
-                if !style {
-                    continue;
-                }
-                if piece != Piece::King {
-                    for target in raw_attacks {
-                        attack_counts[index][target as usize] += 1;
-                    }
-                    zone_defenders[index] +=
-                        i32::from(!(raw_attacks & king_zones[index]).is_empty());
-                }
-
-                let zone_hits = (attacks & enemy_king_zone).len() as i32;
-                if zone_hits > 0 && piece != Piece::King {
-                    result.attackers += 1;
-                    attacker_mask |= 1 << piece_index(piece);
-                    let weight = match piece {
-                        Piece::Pawn => 3,
-                        Piece::Knight | Piece::Bishop => 4,
-                        Piece::Rook => 3,
-                        Piece::Queen => 2,
-                        Piece::King => 0,
-                    };
-                    result.king_pressure += zone_hits * weight;
-                    if matches!(piece, Piece::Bishop | Piece::Rook | Piece::Queen) {
-                        result.open_lines += 1;
-                    }
-                }
-
-                for target in attacks & enemy_pieces {
-                    let Some(target_piece) = board.piece_on(target) else {
-                        continue;
-                    };
-                    if piece != Piece::King
-                        && target_piece != Piece::King
-                        && piece_value(piece) < piece_value(target_piece)
-                    {
-                        result.threats +=
-                            1 + (piece_value(target_piece) - piece_value(piece)) / 100;
-                    }
-                }
-
-                result.space += attacks
+                scan.profile.pawn_breaks += (get_pawn_attacks(pawn, color) & enemy_pawns)
                     .into_iter()
-                    .filter(|target| {
-                        let rank = target.rank() as i32;
-                        if color == Color::White {
-                            rank >= 4
-                        } else {
-                            rank <= 3
-                        }
-                    })
+                    .filter(|target| (target.file() as i32 - king_file).abs() <= 1)
                     .count() as i32;
             }
         }
-
-        result.attacker_variety = attacker_mask.count_ones() as i32;
-        result.king_pressure += result.attackers * result.attackers * 2;
-        if !style {
-            profiles[index] = result;
-            continue;
-        }
-        let king_file = enemy_king.file() as i32;
-        let king_rank = enemy_king.rank() as i32;
-        let enemy_pawns = board.colored_pieces(enemy, Piece::Pawn);
-        for pawn in board.colored_pieces(color, Piece::Pawn) {
-            if (pawn.file() as i32 - king_file).abs() <= 1 {
-                let distance = if color == Color::White {
-                    king_rank - pawn.rank() as i32
-                } else {
-                    pawn.rank() as i32 - king_rank
-                };
-                if (1..=4).contains(&distance) {
-                    result.pawn_storm += 5 - distance;
-                }
-            }
-            result.pawn_breaks += (get_pawn_attacks(pawn, color) & enemy_pawns)
-                .into_iter()
-                .filter(|target| (target.file() as i32 - king_file).abs() <= 1)
-                .count() as i32;
-        }
-        profiles[index] = result;
     }
 
-    for color in [Color::White, Color::Black] {
-        if !style {
-            break;
-        }
-        let index = color as usize;
-        let enemy = !color;
-        let result = &mut profiles[index];
-        result.defender_shortage = (result.attackers - zone_defenders[enemy as usize]).max(0);
-        for target in board.colors(enemy) {
-            let Some(target_piece) = board.piece_on(target) else {
-                continue;
-            };
-            if target_piece == Piece::King {
-                continue;
-            }
-            let attackers = i32::from(attack_counts[index][target as usize]);
-            if attackers >= 2 {
-                result.supported_threats += (attackers - 1) * (1 + piece_value(target_piece) / 300);
+    if style {
+        for color in [Color::White, Color::Black] {
+            let index = color as usize;
+            let enemy = !color;
+            let defenders = summary.scans[enemy as usize].zone_defenders;
+            let result = &mut summary.scans[index].profile;
+            result.defender_shortage = (result.attackers - defenders).max(0);
+            for target in board.colors(enemy) {
+                let Some(target_piece) = board.piece_on(target) else {
+                    continue;
+                };
+                if target_piece == Piece::King {
+                    continue;
+                }
+                let attackers = i32::from(attack_counts[index][target as usize]);
+                if attackers >= 2 {
+                    result.supported_threats +=
+                        (attackers - 1) * (1 + piece_value(target_piece) / 300);
+                }
             }
         }
     }
@@ -826,13 +1001,13 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
     // by the enemy king while a second friendly piece covers it. The checking
     // squares are the attacks of each piece type from the enemy king's square,
     // so the count is one intersection per type rather than a walk over moves.
-    let mut safe_checks = [[0_i32; 4]; 2];
-    let mut threats = [[0_i32; 3]; 2];
     for color in [Color::White, Color::Black] {
         let index = color as usize;
         let enemy = !color;
         let enemy_king = board.king(enemy);
         let king_reach = get_king_moves(enemy_king);
+        let own = &summary.scans[index];
+        let theirs = &summary.scans[enemy as usize];
 
         // Threats against the enemy's pieces, kings excluded on both sides of
         // the ledger: a minor attacked by a pawn, a piece attacked and left
@@ -843,14 +1018,16 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
             enemy_pieces & (board.pieces(Piece::Knight) | board.pieces(Piece::Bishop));
         let enemy_majors = enemy_pieces & (board.pieces(Piece::Rook) | board.pieces(Piece::Queen));
         let enemy_queens = enemy_pieces & board.pieces(Piece::Queen);
-        let own_reach = attacked[index] | get_king_moves(board.king(color));
-        let enemy_defends = attacked[enemy as usize] | king_reach;
-        let minor_attacks = type_attacks[index][0] | type_attacks[index][1];
-        threats[index][0] = (enemy_minors & pawn_attacks[index]).len() as i32;
-        threats[index][1] = (enemy_pieces & own_reach & !enemy_defends).len() as i32;
-        threats[index][2] = (enemy_majors & (pawn_attacks[index] | minor_attacks)).len() as i32
-            + (enemy_queens & type_attacks[index][2]).len() as i32;
-        let safe = !attacked[enemy as usize] & (!king_reach | attacked_twice[index]);
+        let own_reach = own.attacked | get_king_moves(board.king(color));
+        let enemy_defends = theirs.attacked | king_reach;
+        let minor_attacks = own.type_attacks[0] | own.type_attacks[1];
+        summary.threats[index][0] = (enemy_minors & own.pawn_attacks).len() as i32;
+        summary.threats[index][1] = (enemy_pieces & own_reach & !enemy_defends).len() as i32;
+        summary.threats[index][2] = (enemy_majors & (own.pawn_attacks | minor_attacks)).len()
+            as i32
+            + (enemy_queens & own.type_attacks[2]).len() as i32;
+
+        let safe = !theirs.attacked & (!king_reach | own.attacked_twice);
         let diagonals = get_bishop_moves(enemy_king, occupied);
         let lines = get_rook_moves(enemy_king, occupied);
         let checks = [
@@ -859,27 +1036,17 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
             lines,
             diagonals | lines,
         ];
-        for slot in 0..4 {
-            safe_checks[index][slot] =
-                (type_attacks[index][slot] & checks[slot] & !board.colors(color) & safe).len()
-                    as i32;
+        let landing = !board.colors(color) & safe;
+        for ((count, attacks), check_squares) in summary.safe_checks[index]
+            .iter_mut()
+            .zip(&own.type_attacks)
+            .zip(&checks)
+        {
+            *count = (*attacks & *check_squares & landing).len() as i32;
         }
     }
 
-    AttackSummary {
-        profiles,
-        mobility,
-        piece_mobility,
-        mobility_curves,
-        rook_files,
-        outposts,
-        blocked_passers,
-        attack_units,
-        safe_checks,
-        threats,
-        activity,
-        placement,
-    }
+    summary
 }
 
 /// Returns how many squares a piece may move to, for the fitter's expansion.
@@ -991,6 +1158,7 @@ fn reference_attacking_features(board: &Board, color: Color) -> AttackProfile {
     result
 }
 
+#[inline(always)]
 fn piece_index(piece: Piece) -> u8 {
     match piece {
         Piece::Pawn => 0,
@@ -1051,6 +1219,7 @@ fn zone_defenders(
     defenders
 }
 
+#[inline(always)]
 fn attacks_from(
     piece: Piece,
     square: Square,
@@ -1202,10 +1371,7 @@ fn pawn_features(board: &Board, color: Color) -> PawnFeatures {
     } else {
         (&BLACK_OUTPOST_CHALLENGES, -1)
     };
-    let mut enemy_attacks = BitBoard::EMPTY;
-    for enemy in enemy_pawns {
-        enemy_attacks |= get_pawn_attacks(enemy, !color);
-    }
+    let enemy_attacks = pawn_attack_set(enemy_pawns, !color);
 
     let mut result = PawnFeatures::default();
     for file in File::ALL {
@@ -1308,24 +1474,40 @@ fn shelter_distances(board: &Board, color: Color) -> ([i8; 6], [i8; 6]) {
     let ahead = pawns & spans[king as usize];
     let mut king_file = [0_i8; 6];
     let mut adjacent = [0_i8; 6];
+    let king_rank = king.rank() as u32;
+    // The nearest pawn on a file is its lowest set square for White and its
+    // highest for Black, which the bit scans answer without iterating pawns.
     for file in File::ALL {
         let file_pawns = ahead & file.bitboard();
         if file_pawns.is_empty() {
             continue;
         }
-        let nearest = file_pawns
-            .into_iter()
-            .map(|pawn| (pawn.rank() as i32 - king.rank() as i32).unsigned_abs() as usize)
-            .min()
-            .expect("the file holds a pawn");
+        let nearest_rank = if color == Color::White {
+            file_pawns.0.trailing_zeros() / 8
+        } else {
+            (63 - file_pawns.0.leading_zeros()) / 8
+        };
+        let distance = nearest_rank.abs_diff(king_rank) as usize;
         let counts = if file == king.file() {
             &mut king_file
         } else {
             &mut adjacent
         };
-        counts[nearest - 1] += 1;
+        counts[distance - 1] += 1;
     }
     (king_file, adjacent)
+}
+
+/// Every square a colour's pawns attack, as two shifts.
+#[inline(always)]
+fn pawn_attack_set(pawns: BitBoard, color: Color) -> BitBoard {
+    let not_a = (pawns & !File::A.bitboard()).0;
+    let not_h = (pawns & !File::H.bitboard()).0;
+    if color == Color::White {
+        BitBoard((not_a << 7) | (not_h << 9))
+    } else {
+        BitBoard((not_a >> 9) | (not_h >> 7))
+    }
 }
 
 #[cfg(test)]
@@ -1338,17 +1520,17 @@ mod tests {
         let cached = attack_summary(board);
         for color in [Color::White, Color::Black] {
             assert_eq!(
-                cached.profiles[color as usize],
+                cached.scans[color as usize].profile,
                 reference_attacking_features(board, color),
                 "attack features differ for {color:?} in {board}"
             );
             assert_eq!(
-                cached.mobility[color as usize],
+                cached.scans[color as usize].mobility,
                 reference_mobility(board, color),
                 "mobility differs for {color:?} in {board}"
             );
             assert_eq!(
-                cached.activity[color as usize],
+                cached.scans[color as usize].activity,
                 super::activity(board, color),
                 "activity differs for {color:?} in {board}"
             );
@@ -1396,8 +1578,8 @@ mod tests {
         // the sign: both stand four ranks from home, at index three.
         let white_passer: Board = "4k3/8/8/4P3/8/8/8/4K3 w - - 0 1".parse().unwrap();
         let black_passer: Board = "4k3/8/8/8/4p3/8/8/4K3 w - - 0 1".parse().unwrap();
-        let white_passed = super::compute_structure_terms(&white_passer).passed_by_rank;
-        let black_passed = super::compute_structure_terms(&black_passer).passed_by_rank;
+        let white_passed = super::structure_counts(&white_passer).passed_by_rank;
+        let black_passed = super::structure_counts(&black_passer).passed_by_rank;
         assert_eq!(white_passed, [0, 0, 0, 1, 0, 0]);
         assert_eq!(black_passed, [0, 0, 0, -1, 0, 0]);
     }
@@ -1408,10 +1590,10 @@ mod tests {
         // b5 and c6: the c-pawn is passed and defended by the b-pawn, and the
         // b-pawn is passed and defended by nothing.
         let board: Board = "4k3/8/2P5/1P6/8/8/8/4K3 w - - 0 1".parse().unwrap();
-        let terms = super::compute_structure_terms(&board);
+        let counts = super::structure_counts(&board);
 
-        assert_eq!(terms.passed_by_rank, [0, 0, 0, 1, 1, 0]);
-        assert_eq!(terms.protected_passer_by_rank, [0, 0, 0, 0, 1, 0]);
+        assert_eq!(counts.passed_by_rank, [0, 0, 0, 1, 1, 0]);
+        assert_eq!(counts.protected_passer_by_rank, [0, 0, 0, 0, 1, 0]);
     }
 
     /// The style scalar must survive the change to per-rank counts unaltered.
@@ -1429,8 +1611,9 @@ mod tests {
         ] {
             let board: Board = fen.parse().unwrap();
             let features = super::extract(&board);
+            let counts = super::structure_counts(&board);
             let expected: i32 = (0..6)
-                .map(|rank| (rank as i32 + 1) * features.passed_by_rank[rank])
+                .map(|rank| (rank as i32 + 1) * counts.passed_by_rank[rank])
                 .sum();
 
             assert_eq!(features.passed_pawns, expected, "{fen}");
@@ -1501,6 +1684,41 @@ mod tests {
             "6k1/5ppp/8/8/6P1/8/5P1P/6K1 w - - 0 1",
         ] {
             assert_matches_reference(&fen.parse().unwrap());
+        }
+    }
+
+    /// The objective path's set-wise pawn scan must equal the styled path's
+    /// per-pawn scan on everything the two share.
+    #[test]
+    fn the_objective_scan_matches_the_styled_scan_over_a_playout() {
+        let mut board = Board::default();
+        for turn in 0..256_usize {
+            let styled = super::attack_summary_with_style(&board, true);
+            let objective = super::attack_summary_with_style(&board, false);
+            for color in [Color::White, Color::Black] {
+                let mut expected = styled.scans[color as usize];
+                expected.profile = Default::default();
+                expected.attacker_mask = 0;
+                expected.zone_defenders = 0;
+                assert_eq!(
+                    objective.scans[color as usize], expected,
+                    "objective scan differs for {color:?} in {board}"
+                );
+            }
+            assert_eq!(objective.blocked_passers, styled.blocked_passers);
+            assert_eq!(objective.safe_checks, styled.safe_checks);
+            assert_eq!(objective.threats, styled.threats);
+            let mut moves = Vec::<Move>::new();
+            board.generate_moves(|piece_moves| {
+                moves.extend(piece_moves);
+                false
+            });
+            if moves.is_empty() {
+                board = Board::default();
+                continue;
+            }
+            let chess_move = moves[(turn * 53 + 7) % moves.len()];
+            board.play_unchecked(chess_move);
         }
     }
 

@@ -249,37 +249,31 @@ pub(super) struct EvalFeatures {
     pub(super) isolated_pawns: Score,
     /// Pawns no neighbour can support whose advance is not safe.
     pub(super) backward_pawns: Score,
-    /// Pawns with a neighbour beside or defending them, by rank.
-    pub(super) connected_by_rank: [Score; 6],
-    /// Passed pawns counted per rank, from the owner's side of the board.
-    pub(super) passed_by_rank: [Score; 6],
-    /// Passed pawns defended by a friendly pawn, counted the same way.
-    pub(super) protected_passer_by_rank: [Score; 6],
-    /// Passed pawns with a piece of either colour on the square ahead.
-    pub(super) blocked_passer_by_rank: [Score; 6],
-    /// Passed pawns by the king distance from the owner's king, and from the
-    /// enemy king, to the square ahead of them.
-    pub(super) passer_own_king_distance: [Score; 8],
-    pub(super) passer_enemy_king_distance: [Score; 8],
+    /// Every rank- or distance-indexed pawn and king structure block, already
+    /// weighted: passers, protected passers and connected pawns by rank,
+    /// passers by each king's distance, and shelter by pawn distance.
+    ///
+    /// Like placement, this is a pair added to the blend directly. The
+    /// counts behind it are a function of the pawns and the kings, so they
+    /// are weighted once on a structure-cache miss rather than carried to
+    /// every node; [`features::structure_counts`] recomputes them for the
+    /// fitter and the tests.
+    pub(super) structure_indexed: ScorePair,
+    /// The indexed blocks the piece loop produces, already weighted: passers
+    /// blockaded by rank, king danger by bucketed attack units, and safe
+    /// checks by checking piece. A colour bringing nothing against the enemy
+    /// king counts in no danger bucket: the term describes an attack, not its
+    /// absence.
+    pub(super) piece_indexed: ScorePair,
     /// Passers weighted by how far they have come.
     ///
-    /// Derived from [`Self::passed_by_rank`] and read only by the attacking
-    /// style, which values a runner by its progress. The objective evaluation
-    /// scores passers per rank instead, so it is not forced onto a straight
-    /// line through the origin.
+    /// Derived from the per-rank counts and read only by the attacking style,
+    /// which values a runner by its progress. The objective evaluation scores
+    /// passers per rank instead, so it is not forced onto a straight line
+    /// through the origin.
     pub(super) passed_pawns: Score,
     pub(super) king_shelter: Score,
     pub(super) open_king_files: Score,
-    /// The nearest friendly pawn ahead of the king on its own file, and on
-    /// each adjacent file, by rank distance from one to six.
-    pub(super) shelter_king_file_by_distance: [Score; 6],
-    pub(super) shelter_adjacent_file_by_distance: [Score; 6],
-    /// Attacks on the enemy king by bucketed attack units, side-relative: a
-    /// colour bringing units against the enemy king counts once in the bucket
-    /// those units fall in. A colour bringing nothing counts nowhere.
-    pub(super) king_danger_by_bucket: [Score; KING_DANGER_BUCKETS],
-    /// Safe checking squares for knights, bishops, rooks and queens.
-    pub(super) safe_checks: [Score; 4],
     /// Enemy minor pieces attacked by a pawn, side-relative.
     pub(super) threat_minor_by_pawn: Score,
     /// Enemy pieces, pawns and kings aside, attacked and defended by nothing.
@@ -352,8 +346,8 @@ pub(super) fn evaluate_with_config(board: &Board, config: EvaluationConfig) -> S
 /// supported-threat terms only to multiply them away.
 fn objective_blended_score(board: &Board, config: EvaluationConfig) -> Score {
     let features = features::extract_with_style(board, false);
-    let base = weights::score(features)
-        + weights::profile_mobility_adjustment(features)
+    let base = weights::score(&features)
+        + weights::profile_mobility_adjustment(&features)
             .scaled(config.mobility_profile_intensity());
     let phase = features::phase(board);
     (base.middle_game * phase + base.end_game * (24 - phase)) / 24
@@ -383,10 +377,10 @@ pub(super) fn evaluate_with_trace_and_config(
     config: EvaluationConfig,
 ) -> EvaluationTrace {
     let features = features::extract(board);
-    let base = weights::score(features)
-        + weights::profile_mobility_adjustment(features)
+    let base = weights::score(&features)
+        + weights::profile_mobility_adjustment(&features)
             .scaled(config.mobility_profile_intensity());
-    let style = weights::attacking_style(features)
+    let style = weights::attacking_style(&features)
         .scaled(config.aggression())
         .soft_bounded(config.style_middle_game_cap(), config.style_end_game_cap());
     let score = base + style;
@@ -485,10 +479,10 @@ mod tests {
         assert_eq!(plain.king_shelter, styled.king_shelter);
         assert_eq!(plain.placement, styled.placement);
         assert_eq!(plain.tempo, styled.tempo);
-        assert_eq!(weights::score(plain), weights::score(styled));
+        assert_eq!(weights::score(&plain), weights::score(&styled));
         assert_eq!(
-            weights::profile_mobility_adjustment(plain),
-            weights::profile_mobility_adjustment(styled),
+            weights::profile_mobility_adjustment(&plain),
+            weights::profile_mobility_adjustment(&styled),
         );
 
         for (name, value) in [
@@ -508,7 +502,7 @@ mod tests {
         // A position with a live attack shows the style bucket is genuinely fed.
         let attacker = Position::from_fen("6k1/5ppp/8/7Q/2B5/8/5PPP/6K1 w - - 0 1").unwrap();
         let attacking = super::features::extract(attacker.board());
-        assert!(weights::attacking_style(attacking).middle_game > 0);
+        assert!(weights::attacking_style(&attacking).middle_game > 0);
     }
 
     /// The starting position is symmetric apart from whose turn it is.
@@ -647,20 +641,20 @@ mod tests {
             ..EvalFeatures::default()
         };
         assert_ne!(
-            super::weights::score(generic),
-            super::weights::score(EvalFeatures::default())
+            super::weights::score(&generic),
+            super::weights::score(&EvalFeatures::default())
         );
         assert_eq!(
-            super::weights::score(pieces),
-            super::weights::score(EvalFeatures::default())
+            super::weights::score(&pieces),
+            super::weights::score(&EvalFeatures::default())
         );
         assert_ne!(
-            super::weights::profile_mobility_adjustment(pieces),
-            super::weights::profile_mobility_adjustment(EvalFeatures::default())
+            super::weights::profile_mobility_adjustment(&pieces),
+            super::weights::profile_mobility_adjustment(&EvalFeatures::default())
         );
         assert_eq!(
-            super::weights::attacking_style(pieces),
-            super::weights::attacking_style(EvalFeatures::default())
+            super::weights::attacking_style(&pieces),
+            super::weights::attacking_style(&EvalFeatures::default())
         );
 
         let features = evaluate_with_trace(queen.board()).features;
@@ -674,7 +668,7 @@ mod tests {
                 + features.king_mobility
         );
         let profiled = super::ScorePair::new(3, 2) * features.mobility
-            + super::weights::profile_mobility_adjustment(features);
+            + super::weights::profile_mobility_adjustment(&features);
         let explicit = super::ScorePair::new(4, 4) * features.knight_mobility
             + super::ScorePair::new(5, 5) * features.bishop_mobility
             + super::ScorePair::new(2, 4) * features.rook_mobility
@@ -690,7 +684,7 @@ mod tests {
     /// score at all.
     #[test]
     fn mobility_curves_start_on_the_linear_term() {
-        let unit = super::weights::score(EvalFeatures {
+        let unit = super::weights::score(&EvalFeatures {
             pawn_mobility: 1,
             ..EvalFeatures::default()
         });
@@ -738,8 +732,8 @@ mod tests {
             ..features
         };
         assert_eq!(
-            super::weights::score(features),
-            super::weights::score(without) + features.mobility_curves
+            super::weights::score(&features),
+            super::weights::score(&without) + features.mobility_curves
         );
     }
 
@@ -796,8 +790,8 @@ mod tests {
             ..EvalFeatures::default()
         };
         assert_eq!(
-            super::weights::score(scored),
-            super::weights::score(EvalFeatures::default())
+            super::weights::score(&scored),
+            super::weights::score(&EvalFeatures::default())
         );
     }
 
@@ -840,188 +834,151 @@ mod tests {
             ..EvalFeatures::default()
         };
         assert_eq!(
-            super::weights::score(scored),
-            super::weights::score(EvalFeatures::default())
+            super::weights::score(&scored),
+            super::weights::score(&EvalFeatures::default())
         );
     }
 
     #[test]
     fn backward_and_connected_pawns_are_counted_by_rank() {
-        let features =
-            |fen: &str| evaluate_with_trace(Position::from_fen(fen).unwrap().board()).features;
+        let counts =
+            |fen: &str| super::features::structure_counts(Position::from_fen(fen).unwrap().board());
 
         // A phalanx on the fourth counts both pawns at rank index two.
-        let phalanx = features("4k3/8/8/8/3PP3/8/8/4K3 w - - 0 1");
+        let phalanx = counts("4k3/8/8/8/3PP3/8/8/4K3 w - - 0 1");
         assert_eq!(phalanx.connected_by_rank, [0, 0, 2, 0, 0, 0]);
         // A pawn defended from behind is connected; its defender is not.
-        let chain = features("4k3/8/8/8/3P4/4P3/8/4K3 w - - 0 1");
+        let chain = counts("4k3/8/8/8/3P4/4P3/8/4K3 w - - 0 1");
         assert_eq!(chain.connected_by_rank, [0, 0, 1, 0, 0, 0]);
-        assert_eq!(chain.backward_pawns, 0);
+        assert_eq!(chain.backward, 0);
 
         // e3 cannot advance past d5's control and no pawn can come to help
         // it: backward. The counts are side-relative, so Black's pawns are
         // given support that keeps them out of the count. A friendly pawn
         // already ahead on an adjacent file does not help; one behind does.
+        assert_eq!(counts("4k3/8/2p5/3p4/8/4P3/8/4K3 w - - 0 1").backward, 1);
         assert_eq!(
-            features("4k3/8/2p5/3p4/8/4P3/8/4K3 w - - 0 1").backward_pawns,
+            counts("4k3/1p6/2p5/3p4/3P4/4P3/8/4K3 w - - 0 1").backward,
             1
         );
-        assert_eq!(
-            features("4k3/1p6/2p5/3p4/3P4/4P3/8/4K3 w - - 0 1").backward_pawns,
-            1
-        );
-        assert_eq!(
-            features("4k3/8/2p5/3p4/8/4P3/5P2/4K3 w - - 0 1").backward_pawns,
-            0
-        );
+        assert_eq!(counts("4k3/8/2p5/3p4/8/4P3/5P2/4K3 w - - 0 1").backward, 0);
         // An enemy pawn standing on the stop square blocks it just as well.
-        assert_eq!(
-            features("4k3/8/2p5/3p4/4p3/4P3/8/4K3 w - - 0 1").backward_pawns,
-            1
-        );
+        assert_eq!(counts("4k3/8/2p5/3p4/4p3/4P3/8/4K3 w - - 0 1").backward, 1);
         // Black's backward pawn counts against, on Black's own terms.
-        assert_eq!(
-            features("4k3/8/4p3/8/3P4/2P5/8/4K3 w - - 0 1").backward_pawns,
-            -1
-        );
+        assert_eq!(counts("4k3/8/4p3/8/3P4/2P5/8/4K3 w - - 0 1").backward, -1);
         // A black phalanx on the fifth is on Black's fourth: rank index two.
         assert_eq!(
-            features("4k3/8/8/3pp3/8/8/8/4K3 w - - 0 1").connected_by_rank,
+            counts("4k3/8/8/3pp3/8/8/8/4K3 w - - 0 1").connected_by_rank,
             [0, 0, -2, 0, 0, 0]
         );
-
-        let scored = EvalFeatures {
-            backward_pawns: 1,
-            connected_by_rank: [1; 6],
-            ..EvalFeatures::default()
-        };
-        assert_eq!(
-            super::weights::score(scored),
-            super::weights::score(EvalFeatures::default())
-        );
+        // The engine reads the same count.
+        let features = evaluate_with_trace(
+            Position::from_fen("4k3/8/2p5/3p4/8/4P3/8/4K3 w - - 0 1")
+                .unwrap()
+                .board(),
+        )
+        .features;
+        assert_eq!(features.backward_pawns, 1);
     }
 
     #[test]
     fn passers_report_blockade_and_king_distance() {
-        let features =
-            |fen: &str| evaluate_with_trace(Position::from_fen(fen).unwrap().board()).features;
+        let counts =
+            |fen: &str| super::features::structure_counts(Position::from_fen(fen).unwrap().board());
+        let blocked = |fen: &str| {
+            let summary = super::features::attack_summary(Position::from_fen(fen).unwrap().board());
+            let [white, black] = summary.blocked_passers;
+            std::array::from_fn::<Score, 6, _>(|rank| white[rank] - black[rank])
+        };
 
         // A free passer on d4: its stop square d5 is four king moves from e1
         // and three from e8.
-        let free = features("4k3/8/8/8/3P4/8/8/4K3 w - - 0 1");
+        let free = counts("4k3/8/8/8/3P4/8/8/4K3 w - - 0 1");
         assert_eq!(free.passed_by_rank, [0, 0, 1, 0, 0, 0]);
-        assert_eq!(free.blocked_passer_by_rank, [0; 6]);
+        assert_eq!(blocked("4k3/8/8/8/3P4/8/8/4K3 w - - 0 1"), [0; 6]);
         assert_eq!(free.passer_own_king_distance, [0, 0, 0, 0, 1, 0, 0, 0]);
         assert_eq!(free.passer_enemy_king_distance, [0, 0, 0, 1, 0, 0, 0, 0]);
 
         // Any piece on the square ahead is a blockade, the owner's own
         // included.
         assert_eq!(
-            features("4k3/8/8/3n4/3P4/8/8/4K3 w - - 0 1").blocked_passer_by_rank,
+            blocked("4k3/8/8/3n4/3P4/8/8/4K3 w - - 0 1"),
             [0, 0, 1, 0, 0, 0]
         );
         assert_eq!(
-            features("4k3/8/8/3N4/3P4/8/8/4K3 w - - 0 1").blocked_passer_by_rank,
+            blocked("4k3/8/8/3N4/3P4/8/8/4K3 w - - 0 1"),
             [0, 0, 1, 0, 0, 0]
         );
         // A pawn that is not passed is not counted whatever stands ahead.
+        assert_eq!(blocked("4k3/8/2p5/3n4/3P4/8/8/4K3 w - - 0 1"), [0; 6]);
+        // Black's blockaded passer counts against.
         assert_eq!(
-            features("4k3/8/2p5/3n4/3P4/8/8/4K3 w - - 0 1").blocked_passer_by_rank,
-            [0; 6]
+            blocked("4k3/8/8/8/3p4/3N4/8/4K3 w - - 0 1"),
+            [0, 0, 0, -1, 0, 0]
         );
 
         // Black's passer on d4 is on Black's fifth; its stop square d3 is five
         // from e8 and two from e1, counted with the opposite sign.
-        let black = features("4k3/8/8/8/3p4/8/8/4K3 w - - 0 1");
+        let black = counts("4k3/8/8/8/3p4/8/8/4K3 w - - 0 1");
         assert_eq!(black.passed_by_rank, [0, 0, 0, -1, 0, 0]);
         assert_eq!(black.passer_own_king_distance, [0, 0, 0, 0, 0, -1, 0, 0]);
         assert_eq!(black.passer_enemy_king_distance, [0, 0, -1, 0, 0, 0, 0, 0]);
-
-        let scored = EvalFeatures {
-            blocked_passer_by_rank: [1; 6],
-            passer_own_king_distance: [1; 8],
-            passer_enemy_king_distance: [1; 8],
-            ..EvalFeatures::default()
-        };
-        assert_eq!(
-            super::weights::score(scored),
-            super::weights::score(EvalFeatures::default())
-        );
     }
 
     #[test]
     fn king_danger_counts_attack_units_and_safe_checks() {
-        let features =
-            |fen: &str| evaluate_with_trace(Position::from_fen(fen).unwrap().board()).features;
+        let summary =
+            |fen: &str| super::features::attack_summary(Position::from_fen(fen).unwrap().board());
+        let bucket = |units: i32| super::features::king_danger_bucket(units);
+        let safe_checks = |fen: &str| {
+            let [white, black] = summary(fen).safe_checks;
+            std::array::from_fn::<Score, 4, _>(|slot| white[slot] - black[slot])
+        };
 
         // Nothing touches either king zone in the starting position.
-        let start = features("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-        assert_eq!(start.king_danger_by_bucket, [0; super::KING_DANGER_BUCKETS]);
-        assert_eq!(start.safe_checks, [0; 4]);
+        let units = |fen: &str| summary(fen).scans.map(|scan| scan.attack_units());
+        let start = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+        assert_eq!(units(start), [0, 0]);
+        assert_eq!(summary(start).safe_checks, [[0; 4]; 2]);
 
-        // A queen bearing on the king zone lands White in one bucket above
-        // the first, and the mirrored position lands Black in the same one.
-        let white = features("4k3/8/3Q4/8/8/8/8/4K3 w - - 0 1");
-        let black = features("4k3/8/8/8/8/3q4/8/4K3 w - - 0 1");
-        assert_eq!(white.king_danger_by_bucket.iter().sum::<Score>(), 1);
-        assert!(white.king_danger_by_bucket[0] == 0);
-        assert_eq!(
-            black.king_danger_by_bucket,
-            white.king_danger_by_bucket.map(|count| -count)
-        );
-        // More attackers land in a higher bucket.
-        let assault = features("4k3/8/3Q4/5N2/8/8/8/4K3 w - - 0 1");
-        let bucket = |counts: [Score; super::KING_DANGER_BUCKETS]| {
-            counts.iter().position(|&count| count == 1).unwrap()
-        };
-        assert!(bucket(assault.king_danger_by_bucket) > bucket(white.king_danger_by_bucket));
+        // A queen bearing on the king zone lands White above the first
+        // bucket, and the mirrored position lands Black in the same one.
+        let white = units("4k3/8/3Q4/8/8/8/8/4K3 w - - 0 1");
+        let black = units("4k3/8/8/8/8/3q4/8/4K3 w - - 0 1");
+        assert!(white[0] > 0 && bucket(white[0]) > 0);
+        assert_eq!(white[1], 0);
+        assert_eq!(black, [white[1], white[0]]);
+        // More attackers land in a higher bucket, and the bucket saturates.
+        let assault = units("4k3/8/3Q4/5N2/8/8/8/4K3 w - - 0 1");
+        assert!(bucket(assault[0]) > bucket(white[0]));
+        assert_eq!(bucket(1_000), super::KING_DANGER_BUCKETS - 1);
 
         // A rook on a1 checks safely from a8. A queen on d1 checks from a4,
         // h5 and e2 but not from d8, which only the king covers and nothing
         // of White's supports.
-        assert_eq!(
-            features("4k3/8/8/8/8/8/8/R3K3 w - - 0 1").safe_checks,
-            [0, 0, 1, 0]
-        );
-        assert_eq!(
-            features("4k3/8/8/8/8/8/8/3QK3 w - - 0 1").safe_checks,
-            [0, 0, 0, 3]
-        );
+        assert_eq!(safe_checks("4k3/8/8/8/8/8/8/R3K3 w - - 0 1"), [0, 0, 1, 0]);
+        assert_eq!(safe_checks("4k3/8/8/8/8/8/8/3QK3 w - - 0 1"), [0, 0, 0, 3]);
         // With a bishop on b6 covering d8 as well, that check becomes safe.
         assert_eq!(
-            features("4k3/8/1B6/8/8/8/8/3QK3 w - - 0 1").safe_checks,
+            safe_checks("4k3/8/1B6/8/8/8/8/3QK3 w - - 0 1"),
             [0, 0, 0, 4]
         );
         // A knight on e4 checks from d6 and f6; a pawn on e7 covers both.
-        assert_eq!(
-            features("4k3/8/8/8/4N3/8/8/4K3 w - - 0 1").safe_checks,
-            [2, 0, 0, 0]
-        );
-        assert_eq!(
-            features("4k3/4p3/8/8/4N3/8/8/4K3 w - - 0 1").safe_checks,
-            [0; 4]
-        );
-
-        let scored = EvalFeatures {
-            king_danger_by_bucket: [1; super::KING_DANGER_BUCKETS],
-            safe_checks: [1; 4],
-            ..EvalFeatures::default()
-        };
-        assert_eq!(
-            super::weights::score(scored),
-            super::weights::score(EvalFeatures::default())
-        );
+        assert_eq!(safe_checks("4k3/8/8/8/4N3/8/8/4K3 w - - 0 1"), [2, 0, 0, 0]);
+        assert_eq!(safe_checks("4k3/4p3/8/8/4N3/8/8/4K3 w - - 0 1"), [0; 4]);
+        // Black's checks count against.
+        assert_eq!(safe_checks("4k3/8/8/8/8/8/r7/4K3 w - - 0 1"), [0, 0, -1, 0]);
     }
 
     #[test]
     fn shelter_is_graded_by_the_nearest_pawn_on_each_file() {
-        let features =
-            |fen: &str| evaluate_with_trace(Position::from_fen(fen).unwrap().board()).features;
+        let counts =
+            |fen: &str| super::features::structure_counts(Position::from_fen(fen).unwrap().board());
 
-        let unmoved = features("4k3/8/8/8/8/8/4P3/4K3 w - - 0 1");
+        let unmoved = counts("4k3/8/8/8/8/8/4P3/4K3 w - - 0 1");
         assert_eq!(unmoved.shelter_king_file_by_distance, [1, 0, 0, 0, 0, 0]);
         assert_eq!(unmoved.shelter_adjacent_file_by_distance, [0; 6]);
-        let advanced = features("4k3/8/8/8/8/5P2/8/4K3 w - - 0 1");
+        let advanced = counts("4k3/8/8/8/8/5P2/8/4K3 w - - 0 1");
         assert_eq!(advanced.shelter_king_file_by_distance, [0; 6]);
         assert_eq!(
             advanced.shelter_adjacent_file_by_distance,
@@ -1030,30 +987,20 @@ mod tests {
         // Only the nearest pawn on a file counts, and a pawn level with or
         // behind the king is not shelter.
         assert_eq!(
-            features("4k3/8/8/8/4P3/8/4P3/4K3 w - - 0 1").shelter_king_file_by_distance,
+            counts("4k3/8/8/8/4P3/8/4P3/4K3 w - - 0 1").shelter_king_file_by_distance,
             [1, 0, 0, 0, 0, 0]
         );
         assert_eq!(
-            features("4k3/8/8/8/8/4K3/3P4/8 w - - 0 1").shelter_adjacent_file_by_distance,
+            counts("4k3/8/8/8/8/4K3/3P4/8 w - - 0 1").shelter_adjacent_file_by_distance,
             [0; 6]
         );
         // Black's shelter counts against, measured from Black's side.
         assert_eq!(
-            features("4k3/3p4/8/8/8/8/8/4K3 w - - 0 1").shelter_adjacent_file_by_distance,
+            counts("4k3/3p4/8/8/8/8/8/4K3 w - - 0 1").shelter_adjacent_file_by_distance,
             [-1, 0, 0, 0, 0, 0]
         );
         // The shelter count is unchanged by the grading.
-        assert_eq!(unmoved.king_shelter, 1);
-
-        let scored = EvalFeatures {
-            shelter_king_file_by_distance: [1; 6],
-            shelter_adjacent_file_by_distance: [1; 6],
-            ..EvalFeatures::default()
-        };
-        assert_eq!(
-            super::weights::score(scored),
-            super::weights::score(EvalFeatures::default())
-        );
+        assert_eq!(unmoved.shelter, 1);
     }
 
     #[test]
@@ -1093,8 +1040,8 @@ mod tests {
             ..EvalFeatures::default()
         };
         assert_eq!(
-            super::weights::score(scored),
-            super::weights::score(EvalFeatures::default())
+            super::weights::score(&scored),
+            super::weights::score(&EvalFeatures::default())
         );
     }
 
@@ -1170,8 +1117,8 @@ mod tests {
         assert_eq!(lone_trace.features.white_attack.coordination(), 0);
         assert!(coordinated_trace.features.white_attack.coordination() > 0);
         assert!(
-            weights::attacking_style(coordinated_trace.features).middle_game
-                > weights::attacking_style(lone_trace.features).middle_game
+            weights::attacking_style(&coordinated_trace.features).middle_game
+                > weights::attacking_style(&lone_trace.features).middle_game
         );
         assert!(coordinated_trace.style_middle_game >= lone_trace.style_middle_game);
     }
@@ -1191,8 +1138,8 @@ mod tests {
         };
 
         assert_eq!(
-            weights::attacking_style(pressure),
-            weights::attacking_style(deficit)
+            weights::attacking_style(&pressure),
+            weights::attacking_style(&deficit)
         );
     }
 

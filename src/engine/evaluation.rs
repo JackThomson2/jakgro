@@ -245,6 +245,10 @@ pub(super) struct EvalFeatures {
     pub(super) bishop_pair: Score,
     pub(super) doubled_pawns: Score,
     pub(super) isolated_pawns: Score,
+    /// Pawns no neighbour can support whose advance is not safe.
+    pub(super) backward_pawns: Score,
+    /// Pawns with a neighbour beside or defending them, by rank.
+    pub(super) connected_by_rank: [Score; 6],
     /// Passed pawns counted per rank, from the owner's side of the board.
     pub(super) passed_by_rank: [Score; 6],
     /// Passed pawns defended by a friendly pawn, counted the same way.
@@ -808,6 +812,62 @@ mod tests {
         let scored = EvalFeatures {
             knight_outposts: 1,
             bishop_outposts: 1,
+            ..EvalFeatures::default()
+        };
+        assert_eq!(
+            super::weights::score(scored),
+            super::weights::score(EvalFeatures::default())
+        );
+    }
+
+    #[test]
+    fn backward_and_connected_pawns_are_counted_by_rank() {
+        let features =
+            |fen: &str| evaluate_with_trace(Position::from_fen(fen).unwrap().board()).features;
+
+        // A phalanx on the fourth counts both pawns at rank index two.
+        let phalanx = features("4k3/8/8/8/3PP3/8/8/4K3 w - - 0 1");
+        assert_eq!(phalanx.connected_by_rank, [0, 0, 2, 0, 0, 0]);
+        // A pawn defended from behind is connected; its defender is not.
+        let chain = features("4k3/8/8/8/3P4/4P3/8/4K3 w - - 0 1");
+        assert_eq!(chain.connected_by_rank, [0, 0, 1, 0, 0, 0]);
+        assert_eq!(chain.backward_pawns, 0);
+
+        // e3 cannot advance past d5's control and no pawn can come to help
+        // it: backward. The counts are side-relative, so Black's pawns are
+        // given support that keeps them out of the count. A friendly pawn
+        // already ahead on an adjacent file does not help; one behind does.
+        assert_eq!(
+            features("4k3/8/2p5/3p4/8/4P3/8/4K3 w - - 0 1").backward_pawns,
+            1
+        );
+        assert_eq!(
+            features("4k3/1p6/2p5/3p4/3P4/4P3/8/4K3 w - - 0 1").backward_pawns,
+            1
+        );
+        assert_eq!(
+            features("4k3/8/2p5/3p4/8/4P3/5P2/4K3 w - - 0 1").backward_pawns,
+            0
+        );
+        // An enemy pawn standing on the stop square blocks it just as well.
+        assert_eq!(
+            features("4k3/8/2p5/3p4/4p3/4P3/8/4K3 w - - 0 1").backward_pawns,
+            1
+        );
+        // Black's backward pawn counts against, on Black's own terms.
+        assert_eq!(
+            features("4k3/8/4p3/8/3P4/2P5/8/4K3 w - - 0 1").backward_pawns,
+            -1
+        );
+        // A black phalanx on the fifth is on Black's fourth: rank index two.
+        assert_eq!(
+            features("4k3/8/8/3pp3/8/8/8/4K3 w - - 0 1").connected_by_rank,
+            [0, 0, -2, 0, 0, 0]
+        );
+
+        let scored = EvalFeatures {
+            backward_pawns: 1,
+            connected_by_rank: [1; 6],
             ..EvalFeatures::default()
         };
         assert_eq!(

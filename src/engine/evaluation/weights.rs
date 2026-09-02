@@ -80,6 +80,9 @@ const ROOK_ON_SEVENTH: ScorePair = ScorePair::new(0, 0);
 /// Minor pieces on outposts, zero until fitted.
 const KNIGHT_OUTPOST: ScorePair = ScorePair::new(0, 0);
 const BISHOP_OUTPOST: ScorePair = ScorePair::new(0, 0);
+/// Pawn structure beyond doubled and isolated, zero until fitted.
+const BACKWARD_PAWN: ScorePair = ScorePair::new(0, 0);
+const CONNECTED_PAWN_BY_RANK: [ScorePair; 6] = [ScorePair::new(0, 0); 6];
 const KING_PRESSURE: ScorePair = ScorePair::new(9, 2);
 const PAWN_STORM: ScorePair = ScorePair::new(7, 1);
 const THREAT: ScorePair = ScorePair::new(11, 7);
@@ -116,6 +119,8 @@ pub(super) fn score(features: EvalFeatures) -> ScorePair {
         + ROOK_ON_SEVENTH * features.rooks_on_seventh
         + KNIGHT_OUTPOST * features.knight_outposts
         + BISHOP_OUTPOST * features.bishop_outposts
+        + BACKWARD_PAWN * features.backward_pawns
+        + indexed(&CONNECTED_PAWN_BY_RANK, features.connected_by_rank)
 }
 
 /// The four curves laid end to end, which is how the piece loop reads them.
@@ -254,8 +259,16 @@ pub(super) const fn tuning_weights() -> [ScorePair; super::tuning::SCALAR_FEATUR
 #[cfg(feature = "tuning")]
 pub(super) fn trailing_tuning_weights() -> [ScorePair; super::tuning::TRAILING_FEATURES] {
     let mut weights = [ScorePair::new(0, 0); super::tuning::TRAILING_FEATURES];
-    weights[..MOBILITY_CURVE_ENTRIES].copy_from_slice(&MOBILITY_CURVES);
-    weights[MOBILITY_CURVE_ENTRIES..].copy_from_slice(&trailing_scalars());
+    let mut next = 0;
+    for block in [
+        &MOBILITY_CURVES[..],
+        &trailing_scalars()[..],
+        &CONNECTED_PAWN_BY_RANK[..],
+    ] {
+        weights[next..next + block.len()].copy_from_slice(block);
+        next += block.len();
+    }
+    debug_assert_eq!(next, weights.len());
     weights
 }
 
@@ -269,5 +282,6 @@ pub(super) const fn trailing_scalars() -> [ScorePair; super::tuning::TRAILING_SC
         ROOK_ON_SEVENTH,
         KNIGHT_OUTPOST,
         BISHOP_OUTPOST,
+        BACKWARD_PAWN,
     ]
 }

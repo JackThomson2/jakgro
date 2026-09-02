@@ -151,6 +151,9 @@ struct StructureTerms {
     passed_by_rank: [i8; 6],
     /// Passed pawns defended by a friendly pawn, counted the same way.
     protected_passer_by_rank: [i8; 6],
+    /// Connected pawns, counted the same way.
+    connected_by_rank: [i8; 6],
+    backward: i32,
     shelter: i32,
     open_files: i32,
 }
@@ -239,10 +242,12 @@ fn compute_structure_terms(board: &Board) -> StructureTerms {
         let pawns = pawn_features(board, color);
         terms.doubled += sign * pawns.doubled;
         terms.isolated += sign * pawns.isolated;
+        terms.backward += sign * pawns.backward;
         for rank in 0..6 {
             terms.passed_by_rank[rank] += sign as i8 * pawns.passed_by_rank[rank];
             terms.protected_passer_by_rank[rank] +=
                 sign as i8 * pawns.protected_passer_by_rank[rank];
+            terms.connected_by_rank[rank] += sign as i8 * pawns.connected_by_rank[rank];
         }
         let (shelter, open_files) = king_safety(board, color);
         terms.shelter += sign * shelter;
@@ -322,10 +327,12 @@ pub(super) fn extract_with_style(board: &Board, style: bool) -> EvalFeatures {
     let structure = structure_terms(board);
     features.doubled_pawns = structure.doubled;
     features.isolated_pawns = structure.isolated;
+    features.backward_pawns = structure.backward;
     for rank in 0..6 {
         features.passed_by_rank[rank] = i32::from(structure.passed_by_rank[rank]);
         features.protected_passer_by_rank[rank] =
             i32::from(structure.protected_passer_by_rank[rank]);
+        features.connected_by_rank[rank] = i32::from(structure.connected_by_rank[rank]);
     }
     // The attacking style weights passers by how far they have come, and that
     // term is personality and must not move. Deriving it from the per-rank
@@ -846,8 +853,14 @@ fn attacks_from(
 struct PawnFeatures {
     doubled: i32,
     isolated: i32,
+    /// Pawns that cannot be supported by a neighbour and cannot safely
+    /// advance: no friendly pawn stands level or behind on an adjacent file,
+    /// and the square in front is attacked or occupied by an enemy pawn.
+    backward: i32,
     passed_by_rank: [i8; 6],
     protected_passer_by_rank: [i8; 6],
+    /// Pawns with a neighbour beside them or defending them, by rank.
+    connected_by_rank: [i8; 6],
 }
 
 /// Reference pawn structure, retained to check the mask-based extraction.
@@ -874,6 +887,38 @@ fn reference_pawn_features(board: &Board, color: Color) -> PawnFeatures {
     for square in pawns {
         let file = square.file() as i32;
         let rank = square.rank() as i32;
+        let forward = if color == Color::White { 1 } else { -1 };
+        let advance = if color == Color::White {
+            rank
+        } else {
+            7 - rank
+        };
+        let index = (advance - 1) as usize;
+
+        let neighbour = |other: Square, rank_delta: i32| {
+            (other.file() as i32 - file).abs() == 1
+                && (other.rank() as i32 - rank) * forward == rank_delta
+        };
+        let phalanx = pawns.into_iter().any(|other| neighbour(other, 0));
+        let supported = pawns.into_iter().any(|other| neighbour(other, -1));
+        if phalanx || supported {
+            result.connected_by_rank[index] += 1;
+        }
+
+        let supportable = pawns.into_iter().any(|other| {
+            (other.file() as i32 - file).abs() == 1 && (other.rank() as i32 - rank) * forward <= 0
+        });
+        let stop_rank = rank + forward;
+        let stop_unsafe = enemy_pawns.into_iter().any(|enemy| {
+            let enemy_file = enemy.file() as i32;
+            let enemy_rank = enemy.rank() as i32;
+            (enemy_file == file && enemy_rank == stop_rank)
+                || ((enemy_file - file).abs() == 1 && enemy_rank == stop_rank + forward)
+        });
+        if !supportable && stop_unsafe {
+            result.backward += 1;
+        }
+
         let blocked = enemy_pawns.into_iter().any(|enemy| {
             let enemy_file = enemy.file() as i32;
             let enemy_rank = enemy.rank() as i32;
@@ -885,12 +930,6 @@ fn reference_pawn_features(board: &Board, color: Color) -> PawnFeatures {
                 }
         });
         if !blocked {
-            let advance = if color == Color::White {
-                rank
-            } else {
-                7 - rank
-            };
-            let index = (advance - 1) as usize;
             result.passed_by_rank[index] += 1;
             if !(get_pawn_attacks(square, !color) & pawns).is_empty() {
                 result.protected_passer_by_rank[index] += 1;
@@ -940,6 +979,15 @@ fn pawn_features(board: &Board, color: Color) -> PawnFeatures {
     } else {
         &BLACK_PASSER_SPANS
     };
+    let (challenges, forward) = if color == Color::White {
+        (&WHITE_OUTPOST_CHALLENGES, 1)
+    } else {
+        (&BLACK_OUTPOST_CHALLENGES, -1)
+    };
+    let mut enemy_attacks = BitBoard::EMPTY;
+    for enemy in enemy_pawns {
+        enemy_attacks |= get_pawn_attacks(enemy, !color);
+    }
 
     let mut result = PawnFeatures::default();
     for file in File::ALL {
@@ -951,24 +999,42 @@ fn pawn_features(board: &Board, color: Color) -> PawnFeatures {
     }
 
     for square in pawns {
+        let rank = square.rank() as i32;
+        let advance = if color == Color::White {
+            rank
+        } else {
+            7 - rank
+        };
+        // A pawn never stands on its own first or last rank, so `advance` is
+        // always one to six and the index is always in bounds.
+        let index = (advance - 1) as usize;
+        let adjacent = square.file().adjacent();
+        // A pawn defends the squares an enemy pawn on this square would
+        // attack, so intersecting those with our own pawns answers whether
+        // this pawn is supported. This stays a pure function of the two pawn
+        // sets, which is what lets it ride the structure cache.
+        let supported = !(get_pawn_attacks(square, !color) & pawns).is_empty();
+        let phalanx = !(pawns & adjacent & square.rank().bitboard()).is_empty();
+        if supported || phalanx {
+            result.connected_by_rank[index] += 1;
+        }
+
+        // Backward: nothing level or behind on an adjacent file can ever
+        // support it, and the square in front is not safe to step onto. The
+        // level-or-behind mask is the adjacent files less the part ahead,
+        // which the outpost table already holds.
+        let supportable = !(pawns & adjacent & !challenges[square as usize]).is_empty();
+        let stop = square.try_offset(0, forward);
+        if !supportable && stop.is_some_and(|stop| enemy_attacks.has(stop) || enemy_pawns.has(stop))
+        {
+            result.backward += 1;
+        }
+
         // A pawn is passed when no enemy pawn stands ahead of it on its own or
         // an adjacent file, which the precomputed span answers in one test.
         if (enemy_pawns & spans[square as usize]).is_empty() {
-            let rank = square.rank() as i32;
-            let advance = if color == Color::White {
-                rank
-            } else {
-                7 - rank
-            };
-            // A pawn never stands on its own first or last rank, so `advance` is
-            // always one to six and the index is always in bounds.
-            let index = (advance - 1) as usize;
             result.passed_by_rank[index] += 1;
-            // A pawn defends the squares an enemy pawn on this square would
-            // attack, so intersecting those with our own pawns answers whether
-            // this passer is protected. This stays a pure function of the two
-            // pawn sets, which is what lets it ride the structure cache.
-            if !(get_pawn_attacks(square, !color) & pawns).is_empty() {
+            if supported {
                 result.protected_passer_by_rank[index] += 1;
             }
         }

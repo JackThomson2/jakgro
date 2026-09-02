@@ -204,6 +204,8 @@ pub(super) const BISHOP_MOBILITY_ENTRIES: usize = 14;
 pub(super) const ROOK_MOBILITY_ENTRIES: usize = 15;
 /// Distinct move counts a queen can have, zero through twenty-seven.
 pub(super) const QUEEN_MOBILITY_ENTRIES: usize = 28;
+/// Buckets of the king-danger table, indexed by attack units.
+pub(super) const KING_DANGER_BUCKETS: usize = 16;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) struct EvalFeatures {
@@ -268,6 +270,12 @@ pub(super) struct EvalFeatures {
     pub(super) passed_pawns: Score,
     pub(super) king_shelter: Score,
     pub(super) open_king_files: Score,
+    /// Attacks on the enemy king by bucketed attack units, side-relative: a
+    /// colour bringing units against the enemy king counts once in the bucket
+    /// those units fall in. A colour bringing nothing counts nowhere.
+    pub(super) king_danger_by_bucket: [Score; KING_DANGER_BUCKETS],
+    /// Safe checking squares for knights, bishops, rooks and queens.
+    pub(super) safe_checks: [Score; 4],
     /// Rooks on a file with no pawn of either colour, side-relative.
     pub(super) rook_open_files: Score,
     /// Rooks on a file with enemy pawns but none of their own.
@@ -922,6 +930,70 @@ mod tests {
             blocked_passer_by_rank: [1; 6],
             passer_own_king_distance: [1; 8],
             passer_enemy_king_distance: [1; 8],
+            ..EvalFeatures::default()
+        };
+        assert_eq!(
+            super::weights::score(scored),
+            super::weights::score(EvalFeatures::default())
+        );
+    }
+
+    #[test]
+    fn king_danger_counts_attack_units_and_safe_checks() {
+        let features =
+            |fen: &str| evaluate_with_trace(Position::from_fen(fen).unwrap().board()).features;
+
+        // Nothing touches either king zone in the starting position.
+        let start = features("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+        assert_eq!(start.king_danger_by_bucket, [0; super::KING_DANGER_BUCKETS]);
+        assert_eq!(start.safe_checks, [0; 4]);
+
+        // A queen bearing on the king zone lands White in one bucket above
+        // the first, and the mirrored position lands Black in the same one.
+        let white = features("4k3/8/3Q4/8/8/8/8/4K3 w - - 0 1");
+        let black = features("4k3/8/8/8/8/3q4/8/4K3 w - - 0 1");
+        assert_eq!(white.king_danger_by_bucket.iter().sum::<Score>(), 1);
+        assert!(white.king_danger_by_bucket[0] == 0);
+        assert_eq!(
+            black.king_danger_by_bucket,
+            white.king_danger_by_bucket.map(|count| -count)
+        );
+        // More attackers land in a higher bucket.
+        let assault = features("4k3/8/3Q4/5N2/8/8/8/4K3 w - - 0 1");
+        let bucket = |counts: [Score; super::KING_DANGER_BUCKETS]| {
+            counts.iter().position(|&count| count == 1).unwrap()
+        };
+        assert!(bucket(assault.king_danger_by_bucket) > bucket(white.king_danger_by_bucket));
+
+        // A rook on a1 checks safely from a8. A queen on d1 checks from a4,
+        // h5 and e2 but not from d8, which only the king covers and nothing
+        // of White's supports.
+        assert_eq!(
+            features("4k3/8/8/8/8/8/8/R3K3 w - - 0 1").safe_checks,
+            [0, 0, 1, 0]
+        );
+        assert_eq!(
+            features("4k3/8/8/8/8/8/8/3QK3 w - - 0 1").safe_checks,
+            [0, 0, 0, 3]
+        );
+        // With a bishop on b6 covering d8 as well, that check becomes safe.
+        assert_eq!(
+            features("4k3/8/1B6/8/8/8/8/3QK3 w - - 0 1").safe_checks,
+            [0, 0, 0, 4]
+        );
+        // A knight on e4 checks from d6 and f6; a pawn on e7 covers both.
+        assert_eq!(
+            features("4k3/8/8/8/4N3/8/8/4K3 w - - 0 1").safe_checks,
+            [2, 0, 0, 0]
+        );
+        assert_eq!(
+            features("4k3/4p3/8/8/4N3/8/8/4K3 w - - 0 1").safe_checks,
+            [0; 4]
+        );
+
+        let scored = EvalFeatures {
+            king_danger_by_bucket: [1; super::KING_DANGER_BUCKETS],
+            safe_checks: [1; 4],
             ..EvalFeatures::default()
         };
         assert_eq!(

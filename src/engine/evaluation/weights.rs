@@ -1,8 +1,8 @@
 use cozy_chess::Piece;
 
 use super::{
-    BISHOP_MOBILITY_ENTRIES, EvalFeatures, KNIGHT_MOBILITY_ENTRIES, QUEEN_MOBILITY_ENTRIES,
-    ROOK_MOBILITY_ENTRIES, Score, ScorePair,
+    BISHOP_MOBILITY_ENTRIES, EvalFeatures, KING_DANGER_BUCKETS, KNIGHT_MOBILITY_ENTRIES,
+    QUEEN_MOBILITY_ENTRIES, ROOK_MOBILITY_ENTRIES, Score, ScorePair,
 };
 
 const PAWN: ScorePair = ScorePair::new(94, 149);
@@ -88,6 +88,14 @@ const CONNECTED_PAWN_BY_RANK: [ScorePair; 6] = [ScorePair::new(0, 0); 6];
 const BLOCKED_PASSER_BY_RANK: [ScorePair; 6] = [ScorePair::new(0, 0); 6];
 const PASSER_OWN_KING_DISTANCE: [ScorePair; 8] = [ScorePair::new(0, 0); 8];
 const PASSER_ENEMY_KING_DISTANCE: [ScorePair; 8] = [ScorePair::new(0, 0); 8];
+/// King danger by bucketed attack units, and safe checks by checking piece,
+/// zero until fitted.
+///
+/// The first series measured a hand-set non-linear attacker-count term at
+/// -14 Elo. This is a curve the fit shapes, and it may shape it to nothing.
+const KING_DANGER_BY_BUCKET: [ScorePair; KING_DANGER_BUCKETS] =
+    [ScorePair::new(0, 0); KING_DANGER_BUCKETS];
+const SAFE_CHECK_BY_PIECE: [ScorePair; 4] = [ScorePair::new(0, 0); 4];
 const KING_PRESSURE: ScorePair = ScorePair::new(9, 2);
 const PAWN_STORM: ScorePair = ScorePair::new(7, 1);
 const THREAT: ScorePair = ScorePair::new(11, 7);
@@ -132,6 +140,8 @@ pub(super) fn score(features: EvalFeatures) -> ScorePair {
             &PASSER_ENEMY_KING_DISTANCE,
             features.passer_enemy_king_distance,
         )
+        + indexed(&KING_DANGER_BY_BUCKET, features.king_danger_by_bucket)
+        + indexed(&SAFE_CHECK_BY_PIECE, features.safe_checks)
 }
 
 /// The four curves laid end to end, which is how the piece loop reads them.
@@ -278,6 +288,8 @@ pub(super) fn trailing_tuning_weights() -> [ScorePair; super::tuning::TRAILING_F
         &BLOCKED_PASSER_BY_RANK[..],
         &PASSER_OWN_KING_DISTANCE[..],
         &PASSER_ENEMY_KING_DISTANCE[..],
+        &KING_DANGER_BY_BUCKET[..],
+        &SAFE_CHECK_BY_PIECE[..],
     ] {
         weights[next..next + block.len()].copy_from_slice(block);
         next += block.len();

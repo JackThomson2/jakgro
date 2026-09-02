@@ -5,7 +5,35 @@ use cozy_chess::{
     get_knight_moves, get_pawn_attacks, get_rook_moves,
 };
 
-use super::{AttackProfile, EvalFeatures, ScorePair, piece_value, placement, weights};
+use super::{
+    AttackProfile, EvalFeatures, KING_DANGER_BUCKETS, ScorePair, piece_value, placement, weights,
+};
+
+/// Attack units a piece contributes when it attacks the enemy king zone, on
+/// top of one unit per zone square it attacks.
+const fn king_attack_units(piece: Piece) -> i32 {
+    match piece {
+        Piece::Pawn => 1,
+        Piece::Knight | Piece::Bishop => 2,
+        Piece::Rook => 3,
+        Piece::Queen => 5,
+        Piece::King => 0,
+    }
+}
+
+/// Maps attack units onto the danger table's buckets.
+///
+/// Two units per bucket keeps a lone minor piece with one zone square in the
+/// first bucket and a full assault of queen, rook and both minors in the top
+/// few, which is the range a fit has to describe.
+const fn king_danger_bucket(units: i32) -> usize {
+    let bucket = (units / 2) as usize;
+    if bucket >= KING_DANGER_BUCKETS {
+        KING_DANGER_BUCKETS - 1
+    } else {
+        bucket
+    }
+}
 
 /// Files ahead of each square from White's perspective, on the file and both
 /// neighbours.
@@ -359,6 +387,15 @@ pub(super) fn extract_with_style(board: &Board, style: bool) -> EvalFeatures {
             features.blocked_passer_by_rank[rank] +=
                 sign * attacks.blocked_passers[color as usize][rank];
         }
+        // A colour that brings nothing against the enemy king is not counted
+        // in the first bucket: the term describes an attack, not its absence.
+        let units = attacks.attack_units[color as usize];
+        if units > 0 {
+            features.king_danger_by_bucket[king_danger_bucket(units)] += sign;
+        }
+        for slot in 0..4 {
+            features.safe_checks[slot] += sign * attacks.safe_checks[color as usize][slot];
+        }
         let attack = if color == Color::White {
             white_attack
         } else {
@@ -481,6 +518,11 @@ struct AttackSummary {
     outposts: [[i32; 2]; 2],
     /// Passers with a piece of either colour on the square ahead, by rank.
     blocked_passers: [[i32; 6]; 2],
+    /// Attack units each colour brings against the enemy king zone.
+    attack_units: [i32; 2],
+    /// Safe checking squares available to each colour's knights, bishops,
+    /// rooks and queens.
+    safe_checks: [[i32; 4]; 2],
     activity: [i32; 2],
     placement: [ScorePair; 2],
 }
@@ -503,6 +545,13 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
     let mut rook_files = [[0_i32; 3]; 2];
     let mut outposts = [[0_i32; 2]; 2];
     let mut blocked_passers = [[0_i32; 6]; 2];
+    let mut attack_units = [0_i32; 2];
+    // Every square a colour's non-king pieces attack, the squares two of them
+    // attack, and the squares each of its checking piece types attacks. These
+    // decide which checks are safe, so they are gathered on both paths.
+    let mut attacked = [BitBoard::EMPTY; 2];
+    let mut attacked_twice = [BitBoard::EMPTY; 2];
+    let mut type_attacks = [[BitBoard::EMPTY; 4]; 2];
     let all_pawns = board.pieces(Piece::Pawn);
     let mut activity = [0_i32; 2];
     let mut placement = [ScorePair::default(); 2];
@@ -629,6 +678,19 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
                         rook_files[index][2] += 1;
                     }
                 }
+                if piece != Piece::King {
+                    attacked_twice[index] |= attacked[index] & raw_attacks;
+                    attacked[index] |= raw_attacks;
+                    if let Some(slot) = weights::mobility_curve_offset(piece)
+                        .map(|_| piece_index(piece) as usize - 1)
+                    {
+                        type_attacks[index][slot] |= raw_attacks;
+                    }
+                    let zone_squares = (attacks & enemy_king_zone).len() as i32;
+                    if zone_squares > 0 {
+                        attack_units[index] += king_attack_units(piece) + zone_squares;
+                    }
+                }
                 if !style {
                     continue;
                 }
@@ -734,6 +796,32 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
         }
     }
 
+    // A check is safe when the square is attacked by no enemy piece, or only
+    // by the enemy king while a second friendly piece covers it. The checking
+    // squares are the attacks of each piece type from the enemy king's square,
+    // so the count is one intersection per type rather than a walk over moves.
+    let mut safe_checks = [[0_i32; 4]; 2];
+    for color in [Color::White, Color::Black] {
+        let index = color as usize;
+        let enemy = !color;
+        let enemy_king = board.king(enemy);
+        let king_reach = get_king_moves(enemy_king);
+        let safe = !attacked[enemy as usize] & (!king_reach | attacked_twice[index]);
+        let diagonals = get_bishop_moves(enemy_king, occupied);
+        let lines = get_rook_moves(enemy_king, occupied);
+        let checks = [
+            get_knight_moves(enemy_king),
+            diagonals,
+            lines,
+            diagonals | lines,
+        ];
+        for slot in 0..4 {
+            safe_checks[index][slot] =
+                (type_attacks[index][slot] & checks[slot] & !board.colors(color) & safe).len()
+                    as i32;
+        }
+    }
+
     AttackSummary {
         profiles,
         mobility,
@@ -742,6 +830,8 @@ fn attack_summary_with_style(board: &Board, style: bool) -> AttackSummary {
         rook_files,
         outposts,
         blocked_passers,
+        attack_units,
+        safe_checks,
         activity,
         placement,
     }

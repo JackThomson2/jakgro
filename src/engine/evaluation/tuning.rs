@@ -26,7 +26,7 @@
 use cozy_chess::{Board, Color, Piece, Square};
 
 use super::{
-    BISHOP_MOBILITY_ENTRIES, KNIGHT_MOBILITY_ENTRIES, QUEEN_MOBILITY_ENTRIES,
+    BISHOP_MOBILITY_ENTRIES, KING_DANGER_BUCKETS, KNIGHT_MOBILITY_ENTRIES, QUEEN_MOBILITY_ENTRIES,
     ROOK_MOBILITY_ENTRIES, Score, features, placement, weights,
 };
 
@@ -147,6 +147,12 @@ pub const BLOCKS: &[FeatureBlock] = &[
     array("BLOCKED_PASSER_BY_RANK", BLOCKED_PASSER_OFFSET, 6),
     array("PASSER_OWN_KING_DISTANCE", OWN_KING_DISTANCE_OFFSET, 8),
     array("PASSER_ENEMY_KING_DISTANCE", ENEMY_KING_DISTANCE_OFFSET, 8),
+    array(
+        "KING_DANGER_BY_BUCKET",
+        KING_DANGER_OFFSET,
+        KING_DANGER_BUCKETS,
+    ),
+    array("SAFE_CHECK_BY_PIECE", SAFE_CHECK_OFFSET, 4),
 ];
 
 /// Scalar features before the tables, in the order [`super::weights::score`]
@@ -162,7 +168,8 @@ const MOBILITY_CURVE_ENTRIES: usize = KNIGHT_MOBILITY_ENTRIES
 /// Scalar features after the mobility curves.
 pub const TRAILING_SCALARS: usize = 6;
 /// Features in the groups added after the tables.
-pub const TRAILING_FEATURES: usize = MOBILITY_CURVE_ENTRIES + TRAILING_SCALARS + 6 + 6 + 8 + 8;
+pub const TRAILING_FEATURES: usize =
+    MOBILITY_CURVE_ENTRIES + TRAILING_SCALARS + 6 + 6 + 8 + 8 + KING_DANGER_BUCKETS + 4;
 /// Length of the feature vector.
 pub const FEATURE_COUNT: usize = SCALAR_FEATURES + PLACEMENT_FEATURES + TRAILING_FEATURES;
 /// Index of the first piece-square feature.
@@ -177,6 +184,9 @@ const CONNECTED_OFFSET: usize = TRAILING_SCALAR_OFFSET + TRAILING_SCALARS;
 const BLOCKED_PASSER_OFFSET: usize = CONNECTED_OFFSET + 6;
 const OWN_KING_DISTANCE_OFFSET: usize = BLOCKED_PASSER_OFFSET + 6;
 const ENEMY_KING_DISTANCE_OFFSET: usize = OWN_KING_DISTANCE_OFFSET + 8;
+/// Indices of the king-danger and safe-check blocks.
+const KING_DANGER_OFFSET: usize = ENEMY_KING_DISTANCE_OFFSET + 8;
+const SAFE_CHECK_OFFSET: usize = KING_DANGER_OFFSET + KING_DANGER_BUCKETS;
 /// The mobility curves as piece, offset within the trailing region and length.
 const MOBILITY_CURVES: [(Piece, usize, usize); 4] = [
     (Piece::Knight, 0, KNIGHT_MOBILITY_ENTRIES),
@@ -342,6 +352,16 @@ pub fn tuning_features(board: &Board) -> TuningPosition {
     for (index, value) in extracted.passer_enemy_king_distance.into_iter().enumerate() {
         if value != 0 {
             entries.push(((ENEMY_KING_DISTANCE_OFFSET + index) as u16, value as i16));
+        }
+    }
+    for (index, value) in extracted.king_danger_by_bucket.into_iter().enumerate() {
+        if value != 0 {
+            entries.push(((KING_DANGER_OFFSET + index) as u16, value as i16));
+        }
+    }
+    for (index, value) in extracted.safe_checks.into_iter().enumerate() {
+        if value != 0 {
+            entries.push(((SAFE_CHECK_OFFSET + index) as u16, value as i16));
         }
     }
 

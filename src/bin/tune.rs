@@ -509,13 +509,14 @@ fn fit(arguments: &[String]) -> Result<(), String> {
         samples.len(),
     );
     if lambda < 1.0 {
-        // The label moved, so the loss is against a different target and is not
-        // comparable with a run at another lambda. Only the improvement from
-        // starting to final loss within one run means anything, and only a match
-        // decides between two runs.
+        // The label moved, so the training loss is against a different target
+        // and is not comparable with a run at another lambda. The held-out
+        // outcome loss is: it scores every run against the game result alone,
+        // whatever it was fitted to, so it is the one channel on which two
+        // lambda values can be screened before a match decides between them.
         println!(
-            "fit: losses below are against the blended label and are not comparable \
-             across lambda",
+            "fit: training losses below are against the blended label and are not \
+             comparable across lambda; the held-out outcome loss is",
         );
     }
     println!(
@@ -523,9 +524,10 @@ fn fit(arguments: &[String]) -> Result<(), String> {
          there for fewer than {min_observations} observations",
     );
     println!(
-        "fit: starting loss {:.6} training, {:.6} held out",
+        "fit: starting loss {:.6} training, {:.6} held out, {:.6} held-out outcome",
         loss(&training, &weights, k),
         loss(&held_out, &weights, k),
+        outcome_loss(&held_out, &weights, k),
     );
 
     adam(
@@ -540,9 +542,10 @@ fn fit(arguments: &[String]) -> Result<(), String> {
     );
 
     println!(
-        "fit: final loss    {:.6} training, {:.6} held out",
+        "fit: final loss    {:.6} training, {:.6} held out, {:.6} held-out outcome",
         loss(&training, &weights, k),
         loss(&held_out, &weights, k),
+        outcome_loss(&held_out, &weights, k),
     );
 
     let rounded: Vec<(i32, i32)> = (0..FEATURE_COUNT)
@@ -606,14 +609,32 @@ fn fit_scaling(samples: &[&Sample], weights: &[f64]) -> f64 {
     (low + high) / 2.0
 }
 
+/// Mean squared error against the label the fit is minimising.
 fn loss(samples: &[&Sample], weights: &[f64], k: f64) -> f64 {
+    mean_squared_error(samples, weights, k, |sample| sample.label)
+}
+
+/// Mean squared error against the game result alone, whatever was fitted.
+///
+/// This is the channel two fits at different `--lambda` can be compared on:
+/// the label they minimised differs, but the result of the game does not.
+fn outcome_loss(samples: &[&Sample], weights: &[f64], k: f64) -> f64 {
+    mean_squared_error(samples, weights, k, |sample| sample.outcome)
+}
+
+fn mean_squared_error(
+    samples: &[&Sample],
+    weights: &[f64],
+    k: f64,
+    target: impl Fn(&Sample) -> f64,
+) -> f64 {
     if samples.is_empty() {
         return 0.0;
     }
     let total: f64 = samples
         .iter()
         .map(|sample| {
-            let error = sample.label - winning_probability(sample.score(weights), k);
+            let error = target(sample) - winning_probability(sample.score(weights), k);
             error * error
         })
         .sum();
@@ -816,8 +837,11 @@ fn render_blocks(weights: &[(i32, i32)], blocks: &[FeatureBlock]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{FeatureBlock, comment_score, render_blocks, split_games, winning_probability};
-    use jakgro::engine::tuning::BlockKind;
+    use super::{
+        FeatureBlock, Sample, comment_score, loss, outcome_loss, render_blocks, split_games,
+        winning_probability,
+    };
+    use jakgro::engine::tuning::{BlockKind, FEATURE_COUNT};
 
     /// A PGN in the form `selfplay` now writes, wrapped mid-comment.
     ///
@@ -909,5 +933,30 @@ Nc6 {-0.11/12} 1-0
         assert!((blend(1.0) - 1.0).abs() < 1e-9);
         assert!((blend(0.0) - 0.5).abs() < 1e-9);
         assert!((blend(0.5) - 0.75).abs() < 1e-9);
+    }
+
+    #[test]
+    fn the_outcome_loss_ignores_the_blended_label() {
+        // One position, a pawn up for White, that White went on to win but the
+        // engine scored as level. A blend toward that score moves the label the
+        // fit minimises and leaves the outcome channel where it was.
+        let mut sample = Sample {
+            entries: vec![(0, 1)],
+            middle_game_share: 1.0,
+            outcome: 1.0,
+            search_score: Some(0.0),
+            label: 1.0,
+        };
+        let mut weights = vec![0.0_f64; 2 * FEATURE_COUNT];
+        weights[0] = 100.0;
+        let k = 1.0;
+
+        let pure = loss(&[&sample], &weights, k);
+        assert_eq!(pure, outcome_loss(&[&sample], &weights, k));
+
+        sample.label = 0.5 * sample.outcome + 0.5 * winning_probability(0.0, k);
+        assert!(loss(&[&sample], &weights, k) < pure);
+        assert_eq!(outcome_loss(&[&sample], &weights, k), pure);
+        assert_eq!(outcome_loss(&[], &weights, k), 0.0);
     }
 }

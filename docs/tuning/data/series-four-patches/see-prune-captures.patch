@@ -1,0 +1,112 @@
+diff --git a/src/engine/search.rs b/src/engine/search.rs
+index f500876..6fe1e70 100644
+--- a/src/engine/search.rs
++++ b/src/engine/search.rs
+@@ -167,6 +167,7 @@ pub struct SearchTelemetry {
+     pub(super) tt_cutoffs: u64,
+     pub(super) quiescence_nodes: u64,
+     pub(super) quiescence_pruned_captures: u64,
++    pub(super) see_pruned_captures: u64,
+     pub(super) horizon_quiescence_pruned_captures: u64,
+     pub(super) capture_cutoffs: u64,
+     pub(super) capture_cutoff_index_sum: u64,
+@@ -216,6 +217,7 @@ impl SearchTelemetry {
+             quiescence_nodes: self.quiescence_nodes + other.quiescence_nodes,
+             quiescence_pruned_captures: self.quiescence_pruned_captures
+                 + other.quiescence_pruned_captures,
++            see_pruned_captures: self.see_pruned_captures + other.see_pruned_captures,
+             horizon_quiescence_pruned_captures: self.horizon_quiescence_pruned_captures
+                 + other.horizon_quiescence_pruned_captures,
+             capture_cutoffs: self.capture_cutoffs + other.capture_cutoffs,
+@@ -274,6 +276,12 @@ impl SearchTelemetry {
+         self.static_pruning_attempts
+     }
+ 
++    /// Returns the number of interior captures the swap list pruned.
++    #[must_use]
++    pub const fn see_pruned_captures(self) -> u64 {
++        self.see_pruned_captures
++    }
++
+     /// Returns the number of static evaluations recovered from the table.
+     #[must_use]
+     pub const fn static_evaluation_hits(self) -> u64 {
+diff --git a/src/engine/search/algorithm.rs b/src/engine/search/algorithm.rs
+index 374725a..15cc487 100644
+--- a/src/engine/search/algorithm.rs
++++ b/src/engine/search/algorithm.rs
+@@ -59,6 +59,10 @@ const STATIC_PRUNING_MAX_DEPTH: u32 = 4;
+ const QUIET_FUTILITY_MAX_DEPTH: u32 = 2;
+ /// Swap-list score below which a quiescence capture is not searched.
+ const QUIESCENCE_SEE_PRUNE_THRESHOLD: Score = -25;
++/// Deepest interior node at which a losing capture may be skipped.
++const SEE_PRUNE_MAX_DEPTH: u32 = 3;
++/// Swap-list loss an interior capture may show per square of remaining depth.
++const SEE_PRUNE_DEPTH_MARGIN: Score = 30;
+ const STATIC_PRUNING_RULE_FIFTY_LIMIT: u8 = 80;
+ const _: () = assert!(
+     STATIC_PRUNING_RULE_FIFTY_LIMIT >= RULE_FIFTY_EXACT_HORIZON
+@@ -1079,6 +1083,42 @@ fn should_prune_quiescence_capture(
+             .is_some_and(|see| see < QUIESCENCE_SEE_PRUNE_THRESHOLD)
+ }
+ 
++/// Reports whether an interior capture loses too much material to search.
++///
++/// Quiescence already skips captures the swap list refutes. In the ordinary
++/// search a losing capture was always searched, at full depth less its
++/// reduction, however far below zero the swap list put it. Past the first
++/// move, at shallow non-PV nodes, a capture that loses more than a margin
++/// growing with the square of the remaining depth is skipped instead. The
++/// exemptions are quiescence's: promotions, checks, captures into the enemy
++/// king's zone, attacking pawn pushes and the recapture of the square just
++/// vacated are all searched, so the forcing captures the personality is
++/// built from are not touched.
++fn should_prune_losing_capture(
++    depth: u32,
++    move_index: usize,
++    metadata: MoveMetadata,
++    in_check: bool,
++    pv_node: bool,
++    recapture_square: Option<Square>,
++    mode: SearchMode,
++) -> bool {
++    matches!(mode, SearchMode::Normal)
++        && depth <= SEE_PRUNE_MAX_DEPTH
++        && move_index > 0
++        && !pv_node
++        && !in_check
++        && metadata.captured.is_some()
++        && metadata.chess_move.promotion.is_none()
++        && !metadata.gives_check
++        && !metadata.king_zone_move
++        && !metadata.attacking_pawn_push
++        && Some(metadata.chess_move.to) != recapture_square
++        && metadata
++            .see
++            .is_some_and(|see| see < -SEE_PRUNE_DEPTH_MARGIN * depth as Score)
++}
++
+ const HISTORY_MAX: i32 = 16_384;
+ const FIRST_CAPTURE_HISTORY_BONUS_DIVISOR: i32 = 16;
+ const CAPTURE_HISTORY_ENTRIES: usize = 2 * 6 * 64 * 6;
+@@ -3579,6 +3619,20 @@ fn negamax(
+         let history_score = context
+             .ordering
+             .quiet_history_score(board, chess_move, previous_move);
++        if should_prune_losing_capture(
++            depth,
++            index,
++            metadata,
++            in_check,
++            pv_node,
++            previous_move.map(|previous| previous.to),
++            context.mode,
++        ) {
++            context.telemetry.see_pruned_captures += 1;
++            selective_fail_low = true;
++            picker.record_failed_capture(metadata);
++            continue;
++        }
+         if pruning_evaluation.is_some_and(|evaluation| {
+             should_prune_quiet_move(
+                 depth,

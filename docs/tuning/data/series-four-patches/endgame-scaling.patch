@@ -1,0 +1,89 @@
+diff --git a/src/engine/evaluation.rs b/src/engine/evaluation.rs
+index 2ed4203..f8fd456 100644
+--- a/src/engine/evaluation.rs
++++ b/src/engine/evaluation.rs
+@@ -1,5 +1,7 @@
+ mod features;
+ mod placement;
++mod scaling;
++pub(super) use scaling::is_dead_material;
+ mod tactics;
+ #[cfg(feature = "tuning")]
+ pub mod tuning;
+@@ -349,8 +351,15 @@ fn objective_blended_score(board: &Board, config: EvaluationConfig) -> Score {
+     let base = weights::score(&features)
+         + weights::profile_mobility_adjustment(&features)
+             .scaled(config.mobility_profile_intensity());
++    blend(board, base)
++}
++
++/// Tapers a score pair by phase, with the endgame share scaled by what the
++/// material on the board can actually convert.
++fn blend(board: &Board, score: ScorePair) -> Score {
+     let phase = features::phase(board);
+-    (base.middle_game * phase + base.end_game * (24 - phase)) / 24
++    let end_game = score.end_game * scaling::endgame_scale(board, score.end_game) / scaling::FULL;
++    (score.middle_game * phase + end_game * (24 - phase)) / 24
+ }
+ pub(super) fn root_complexity_bonus(
+     board: &Board,
+@@ -385,7 +394,7 @@ pub(super) fn evaluate_with_trace_and_config(
+         .soft_bounded(config.style_middle_game_cap(), config.style_end_game_cap());
+     let score = base + style;
+     let phase = features::phase(board);
+-    let blended = (score.middle_game * phase + score.end_game * (24 - phase)) / 24;
++    let blended = blend(board, score);
+ 
+     EvaluationTrace {
+         features,
+diff --git a/src/engine/evaluation/tuning.rs b/src/engine/evaluation/tuning.rs
+index 1211353..c3c6f0d 100644
+--- a/src/engine/evaluation/tuning.rs
++++ b/src/engine/evaluation/tuning.rs
+@@ -552,7 +552,7 @@ pub const fn material_feature(piece: Piece) -> Option<usize> {
+ #[cfg(test)]
+ mod tests {
+     use super::{
+-        ANCHOR_MIDDLEGAME_PAWN, BLOCKS, BlockKind, FEATURE_COUNT, PLACEMENT_FEATURES,
++        ANCHOR_MIDDLEGAME_PAWN, BLOCKS, BlockKind, FEATURE_COUNT, MAX_PHASE, PLACEMENT_FEATURES,
+         PLACEMENT_OFFSET, Piece, SCALAR_FEATURES, Score, TRAILING_FEATURES, TRAILING_OFFSET,
+         anchored, current_weights, normalized, tuning_features,
+     };
+@@ -786,7 +786,8 @@ mod tests {
+     }
+ 
+     /// The blended model must match what search actually computes at the profile
+-    /// the fit targets.
++    /// the fit targets, before the endgame scaling that is applied on top of
++    /// the linear model and is not part of it.
+     #[test]
+     fn the_blended_model_matches_the_objective_evaluation() {
+         let weights_now = current_weights();
+@@ -796,9 +797,15 @@ mod tests {
+             let position = Position::from_fen(fen).unwrap();
+             let board = position.board();
+             let modelled = tuning_features(board).score(&weights_now);
+-            let engine = super::super::evaluate_with_trace_and_config(board, objective).blended;
++            let trace = super::super::evaluate_with_trace_and_config(board, objective);
++            let unscaled = (trace.middle_game * trace.phase
++                + trace.end_game * (MAX_PHASE - trace.phase))
++                / MAX_PHASE;
+ 
+-            assert_eq!(modelled, engine, "model disagreed with evaluation on {fen}");
++            assert_eq!(
++                modelled, unscaled,
++                "model disagreed with evaluation on {fen}"
++            );
+         }
+     }
+ }
+diff --git a/tests/data/tactics.epd b/tests/data/tactics.epd
+index 3c9e5a3..125b724 100644
+--- a/tests/data/tactics.epd
++++ b/tests/data/tactics.epd
+@@ -1,4 +1,4 @@
+ # Six-field FEN; id NAME; category tactical; nodes N; bm MOVE; score cp|mate VALUE
+ 7k/5Q2/6K1/8/8/8/8/8 w - - 0 1 ; id mate-in-one ; category tactical ; nodes 20000 ; bm f7g7 ; score mate 1
+ 4k3/8/8/8/8/8/4q3/4R1K1 w - - 0 1 ; id win-hanging-queen ; category tactical ; nodes 20000 ; bm e1e2 ; score cp 651
+-r3k2r/ppp2ppp/2n5/3qp3/8/2N2N2/PPP2PPP/R2Q1RK1 w kq - 0 10 ; id punish-central-queen ; category tactical ; nodes 20000 ; bm c3d5 ; score cp 1343
++r3k2r/ppp2ppp/2n5/3qp3/8/2N2N2/PPP2PPP/R2Q1RK1 w kq - 0 10 ; id punish-central-queen ; category tactical ; nodes 20000 ; bm c3d5 ; score cp 1310

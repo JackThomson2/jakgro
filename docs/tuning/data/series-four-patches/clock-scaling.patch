@@ -1,0 +1,390 @@
+diff --git a/src/engine/search/algorithm.rs b/src/engine/search/algorithm.rs
+index 374725a..a3ae55d 100644
+--- a/src/engine/search/algorithm.rs
++++ b/src/engine/search/algorithm.rs
+@@ -32,6 +32,19 @@ const VOLATILE_HOLD_ITERATIONS: u8 = 2;
+ pub(super) const CONTROL_POLL_INTERVAL_NODES: u64 = 256;
+ const ITERATION_TIME_MULTIPLIER: u32 = 2;
+ const ITERATION_TIME_MARGIN: Duration = Duration::from_millis(5);
++/// Soft-limit scale, in percent, before the best move's node share is
++/// subtracted: a move that took every node scales the limit to 60%, one that
++/// took none to 160%, before clamping.
++const EFFORT_SCALE_BASE: u64 = 160;
++/// Bounds on the node-share scale, in percent.
++const EFFORT_SCALE_MIN: u64 = 70;
++const EFFORT_SCALE_MAX: u64 = 130;
++/// Soft-limit scale, in percent, on the iteration the best move changed.
++const STABILITY_SCALE_BASE: u64 = 110;
++/// What each consecutive iteration with the same best move takes off it.
++const STABILITY_SCALE_STEP: u64 = 5;
++/// Iterations of stability after which the scale stops shrinking.
++const STABILITY_SCALE_ITERATIONS: u64 = 4;
+ const STYLED_ROOT_DEPTH_SCALE: u64 = 48;
+ const STYLED_ROOT_TACTICAL_DEPTH_SCALE: u64 = 80;
+ /// Depth beyond which the styled root budget stops growing.
+@@ -94,11 +107,44 @@ enum IterationDecision {
+     Extend,
+ }
+ 
++/// Scales the soft limit by what the last iteration said about the root.
++///
++/// A best move that absorbed most of the root's nodes was never in doubt and
++/// the clock is spent elsewhere; one that took a small share of them won a
++/// contest, and the next iteration may reverse it. A best move that has held
++/// for several iterations earns less time again, and one that has just
++/// changed earns more. Both only apply under a real clock: a fixed move time
++/// has soft and hard limits equal, and is not scaled.
++fn scaled_soft_limit(
++    deadline: DeadlineWindow,
++    best_move_share_percent: Option<u64>,
++    stable_iterations: u64,
++) -> Duration {
++    if deadline.soft >= deadline.hard {
++        return deadline.soft;
++    }
++    let effort_scale = best_move_share_percent.map_or(100, |share| {
++        EFFORT_SCALE_BASE
++            .saturating_sub(share)
++            .clamp(EFFORT_SCALE_MIN, EFFORT_SCALE_MAX)
++    });
++    let stability_scale = STABILITY_SCALE_BASE
++        - STABILITY_SCALE_STEP * stable_iterations.min(STABILITY_SCALE_ITERATIONS);
++    let scaled = deadline
++        .soft
++        .saturating_mul(effort_scale as u32)
++        .saturating_mul(stability_scale as u32)
++        / 10_000;
++    scaled.min(deadline.hard)
++}
++
+ fn next_iteration_decision(
+     deadline: Option<DeadlineWindow>,
+     iteration_duration: Duration,
+     is_volatile: bool,
+     extension_used: bool,
++    best_move_share_percent: Option<u64>,
++    stable_iterations: u64,
+ ) -> IterationDecision {
+     let Some(deadline) = deadline else {
+         return IterationDecision::Continue;
+@@ -106,8 +152,9 @@ fn next_iteration_decision(
+     let forecast = iteration_duration
+         .saturating_mul(ITERATION_TIME_MULTIPLIER)
+         .saturating_add(ITERATION_TIME_MARGIN);
++    let soft = scaled_soft_limit(deadline, best_move_share_percent, stable_iterations);
+ 
+-    if forecast <= deadline.soft {
++    if forecast <= soft {
+         IterationDecision::Continue
+     } else if is_volatile && !extension_used && forecast <= deadline.hard {
+         IterationDecision::Extend
+@@ -123,11 +170,18 @@ struct IterationStability {
+     best_move: Option<Move>,
+     score: Option<Score>,
+     volatile_for: u8,
++    /// Consecutive completed iterations that kept the same best move.
++    stable_for: u64,
+ }
+ 
+ impl IterationStability {
+     fn observe(&mut self, best_move: Option<Move>, score: Score) -> bool {
+         let best_move_changed = self.best_move.is_some() && self.best_move != best_move;
++        self.stable_for = if best_move_changed || self.best_move.is_none() {
++            0
++        } else {
++            self.stable_for + 1
++        };
+         let score_changed = self
+             .score
+             .is_some_and(|previous| previous.abs_diff(score) >= ASPIRATION_INITIAL as u32);
+@@ -213,16 +267,39 @@ struct NodeResult {
+ struct RootSearchResult {
+     primary_score: Score,
+     selected: NodeResult,
++    effort: RootEffort,
+ }
+ 
+ impl RootSearchResult {
+-    fn from_primary(selected: NodeResult) -> Self {
++    fn from_primary(selected: NodeResult, effort: RootEffort) -> Self {
+         Self {
+             primary_score: selected.score,
+             selected,
++            effort,
+         }
+     }
++}
++
++/// How the objective root search divided its nodes.
++///
++/// The share the best move took is what the clock reads: a move that
++/// absorbed most of the iteration was never in doubt, and one that took a
++/// small share won a contest the next iteration may overturn.
++#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
++struct RootEffort {
++    best_move_nodes: u64,
++    total_nodes: u64,
++}
++
++impl RootEffort {
++    /// Returns the best move's share of the root's nodes, in percent, or
++    /// `None` when nothing was searched.
++    fn best_move_share_percent(self) -> Option<u64> {
++        (self.total_nodes > 0).then(|| self.best_move_nodes * 100 / self.total_nodes)
++    }
++}
+ 
++impl RootSearchResult {
+     fn primary_inside(&self, window: (Score, Score)) -> bool {
+         self.primary_score > window.0 && self.primary_score < window.1
+     }
+@@ -240,6 +317,7 @@ struct RootMoveEvidence {
+ struct ConventionalRootResult {
+     selected: NodeResult,
+     evidence: Vec<RootMoveEvidence>,
++    effort: RootEffort,
+ }
+ 
+ #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+@@ -2307,6 +2385,8 @@ fn run_worker(
+             iteration_duration,
+             is_volatile,
+             extension_used,
++            iteration.effort.best_move_share_percent(),
++            stability.stable_for,
+         ) {
+             IterationDecision::Stop => break,
+             IterationDecision::Continue => {}
+@@ -2382,7 +2462,11 @@ fn search_root(
+         );
+         context.telemetry.objective_root_nodes +=
+             context.nodes.saturating_sub(objective_start_nodes);
+-        return Ok(RootSearchResult::from_primary(selected?.selected));
++        let selected = selected?;
++        return Ok(RootSearchResult::from_primary(
++            selected.selected,
++            selected.effort,
++        ));
+     }
+     search_root_styled(
+         board,
+@@ -2420,17 +2504,18 @@ fn search_root_styled(
+     let ConventionalRootResult {
+         selected: objective,
+         evidence,
++        effort,
+     } = conventional;
+     let objective_pv = context.pv(0).to_vec();
+     let Some(objective_move) = objective_pv.first().copied() else {
+-        return Ok(RootSearchResult::from_primary(objective));
++        return Ok(RootSearchResult::from_primary(objective, effort));
+     };
+     if objective.score.abs() >= MATE_THRESHOLD
+         || objective.score <= window.0
+         || objective.score >= window.1
+         || context.should_stop()
+     {
+-        return Ok(RootSearchResult::from_primary(objective));
++        return Ok(RootSearchResult::from_primary(objective, effort));
+     }
+ 
+     let threshold = objective
+@@ -2483,7 +2568,7 @@ fn search_root_styled(
+         }
+         if context.control_stop_requested() {
+             context.pv[0].clone_from(&objective_pv);
+-            return Ok(RootSearchResult::from_primary(objective));
++            return Ok(RootSearchResult::from_primary(objective, effort));
+         }
+         let mut child = board.clone();
+         child.play_unchecked(chess_move);
+@@ -2722,7 +2807,7 @@ fn search_root_styled(
+         context.nodes.saturating_sub(personality_start_nodes);
+     if context.should_stop() || (personality_exhausted && candidates.len() == 1) {
+         context.pv[0].clone_from(&objective_pv);
+-        return Ok(RootSearchResult::from_primary(objective));
++        return Ok(RootSearchResult::from_primary(objective, effort));
+     }
+ 
+     let selected = choose_styled_candidate(&candidates, 0, context.personality);
+@@ -2733,6 +2818,7 @@ fn search_root_styled(
+             score: candidates[selected].score,
+             path_dependent: candidates[selected].path_dependent,
+         },
++        effort,
+     })
+ }
+ 
+@@ -3229,6 +3315,7 @@ fn search_root_conventional(
+     } else {
+         Vec::new()
+     };
++    let mut effort = RootEffort::default();
+ 
+     for (index, prepared) in moves.into_iter().enumerate() {
+         if context.should_stop() {
+@@ -3236,6 +3323,7 @@ fn search_root_conventional(
+         }
+ 
+         let chess_move = prepared.metadata.chess_move;
++        let nodes_before = context.nodes;
+         let current_move = HistoryMove::from_board(board, chess_move);
+         let prepared_child = &prepared.child;
+         let child_key = repetition_key(prepared_child);
+@@ -3306,11 +3394,14 @@ fn search_root_conventional(
+             });
+         }
+ 
++        let spent = context.nodes.saturating_sub(nodes_before);
++        effort.total_nodes += spent;
+         if score > best.score {
+             best = NodeResult {
+                 score,
+                 path_dependent: child_result.path_dependent,
+             };
++            effort.best_move_nodes = spent;
+             context.update_pv(board, 0, chess_move);
+         }
+         alpha = alpha.max(score);
+@@ -3341,6 +3432,7 @@ fn search_root_conventional(
+     Ok(ConventionalRootResult {
+         selected: best,
+         evidence,
++        effort,
+     })
+ }
+ 
+@@ -6016,6 +6108,7 @@ mod tests {
+     #[test]
+     fn styled_scores_do_not_reopen_a_satisfied_primary_window() {
+         let result = super::RootSearchResult {
++            effort: super::RootEffort::default(),
+             primary_score: 100,
+             selected: super::NodeResult {
+                 score: 20,
+@@ -6052,6 +6145,55 @@ mod tests {
+         assert!(!super::should_poll_control(interval + 1));
+         assert!(super::should_poll_control(interval * 2));
+     }
++    /// The soft limit shrinks when the best move dominated the root or has
++    /// held for several iterations, grows when it was contested or has just
++    /// changed, never exceeds the hard limit, and is untouched at a fixed
++    /// move time.
++    #[test]
++    fn the_soft_limit_scales_with_root_effort_and_stability() {
++        use std::time::Duration;
++
++        use super::{DeadlineWindow, scaled_soft_limit};
++
++        let clock = DeadlineWindow {
++            soft: Duration::from_millis(100),
++            hard: Duration::from_millis(300),
++        };
++        let neutral = scaled_soft_limit(clock, Some(60), 2);
++        assert_eq!(neutral, Duration::from_millis(100));
++        assert!(scaled_soft_limit(clock, Some(95), 2) < neutral);
++        assert!(scaled_soft_limit(clock, Some(20), 2) > neutral);
++        assert!(scaled_soft_limit(clock, Some(60), 0) > neutral);
++        assert!(scaled_soft_limit(clock, Some(60), 8) < neutral);
++        assert_eq!(scaled_soft_limit(clock, None, 2), neutral);
++        // Bounded on both sides.
++        assert_eq!(
++            scaled_soft_limit(clock, Some(100), 8),
++            Duration::from_millis(100 * 70 * 90 / 10_000)
++        );
++        assert_eq!(
++            scaled_soft_limit(clock, Some(0), 0),
++            Duration::from_millis(100 * 130 * 110 / 10_000)
++        );
++        let tight = DeadlineWindow {
++            soft: Duration::from_millis(100),
++            hard: Duration::from_millis(120),
++        };
++        assert_eq!(
++            scaled_soft_limit(tight, Some(0), 0),
++            Duration::from_millis(120)
++        );
++
++        let fixed = DeadlineWindow {
++            soft: Duration::from_millis(100),
++            hard: Duration::from_millis(100),
++        };
++        assert_eq!(
++            scaled_soft_limit(fixed, Some(100), 8),
++            Duration::from_millis(100)
++        );
++    }
++
+     #[test]
+     fn iteration_forecasts_respect_soft_and_hard_windows() {
+         use std::time::Duration;
+@@ -6064,11 +6206,18 @@ mod tests {
+             hard: Duration::from_millis(100),
+         };
+         assert_eq!(
+-            super::next_iteration_decision(Some(ample_soft_time), iteration, false, false),
++            super::next_iteration_decision(
++                Some(ample_soft_time),
++                iteration,
++                false,
++                false,
++                Some(60),
++                2
++            ),
+             IterationDecision::Continue
+         );
+         assert_eq!(
+-            super::next_iteration_decision(None, iteration, false, false),
++            super::next_iteration_decision(None, iteration, false, false, None, 0),
+             IterationDecision::Continue
+         );
+ 
+@@ -6077,15 +6226,36 @@ mod tests {
+             hard: Duration::from_millis(25),
+         };
+         assert_eq!(
+-            super::next_iteration_decision(Some(extension_time), iteration, true, false),
++            super::next_iteration_decision(
++                Some(extension_time),
++                iteration,
++                true,
++                false,
++                Some(60),
++                2
++            ),
+             IterationDecision::Extend
+         );
+         assert_eq!(
+-            super::next_iteration_decision(Some(extension_time), iteration, false, false),
++            super::next_iteration_decision(
++                Some(extension_time),
++                iteration,
++                false,
++                false,
++                Some(60),
++                2
++            ),
+             IterationDecision::Stop
+         );
+         assert_eq!(
+-            super::next_iteration_decision(Some(extension_time), iteration, true, true),
++            super::next_iteration_decision(
++                Some(extension_time),
++                iteration,
++                true,
++                true,
++                Some(60),
++                2
++            ),
+             IterationDecision::Stop
+         );
+ 
+@@ -6094,7 +6264,7 @@ mod tests {
+             hard: Duration::from_millis(24),
+         };
+         assert_eq!(
+-            super::next_iteration_decision(Some(fixed_time), iteration, true, false),
++            super::next_iteration_decision(Some(fixed_time), iteration, true, false, Some(60), 2),
+             IterationDecision::Stop
+         );
+     }

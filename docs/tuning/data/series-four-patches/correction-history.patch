@@ -1,0 +1,321 @@
+diff --git a/src/engine/search.rs b/src/engine/search.rs
+index f500876..1f9b3bc 100644
+--- a/src/engine/search.rs
++++ b/src/engine/search.rs
+@@ -153,6 +153,7 @@ pub struct SearchTelemetry {
+     pub(super) null_verification_nodes: u64,
+     pub(super) static_pruning_attempts: u64,
+     pub(super) static_evaluation_hits: u64,
++    pub(super) correction_updates: u64,
+     pub(super) reverse_futility_cutoffs: u64,
+     pub(super) futility_pruned_moves: u64,
+     pub(super) late_move_pruned_moves: u64,
+@@ -199,6 +200,7 @@ impl SearchTelemetry {
+             null_verification_nodes: self.null_verification_nodes + other.null_verification_nodes,
+             static_pruning_attempts: self.static_pruning_attempts + other.static_pruning_attempts,
+             static_evaluation_hits: self.static_evaluation_hits + other.static_evaluation_hits,
++            correction_updates: self.correction_updates + other.correction_updates,
+             reverse_futility_cutoffs: self.reverse_futility_cutoffs
+                 + other.reverse_futility_cutoffs,
+             futility_pruned_moves: self.futility_pruned_moves + other.futility_pruned_moves,
+@@ -280,6 +282,13 @@ impl SearchTelemetry {
+         self.static_evaluation_hits
+     }
+ 
++    /// Returns the number of interior results fed back into the correction
++    /// history.
++    #[must_use]
++    pub const fn correction_updates(self) -> u64 {
++        self.correction_updates
++    }
++
+     /// Returns the number of reverse-futility node cutoffs.
+     #[must_use]
+     pub const fn reverse_futility_cutoffs(self) -> u64 {
+@@ -681,9 +690,14 @@ mod tests {
+ 
+     #[test]
+     fn a_warm_transposition_table_reduces_nodes_without_changing_the_result() {
+-        let position =
+-            Position::from_fen("r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3")
+-                .unwrap();
++        // A middlegame with a settled best move. The Italian branch point this
++        // test used to search is a knife edge between two book moves, and the
++        // correction history makes the score a warm table reaches there depend
++        // on the tree it searched to reach it.
++        let position = Position::from_fen(
++            "r1bq1rk1/pp2bppp/2n1pn2/2pp4/3P4/2PBPN2/PP1N1PPP/R1BQ1RK1 w - - 0 8",
++        )
++        .unwrap();
+         let limits = SearchLimits {
+             depth: Some(5),
+             ..SearchLimits::default()
+diff --git a/src/engine/search/algorithm.rs b/src/engine/search/algorithm.rs
+index 374725a..452dd15 100644
+--- a/src/engine/search/algorithm.rs
++++ b/src/engine/search/algorithm.rs
+@@ -1102,6 +1102,97 @@ impl HistoryMove {
+ }
+ 
+ #[derive(Debug)]
++/// What search has learned about where the static evaluation is wrong.
++///
++/// The evaluation is a fixed function of the position, so where it is wrong
++/// it is wrong the same way every time the same pawn structure, or the same
++/// material, comes up — and search already knows, because the score it
++/// returns after looking disagrees with the static score in a direction that
++/// repeats. Two tables accumulate that disagreement as a decaying average,
++/// one keyed by the pawn structure and one by the non-pawn material, both by
++/// side to move. Every rule that reads the evaluation reads the corrected
++/// value, the quiescence stand-pat included; the transposition table keeps
++/// the raw one, so what it caches stays a pure function of the position.
++///
++/// The third series measured this without the stand-pat and found it inert:
++/// quiescence is most of the tree and its stand-pat is the evaluation used
++/// most. Correcting it is the half that was not tried.
++struct CorrectionHistory {
++    pawn: Vec<i32>,
++    material: Vec<i32>,
++}
++
++/// Entries per side to move in each correction table.
++const CORRECTION_ENTRIES: usize = 16_384;
++/// Fixed-point grain of a correction entry, in units per centipawn.
++const CORRECTION_GRAIN: i32 = 256;
++/// The most a correction may move the static evaluation, in centipawns.
++const CORRECTION_LIMIT: Score = 48;
++/// The most one result may contribute, in centipawns.
++const CORRECTION_DELTA_LIMIT: Score = 128;
++/// Deepest result weight in the decaying average, out of [`CORRECTION_GRAIN`].
++const CORRECTION_MAX_WEIGHT: i32 = 16;
++
++impl CorrectionHistory {
++    fn new() -> Self {
++        Self {
++            pawn: vec![0; 2 * CORRECTION_ENTRIES],
++            material: vec![0; 2 * CORRECTION_ENTRIES],
++        }
++    }
++
++    /// Returns the two table slots a position reads and writes.
++    fn slots(board: &Board) -> (usize, usize) {
++        let side = board.side_to_move() as usize * CORRECTION_ENTRIES;
++        let white_pawns = board.colored_pieces(Color::White, Piece::Pawn).0;
++        let black_pawns = board.colored_pieces(Color::Black, Piece::Pawn).0;
++        let pawn_key = mix(white_pawns) ^ mix(black_pawns.rotate_left(32));
++        let mut material_key = 0_u64;
++        for color in [Color::White, Color::Black] {
++            for piece in [Piece::Knight, Piece::Bishop, Piece::Rook, Piece::Queen] {
++                material_key = material_key * 11 + board.colored_pieces(color, piece).len() as u64;
++            }
++        }
++        let mask = CORRECTION_ENTRIES - 1;
++        (
++            side + ((pawn_key >> 20) as usize & mask),
++            side + ((mix(material_key) >> 20) as usize & mask),
++        )
++    }
++
++    /// Returns the centipawns to add to this position's static evaluation.
++    fn correction(&self, board: &Board) -> Score {
++        let (pawn, material) = Self::slots(board);
++        ((self.pawn[pawn] + self.material[material]) / 2 / CORRECTION_GRAIN)
++            .clamp(-CORRECTION_LIMIT, CORRECTION_LIMIT)
++    }
++
++    /// Folds a search result's disagreement with the static evaluation in.
++    ///
++    /// Deeper results weigh more, up to a cap, so a depth-one fail-low does
++    /// not overwrite what a depth-ten search established.
++    fn update(&mut self, board: &Board, depth: u32, delta: Score) {
++        let (pawn, material) = Self::slots(board);
++        let weight = (depth as i32 + 1).min(CORRECTION_MAX_WEIGHT);
++        let target =
++            delta.clamp(-CORRECTION_DELTA_LIMIT, CORRECTION_DELTA_LIMIT) * CORRECTION_GRAIN;
++        let limit = CORRECTION_LIMIT * CORRECTION_GRAIN;
++        for entry in [&mut self.pawn[pawn], &mut self.material[material]] {
++            *entry = ((*entry * (CORRECTION_GRAIN - weight) + target * weight) / CORRECTION_GRAIN)
++                .clamp(-limit, limit);
++        }
++    }
++}
++
++/// Scrambles a key so that similar inputs land in different slots.
++const fn mix(mut key: u64) -> u64 {
++    key ^= key >> 30;
++    key = key.wrapping_mul(0xBF58_476D_1CE4_E5B9);
++    key ^= key >> 27;
++    key = key.wrapping_mul(0x94D0_49BB_1331_11EB);
++    key ^ (key >> 31)
++}
++
+ struct MoveOrdering {
+     killers: Vec<[Option<Move>; 2]>,
+     history: Vec<i32>,
+@@ -1677,6 +1768,7 @@ struct SearchContext<'a> {
+     pv: Vec<Vec<Move>>,
+     hash_pv_depths: Vec<Option<u32>>,
+     static_evaluations: Vec<Option<Score>>,
++    correction: CorrectionHistory,
+     picker_storage: Vec<MovePickerStorage>,
+     ordering: MoveOrdering,
+ }
+@@ -1728,6 +1820,7 @@ impl<'a> SearchContext<'a> {
+                 .collect(),
+             hash_pv_depths: vec![None; MAX_PLY as usize + 1],
+             static_evaluations: vec![None; MAX_PLY as usize + 1],
++            correction: CorrectionHistory::new(),
+             picker_storage: (0..=MAX_PLY)
+                 .map(|_| MovePickerStorage::default())
+                 .collect(),
+@@ -2197,6 +2290,7 @@ fn run_worker(
+             .collect(),
+         hash_pv_depths: vec![None; MAX_PLY as usize + 1],
+         static_evaluations: vec![None; MAX_PLY as usize + 1],
++        correction: CorrectionHistory::new(),
+         picker_storage: (0..=MAX_PLY)
+             .map(|_| MovePickerStorage::default())
+             .collect(),
+@@ -3472,16 +3566,20 @@ fn negamax(
+     } else {
+         None
+     };
++    // The raw value is what the table stores; every decision below reads it
++    // corrected by what search has learned about positions like this one.
++    let corrected_evaluation =
++        static_evaluation.map(|raw| raw + context.correction.correction(board));
+     let pruning_evaluation =
+         if static_pruning_allowed(board, depth, alpha, beta, pv_node, context.mode) {
+             context.telemetry.static_pruning_attempts += 1;
+-            static_evaluation
++            corrected_evaluation
+         } else {
+             None
+         };
+     let improving = context.record_static_evaluation(ply, in_check, pruning_evaluation);
+     if reverse_futility_allowed(board, depth, alpha, beta, pv_node, context.mode)
+-        && static_evaluation.is_some_and(|evaluation| {
++        && corrected_evaluation.is_some_and(|evaluation| {
+             reverse_futility_cutoff(
+                 evaluation,
+                 beta,
+@@ -3510,7 +3608,7 @@ fn negamax(
+         extensions_used,
+         alpha,
+         beta,
+-        static_evaluation,
++        corrected_evaluation,
+         previous_move,
+         context,
+     )? {
+@@ -3760,6 +3858,18 @@ fn negamax(
+         } else {
+             Bound::Exact
+         };
++        // A settled result teaches the correction history where the static
++        // evaluation stood relative to what search found. A bound only says
++        // which side the truth is on, so it is folded in only when it pulls
++        // the evaluation that way; a mate score is not an evaluation error.
++        if let Some(raw) = static_evaluation
++            && best.score.abs() < MATE_THRESHOLD
++            && !(bound == Bound::Upper && best.score >= raw)
++            && !(bound == Bound::Lower && best.score <= raw)
++        {
++            context.correction.update(board, depth, best.score - raw);
++            context.telemetry.correction_updates += 1;
++        }
+         if !selective_fail_low || bound == Bound::Lower {
+             context.table.store_key(
+                 history.current_key(),
+@@ -3852,12 +3962,13 @@ fn quiescence(
+             return Ok(result);
+         }
+         return Ok(NodeResult {
+-            score: evaluate_with_config(board, context.scoring),
++            score: evaluate_with_config(board, context.scoring)
++                + context.correction.correction(board),
+             path_dependent: false,
+         });
+     }
+ 
+-    let stand_pat = if in_check {
++    let raw_stand_pat = if in_check {
+         None
+     } else {
+         // A stored evaluation is the same number this node would compute, so
+@@ -3869,6 +3980,9 @@ fn quiescence(
+                 .unwrap_or_else(|| evaluate_with_config(board, context.scoring)),
+         )
+     };
++    // The stand-pat is the evaluation used most in this tree, and it is read
++    // corrected; the table keeps the raw value it was computed from.
++    let stand_pat = raw_stand_pat.map(|raw| raw + context.correction.correction(board));
+     let alpha_original = alpha;
+     let mut best = NodeResult {
+         score: stand_pat.unwrap_or(NEG_INFINITY),
+@@ -3886,7 +4000,7 @@ fn quiescence(
+                 &best,
+                 alpha_original,
+                 beta,
+-                Some(stand_pat),
++                raw_stand_pat,
+                 context,
+             );
+             return Ok(best);
+@@ -4005,7 +4119,7 @@ fn quiescence(
+         &best,
+         alpha_original,
+         beta,
+-        stand_pat,
++        raw_stand_pat,
+         context,
+     );
+     Ok(best)
+@@ -6274,6 +6388,47 @@ mod tests {
+         );
+     }
+ 
++    /// The correction history learns per pawn structure and side to move,
++    /// decays toward what search keeps finding, and stays bounded.
++    #[test]
++    fn correction_history_learns_bounded_per_structure_and_side() {
++        let mut correction = super::CorrectionHistory::new();
++        let board: cozy_chess::Board =
++            "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3"
++                .parse()
++                .unwrap();
++        let other_pawns: cozy_chess::Board =
++            "r1bqkbnr/pppp1ppp/2n5/4p3/3PP3/5N2/PPP2PPP/RNBQKB1R w KQkq - 0 3"
++                .parse()
++                .unwrap();
++        let other_side: cozy_chess::Board =
++            "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 2 3"
++                .parse()
++                .unwrap();
++        assert_eq!(correction.correction(&board), 0);
++
++        for _ in 0..64 {
++            correction.update(&board, 6, 40);
++        }
++        let learned = correction.correction(&board);
++        assert!(learned > 20 && learned <= 40, "learned {learned}");
++        // A different pawn structure is another pawn entry but shares the
++        // material entry, which contributes half; the other side to move
++        // shares nothing.
++        assert!(correction.correction(&other_pawns) < learned);
++        assert!(correction.correction(&other_pawns) > 0);
++        assert_eq!(correction.correction(&other_side), 0);
++
++        for _ in 0..256 {
++            correction.update(&board, 12, 1_000);
++        }
++        assert_eq!(correction.correction(&board), super::CORRECTION_LIMIT);
++        for _ in 0..256 {
++            correction.update(&board, 12, -1_000);
++        }
++        assert_eq!(correction.correction(&board), -super::CORRECTION_LIMIT);
++    }
++
+     #[test]
+     fn late_move_reductions_protect_tactics_and_use_bounded_history() {
+         let position = Position::default();

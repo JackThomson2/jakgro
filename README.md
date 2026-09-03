@@ -2,7 +2,7 @@
 
 Jakgro is a Rust chess engine aimed at playing aggressive, tactical, and interesting chess while remaining compatible with the Universal Chess Interface (UCI).
 
-> **Current status:** Jakgro runs a cancellable iterative-deepening alpha-beta search with quiescence, principal variations, repetition and draw handling, a lock-free fixed-size transposition table consulted in quiescence as well as in the main search, optional lazy SMP across a configurable thread count, tapered positional evaluation whose weights and piece-square tables are fitted offline against recorded games, with a cached pawn structure, a bounded attacking personality, and volatility-aware soft/hard clock management. It is UCI-playable and exposes a reproducibly gated `Aggression` profile from 0 to 100. Three measured series are recorded: [`docs/tuning/strength-series.md`](docs/tuning/strength-series.md) at +108 Elo at the default profile, [`docs/tuning/strength-series-two.md`](docs/tuning/strength-series-two.md) at a further +65 Elo on top of it, and [`docs/tuning/strength-series-three.md`](docs/tuning/strength-series-three.md) at a further +94.2 Elo, of which the evaluation refit is +56.3; that series also records why neither node count nor completed depth substitutes for a match when pricing a change, and why the engine plays 53% more checks than before it. Parallel search defaults to one thread and carries no measured Elo claim yet; see [`docs/tuning/lazy-smp.md`](docs/tuning/lazy-smp.md).
+> **Current status:** Jakgro runs a cancellable iterative-deepening alpha-beta search with quiescence, principal variations, repetition and draw handling, a lock-free fixed-size transposition table consulted in quiescence as well as in the main search, optional lazy SMP across a configurable thread count, tapered positional evaluation whose weights and piece-square tables are fitted offline against recorded games, with a cached pawn structure, a bounded attacking personality, and volatility-aware soft/hard clock management. It is UCI-playable and exposes a reproducibly gated `Aggression` profile from 0 to 100. Four measured series are recorded: [`docs/tuning/strength-series.md`](docs/tuning/strength-series.md) at +108 Elo at the default profile, [`docs/tuning/strength-series-two.md`](docs/tuning/strength-series-two.md) at a further +65 Elo on top of it, [`docs/tuning/strength-series-three.md`](docs/tuning/strength-series-three.md) at a further +94.2 Elo, of which the evaluation refit is +56.3; that series also records why neither node count nor completed depth substitutes for a match when pricing a change, and why the engine plays 53% more checks than before it. [`docs/tuning/strength-series-four.md`](docs/tuning/strength-series-four.md) adds a further +67.7 Elo at the default profile and +71.2 under a clock, all of it from a hundred and thirty-five new evaluation parameters and their refit — mobility curves, rook files, outposts, pawn structure, passer refinements, king danger, graded shelter and threats — while every search and clock patch tried on top of it was rejected on match; the engine plays 30% more checks than before it. Parallel search defaults to one thread and carries no measured Elo claim yet; see [`docs/tuning/lazy-smp.md`](docs/tuning/lazy-smp.md).
 
 ## Goals
 
@@ -263,19 +263,19 @@ Both are behind the `tuning` feature and are not built into the shipped engine.
    - Retry singular extensions with a cheaper probe. A full implementation measured neutral because the exclusion search re-expands a large quiescence subtree; capping its quiescence depth or reusing the parent's move list is the obvious next attempt. Internal iterative reduction also measured neutral to negative and is recorded in [`docs/tuning/strength-series-two.md`](docs/tuning/strength-series-two.md).
    - Repeat verified-null and old/new differential benchmarks across more positions and platforms.
 2. **Aggressive evaluation**
-   - Retry king safety from safe checks and per-square attack units. A non-linear attacker-count term was measured at -14 Elo and rejected; see [`docs/tuning/strength-series.md`](docs/tuning/strength-series.md).
-   - Add rook-file, outpost, and endgame-scaling terms, which the evaluation still lacks entirely.
+   - King danger from attack units and safe checks, rook files, outposts, backward and connected pawns, passer blockade and king distance, graded shelter and objective threats were added and fitted in [`docs/tuning/strength-series-four.md`](docs/tuning/strength-series-four.md). Endgame scaling by hand measured -9.9 Elo on top of the fit and was rejected. Next: safe-square mobility, an objective pawn-storm term, king tropism, and a corpus from a stronger opponent.
    - Add held-out pawn-gambit, clearance-sacrifice, and exchange-sacrifice positions without weakening the anti-sacrifice controls.
    - Measure whether verified sacrifices survive deeper searches and human PGN review before changing the 120-centipawn hard guard.
 3. **Time and protocol refinement**
-   - Scale the soft clock by best-move stability and root node effort, then confirm through timed matches rather than fixed-move-time ones.
+   - Scaling the soft clock by best-move stability and root node effort measured -0.7 Elo [-7.6, +6.3] over 4096 clocked games and was rejected; see [`docs/tuning/strength-series-four.md`](docs/tuning/strength-series-four.md). The volatility hold already does what it would.
    - Measure lazy SMP strength at equal time control and record whether the scaling in searched nodes converts into Elo, following [`docs/tuning/lazy-smp.md`](docs/tuning/lazy-smp.md).
    - Expand ponder, mate-limit, and malformed-command regression suites.
 4. **Tuning and match testing**
    - Reduce the measured strength gap between Aggression 100 and Aggression 0 without surrendering the forcing-play and safety gates.
    - Track old-versus-new Elo, decisive-game rate, color balance, independently reviewed sacrifice frequency, and manual sacrifice quality against tagged versions.
    - Tune explicit style weights only when frozen fixture gates and paired matches agree.
-   - Confirm the series result at a longer time control than 50 ms per move.
+   - Confirm the series results at a longer time control than `1.0+0.01`.
+   - Correction history applied to the quiescence stand-pat measured -8.1 Elo and broke two personality controls; it is recorded in the fourth series and should not be retried in that form.
 
 ## License
 

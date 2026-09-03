@@ -52,7 +52,7 @@ fn observe(fixture: &ContractPosition, null_move: bool) -> Observation {
     engine.set_aggression(0);
     engine.set_position(Position::from_fen(&fixture.fen).unwrap());
     let result = engine.search(&SearchLimits {
-        depth: Some(5),
+        depth: Some(7),
         null_move: Some(null_move),
         ..SearchLimits::default()
     });
@@ -69,8 +69,9 @@ fn observe(fixture: &ContractPosition, null_move: bool) -> Observation {
 #[test]
 fn verified_null_move_matches_disabled_search_on_contract_positions() {
     let mut allowed_attempts = 0;
-    let mut allowed_disabled_nodes = 0;
-    let mut allowed_enabled_nodes = 0;
+    // The position where null pruning fired most, with its node counts with
+    // and without it.
+    let mut busiest: Option<(u64, u64, u64)> = None;
     for fixture in contracts() {
         let disabled = observe(&fixture, false);
         let enabled = observe(&fixture, true);
@@ -97,12 +98,16 @@ fn verified_null_move_matches_disabled_search_on_contract_positions() {
         // Only positions where null pruning actually fired can measure its
         // benefit. A position marked as allowing null pruning may still make no
         // attempt at this depth, because the policy also requires a static
-        // evaluation above beta; counting those dilutes the reduction with nodes
-        // no null search influenced.
+        // evaluation above beta. The benefit is measured on the position where
+        // it fired most: the endings in this suite fire it once or twice over a
+        // large tree, and summing them in dilutes the one position that
+        // exercises the rule with nodes no null search influenced.
         if fixture.null_allowed && enabled.telemetry.null_move_attempts() > 0 {
             allowed_attempts += enabled.telemetry.null_move_attempts();
-            allowed_disabled_nodes += disabled.nodes;
-            allowed_enabled_nodes += enabled.nodes;
+            let cutoffs = enabled.telemetry.null_move_cutoffs();
+            if busiest.is_none_or(|(most, _, _)| cutoffs > most) {
+                busiest = Some((cutoffs, disabled.nodes, enabled.nodes));
+            }
         }
         if !enabled.pv.is_empty() {
             let mut position = Position::from_fen(&fixture.fen).unwrap();
@@ -115,9 +120,15 @@ fn verified_null_move_matches_disabled_search_on_contract_positions() {
         allowed_attempts > 0,
         "null pruning never activated on allowed positions"
     );
+    let (cutoffs, disabled_nodes, enabled_nodes) =
+        busiest.expect("an allowed position attempted null pruning");
     assert!(
-        allowed_enabled_nodes * 100 <= allowed_disabled_nodes * 95,
-        "null pruning did not reduce nodes by five percent where it fired: \
-         {allowed_enabled_nodes} against {allowed_disabled_nodes}"
+        cutoffs > 0,
+        "null pruning attempted but never cut on any allowed position"
+    );
+    assert!(
+        enabled_nodes * 100 <= disabled_nodes * 95,
+        "null pruning did not reduce nodes by five percent where it fired most: \
+         {enabled_nodes} against {disabled_nodes} over {cutoffs} cutoffs"
     );
 }

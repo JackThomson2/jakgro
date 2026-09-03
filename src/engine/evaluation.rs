@@ -676,32 +676,10 @@ mod tests {
         assert_eq!(profiled, explicit);
     }
 
-    /// The per-piece curves ship as the linear term they replaced.
-    ///
-    /// Until a fit moves them, a knight with five moves must score exactly
-    /// what five units of the shared mobility weight score, for every count
-    /// of every piece, which is what makes adopting the curves a change to no
-    /// score at all.
+    /// The curves are what the objective score reads for the four piece
+    /// types with one, and pawns and kings have no curve.
     #[test]
-    fn mobility_curves_start_on_the_linear_term() {
-        let unit = super::weights::score(&EvalFeatures {
-            pawn_mobility: 1,
-            ..EvalFeatures::default()
-        });
-        for (piece, entries) in [
-            (Piece::Knight, super::KNIGHT_MOBILITY_ENTRIES),
-            (Piece::Bishop, super::BISHOP_MOBILITY_ENTRIES),
-            (Piece::Rook, super::ROOK_MOBILITY_ENTRIES),
-            (Piece::Queen, super::QUEEN_MOBILITY_ENTRIES),
-        ] {
-            for count in 0..entries {
-                assert_eq!(
-                    super::weights::mobility_curve(piece, count),
-                    unit * count as Score,
-                    "{piece:?} with {count} moves left the linear term",
-                );
-            }
-        }
+    fn mobility_curves_are_read_per_piece_type() {
         for piece in [Piece::Pawn, Piece::King] {
             for count in 0..super::QUEEN_MOBILITY_ENTRIES {
                 assert_eq!(
@@ -710,9 +688,21 @@ mod tests {
                 );
             }
         }
+        // A piece with every square it could have is worth more in the
+        // ending than one with none, for each of the four curves.
+        for (piece, entries) in [
+            (Piece::Knight, super::KNIGHT_MOBILITY_ENTRIES),
+            (Piece::Bishop, super::BISHOP_MOBILITY_ENTRIES),
+            (Piece::Rook, super::ROOK_MOBILITY_ENTRIES),
+            (Piece::Queen, super::QUEEN_MOBILITY_ENTRIES),
+        ] {
+            let trapped = super::weights::mobility_curve(piece, 0);
+            let free = super::weights::mobility_curve(piece, entries - 1);
+            assert!(free.end_game() > trapped.end_game(), "{piece:?}");
+        }
 
-        // In a real position the accumulated pair says what the per-piece
-        // counts say, and the objective score reads it.
+        // In a real position the accumulated pair is what the score reads,
+        // and the scalar counts still describe the same pieces.
         let position = Position::from_fen(
             "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4",
         )
@@ -722,7 +712,6 @@ mod tests {
             + features.bishop_mobility
             + features.rook_mobility
             + features.queen_mobility;
-        assert_eq!(features.mobility_curves, unit * curved);
         assert_eq!(
             features.mobility,
             curved + features.pawn_mobility + features.king_mobility
@@ -781,18 +770,6 @@ mod tests {
             features("4k3/8/8/8/8/7P/P6r/R3K3 w - - 0 1").rook_semi_open_files,
             -1
         );
-
-        // The weights ship at zero, so none of this moves a score yet.
-        let scored = EvalFeatures {
-            rook_open_files: 1,
-            rook_semi_open_files: 1,
-            rooks_on_seventh: 1,
-            ..EvalFeatures::default()
-        };
-        assert_eq!(
-            super::weights::score(&scored),
-            super::weights::score(&EvalFeatures::default())
-        );
     }
 
     #[test]
@@ -826,16 +803,6 @@ mod tests {
         assert_eq!(
             features("4k3/pp3ppp/8/4p3/3b4/8/PP3PPP/4K3 w - - 0 1").bishop_outposts,
             -1
-        );
-
-        let scored = EvalFeatures {
-            knight_outposts: 1,
-            bishop_outposts: 1,
-            ..EvalFeatures::default()
-        };
-        assert_eq!(
-            super::weights::score(&scored),
-            super::weights::score(&EvalFeatures::default())
         );
     }
 
@@ -1031,17 +998,6 @@ mod tests {
         assert_eq!(
             features("4k3/8/8/8/3p4/4N3/8/4K3 w - - 0 1").threat_minor_by_pawn,
             -1
-        );
-
-        let scored = EvalFeatures {
-            threat_minor_by_pawn: 1,
-            threat_hanging: 1,
-            threat_by_lower_value: 1,
-            ..EvalFeatures::default()
-        };
-        assert_eq!(
-            super::weights::score(&scored),
-            super::weights::score(&EvalFeatures::default())
         );
     }
 

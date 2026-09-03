@@ -104,7 +104,8 @@ const USAGE: &str = "\
 usage:
   tune extract --pgn <file>... --out <positions> [--skip-plies N] [--max-positions N]
   tune fit --positions <file> --out <weights> [--epochs N] [--rate F] [--holdout F]
-                                              [--lambda F] [--l2 F] [--min-observations N]";
+                                              [--lambda F] [--l2 F] [--min-observations N]
+                                              [--hold NAME,NAME,...]";
 
 /// Returns the value following a flag, if the flag is present.
 fn flag<'a>(arguments: &'a [String], name: &str) -> Option<&'a str> {
@@ -390,6 +391,17 @@ fn fit(arguments: &[String]) -> Result<(), String> {
     if !(0.0..=1.0).contains(&lambda) {
         return Err(format!("--lambda expects a value in [0, 1], got {lambda}"));
     }
+    // Blocks held at their published values whatever the corpus says. This is
+    // how a term the personality gates reject is kept out of a fit without
+    // being removed from the evaluation.
+    let held_blocks: Vec<&str> = flag(arguments, "--hold")
+        .map(|names| names.split(',').filter(|name| !name.is_empty()).collect())
+        .unwrap_or_default();
+    for name in &held_blocks {
+        if !BLOCKS.iter().any(|block| block.name == *name) {
+            return Err(format!("--hold names no block called {name}"));
+        }
+    }
 
     let text = fs::read_to_string(positions).map_err(|error| format!("{positions}: {error}"))?;
     let mut samples = Vec::new();
@@ -489,10 +501,18 @@ fn fit(arguments: &[String]) -> Result<(), String> {
             observations[index as usize] += 1;
         }
     }
-    let held_at_published: Vec<bool> = observations
+    let mut held_at_published: Vec<bool> = observations
         .iter()
         .map(|&count| count < min_observations)
         .collect();
+    for block in BLOCKS
+        .iter()
+        .filter(|block| held_blocks.contains(&block.name))
+    {
+        for held in &mut held_at_published[block.offset..block.offset + block.len] {
+            *held = true;
+        }
+    }
     let pinned = held_at_published
         .iter()
         .filter(|&&is_pinned| is_pinned)
@@ -509,6 +529,12 @@ fn fit(arguments: &[String]) -> Result<(), String> {
         "fit: lambda {lambda:.2}, {scored} of {} positions carrying a search score",
         samples.len(),
     );
+    if !held_blocks.is_empty() {
+        println!(
+            "fit: holding {} at the published values",
+            held_blocks.join(", ")
+        );
+    }
     if lambda < 1.0 {
         // The label moved, so the training loss is against a different target
         // and is not comparable with a run at another lambda. The held-out

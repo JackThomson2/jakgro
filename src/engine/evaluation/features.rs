@@ -544,6 +544,9 @@ pub(super) fn extract_with_style(board: &Board, style: bool) -> EvalFeatures {
                     + weights::blocked_passer_weight(rank) * (sign * blocked);
             }
         }
+        features.piece_indexed =
+            features.piece_indexed + attacks.passer_path[color as usize] * sign;
+        features.rook_behind_passer += sign * attacks.rook_behind_passer[color as usize];
         // A colour that brings nothing against the enemy king is not counted
         // in the first bucket: the term describes an attack, not its absence.
         let units = scan.attack_units();
@@ -666,6 +669,16 @@ pub(super) struct AttackSummary {
     /// Enemy minors attacked by a pawn, enemy pieces attacked and undefended,
     /// and enemy pieces attacked by something worth less, per colour.
     pub(super) threats: [[i32; 3]; 2],
+    /// Passers whose path to promotion no enemy piece attacks, and passers
+    /// whose path no piece stands on, by rank; and passers with a friendly
+    /// rook behind them on the file with nothing between.
+    pub(super) passer_safe_path: [[i32; 6]; 2],
+    pub(super) passer_free_path: [[i32; 6]; 2],
+    pub(super) rook_behind_passer: [i32; 2],
+    /// The two path blocks above already weighted, per colour, so the
+    /// extraction adds one pair rather than walking twelve counts that are
+    /// almost always zero; the counts are for the fitter and the tests.
+    pub(super) passer_path: [ScorePair; 2],
 }
 
 #[cfg(test)]
@@ -1152,6 +1165,38 @@ pub(super) fn attack_summary_with_style(board: &Board, style: bool) -> AttackSum
         let enemy_queens = enemy_pieces & board.pieces(Piece::Queen);
         let own_reach = own.attacked | get_king_moves(board.king(color));
         let enemy_defends = theirs.attacked | king_reach;
+
+        // Passers by the state of their path: the file ahead of each, which
+        // the passer span holds, against the enemy's reach with the king's
+        // moves put back, against the occupancy, and along the file behind
+        // for a friendly rook with nothing between.
+        let spans = if color == Color::White {
+            &WHITE_PASSER_SPANS
+        } else {
+            &BLACK_PASSER_SPANS
+        };
+        let own_rooks = board.colored_pieces(color, Piece::Rook);
+        for passer in own.passers {
+            let file = passer.file().bitboard();
+            let path = spans[passer as usize] & file;
+            let advance = if color == Color::White {
+                passer.rank() as usize
+            } else {
+                7 - passer.rank() as usize
+            };
+            if (path & enemy_defends).is_empty() {
+                summary.passer_safe_path[index][advance - 1] += 1;
+                summary.passer_path[index] =
+                    summary.passer_path[index] + weights::passer_safe_path_weight(advance - 1);
+            }
+            if (path & occupied).is_empty() {
+                summary.passer_free_path[index][advance - 1] += 1;
+                summary.passer_path[index] =
+                    summary.passer_path[index] + weights::passer_free_path_weight(advance - 1);
+            }
+            let behind = get_rook_moves(passer, occupied) & file & !path;
+            summary.rook_behind_passer[index] += i32::from(!(behind & own_rooks).is_empty());
+        }
         let minor_attacks = own.type_attacks[0] | own.type_attacks[1];
         summary.threats[index][0] = (enemy_minors & own.pawn_attacks).len() as i32;
         summary.threats[index][1] = (enemy_pieces & own_reach & !enemy_defends).len() as i32;

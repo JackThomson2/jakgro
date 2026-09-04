@@ -311,6 +311,10 @@ pub(super) struct EvalFeatures {
     /// knights, bishops, rooks and queens in turn. The raw move counts
     /// above include these squares; this says how many of them there were.
     pub(super) unsafe_mobility: [Score; 4],
+    /// Passers with a friendly rook behind them on the file and nothing
+    /// between, side-relative. The path blocks by rank are weighted into
+    /// the piece-indexed pair where they are produced.
+    pub(super) rook_behind_passer: Score,
     pub(super) king_pressure: Score,
     pub(super) pawn_storm: Score,
     pub(super) threats: Score,
@@ -1206,6 +1210,63 @@ mod tests {
         assert_eq!(
             features("4k3/8/8/3n4/8/4P3/8/4K3 w - - 0 1").unsafe_mobility,
             [-1, 0, 0, 0]
+        );
+    }
+
+    #[test]
+    fn passers_are_scored_by_the_state_of_their_path() {
+        let summary = |fen: &str| {
+            super::features::attack_summary_with_style(
+                Position::from_fen(fen).unwrap().board(),
+                false,
+            )
+        };
+        let features = |fen: &str| {
+            super::features::extract_with_style(Position::from_fen(fen).unwrap().board(), false)
+        };
+
+        // A passer on the fourth with nothing ahead: its path is safe and
+        // free, rank index two.
+        let open = summary("k7/8/8/8/4P3/8/8/K7 w - - 0 1");
+        assert_eq!(open.passer_safe_path[0], [0, 0, 1, 0, 0, 0]);
+        assert_eq!(open.passer_free_path[0], [0, 0, 1, 0, 0, 0]);
+        assert_eq!(open.rook_behind_passer, [0, 0]);
+        // A rook on the promotion square stands on the path and attacks
+        // the rest of it; one across the path attacks a square of it.
+        let blocked = summary("k3r3/8/8/8/4P3/8/8/K7 w - - 0 1");
+        assert_eq!(blocked.passer_safe_path[0], [0; 6]);
+        assert_eq!(blocked.passer_free_path[0], [0; 6]);
+        let crossed = summary("k7/8/8/7r/4P3/8/8/K7 w - - 0 1");
+        assert_eq!(crossed.passer_safe_path[0], [0; 6]);
+        assert_eq!(crossed.passer_free_path[0], [0, 0, 1, 0, 0, 0]);
+        // The enemy king's reach counts, which the attack map leaves out.
+        assert_eq!(
+            summary("4k3/8/8/8/4P3/8/8/K7 w - - 0 1").passer_safe_path[0],
+            [0; 6]
+        );
+        // A rook behind the passer counts with the file clear between them,
+        // not with a piece in the way, and not from in front.
+        assert_eq!(
+            summary("k7/8/8/8/4P3/8/8/K3R3 w - - 0 1").rook_behind_passer,
+            [1, 0]
+        );
+        assert_eq!(
+            summary("k7/8/8/8/4P3/4N3/8/K3R3 w - - 0 1").rook_behind_passer,
+            [0, 0]
+        );
+        assert_eq!(
+            summary("k7/4R3/8/8/4P3/8/8/K7 w - - 0 1").rook_behind_passer,
+            [0, 0]
+        );
+        // Black's passer on its own sixth, rank index four, with its rook
+        // behind it, counts against.
+        let black = summary("k3r3/8/8/8/8/4p3/8/K7 w - - 0 1");
+        assert_eq!(black.passer_safe_path[1], [0, 0, 0, 0, 1, 0]);
+        assert_eq!(black.passer_free_path[1], [0, 0, 0, 0, 1, 0]);
+        assert_eq!(black.rook_behind_passer, [0, 1]);
+        assert_eq!(
+            features("k3r3/8/8/8/8/4p3/8/K7 w - - 0 1").rook_behind_passer,
+            -1
         );
     }
 

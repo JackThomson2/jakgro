@@ -5,6 +5,7 @@ use cozy_chess::{Board, Move};
 const OBJECTIVE: &str = include_str!("data/objective-personality-contract.epd");
 const SACRIFICE: &str = include_str!("data/sacrifice-acceptance-contract.epd");
 const NULL_MOVE: &str = include_str!("data/null-move-contract.epd");
+const STANDARD: &str = include_str!("data/standard-acceptance.epd");
 
 fn operations(line: &str) -> (&str, Vec<(&str, &str)>) {
     let mut fields = line
@@ -28,7 +29,7 @@ fn operation<'a>(operations: &'a [(&str, &str)], key: &str) -> &'a str {
 #[test]
 fn objective_and_sacrifice_contract_moves_are_legal() {
     let mut identifiers = HashSet::new();
-    for input in [OBJECTIVE, SACRIFICE] {
+    for input in [OBJECTIVE, SACRIFICE, STANDARD] {
         for line in input.lines().filter(|line| {
             let line = line.trim();
             !line.is_empty() && !line.starts_with('#')
@@ -40,7 +41,7 @@ fn objective_and_sacrifice_contract_moves_are_legal() {
                 identifiers.insert(identifier.clone()),
                 "duplicate id: {identifier}"
             );
-            for key in ["obm", "bm0", "bm100"] {
+            for key in ["obm", "bm0", "bm75", "bm100"] {
                 let Some((_, moves)) = operations.iter().find(|(candidate, _)| *candidate == key)
                 else {
                     continue;

@@ -287,12 +287,17 @@ def measure_rows(
     fixtures: list[Fixture],
     profiles: list[int],
     check: bool,
+    move_time_ms: int | None = None,
 ) -> tuple[list[dict[str, object]], int]:
     rows: list[dict[str, object]] = []
     failures = 0
     for fixture in fixtures:
         for profile in profiles:
-            observation = engine.measure(fixture, profile)
+            observation = (
+                engine.measure(fixture, profile)
+                if move_time_ms is None
+                else engine.measure(fixture, profile, move_time_ms=move_time_ms)
+            )
             expected_moves = fixture.expected.get(profile, frozenset())
             mismatch = bool(expected_moves) and observation.bestmove not in expected_moves
             missing = check and not expected_moves
@@ -313,6 +318,7 @@ def measure_rows(
                     "score": observation.score,
                     "depth": observation.depth,
                     "nodes": observation.nodes,
+                    "elapsed_ms": observation.elapsed_ms,
                     "status": status,
                     "personality": observation.personality,
                 }
@@ -381,6 +387,7 @@ def summarize_comparison(
                     "score": row["score"],
                     "depth": row["depth"],
                     "nodes": row["nodes"],
+                    "elapsed_ms": row.get("elapsed_ms", 0),
                     "expected_hit": candidate_hit,
                     "personality": row.get("personality", {}),
                 },
@@ -389,6 +396,7 @@ def summarize_comparison(
                     "score": row["baseline_score"],
                     "depth": row["baseline_depth"],
                     "nodes": row["baseline_nodes"],
+                    "elapsed_ms": row.get("baseline_elapsed_ms", 0),
                     "expected_hit": baseline_hit,
                     "personality": row.get("baseline_personality", {}),
                 },
@@ -478,6 +486,7 @@ def main() -> int:
         help="personality EPD suite",
     )
     parser.add_argument("--profiles", type=parse_profiles, default=parse_profiles("0,100"))
+    parser.add_argument("--move-time-ms", type=int, help="override fixture nodes with a fixed move time")
     parser.add_argument("--timeout", type=float, default=10.0, help="seconds per UCI response")
     parser.add_argument("--check", action="store_true", help="fail on expected-move mismatch")
     parser.add_argument(
@@ -489,6 +498,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.timeout <= 0:
         parser.error("--timeout must be positive")
+    if args.move_time_ms is not None and args.move_time_ms <= 0:
+        parser.error("--move-time-ms must be positive")
     if args.require_improvement and args.baseline_engine is None:
         parser.error("--require-improvement needs --baseline-engine")
 
@@ -496,14 +507,14 @@ def main() -> int:
         fixtures = parse_suite(args.suite)
         candidate_hash_before = sha256_file(args.engine)
         with UciEngine(args.engine, args.timeout) as engine:
-            rows, failures = measure_rows(engine, fixtures, args.profiles, args.check)
+            rows, failures = measure_rows(engine, fixtures, args.profiles, args.check, args.move_time_ms)
 
         comparison = args.baseline_engine is not None
         if comparison:
             baseline_hash_before = sha256_file(args.baseline_engine)
             with UciEngine(args.baseline_engine, args.timeout) as baseline_engine:
                 baseline_rows, _ = measure_rows(
-                    baseline_engine, fixtures, args.profiles, False
+                    baseline_engine, fixtures, args.profiles, False, args.move_time_ms
                 )
             baseline_by_position = {
                 (row["id"], row["aggression"]): row for row in baseline_rows
@@ -518,6 +529,7 @@ def main() -> int:
                         "baseline_score": baseline_row["score"],
                         "baseline_depth": baseline_row["depth"],
                         "baseline_nodes": baseline_row["nodes"],
+                        "baseline_elapsed_ms": baseline_row["elapsed_ms"],
                         "baseline_status": baseline_row["status"],
                         "baseline_personality": baseline_row["personality"],
                         "move_changed": row["bestmove"] != baseline_row["bestmove"],
@@ -544,6 +556,10 @@ def main() -> int:
                 raise RuntimeError("engine changed during measurement")
             summary = summarize(rows)
 
+        summary["limit"] = (
+            {"mode": "fixed-movetime", "movetime_ms": args.move_time_ms}
+            if args.move_time_ms is not None else {"mode": "fixture-nodes"}
+        )
         if args.summary_json is not None:
             args.summary_json.parent.mkdir(parents=True, exist_ok=True)
             args.summary_json.write_text(
@@ -562,6 +578,7 @@ def main() -> int:
         "score",
         "depth",
         "nodes",
+        "elapsed_ms",
         "status",
         "personality",
     ]
@@ -572,6 +589,7 @@ def main() -> int:
                 "baseline_score",
                 "baseline_depth",
                 "baseline_nodes",
+                "baseline_elapsed_ms",
                 "baseline_status",
                 "baseline_personality",
                 "move_changed",

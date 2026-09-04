@@ -245,6 +245,7 @@ cargo build --release --locked --features tuning --bin tune
   --out artifacts/tuning/positions.txt --skip-plies 8
 ./target/release/tune fit --positions artifacts/tuning/positions.txt \
   --out artifacts/tuning/weights.txt --epochs 1200 --l2 1e-7
+python3 tools/splice_weights.py artifacts/tuning/weights.txt
 ```
 
 `extract` keeps only positions a static evaluation can be held accountable for:
@@ -253,6 +254,10 @@ barely contains at their published values and pulls the rest toward them, which
 is what stops rarely-seen piece-square entries from absorbing noise. The
 attacking-style weights and the profile mobility adjustment are never fitted, so
 the personality cannot be tuned away by an optimiser that only sees results.
+`splice_weights.py` writes the fitted file back into `weights.rs` and
+`placement.rs` declaration by declaration and refuses a name it cannot match
+exactly once, so a refit is reproducible from the recorded commands rather than
+from a paste; `--dry-run` lists what it would replace.
 
 Both are behind the `tuning` feature and are not built into the shipped engine.
 

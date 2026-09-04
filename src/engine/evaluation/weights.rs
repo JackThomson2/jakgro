@@ -6,93 +6,93 @@ use super::{
     QUEEN_MOBILITY_ENTRIES, ROOK_MOBILITY_ENTRIES, Score, ScorePair,
 };
 
-const PAWN: ScorePair = ScorePair::new(94, 149);
-const KNIGHT: ScorePair = ScorePair::new(330, 290);
-const BISHOP: ScorePair = ScorePair::new(347, 327);
-const ROOK: ScorePair = ScorePair::new(503, 547);
-const QUEEN: ScorePair = ScorePair::new(926, 932);
-const ACTIVITY: ScorePair = ScorePair::new(2, -5);
-const TEMPO: ScorePair = ScorePair::new(21, 2);
+const PAWN: ScorePair = ScorePair::new(94, 151);
+const KNIGHT: ScorePair = ScorePair::new(341, 299);
+const BISHOP: ScorePair = ScorePair::new(363, 345);
+const ROOK: ScorePair = ScorePair::new(524, 575);
+const QUEEN: ScorePair = ScorePair::new(993, 996);
+const ACTIVITY: ScorePair = ScorePair::new(3, -6);
+const TEMPO: ScorePair = ScorePair::new(22, 3);
 /// Weight per move for the two piece types without a mobility curve.
-const PAWN_KING_MOBILITY: ScorePair = ScorePair::new(-1, -3);
+const PAWN_KING_MOBILITY: ScorePair = ScorePair::new(-1, -4);
 /// Mobility by move count, one entry per count a piece of that type can have.
 ///
 /// Fitted curves rather than one weight per move: a knight's third square is
 /// not worth what its eighth is, and a trapped piece costs more than a line
 /// through the origin can express.
 const KNIGHT_MOBILITY: [ScorePair; 9] = [
-    ScorePair::new(-2, 0),
-    ScorePair::new(4, 9),
-    ScorePair::new(11, 22),
-    ScorePair::new(17, 28),
-    ScorePair::new(16, 37),
-    ScorePair::new(19, 40),
-    ScorePair::new(18, 45),
-    ScorePair::new(21, 49),
+    ScorePair::new(-3, 0),
+    ScorePair::new(4, 10),
+    ScorePair::new(11, 25),
+    ScorePair::new(18, 29),
+    ScorePair::new(15, 39),
+    ScorePair::new(18, 41),
+    ScorePair::new(18, 46),
+    ScorePair::new(22, 50),
     ScorePair::new(19, 49),
 ];
 const BISHOP_MOBILITY: [ScorePair; 14] = [
-    ScorePair::new(-11, -3),
-    ScorePair::new(-1, 8),
-    ScorePair::new(11, 18),
-    ScorePair::new(10, 27),
-    ScorePair::new(14, 35),
-    ScorePair::new(24, 46),
-    ScorePair::new(25, 51),
-    ScorePair::new(31, 57),
-    ScorePair::new(24, 62),
-    ScorePair::new(25, 70),
-    ScorePair::new(29, 73),
-    ScorePair::new(32, 75),
-    ScorePair::new(40, 92),
-    ScorePair::new(43, 95),
+    ScorePair::new(-14, -4),
+    ScorePair::new(-2, 9),
+    ScorePair::new(11, 20),
+    ScorePair::new(10, 30),
+    ScorePair::new(14, 38),
+    ScorePair::new(26, 51),
+    ScorePair::new(28, 55),
+    ScorePair::new(34, 61),
+    ScorePair::new(26, 67),
+    ScorePair::new(27, 74),
+    ScorePair::new(30, 76),
+    ScorePair::new(33, 76),
+    ScorePair::new(42, 97),
+    ScorePair::new(45, 97),
 ];
 const ROOK_MOBILITY: [ScorePair; 15] = [
-    ScorePair::new(-14, -3),
-    ScorePair::new(0, 10),
-    ScorePair::new(6, 21),
-    ScorePair::new(16, 31),
-    ScorePair::new(21, 36),
-    ScorePair::new(21, 43),
-    ScorePair::new(19, 57),
-    ScorePair::new(24, 61),
-    ScorePair::new(25, 69),
-    ScorePair::new(29, 74),
-    ScorePair::new(31, 79),
-    ScorePair::new(31, 82),
-    ScorePair::new(36, 87),
-    ScorePair::new(41, 94),
-    ScorePair::new(40, 81),
+    ScorePair::new(-17, -4),
+    ScorePair::new(0, 12),
+    ScorePair::new(6, 25),
+    ScorePair::new(16, 35),
+    ScorePair::new(23, 39),
+    ScorePair::new(23, 47),
+    ScorePair::new(20, 63),
+    ScorePair::new(26, 65),
+    ScorePair::new(26, 73),
+    ScorePair::new(30, 78),
+    ScorePair::new(32, 83),
+    ScorePair::new(31, 85),
+    ScorePair::new(37, 90),
+    ScorePair::new(42, 96),
+    ScorePair::new(42, 79),
 ];
 const QUEEN_MOBILITY: [ScorePair; 28] = [
     ScorePair::new(0, 0),
-    ScorePair::new(5, 7),
-    ScorePair::new(8, 16),
-    ScorePair::new(15, 23),
-    ScorePair::new(16, 32),
-    ScorePair::new(21, 40),
-    ScorePair::new(25, 48),
-    ScorePair::new(29, 58),
-    ScorePair::new(32, 65),
-    ScorePair::new(33, 73),
-    ScorePair::new(35, 81),
-    ScorePair::new(36, 90),
-    ScorePair::new(42, 96),
-    ScorePair::new(47, 107),
-    ScorePair::new(52, 114),
-    ScorePair::new(50, 120),
-    ScorePair::new(56, 129),
-    ScorePair::new(55, 136),
-    ScorePair::new(58, 142),
-    ScorePair::new(63, 149),
-    ScorePair::new(66, 156),
-    ScorePair::new(69, 163),
-    ScorePair::new(73, 171),
-    ScorePair::new(77, 178),
-    ScorePair::new(80, 187),
-    ScorePair::new(84, 196),
-    ScorePair::new(88, 204),
-    ScorePair::new(91, 212),
+    ScorePair::new(6, 7),
+    ScorePair::new(9, 17),
+    ScorePair::new(17, 24),
+    ScorePair::new(18, 34),
+    ScorePair::new(23, 43),
+    ScorePair::new(28, 51),
+    ScorePair::new(32, 63),
+    ScorePair::new(35, 70),
+    ScorePair::new(37, 79),
+    ScorePair::new(38, 87),
+    ScorePair::new(39, 97),
+    ScorePair::new(46, 103),
+    ScorePair::new(52, 115),
+    ScorePair::new(57, 122),
+    ScorePair::new(53, 128),
+    ScorePair::new(60, 138),
+    ScorePair::new(57, 145),
+    ScorePair::new(60, 150),
+    ScorePair::new(66, 157),
+    ScorePair::new(69, 164),
+    ScorePair::new(72, 171),
+    ScorePair::new(77, 180),
+    ScorePair::new(81, 187),
+    ScorePair::new(84, 197),
+    ScorePair::new(89, 207),
+    ScorePair::new(93, 216),
+    ScorePair::new(96, 224),
 ];
 const PAWN_MOBILITY_ADJUSTMENT: ScorePair = ScorePair::new(-3, -2);
 const KNIGHT_MOBILITY_ADJUSTMENT: ScorePair = ScorePair::new(1, 2);
@@ -100,84 +100,84 @@ const BISHOP_MOBILITY_ADJUSTMENT: ScorePair = ScorePair::new(2, 3);
 const ROOK_MOBILITY_ADJUSTMENT: ScorePair = ScorePair::new(-1, 2);
 const QUEEN_MOBILITY_ADJUSTMENT: ScorePair = ScorePair::new(-2, 0);
 const KING_MOBILITY_ADJUSTMENT: ScorePair = ScorePair::new(-3, -2);
-const BISHOP_PAIR: ScorePair = ScorePair::new(37, 52);
-const DOUBLED_PAWN: ScorePair = ScorePair::new(-11, -19);
-const ISOLATED_PAWN: ScorePair = ScorePair::new(-5, -7);
+const BISHOP_PAIR: ScorePair = ScorePair::new(37, 55);
+const DOUBLED_PAWN: ScorePair = ScorePair::new(-10, -18);
+const ISOLATED_PAWN: ScorePair = ScorePair::new(-3, -7);
 /// Passed pawn value by rank, from the owner's side of the board.
 ///
 /// Six fitted values rather than one weight times the rank: a passer on the
 /// seventh is not seven times a passer on the second.
 const PASSED_PAWN_BY_RANK: [ScorePair; 6] = [
-    ScorePair::new(-1, 10),
-    ScorePair::new(2, 26),
-    ScorePair::new(10, 60),
-    ScorePair::new(24, 87),
-    ScorePair::new(37, 97),
-    ScorePair::new(32, 89),
+    ScorePair::new(-2, 8),
+    ScorePair::new(0, 28),
+    ScorePair::new(8, 64),
+    ScorePair::new(25, 93),
+    ScorePair::new(41, 101),
+    ScorePair::new(33, 88),
 ];
 /// Extra value for a passed pawn defended by a friendly pawn, by rank.
 const PROTECTED_PASSED_PAWN_BY_RANK: [ScorePair; 6] = [
     ScorePair::new(0, 0),
-    ScorePair::new(0, -5),
-    ScorePair::new(0, 0),
-    ScorePair::new(7, 2),
-    ScorePair::new(6, 4),
-    ScorePair::new(0, -2),
+    ScorePair::new(1, -6),
+    ScorePair::new(1, 1),
+    ScorePair::new(10, 1),
+    ScorePair::new(8, 6),
+    ScorePair::new(0, -3),
 ];
 const KING_SHELTER: ScorePair = ScorePair::new(25, -14);
-const OPEN_KING_FILE: ScorePair = ScorePair::new(-16, -4);
+const OPEN_KING_FILE: ScorePair = ScorePair::new(-16, -5);
 /// Rook placement. A hand-set file bonus was screened once and reversed sign
 /// on a holdout; these are the data's values.
-const ROOK_OPEN_FILE: ScorePair = ScorePair::new(27, -9);
-const ROOK_SEMI_OPEN_FILE: ScorePair = ScorePair::new(3, 19);
-const ROOK_ON_SEVENTH: ScorePair = ScorePair::new(0, 8);
+const ROOK_OPEN_FILE: ScorePair = ScorePair::new(36, -11);
+const ROOK_SEMI_OPEN_FILE: ScorePair = ScorePair::new(5, 23);
+const ROOK_ON_SEVENTH: ScorePair = ScorePair::new(-3, 9);
 /// Minor pieces on outposts.
-const KNIGHT_OUTPOST: ScorePair = ScorePair::new(18, 8);
-const BISHOP_OUTPOST: ScorePair = ScorePair::new(4, 9);
+const KNIGHT_OUTPOST: ScorePair = ScorePair::new(22, 9);
+const BISHOP_OUTPOST: ScorePair = ScorePair::new(5, 12);
 /// Pawn structure beyond doubled and isolated.
-const BACKWARD_PAWN: ScorePair = ScorePair::new(-1, -5);
+const BACKWARD_PAWN: ScorePair = ScorePair::new(1, -5);
 /// Threats in the objective evaluation. The style's own threat terms are
 /// untouched.
-const THREAT_MINOR_BY_PAWN: ScorePair = ScorePair::new(36, 16);
-const THREAT_HANGING: ScorePair = ScorePair::new(23, 20);
-const THREAT_BY_LOWER_VALUE: ScorePair = ScorePair::new(31, 11);
+const THREAT_MINOR_BY_PAWN: ScorePair = ScorePair::new(49, 22);
+const THREAT_HANGING: ScorePair = ScorePair::new(25, 22);
+const THREAT_BY_LOWER_VALUE: ScorePair = ScorePair::new(37, 13);
 const CONNECTED_PAWN_BY_RANK: [ScorePair; 6] = [
-    ScorePair::new(3, -2),
-    ScorePair::new(12, 8),
-    ScorePair::new(14, 12),
-    ScorePair::new(20, 17),
-    ScorePair::new(8, 10),
+    ScorePair::new(4, -3),
+    ScorePair::new(13, 9),
+    ScorePair::new(13, 13),
+    ScorePair::new(22, 19),
+    ScorePair::new(12, 14),
     ScorePair::new(0, -1),
 ];
 /// Passer refinements: a blockade by rank, and the distance of each king to
 /// the square ahead of the passer.
 const BLOCKED_PASSER_BY_RANK: [ScorePair; 6] = [
-    ScorePair::new(-3, -7),
-    ScorePair::new(-3, -3),
-    ScorePair::new(-8, -5),
-    ScorePair::new(-3, -12),
-    ScorePair::new(-2, -15),
-    ScorePair::new(-6, -21),
+    ScorePair::new(-4, -10),
+    ScorePair::new(-4, -3),
+    ScorePair::new(-11, -6),
+    ScorePair::new(-4, -16),
+    ScorePair::new(-3, -20),
+    ScorePair::new(-9, -30),
 ];
 const PASSER_OWN_KING_DISTANCE: [ScorePair; 8] = [
-    ScorePair::new(0, 5),
-    ScorePair::new(2, 25),
-    ScorePair::new(-2, 7),
-    ScorePair::new(-2, -2),
-    ScorePair::new(-8, -10),
-    ScorePair::new(-5, -14),
-    ScorePair::new(3, -9),
-    ScorePair::new(-4, -8),
+    ScorePair::new(0, 7),
+    ScorePair::new(1, 30),
+    ScorePair::new(-3, 9),
+    ScorePair::new(-2, -3),
+    ScorePair::new(-10, -13),
+    ScorePair::new(-6, -19),
+    ScorePair::new(4, -14),
+    ScorePair::new(-6, -12),
 ];
 const PASSER_ENEMY_KING_DISTANCE: [ScorePair; 8] = [
-    ScorePair::new(-11, -30),
-    ScorePair::new(-4, -34),
-    ScorePair::new(-3, -16),
-    ScorePair::new(2, 5),
-    ScorePair::new(-2, 19),
-    ScorePair::new(5, 25),
-    ScorePair::new(-1, 15),
-    ScorePair::new(0, 8),
+    ScorePair::new(-15, -37),
+    ScorePair::new(-5, -43),
+    ScorePair::new(-3, -20),
+    ScorePair::new(3, 4),
+    ScorePair::new(-3, 22),
+    ScorePair::new(6, 28),
+    ScorePair::new(-1, 18),
+    ScorePair::new(-1, 11),
 ];
 /// King danger by bucketed attack units, and safe checks by checking piece,
 /// zero until fitted.
@@ -185,16 +185,16 @@ const PASSER_ENEMY_KING_DISTANCE: [ScorePair; 8] = [
 /// The first series measured a hand-set non-linear attacker-count term at
 /// -14 Elo. This is a curve the fit shapes, and it may shape it to nothing.
 const KING_DANGER_BY_BUCKET: [ScorePair; KING_DANGER_BUCKETS] = [
-    ScorePair::new(0, -1),
-    ScorePair::new(-3, -10),
-    ScorePair::new(-7, -4),
-    ScorePair::new(-3, -8),
-    ScorePair::new(-2, -8),
-    ScorePair::new(1, -7),
-    ScorePair::new(4, 1),
+    ScorePair::new(0, -2),
+    ScorePair::new(-5, -13),
+    ScorePair::new(-12, -5),
+    ScorePair::new(-3, -12),
+    ScorePair::new(-3, -13),
+    ScorePair::new(1, -13),
+    ScorePair::new(6, 1),
+    ScorePair::new(7, 3),
     ScorePair::new(4, 2),
-    ScorePair::new(2, 1),
-    ScorePair::new(1, 1),
+    ScorePair::new(2, 2),
     ScorePair::new(0, 0),
     ScorePair::new(0, 0),
     ScorePair::new(0, 0),
@@ -203,72 +203,136 @@ const KING_DANGER_BY_BUCKET: [ScorePair; KING_DANGER_BUCKETS] = [
     ScorePair::new(0, 0),
 ];
 const SAFE_CHECK_BY_PIECE: [ScorePair; 4] = [
-    ScorePair::new(17, 0),
-    ScorePair::new(12, 12),
-    ScorePair::new(19, 11),
-    ScorePair::new(40, 16),
+    ScorePair::new(23, -1),
+    ScorePair::new(15, 15),
+    ScorePair::new(25, 9),
+    ScorePair::new(45, 15),
 ];
 /// Shelter graded by the nearest pawn's distance on each file, zero until
 /// fitted; the shelter count above stays as it was.
 const SHELTER_KING_FILE_BY_DISTANCE: [ScorePair; 6] = [
-    ScorePair::new(10, -3),
-    ScorePair::new(0, 0),
-    ScorePair::new(-2, -6),
-    ScorePair::new(1, -1),
-    ScorePair::new(0, -1),
+    ScorePair::new(14, -6),
+    ScorePair::new(2, 1),
+    ScorePair::new(-2, -9),
+    ScorePair::new(2, -2),
+    ScorePair::new(0, -2),
     ScorePair::new(0, 0),
 ];
 const SHELTER_ADJACENT_FILE_BY_DISTANCE: [ScorePair; 6] = [
-    ScorePair::new(-2, -2),
-    ScorePair::new(-7, 1),
-    ScorePair::new(1, -3),
+    ScorePair::new(-3, -2),
+    ScorePair::new(-12, 2),
+    ScorePair::new(-1, -4),
+    ScorePair::new(-1, -5),
     ScorePair::new(0, -3),
-    ScorePair::new(0, -2),
     ScorePair::new(0, 0),
 ];
 /// The pawn storm against the king, graded by the nearest enemy pawn's
 /// distance on each file, with the storms a friendly pawn blocks counted
 /// apart; zero until fitted. The style's storm term is a different quantity
 /// and is untouched.
-const STORM_KING_FILE_BY_DISTANCE: [ScorePair; 6] = [ScorePair::new(0, 0); 6];
-const STORM_ADJACENT_FILE_BY_DISTANCE: [ScorePair; 6] = [ScorePair::new(0, 0); 6];
-const BLOCKED_STORM_BY_DISTANCE: [ScorePair; 6] = [ScorePair::new(0, 0); 6];
+const STORM_KING_FILE_BY_DISTANCE: [ScorePair; 6] = [
+    ScorePair::new(4, 10),
+    ScorePair::new(0, 2),
+    ScorePair::new(3, 2),
+    ScorePair::new(2, 5),
+    ScorePair::new(5, 1),
+    ScorePair::new(5, 1),
+];
+const STORM_ADJACENT_FILE_BY_DISTANCE: [ScorePair; 6] = [
+    ScorePair::new(0, 0),
+    ScorePair::new(-2, -1),
+    ScorePair::new(-2, 3),
+    ScorePair::new(-2, 3),
+    ScorePair::new(5, 2),
+    ScorePair::new(3, -2),
+];
+const BLOCKED_STORM_BY_DISTANCE: [ScorePair; 6] = [
+    ScorePair::new(0, 0),
+    ScorePair::new(-2, -4),
+    ScorePair::new(1, -2),
+    ScorePair::new(1, -1),
+    ScorePair::new(2, -1),
+    ScorePair::new(-1, -2),
+];
 /// Safe centre squares behind the pawn chain, alone and scaled by the
 /// owner's pieces; zero until fitted. The style's space term counts
 /// attacked squares in the enemy half and is a different quantity.
-const SPACE_AREA: ScorePair = ScorePair::new(0, 0);
+const SPACE_AREA: ScorePair = ScorePair::new(-5, 2);
 const SPACE_AREA_BY_PIECES: ScorePair = ScorePair::new(0, 0);
 /// Candidate passers by rank, pawn islands, and a king on a flank with no
 /// pawn of either colour; zero until fitted. All three ride the structure
 /// cache, so they are weighted with the indexed structure blocks.
-const CANDIDATE_PASSER_BY_RANK: [ScorePair; 6] = [ScorePair::new(0, 0); 6];
-const PAWN_ISLANDS: ScorePair = ScorePair::new(0, 0);
-const KING_PAWNLESS_FLANK: ScorePair = ScorePair::new(0, 0);
+const CANDIDATE_PASSER_BY_RANK: [ScorePair; 6] = [
+    ScorePair::new(1, 0),
+    ScorePair::new(2, 1),
+    ScorePair::new(6, 9),
+    ScorePair::new(2, 6),
+    ScorePair::new(1, 1),
+    ScorePair::new(0, 0),
+];
+const PAWN_ISLANDS: ScorePair = ScorePair::new(-3, 2);
+const KING_PAWNLESS_FLANK: ScorePair = ScorePair::new(-3, -17);
 /// Knights, bishops and rooks scaled by their side's pawn count, and
 /// bishops by the friendly pawns on their colour; zero until fitted, so the
 /// material weights above keep their meaning.
-const KNIGHT_PER_PAWN: ScorePair = ScorePair::new(0, 0);
-const BISHOP_PER_PAWN: ScorePair = ScorePair::new(0, 0);
-const ROOK_PER_PAWN: ScorePair = ScorePair::new(0, 0);
-const BISHOP_PAWNS_ON_COLOUR: ScorePair = ScorePair::new(0, 0);
+const KNIGHT_PER_PAWN: ScorePair = ScorePair::new(1, 7);
+const BISHOP_PER_PAWN: ScorePair = ScorePair::new(1, 4);
+const ROOK_PER_PAWN: ScorePair = ScorePair::new(-7, 8);
+const BISHOP_PAWNS_ON_COLOUR: ScorePair = ScorePair::new(-5, -3);
 /// Moves onto squares an enemy pawn attacks, per piece type from the
 /// knight to the queen; zero until fitted. The mobility curves count these
 /// squares with the rest, so this is what a guarded square is worth less.
-const UNSAFE_MOBILITY_BY_PIECE: [ScorePair; 4] = [ScorePair::new(0, 0); 4];
+const UNSAFE_MOBILITY_BY_PIECE: [ScorePair; 4] = [
+    ScorePair::new(-7, -6),
+    ScorePair::new(-4, -5),
+    ScorePair::new(-8, 1),
+    ScorePair::new(-5, 11),
+];
 /// Passers whose path no enemy piece attacks and passers whose path no
 /// piece stands on, by rank, and passers with a friendly rook behind them;
 /// zero until fitted.
-const PASSER_SAFE_PATH_BY_RANK: [ScorePair; 6] = [ScorePair::new(0, 0); 6];
-const PASSER_FREE_PATH_BY_RANK: [ScorePair; 6] = [ScorePair::new(0, 0); 6];
-const ROOK_BEHIND_PASSER: ScorePair = ScorePair::new(0, 0);
+const PASSER_SAFE_PATH_BY_RANK: [ScorePair; 6] = [
+    ScorePair::new(-1, 2),
+    ScorePair::new(-2, 0),
+    ScorePair::new(-2, 3),
+    ScorePair::new(0, 8),
+    ScorePair::new(2, 12),
+    ScorePair::new(1, 3),
+];
+const PASSER_FREE_PATH_BY_RANK: [ScorePair; 6] = [
+    ScorePair::new(0, 2),
+    ScorePair::new(-2, 0),
+    ScorePair::new(1, 3),
+    ScorePair::new(1, 6),
+    ScorePair::new(3, 6),
+    ScorePair::new(2, 1),
+];
+const ROOK_BEHIND_PASSER: ScorePair = ScorePair::new(5, 4);
 /// Enemy pieces a pawn would attack after a safe push, and the sides a
 /// colour may still castle to; zero until fitted.
-const THREAT_BY_PAWN_PUSH: ScorePair = ScorePair::new(0, 0);
-const CASTLING_RIGHTS: ScorePair = ScorePair::new(0, 0);
+const THREAT_BY_PAWN_PUSH: ScorePair = ScorePair::new(10, 7);
+const CASTLING_RIGHTS: ScorePair = ScorePair::new(18, 3);
 /// Knights, bishops, rooks and queens by their distance to the enemy king,
 /// bucketed at one, two, three and four or more, four entries a piece type
 /// in that order; zero until fitted.
-const TROPISM_BY_PIECE_DISTANCE: [ScorePair; 16] = [ScorePair::new(0, 0); 16];
+const TROPISM_BY_PIECE_DISTANCE: [ScorePair; 16] = [
+    ScorePair::new(-1, -3),
+    ScorePair::new(-2, -4),
+    ScorePair::new(2, 0),
+    ScorePair::new(-7, 0),
+    ScorePair::new(-1, -1),
+    ScorePair::new(3, -2),
+    ScorePair::new(-1, -1),
+    ScorePair::new(-4, 4),
+    ScorePair::new(0, 0),
+    ScorePair::new(0, -3),
+    ScorePair::new(-1, 1),
+    ScorePair::new(-7, -1),
+    ScorePair::new(0, 0),
+    ScorePair::new(7, 4),
+    ScorePair::new(3, 2),
+    ScorePair::new(4, 4),
+];
 const KING_PRESSURE: ScorePair = ScorePair::new(9, 2);
 const PAWN_STORM: ScorePair = ScorePair::new(7, 1);
 const THREAT: ScorePair = ScorePair::new(11, 7);

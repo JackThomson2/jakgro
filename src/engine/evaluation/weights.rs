@@ -261,6 +261,10 @@ const UNSAFE_MOBILITY_BY_PIECE: [ScorePair; 4] = [ScorePair::new(0, 0); 4];
 const PASSER_SAFE_PATH_BY_RANK: [ScorePair; 6] = [ScorePair::new(0, 0); 6];
 const PASSER_FREE_PATH_BY_RANK: [ScorePair; 6] = [ScorePair::new(0, 0); 6];
 const ROOK_BEHIND_PASSER: ScorePair = ScorePair::new(0, 0);
+/// Enemy pieces a pawn would attack after a safe push, and the sides a
+/// colour may still castle to; zero until fitted.
+const THREAT_BY_PAWN_PUSH: ScorePair = ScorePair::new(0, 0);
+const CASTLING_RIGHTS: ScorePair = ScorePair::new(0, 0);
 const KING_PRESSURE: ScorePair = ScorePair::new(9, 2);
 const PAWN_STORM: ScorePair = ScorePair::new(7, 1);
 const THREAT: ScorePair = ScorePair::new(11, 7);
@@ -306,6 +310,8 @@ pub(super) fn score(features: &EvalFeatures) -> ScorePair {
         + BISHOP_PAWNS_ON_COLOUR * features.bishop_pawns_on_colour
         + indexed(&UNSAFE_MOBILITY_BY_PIECE, features.unsafe_mobility)
         + ROOK_BEHIND_PASSER * features.rook_behind_passer
+        + THREAT_BY_PAWN_PUSH * features.threat_by_pawn_push
+        + CASTLING_RIGHTS * features.castling_rights
 }
 
 /// Weights every rank- or distance-indexed structure block at once.
@@ -542,6 +548,7 @@ pub(super) fn trailing_tuning_weights() -> [ScorePair; super::tuning::TRAILING_F
         &PASSER_SAFE_PATH_BY_RANK[..],
         &PASSER_FREE_PATH_BY_RANK[..],
         &[ROOK_BEHIND_PASSER][..],
+        &[THREAT_BY_PAWN_PUSH, CASTLING_RIGHTS][..],
     ] {
         weights[next..next + block.len()].copy_from_slice(block);
         next += block.len();

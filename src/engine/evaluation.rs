@@ -315,6 +315,10 @@ pub(super) struct EvalFeatures {
     /// between, side-relative. The path blocks by rank are weighted into
     /// the piece-indexed pair where they are produced.
     pub(super) rook_behind_passer: Score,
+    /// Enemy pieces a friendly pawn would attack after a safe push, and the
+    /// sides a colour may still castle to, both side-relative.
+    pub(super) threat_by_pawn_push: Score,
+    pub(super) castling_rights: Score,
     pub(super) king_pressure: Score,
     pub(super) pawn_storm: Score,
     pub(super) threats: Score,
@@ -1266,6 +1270,51 @@ mod tests {
         assert_eq!(black.rook_behind_passer, [0, 1]);
         assert_eq!(
             features("k3r3/8/8/8/8/4p3/8/K7 w - - 0 1").rook_behind_passer,
+            -1
+        );
+    }
+
+    #[test]
+    fn pawn_push_threats_and_castling_rights_are_counted() {
+        let threats = |fen: &str| {
+            super::features::attack_summary_with_style(
+                Position::from_fen(fen).unwrap().board(),
+                false,
+            )
+            .pawn_push_threats
+        };
+        let features = |fen: &str| {
+            super::features::extract_with_style(Position::from_fen(fen).unwrap().board(), false)
+        };
+
+        // e2-e3 would attack the knight on d4.
+        assert_eq!(threats("4k3/8/8/8/3n4/8/4P3/4K3 w - - 0 1"), [1, 0]);
+        // Not onto a square a rook attacks and nothing defends; onto it
+        // once the king defends it.
+        assert_eq!(threats("4k3/4r3/8/8/3n4/8/4P3/4K3 w - - 0 1"), [0, 0]);
+        assert_eq!(threats("4k3/4r3/8/8/3n4/8/3KP3/8 w - - 0 1"), [1, 0]);
+        // A double push from the second rank counts, through an empty
+        // square.
+        assert_eq!(threats("4k3/8/8/3n4/8/8/4P3/4K3 w - - 0 1"), [1, 0]);
+        assert_eq!(threats("4k3/8/8/3n4/8/4B3/4P3/4K3 w - - 0 1"), [0, 0]);
+        // Black's double push e7-e5 would attack the knight on d4.
+        assert_eq!(threats("4k3/4p3/8/8/3N4/8/8/4K3 w - - 0 1"), [0, 1]);
+        assert_eq!(
+            features("4k3/4p3/8/8/3N4/8/8/4K3 w - - 0 1").threat_by_pawn_push,
+            -1
+        );
+
+        // Castling rights are counted per side.
+        assert_eq!(
+            features("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1").castling_rights,
+            0
+        );
+        assert_eq!(
+            features("r3k2r/8/8/8/8/8/8/R3K2R w KQ - 0 1").castling_rights,
+            2
+        );
+        assert_eq!(
+            features("r3k2r/8/8/8/8/8/8/R3K2R w k - 0 1").castling_rights,
             -1
         );
     }

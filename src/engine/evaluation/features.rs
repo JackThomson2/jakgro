@@ -547,6 +547,10 @@ pub(super) fn extract_with_style(board: &Board, style: bool) -> EvalFeatures {
         features.piece_indexed =
             features.piece_indexed + attacks.passer_path[color as usize] * sign;
         features.rook_behind_passer += sign * attacks.rook_behind_passer[color as usize];
+        features.threat_by_pawn_push += sign * attacks.pawn_push_threats[color as usize];
+        let rights = board.castle_rights(color);
+        features.castling_rights +=
+            sign * (i32::from(rights.short.is_some()) + i32::from(rights.long.is_some()));
         // A colour that brings nothing against the enemy king is not counted
         // in the first bucket: the term describes an attack, not its absence.
         let units = scan.attack_units();
@@ -679,6 +683,9 @@ pub(super) struct AttackSummary {
     /// extraction adds one pair rather than walking twelve counts that are
     /// almost always zero; the counts are for the fitter and the tests.
     pub(super) passer_path: [ScorePair; 2],
+    /// Enemy pieces, pawns and king aside, a friendly pawn would attack
+    /// after a safe push, per colour.
+    pub(super) pawn_push_threats: [i32; 2],
 }
 
 #[cfg(test)]
@@ -1203,6 +1210,23 @@ pub(super) fn attack_summary_with_style(board: &Board, style: bool) -> AttackSum
         summary.threats[index][2] = (enemy_majors & (own.pawn_attacks | minor_attacks)).len()
             as i32
             + (enemy_queens & own.type_attacks[2]).len() as i32;
+
+        // A pawn that can push, once or twice from its second rank, onto an
+        // empty square no enemy pawn attacks that is either unattacked or
+        // defended, and from there attack an enemy piece, is a threat the
+        // side has not made yet.
+        let own_pawns = board.colored_pieces(color, Piece::Pawn);
+        let empty = !occupied;
+        let pushes = if color == Color::White {
+            let single = BitBoard(own_pawns.0 << 8) & empty;
+            single | (BitBoard((single & Rank::Third.bitboard()).0 << 8) & empty)
+        } else {
+            let single = BitBoard(own_pawns.0 >> 8) & empty;
+            single | (BitBoard((single & Rank::Sixth.bitboard()).0 >> 8) & empty)
+        };
+        let safe_pushes = pushes & !theirs.pawn_attacks & (!enemy_defends | own_reach);
+        summary.pawn_push_threats[index] =
+            (pawn_attack_set(safe_pushes, color) & enemy_pieces).len() as i32;
 
         let safe = !theirs.attacked & (!king_reach | own.attacked_twice);
         let diagonals = get_bishop_moves(enemy_king, occupied);

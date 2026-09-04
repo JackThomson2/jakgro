@@ -178,6 +178,8 @@ pub const BLOCKS: &[FeatureBlock] = &[
     array("PASSER_SAFE_PATH_BY_RANK", PASSER_PATH_OFFSET, 6),
     array("PASSER_FREE_PATH_BY_RANK", PASSER_PATH_OFFSET + 6, 6),
     scalar("ROOK_BEHIND_PASSER", PASSER_PATH_OFFSET + 12),
+    scalar("THREAT_BY_PAWN_PUSH", PAWN_PUSH_OFFSET),
+    scalar("CASTLING_RIGHTS", PAWN_PUSH_OFFSET + 1),
 ];
 
 /// Scalar features before the tables, in the order [`super::weights::score`]
@@ -213,7 +215,8 @@ pub const TRAILING_FEATURES: usize = MOBILITY_CURVE_ENTRIES
     + 4
     + 6
     + 6
-    + 1;
+    + 1
+    + 2;
 /// Length of the feature vector.
 pub const FEATURE_COUNT: usize = SCALAR_FEATURES + PLACEMENT_FEATURES + TRAILING_FEATURES;
 /// Index of the first piece-square feature.
@@ -253,6 +256,8 @@ const UNSAFE_MOBILITY_OFFSET: usize = PAWN_COUNT_OFFSET + 4;
 /// Index of the passer path blocks: safe by rank, free by rank, then the
 /// rook behind.
 const PASSER_PATH_OFFSET: usize = UNSAFE_MOBILITY_OFFSET + 4;
+/// Index of the pawn-push threat, followed by the castling rights.
+const PAWN_PUSH_OFFSET: usize = PASSER_PATH_OFFSET + 13;
 /// The mobility curves as piece, offset within the trailing region and length.
 const MOBILITY_CURVES: [(Piece, usize, usize); 4] = [
     (Piece::Knight, 0, KNIGHT_MOBILITY_ENTRIES),
@@ -487,6 +492,8 @@ pub fn tuning_features(board: &Board) -> TuningPosition {
         (PAWN_COUNT_OFFSET + 2, extracted.rook_pawns),
         (PAWN_COUNT_OFFSET + 3, extracted.bishop_pawns_on_colour),
         (PASSER_PATH_OFFSET + 12, extracted.rook_behind_passer),
+        (PAWN_PUSH_OFFSET, extracted.threat_by_pawn_push),
+        (PAWN_PUSH_OFFSET + 1, extracted.castling_rights),
     ] {
         if value != 0 {
             entries.push((offset as u16, value as i16));
@@ -654,7 +661,7 @@ mod tests {
     /// Positions the round trip is checked on. Each block added after the
     /// tables should be non-zero in at least one of them, or two blocks
     /// swapped in the layout would pass unnoticed.
-    const POSITIONS: [&str; 9] = [
+    const POSITIONS: [&str; 10] = [
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
         "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
         "r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8",
@@ -668,6 +675,8 @@ mod tests {
         "k7/8/8/2p5/1P6/P7/3P4/7K w - - 0 1",
         // A passer with a safe, free path and a rook behind it.
         "1k6/8/8/8/4P3/8/8/K3R3 w - - 0 1",
+        // Two castling rights against one.
+        "r3k2r/8/8/8/8/8/8/R3K2R w KQk - 0 1",
     ];
 
     /// The vector and the engine must agree exactly, or a fit optimizes a model

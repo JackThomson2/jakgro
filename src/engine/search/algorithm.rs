@@ -1529,7 +1529,6 @@ fn should_prune_quiet_move(
     history_score: i32,
     static_evaluation: Score,
     alpha: Score,
-    aggression: u8,
     improving: bool,
 ) -> bool {
     if depth > QUIET_FUTILITY_MAX_DEPTH
@@ -1544,9 +1543,7 @@ fn should_prune_quiet_move(
     {
         return false;
     }
-    let margin = QUIET_FUTILITY_BASE_MARGIN
-        + QUIET_FUTILITY_DEPTH_MARGIN * depth as Score
-        + Score::from(aggression)
+    let margin = QUIET_FUTILITY_BASE_MARGIN + QUIET_FUTILITY_DEPTH_MARGIN * depth as Score
         - if improving {
             0
         } else {
@@ -3716,7 +3713,6 @@ fn negamax(
                 history_score,
                 evaluation,
                 alpha,
-                context.personality.aggression(),
                 improving,
             )
         }) {
@@ -5714,13 +5710,13 @@ mod tests {
             })
             .unwrap();
         assert!(super::should_prune_quiet_move(
-            1, 2, metadata, false, 0, -500, 0, 0, true,
+            1, 2, metadata, false, 0, -500, 0, true,
         ));
         assert!(!super::should_prune_quiet_move(
-            1, 0, metadata, false, 0, -500, 0, 0, true,
+            1, 0, metadata, false, 0, -500, 0, true,
         ));
         assert!(!super::should_prune_quiet_move(
-            1, 2, metadata, true, 0, -500, 0, 0, true,
+            1, 2, metadata, true, 0, -500, 0, true,
         ));
     }
 
@@ -5782,7 +5778,6 @@ mod tests {
             0,
             improving_boundary,
             alpha,
-            0,
             true,
         ));
         assert!(!super::should_prune_quiet_move(
@@ -5793,7 +5788,6 @@ mod tests {
             0,
             improving_boundary + 1,
             alpha,
-            0,
             true,
         ));
         let declining_boundary = improving_boundary + super::DECLINING_QUIET_FUTILITY_RELIEF;
@@ -5807,7 +5801,6 @@ mod tests {
                 0,
                 declining_boundary,
                 alpha,
-                0,
                 true,
             ),
             "an improving node keeps a late quiet this close to alpha",
@@ -5821,7 +5814,6 @@ mod tests {
                 0,
                 declining_boundary,
                 alpha,
-                0,
                 false,
             ),
             "a declining node prunes the same late quiet",

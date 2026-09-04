@@ -66,6 +66,7 @@ def parse_contract_suite(path: Path) -> list[ContractFixture]:
         "nodes",
         "obm",
         "bm0",
+        "bm75",
         "bm100",
         "maxloss",
         "gate",
@@ -109,7 +110,7 @@ def parse_contract_suite(path: Path) -> list[ContractFixture]:
             raise ValueError(f"{path}:{line_number}: maxloss must be between 0 and 120")
         expected = {
             profile: parse_move_set(path, line_number, key, values[key])
-            for profile, key in ((0, "bm0"), (100, "bm100"))
+            for profile, key in ((0, "bm0"), (75, "bm75"), (100, "bm100"))
             if key in values
         }
         fixtures.append(
@@ -151,13 +152,20 @@ def observation_json(observation: measure_style.Observation) -> dict[str, object
         "score_cp": score_to_cp(observation.score),
         "depth": observation.depth,
         "nodes": observation.nodes,
+        "personality": observation.personality,
     }
 
 
 def measure_positions(
     engine: MeasurementEngine,
     fixtures: list[ContractFixture],
+    selected_profile: int = 100,
 ) -> list[dict[str, Any]]:
+    if selected_profile not in {0, 75, 100}:
+        raise ValueError("selected profile must be 0, 75, or 100")
+    for fixture in fixtures:
+        if selected_profile not in fixture.expected:
+            raise ValueError(f"{fixture.identifier}: missing bm{selected_profile}")
     positions: list[dict[str, Any]] = []
     for fixture in fixtures:
         search_fixture = fixture.search_fixture()
@@ -174,7 +182,7 @@ def measure_positions(
                 "expected_hit": hit,
             }
 
-        selected_move = str(profiles["100"]["bestmove"])
+        selected_move = str(profiles[str(selected_profile)]["bestmove"])
         objective = engine.measure(search_fixture, 0, fixture.objective_moves)
         selected = engine.measure(search_fixture, 0, frozenset({selected_move}))
         objective_cp = score_to_cp(objective.score)
@@ -190,6 +198,7 @@ def measure_positions(
                 "motif": fixture.motif,
                 "nodes": fixture.nodes,
                 "profiles": profiles,
+                "selected_profile": selected_profile,
                 "objective": {
                     **observation_json(objective),
                     "allowed_moves": sorted(fixture.objective_moves),
@@ -267,13 +276,14 @@ def main() -> int:
     parser.add_argument("--timeout", type=float, default=30.0)
     parser.add_argument("--summary-json", type=Path)
     parser.add_argument("--check", action="store_true")
+    parser.add_argument("--selected-profile", type=int, choices=(0, 75, 100), default=100)
     args = parser.parse_args()
 
     try:
         fixtures = parse_contract_suite(args.suite)
         before_hash = measure_style.sha256_file(args.engine)
         with measure_style.UciEngine(args.engine, args.timeout) as engine:
-            positions = measure_positions(engine, fixtures)
+            positions = measure_positions(engine, fixtures, args.selected_profile)
         if measure_style.sha256_file(args.engine) != before_hash:
             raise RuntimeError("engine binary changed during measurement")
         summary = summarize(positions, args.engine, args.suite)
@@ -283,7 +293,7 @@ def main() -> int:
 
     for position in positions:
         status = "pass" if position["passed"] else "FAIL"
-        selected = position["profiles"]["100"]["bestmove"]
+        selected = position["profiles"][str(args.selected_profile)]["bestmove"]
         print(
             f"{position['id']}: {status} bestmove={selected} "
             f"loss={position['root_loss_cp']}/{position['maximum_loss_cp']} cp"

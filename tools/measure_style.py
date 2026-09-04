@@ -12,7 +12,7 @@ import subprocess
 import sys
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +34,7 @@ class Observation:
     nodes: int
     elapsed_ms: int = 0
     nps: int = 0
+    personality: dict[str, int] = field(default_factory=dict)
 
 
 def parse_suite(path: Path) -> list[Fixture]:
@@ -57,7 +58,7 @@ def parse_suite(path: Path) -> list[Fixture]:
             if key.startswith("bm") and key[2:].isdigit():
                 profile = int(key[2:])
                 moves = frozenset(move.strip() for move in value.split(",") if move.strip())
-                if profile in expected or not moves:
+                if profile not in {0, 75, 100} or profile in expected or not moves:
                     raise ValueError(f"{path}:{line_number}: invalid field {key!r}")
                 expected[profile] = moves
             elif key in {"id", "category", "nodes"}:
@@ -76,7 +77,7 @@ def parse_suite(path: Path) -> list[Fixture]:
             nodes = int(values["nodes"])
         except (KeyError, ValueError) as error:
             raise ValueError(f"{path}:{line_number}: invalid node budget") from error
-        if nodes <= 0 or set(expected) != {0, 100}:
+        if nodes <= 0 or not {0, 100}.issubset(expected):
             raise ValueError(
                 f"{path}:{line_number}: positive nodes plus bm0 and bm100 are required"
             )
@@ -132,7 +133,20 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         for bucket in profiles.values():
             rated = int(bucket["rated"])
             bucket["hit_rate_percent"] = round(int(bucket["hits"]) * 100.0 / rated, 6) if rated else 0.0
-    return {"schema_version": 1, "categories": categories}
+    return {"schema_version": 1, "categories": categories, "positions": rows}
+
+
+def parse_personality_info(line: str) -> dict[str, int]:
+    """Read optional debug counters; older engines return no counters."""
+    prefix = "info string personality "
+    if not line.startswith(prefix):
+        return {}
+    result: dict[str, int] = {}
+    for token in line[len(prefix):].split():
+        key, separator, value = token.partition("=")
+        if separator and value.isdigit():
+            result[key] = int(value)
+    return result
 
 
 class UciEngine:
@@ -237,7 +251,12 @@ class UciEngine:
         if len(bestmove_fields) < 2 or bestmove_fields[1] == "0000" or parsed_info is None:
             raise RuntimeError(f"{fixture.identifier}: search returned no measured result")
         score, measured_depth, nodes, elapsed_ms, nps = parsed_info
-        return Observation(bestmove_fields[1], score, measured_depth, nodes, elapsed_ms, nps)
+        personality = next(
+            (parse_personality_info(line) for line in reversed(output)
+             if line.startswith("info string personality ")),
+            {},
+        )
+        return Observation(bestmove_fields[1], score, measured_depth, nodes, elapsed_ms, nps, personality)
 
     def close(self) -> None:
         if self.process.poll() is None:
@@ -295,6 +314,7 @@ def measure_rows(
                     "depth": observation.depth,
                     "nodes": observation.nodes,
                     "status": status,
+                    "personality": observation.personality,
                 }
             )
     return rows, failures
@@ -362,6 +382,7 @@ def summarize_comparison(
                     "depth": row["depth"],
                     "nodes": row["nodes"],
                     "expected_hit": candidate_hit,
+                    "personality": row.get("personality", {}),
                 },
                 "baseline": {
                     "bestmove": row["baseline_bestmove"],
@@ -369,6 +390,7 @@ def summarize_comparison(
                     "depth": row["baseline_depth"],
                     "nodes": row["baseline_nodes"],
                     "expected_hit": baseline_hit,
+                    "personality": row.get("baseline_personality", {}),
                 },
                 "delta": {
                     "move_changed": changed,
@@ -497,6 +519,7 @@ def main() -> int:
                         "baseline_depth": baseline_row["depth"],
                         "baseline_nodes": baseline_row["nodes"],
                         "baseline_status": baseline_row["status"],
+                        "baseline_personality": baseline_row["personality"],
                         "move_changed": row["bestmove"] != baseline_row["bestmove"],
                         "expected_hit_delta": int(candidate_hit) - int(baseline_hit),
                     }
@@ -540,6 +563,7 @@ def main() -> int:
         "depth",
         "nodes",
         "status",
+        "personality",
     ]
     if comparison:
         fieldnames.extend(
@@ -549,6 +573,7 @@ def main() -> int:
                 "baseline_depth",
                 "baseline_nodes",
                 "baseline_status",
+                "baseline_personality",
                 "move_changed",
                 "expected_hit_delta",
             ]

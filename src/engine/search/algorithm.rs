@@ -2635,8 +2635,11 @@ fn search_root_styled(
         context.personality.max_check_extensions(),
     );
     let original_node_limit = context.node_limit;
-    let personality_node_limit =
-        styled_root_node_limit(context.nodes, depth, tactical_reserve, original_node_limit);
+    let personality_local_limit =
+        styled_root_node_limit(context.nodes, depth, tactical_reserve, None);
+    let personality_node_limit = original_node_limit.map_or(personality_local_limit, |limit| {
+        limit.min(personality_local_limit)
+    });
     context.node_limit = Some(personality_node_limit);
     // The first-iteration guarantee exempts the search from its *configured*
     // budget so that a result always exists to report. This budget is a local
@@ -2748,6 +2751,7 @@ fn search_root_styled(
             personality_exhausted = true;
             break;
         };
+        context.telemetry.personality_completed_verifications += 1;
         let mut score = -child_result.score;
         let provisional_margin = if seed.sacrifice_hint >= MIN_SACRIFICE_CP {
             context.personality.root_style_margin().min(120)
@@ -2813,6 +2817,7 @@ fn search_root_styled(
                     sacrifice = sacrifice_profile(board, &child, mover, &pv);
                 }
                 Err(_) => {
+                    context.telemetry.personality_completed_verifications -= 1;
                     personality_exhausted = true;
                     break;
                 }
@@ -2840,6 +2845,8 @@ fn search_root_styled(
 
     if context.nodes >= personality_node_limit {
         personality_exhausted = true;
+        context.telemetry.personality_budget_exhaustions +=
+            u64::from(context.nodes >= personality_local_limit);
     }
     context.node_limit = original_node_limit;
     context.first_iteration_pending = original_first_iteration_pending;
@@ -2851,6 +2858,7 @@ fn search_root_styled(
     }
 
     let selected = choose_styled_candidate(&candidates, 0, context.personality);
+    context.telemetry.personality_selections += u64::from(selected != 0);
     context.pv[0].clone_from(&candidates[selected].pv);
     Ok(RootSearchResult {
         primary_score: objective.score,

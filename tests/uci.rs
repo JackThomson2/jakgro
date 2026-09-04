@@ -8,6 +8,37 @@ use jakgro::uci::run;
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(5);
 
+#[test]
+fn personality_telemetry_is_only_reported_in_debug_mode() {
+    let mut engine = EngineProcess::spawn();
+    for debug in [false, true] {
+        engine.send(if debug { "debug on" } else { "debug off" });
+        engine.send("ucinewgame");
+        engine.send("position startpos");
+        engine.send("go nodes 10000");
+        let lines = engine.receive_until(TEST_TIMEOUT, |line| line.starts_with("bestmove "));
+        let counters = lines
+            .iter()
+            .find(|line| line.starts_with("info string personality "));
+        assert_eq!(counters.is_some(), debug);
+        if let Some(counters) = counters {
+            let value = |name: &str| -> u64 {
+                counters
+                    .split_whitespace()
+                    .find_map(|token| {
+                        token
+                            .strip_prefix(&format!("{name}="))
+                            .map(|s| s.parse().unwrap())
+                    })
+                    .unwrap()
+            };
+            assert!(value("attempts") >= value("completed"));
+            assert!(value("completed") >= value("selections"));
+            assert!(value("nodes") > 0);
+        }
+    }
+}
+
 fn transcript(input: &str) -> String {
     let mut output = Vec::new();
     run(std::io::Cursor::new(input.as_bytes().to_vec()), &mut output).unwrap();

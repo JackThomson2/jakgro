@@ -184,6 +184,9 @@ pub struct SearchTelemetry {
     objective_root_nodes: u64,
     personality_root_nodes: u64,
     personality_verifications: u64,
+    personality_completed_verifications: u64,
+    personality_budget_exhaustions: u64,
+    personality_selections: u64,
 }
 
 impl SearchTelemetry {
@@ -237,6 +240,11 @@ impl SearchTelemetry {
             personality_root_nodes: self.personality_root_nodes + other.personality_root_nodes,
             personality_verifications: self.personality_verifications
                 + other.personality_verifications,
+            personality_completed_verifications: self.personality_completed_verifications
+                + other.personality_completed_verifications,
+            personality_budget_exhaustions: self.personality_budget_exhaustions
+                + other.personality_budget_exhaustions,
+            personality_selections: self.personality_selections + other.personality_selections,
         }
     }
 }
@@ -341,6 +349,26 @@ impl SearchTelemetry {
     #[must_use]
     pub const fn personality_verifications(self) -> u64 {
         self.personality_verifications
+    }
+
+    /// Alternatives whose verification search finished, including rejected moves.
+    #[must_use]
+    pub const fn personality_completed_verifications(self) -> u64 {
+        self.personality_completed_verifications
+    }
+
+    /// Root passes that consumed their local personality node allowance.
+    #[must_use]
+    pub const fn personality_budget_exhaustions(self) -> u64 {
+        self.personality_budget_exhaustions
+    }
+
+    /// Root passes that selected a verified alternative to the conventional move.
+    ///
+    /// This counts all searched passes, not just the final reported move.
+    #[must_use]
+    pub const fn personality_selections(self) -> u64 {
+        self.personality_selections
     }
 
     /// Returns the number of finite-window root searches.

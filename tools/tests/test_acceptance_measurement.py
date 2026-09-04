@@ -1,5 +1,6 @@
 from __future__ import annotations
 import tempfile
+from dataclasses import replace
 import unittest
 from pathlib import Path
 
@@ -78,6 +79,26 @@ class FakeEngine:
 
 
 class AcceptanceMeasurementTests(unittest.TestCase):
+    def test_selected_profile_measures_75_instead_of_100(self) -> None:
+        fixture = self.fixture()
+        fixture = replace(fixture, expected={**fixture.expected, 75: frozenset({"e2e4"})})
+        engine = FakeEngine()
+        position = measure_acceptance.measure_positions(engine, [fixture], 75)[0]
+        self.assertEqual(position["selected_profile"], 75)
+        self.assertEqual(position["root_loss_cp"], 0)
+        self.assertNotIn((0, frozenset({"g1f3"})), engine.calls)
+        self.assertEqual(position["selected_under_objective"]["bestmove"], "e2e4")
+
+    def test_missing_selected_profile_fails_before_search(self) -> None:
+        engine = FakeEngine()
+        with self.assertRaisesRegex(ValueError, "missing bm75"):
+            measure_acceptance.measure_positions(engine, [self.fixture()], 75)
+        self.assertEqual(engine.calls, [])
+
+    def test_standard_contract_has_explicit_75_expectations(self) -> None:
+        fixtures = measure_acceptance.parse_contract_suite(Path("tests/data/standard-acceptance.epd"))
+        self.assertTrue(all(set(f.expected) == {0, 75, 100} for f in fixtures))
+
     def fixture(self, maximum_loss_cp: int = 20) -> measure_acceptance.ContractFixture:
         return measure_acceptance.ContractFixture(
             identifier="opening-choice",

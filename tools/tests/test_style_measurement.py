@@ -73,6 +73,15 @@ class MovetextStyleTests(unittest.TestCase):
 
 
 class SearchInfoParsingTests(unittest.TestCase):
+    def test_optional_personality_debug_counters(self) -> None:
+        self.assertEqual(measure_style.parse_personality_info("info depth 3"), {})
+        self.assertEqual(
+            measure_style.parse_personality_info(
+                "info string personality nodes=2048 completed=2 exhausted=1 invalid=x"
+            ),
+            {"nodes": 2048, "completed": 2, "exhausted": 1},
+        )
+
     def test_parser_retains_engine_timing_and_throughput(self) -> None:
         parsed = measure_style.parse_search_info(
             "info depth 6 score cp 21 nodes 12345 time 67 nps 184253 pv e2e4"
@@ -82,6 +91,10 @@ class SearchInfoParsingTests(unittest.TestCase):
 
 
 class FixedPositionSummaryTests(unittest.TestCase):
+    def test_standard_suite_rates_all_three_profiles(self) -> None:
+        fixtures = measure_style.parse_suite(Path("tests/data/standard-attacks.epd"))
+        self.assertTrue(all(set(f.expected) == {0, 75, 100} for f in fixtures))
+
     def test_suite_accepts_categories_and_multiple_expected_moves(self) -> None:
         suite = (
             "7k/8/8/8/8/8/8/K7 w - - 0 1 ; id attack ; category king-attack ; "

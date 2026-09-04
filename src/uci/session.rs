@@ -381,6 +381,17 @@ where
     }
 
     fn write_search_result(&mut self, result: SearchResult) -> io::Result<()> {
+        if self.debug {
+            let telemetry = result.telemetry();
+            self.debug_info(&format!(
+                "personality nodes={} attempts={} completed={} exhausted={} selections={}",
+                telemetry.personality_root_nodes(),
+                telemetry.personality_verifications(),
+                telemetry.personality_completed_verifications(),
+                telemetry.personality_budget_exhaustions(),
+                telemetry.personality_selections(),
+            ))?;
+        }
         match (result.best_move(), result.ponder()) {
             (Some(best_move), Some(ponder)) => {
                 self.write_line(&format!("bestmove {best_move} ponder {ponder}"))

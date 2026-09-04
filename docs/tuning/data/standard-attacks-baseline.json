@@ -1,0 +1,676 @@
+{
+  "revision": "7a3c4d7",
+  "binary_sha256": "c3844ea2085823ea6dcd162fd339bc7adb6f9cdc33b8e909a5b70ac2bb10284e",
+  "records": [
+    {
+      "id": "central-space",
+      "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
+      "category": "initiative",
+      "observations": [
+        {
+          "profile": 0,
+          "budget": 20000,
+          "bestmove": "b1c3",
+          "score": "cp 46",
+          "depth": 5,
+          "nodes": 7403,
+          "elapsed_ms": 4,
+          "nps": 1768549
+        },
+        {
+          "profile": 75,
+          "budget": 20000,
+          "bestmove": "b1c3",
+          "score": "cp 50",
+          "depth": 5,
+          "nodes": 13725,
+          "elapsed_ms": 8,
+          "nps": 1585071
+        },
+        {
+          "profile": 100,
+          "budget": 20000,
+          "bestmove": "f1c4",
+          "score": "cp 20",
+          "depth": 4,
+          "nodes": 13333,
+          "elapsed_ms": 8,
+          "nps": 1565304
+        },
+        {
+          "profile": 0,
+          "budget": 1000000,
+          "bestmove": "f1c4",
+          "score": "cp 55",
+          "depth": 10,
+          "nodes": 695702,
+          "elapsed_ms": 419,
+          "nps": 1657156
+        },
+        {
+          "profile": 75,
+          "budget": 1000000,
+          "bestmove": "f1c4",
+          "score": "cp 52",
+          "depth": 9,
+          "nodes": 544088,
+          "elapsed_ms": 339,
+          "nps": 1600340
+        },
+        {
+          "profile": 100,
+          "budget": 1000000,
+          "bestmove": "f1c4",
+          "score": "cp 34",
+          "depth": 8,
+          "nodes": 597787,
+          "elapsed_ms": 379,
+          "nps": 1577047
+        }
+      ]
+    },
+    {
+      "id": "tactical-safety",
+      "fen": "4k3/8/8/8/8/8/4q3/4R1K1 w - - 0 1",
+      "category": "safety",
+      "observations": [
+        {
+          "profile": 0,
+          "budget": 20000,
+          "bestmove": "e1e2",
+          "score": "cp 642",
+          "depth": 6,
+          "nodes": 14568,
+          "elapsed_ms": 3,
+          "nps": 3782995
+        },
+        {
+          "profile": 75,
+          "budget": 20000,
+          "bestmove": "e1e2",
+          "score": "cp 659",
+          "depth": 5,
+          "nodes": 8482,
+          "elapsed_ms": 2,
+          "nps": 3635143
+        },
+        {
+          "profile": 100,
+          "budget": 20000,
+          "bestmove": "e1e2",
+          "score": "cp 641",
+          "depth": 6,
+          "nodes": 19549,
+          "elapsed_ms": 5,
+          "nps": 3336742
+        },
+        {
+          "profile": 0,
+          "budget": 1000000,
+          "bestmove": "e1e2",
+          "score": "cp 669",
+          "depth": 12,
+          "nodes": 749739,
+          "elapsed_ms": 141,
+          "nps": 5288080
+        },
+        {
+          "profile": 75,
+          "budget": 1000000,
+          "bestmove": "e1e2",
+          "score": "cp 690",
+          "depth": 13,
+          "nodes": 912613,
+          "elapsed_ms": 179,
+          "nps": 5081785
+        },
+        {
+          "profile": 100,
+          "budget": 1000000,
+          "bestmove": "e1e2",
+          "score": "cp 666",
+          "depth": 12,
+          "nodes": 851869,
+          "elapsed_ms": 166,
+          "nps": 5122179
+        }
+      ]
+    },
+    {
+      "id": "defensive-safety",
+      "fen": "7k/8/8/8/8/1r6/8/K7 w - - 0 1",
+      "category": "safety",
+      "observations": [
+        {
+          "profile": 0,
+          "budget": 20000,
+          "bestmove": "a1a2",
+          "score": "cp -647",
+          "depth": 7,
+          "nodes": 12773,
+          "elapsed_ms": 3,
+          "nps": 4006849
+        },
+        {
+          "profile": 75,
+          "budget": 20000,
+          "bestmove": "a1a2",
+          "score": "cp -670",
+          "depth": 7,
+          "nodes": 12402,
+          "elapsed_ms": 2,
+          "nps": 4340727
+        },
+        {
+          "profile": 100,
+          "budget": 20000,
+          "bestmove": "a1a2",
+          "score": "cp -647",
+          "depth": 7,
+          "nodes": 14956,
+          "elapsed_ms": 4,
+          "nps": 3696681
+        },
+        {
+          "profile": 0,
+          "budget": 1000000,
+          "bestmove": "a1a2",
+          "score": "cp -685",
+          "depth": 15,
+          "nodes": 873153,
+          "elapsed_ms": 132,
+          "nps": 6586105
+        },
+        {
+          "profile": 75,
+          "budget": 1000000,
+          "bestmove": "a1a2",
+          "score": "cp -696",
+          "depth": 14,
+          "nodes": 651927,
+          "elapsed_ms": 101,
+          "nps": 6454206
+        },
+        {
+          "profile": 100,
+          "budget": 1000000,
+          "bestmove": "a1a2",
+          "score": "cp -674",
+          "depth": 14,
+          "nodes": 758769,
+          "elapsed_ms": 119,
+          "nps": 6333664
+        }
+      ]
+    },
+    {
+      "id": "open-king-gambit",
+      "fen": "r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8",
+      "category": "forcing-attack",
+      "observations": [
+        {
+          "profile": 0,
+          "budget": 100000,
+          "bestmove": "c3d5",
+          "score": "cp 101",
+          "depth": 6,
+          "nodes": 59216,
+          "elapsed_ms": 37,
+          "nps": 1565835
+        },
+        {
+          "profile": 75,
+          "budget": 100000,
+          "bestmove": "c3d5",
+          "score": "cp 111",
+          "depth": 6,
+          "nodes": 74410,
+          "elapsed_ms": 49,
+          "nps": 1510745
+        },
+        {
+          "profile": 100,
+          "budget": 100000,
+          "bestmove": "c1g5",
+          "score": "cp 99",
+          "depth": 5,
+          "nodes": 71236,
+          "elapsed_ms": 46,
+          "nps": 1536512
+        },
+        {
+          "profile": 0,
+          "budget": 1000000,
+          "bestmove": "c1g5",
+          "score": "cp 114",
+          "depth": 9,
+          "nodes": 645447,
+          "elapsed_ms": 394,
+          "nps": 1637568
+        },
+        {
+          "profile": 75,
+          "budget": 1000000,
+          "bestmove": "c1g5",
+          "score": "cp 112",
+          "depth": 9,
+          "nodes": 997401,
+          "elapsed_ms": 639,
+          "nps": 1558904
+        },
+        {
+          "profile": 100,
+          "budget": 1000000,
+          "bestmove": "c1g5",
+          "score": "cp 111",
+          "depth": 8,
+          "nodes": 578267,
+          "elapsed_ms": 369,
+          "nps": 1563586
+        }
+      ]
+    },
+    {
+      "id": "opposite-castle-storm",
+      "fen": "2kr3r/pppq1ppp/2n1bn2/3p4/3P4/2P1PN2/PP1N1PPP/R2Q1RK1 w - - 0 10",
+      "category": "pawn-storm",
+      "observations": [
+        {
+          "profile": 0,
+          "budget": 20000,
+          "bestmove": "f1e1",
+          "score": "cp -256",
+          "depth": 5,
+          "nodes": 13002,
+          "elapsed_ms": 6,
+          "nps": 1880226
+        },
+        {
+          "profile": 75,
+          "budget": 20000,
+          "bestmove": "f3e5",
+          "score": "cp -290",
+          "depth": 5,
+          "nodes": 13899,
+          "elapsed_ms": 7,
+          "nps": 1891567
+        },
+        {
+          "profile": 100,
+          "budget": 20000,
+          "bestmove": "b2b4",
+          "score": "cp -255",
+          "depth": 5,
+          "nodes": 20000,
+          "elapsed_ms": 12,
+          "nps": 1607399
+        },
+        {
+          "profile": 0,
+          "budget": 1000000,
+          "bestmove": "b2b4",
+          "score": "cp -240",
+          "depth": 10,
+          "nodes": 539579,
+          "elapsed_ms": 283,
+          "nps": 1899992
+        },
+        {
+          "profile": 75,
+          "budget": 1000000,
+          "bestmove": "b2b4",
+          "score": "cp -256",
+          "depth": 10,
+          "nodes": 721525,
+          "elapsed_ms": 391,
+          "nps": 1840828
+        },
+        {
+          "profile": 100,
+          "budget": 1000000,
+          "bestmove": "b2b4",
+          "score": "cp -247",
+          "depth": 9,
+          "nodes": 426139,
+          "elapsed_ms": 317,
+          "nps": 1341327
+        }
+      ]
+    },
+    {
+      "id": "forcing-mate-safety",
+      "fen": "6k1/5ppp/8/7Q/2B5/8/5PPP/6K1 w - - 0 1",
+      "category": "safety",
+      "observations": [
+        {
+          "profile": 0,
+          "budget": 20000,
+          "bestmove": "h5f7",
+          "score": "mate 2",
+          "depth": 1,
+          "nodes": 86,
+          "elapsed_ms": 0,
+          "nps": 1260073
+        },
+        {
+          "profile": 75,
+          "budget": 20000,
+          "bestmove": "h5f7",
+          "score": "mate 2",
+          "depth": 1,
+          "nodes": 366,
+          "elapsed_ms": 0,
+          "nps": 1738370
+        },
+        {
+          "profile": 100,
+          "budget": 20000,
+          "bestmove": "h5f7",
+          "score": "mate 2",
+          "depth": 1,
+          "nodes": 1125,
+          "elapsed_ms": 0,
+          "nps": 1627879
+        },
+        {
+          "profile": 0,
+          "budget": 1000000,
+          "bestmove": "h5f7",
+          "score": "mate 2",
+          "depth": 1,
+          "nodes": 86,
+          "elapsed_ms": 0,
+          "nps": 1140961
+        },
+        {
+          "profile": 75,
+          "budget": 1000000,
+          "bestmove": "h5f7",
+          "score": "mate 2",
+          "depth": 1,
+          "nodes": 366,
+          "elapsed_ms": 0,
+          "nps": 1495660
+        },
+        {
+          "profile": 100,
+          "budget": 1000000,
+          "bestmove": "h5f7",
+          "score": "mate 2",
+          "depth": 1,
+          "nodes": 1125,
+          "elapsed_ms": 0,
+          "nps": 2694881
+        }
+      ]
+    },
+    {
+      "id": "knight-c6-investment",
+      "fen": "1r1qk2r/1ppbppb1/2n2np1/p2pNP1p/7P/6PB/PPPPP3/RNBQKR2 w Qk - 0 1",
+      "category": "sacrifice",
+      "observations": [
+        {
+          "profile": 0,
+          "budget": 20000,
+          "bestmove": "d2d4",
+          "score": "cp -113",
+          "depth": 6,
+          "nodes": 14353,
+          "elapsed_ms": 7,
+          "nps": 1816394
+        },
+        {
+          "profile": 75,
+          "budget": 20000,
+          "bestmove": "e5c6",
+          "score": "cp -128",
+          "depth": 5,
+          "nodes": 12961,
+          "elapsed_ms": 8,
+          "nps": 1575837
+        },
+        {
+          "profile": 100,
+          "budget": 20000,
+          "bestmove": "e5c6",
+          "score": "cp -135",
+          "depth": 5,
+          "nodes": 13913,
+          "elapsed_ms": 8,
+          "nps": 1547924
+        },
+        {
+          "profile": 0,
+          "budget": 1000000,
+          "bestmove": "d2d4",
+          "score": "cp -154",
+          "depth": 11,
+          "nodes": 965376,
+          "elapsed_ms": 502,
+          "nps": 1921307
+        },
+        {
+          "profile": 75,
+          "budget": 1000000,
+          "bestmove": "d2d4",
+          "score": "cp -144",
+          "depth": 10,
+          "nodes": 732741,
+          "elapsed_ms": 398,
+          "nps": 1838064
+        },
+        {
+          "profile": 100,
+          "budget": 1000000,
+          "bestmove": "d2d4",
+          "score": "cp -158",
+          "depth": 9,
+          "nodes": 475209,
+          "elapsed_ms": 261,
+          "nps": 1820222
+        }
+      ]
+    },
+    {
+      "id": "unsupported-greek-gift",
+      "fen": "r1bq1rk1/ppp2ppp/2n2n2/3p4/3P4/2PB4/PP3PPP/RNBQ1RK1 w - - 0 8",
+      "category": "anti-sacrifice",
+      "observations": [
+        {
+          "profile": 0,
+          "budget": 100000,
+          "bestmove": "b1d2",
+          "score": "cp 48",
+          "depth": 7,
+          "nodes": 79523,
+          "elapsed_ms": 44,
+          "nps": 1787403
+        },
+        {
+          "profile": 75,
+          "budget": 100000,
+          "bestmove": "b1d2",
+          "score": "cp 63",
+          "depth": 7,
+          "nodes": 66019,
+          "elapsed_ms": 37,
+          "nps": 1743271
+        },
+        {
+          "profile": 100,
+          "budget": 100000,
+          "bestmove": "b1d2",
+          "score": "cp 43",
+          "depth": 6,
+          "nodes": 51151,
+          "elapsed_ms": 30,
+          "nps": 1681503
+        },
+        {
+          "profile": 0,
+          "budget": 1000000,
+          "bestmove": "b1d2",
+          "score": "cp 63",
+          "depth": 10,
+          "nodes": 623756,
+          "elapsed_ms": 318,
+          "nps": 1958499
+        },
+        {
+          "profile": 75,
+          "budget": 1000000,
+          "bestmove": "b1d2",
+          "score": "cp 76",
+          "depth": 10,
+          "nodes": 636413,
+          "elapsed_ms": 331,
+          "nps": 1921727
+        },
+        {
+          "profile": 100,
+          "budget": 1000000,
+          "bestmove": "b1d2",
+          "score": "cp 63",
+          "depth": 10,
+          "nodes": 920405,
+          "elapsed_ms": 487,
+          "nps": 1889772
+        }
+      ]
+    },
+    {
+      "id": "unsupported-rook-f7",
+      "fen": "r4rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP4/PPP3PP/R4RK1 w - - 0 10",
+      "category": "anti-sacrifice",
+      "observations": [
+        {
+          "profile": 0,
+          "budget": 20000,
+          "bestmove": "g1h1",
+          "score": "cp -450",
+          "depth": 5,
+          "nodes": 10179,
+          "elapsed_ms": 5,
+          "nps": 1784524
+        },
+        {
+          "profile": 75,
+          "budget": 20000,
+          "bestmove": "g1h1",
+          "score": "cp -459",
+          "depth": 5,
+          "nodes": 16957,
+          "elapsed_ms": 9,
+          "nps": 1785621
+        },
+        {
+          "profile": 100,
+          "budget": 20000,
+          "bestmove": "g1h1",
+          "score": "cp -439",
+          "depth": 4,
+          "nodes": 11480,
+          "elapsed_ms": 6,
+          "nps": 1646389
+        },
+        {
+          "profile": 0,
+          "budget": 1000000,
+          "bestmove": "g1h1",
+          "score": "cp -419",
+          "depth": 10,
+          "nodes": 565032,
+          "elapsed_ms": 282,
+          "nps": 2000377
+        },
+        {
+          "profile": 75,
+          "budget": 1000000,
+          "bestmove": "g1h1",
+          "score": "cp -428",
+          "depth": 9,
+          "nodes": 425902,
+          "elapsed_ms": 238,
+          "nps": 1783637
+        },
+        {
+          "profile": 100,
+          "budget": 1000000,
+          "bestmove": "g1h1",
+          "score": "cp -410",
+          "depth": 9,
+          "nodes": 564060,
+          "elapsed_ms": 309,
+          "nps": 1823193
+        }
+      ]
+    },
+    {
+      "id": "avoid-equal-queen-trade",
+      "fen": "4k3/3q4/8/8/8/8/3Q4/4K3 w - - 0 1",
+      "category": "simplification",
+      "observations": [
+        {
+          "profile": 0,
+          "budget": 100000,
+          "bestmove": "d2d7",
+          "score": "cp 0",
+          "depth": 7,
+          "nodes": 47178,
+          "elapsed_ms": 15,
+          "nps": 2993243
+        },
+        {
+          "profile": 75,
+          "budget": 100000,
+          "bestmove": "d2e2",
+          "score": "cp 0",
+          "depth": 6,
+          "nodes": 90193,
+          "elapsed_ms": 30,
+          "nps": 2970649
+        },
+        {
+          "profile": 100,
+          "budget": 100000,
+          "bestmove": "d2e2",
+          "score": "cp 0",
+          "depth": 5,
+          "nodes": 60462,
+          "elapsed_ms": 21,
+          "nps": 2776511
+        },
+        {
+          "profile": 0,
+          "budget": 1000000,
+          "bestmove": "d2d7",
+          "score": "cp 0",
+          "depth": 10,
+          "nodes": 531713,
+          "elapsed_ms": 162,
+          "nps": 3273857
+        },
+        {
+          "profile": 75,
+          "budget": 1000000,
+          "bestmove": "d2e2",
+          "score": "cp 0",
+          "depth": 8,
+          "nodes": 447097,
+          "elapsed_ms": 131,
+          "nps": 3400202
+        },
+        {
+          "profile": 100,
+          "budget": 1000000,
+          "bestmove": "d2e2",
+          "score": "cp 0",
+          "depth": 7,
+          "nodes": 473509,
+          "elapsed_ms": 151,
+          "nps": 3133895
+        }
+      ]
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use cozy_chess::util::display_uci_move;
@@ -1102,7 +1103,7 @@ impl HistoryMove {
 }
 
 #[derive(Debug)]
-struct MoveOrdering {
+pub(super) struct MoveOrdering {
     killers: Vec<[Option<Move>; 2]>,
     history: Vec<i32>,
     continuation: Vec<i32>,
@@ -1117,6 +1118,33 @@ impl MoveOrdering {
             continuation: vec![0; CONTINUATION_BUCKETS * CONTINUATION_BUCKETS],
             capture_history: vec![0; CAPTURE_HISTORY_ENTRIES],
         }
+    }
+
+    /// Halves every history score and forgets the killers, for a search that
+    /// inherits this ordering from the previous move of the same game.
+    ///
+    /// The histories say which quiet moves have been cutting lately, and the
+    /// position a move or two later is close enough for that to hold; halving
+    /// keeps them as a prior the new search overrules as soon as it learns
+    /// otherwise. A killer is a move at a ply, and the plies have shifted, so
+    /// it means nothing and would be protected from every pruning rule for
+    /// nothing.
+    fn age(&mut self) {
+        for score in &mut self.history {
+            *score /= 2;
+        }
+        for score in &mut self.continuation {
+            *score /= 2;
+        }
+        for score in &mut self.capture_history {
+            *score /= 2;
+        }
+        self.killers.fill([None; 2]);
+    }
+
+    #[cfg(test)]
+    fn is_warm(&self) -> bool {
+        self.history.iter().any(|&score| score != 0)
     }
 
     fn killers(&self, ply: u32) -> [Option<Move>; 2] {
@@ -2006,10 +2034,72 @@ struct SharedSearch<'a> {
     stats: SearchStats,
 }
 
+/// What a search leaves for the next search of the same game.
+///
+/// The main searcher's move ordering, with the root it was built at and the
+/// profile it served. A later search takes it only if its own root follows
+/// that root in the game, which the position's hash history says: the
+/// previous root must appear before the current one. Searching the same
+/// position again, or an unrelated one, starts cold, so a fixed-node search
+/// of any single position is exactly what it was, and a tool that walks a
+/// suite through one process measures each position on its own. Clearing
+/// the hash forgets it, and a search that finds the memory reset while it
+/// ran leaves nothing behind.
+#[derive(Debug, Default)]
+pub(in crate::engine) struct SearchMemory {
+    ordering: Option<MoveOrdering>,
+    root: u64,
+    aggression: u8,
+    generation: u64,
+}
+
+impl SearchMemory {
+    /// Forgets everything, as a cleared table does.
+    pub(in crate::engine) fn reset(&mut self) {
+        self.ordering = None;
+        self.generation = self.generation.wrapping_add(1);
+    }
+
+    /// Whether a search has left an ordering here.
+    #[cfg(test)]
+    pub(in crate::engine) fn is_warm(&self) -> bool {
+        self.ordering.as_ref().is_some_and(MoveOrdering::is_warm)
+    }
+
+    /// Takes the ordering for a search of `history`'s last position, aged
+    /// for the moves since, if that position follows the remembered root in
+    /// the same game under the same profile.
+    fn take_for(&mut self, history: &[u64], aggression: u8) -> (Option<MoveOrdering>, u64) {
+        let continues = history
+            .split_last()
+            .is_some_and(|(_, earlier)| earlier.contains(&self.root));
+        let ordering = match self.ordering.take() {
+            Some(mut ordering) if continues && aggression == self.aggression => {
+                ordering.age();
+                Some(ordering)
+            }
+            _ => None,
+        };
+        (ordering, self.generation)
+    }
+
+    /// Keeps a finished search's ordering unless the memory was reset while
+    /// the search ran.
+    fn store(&mut self, ordering: MoveOrdering, root: u64, aggression: u8, generation: u64) {
+        if self.generation == generation {
+            self.ordering = Some(ordering);
+            self.root = root;
+            self.aggression = aggression;
+        }
+    }
+}
+
 /// What one searcher established before it stopped.
 struct WorkerOutcome {
     info: Option<SearchInfo>,
     telemetry: SearchTelemetry,
+    /// The main searcher's ordering, for the memory; helpers leave none.
+    ordering: Option<MoveOrdering>,
 }
 
 pub(super) fn run<F>(
@@ -2018,6 +2108,7 @@ pub(super) fn run<F>(
     control: &SearchControl,
     settings: SearchSettings,
     table: &TranspositionTable,
+    memory: Option<&Mutex<SearchMemory>>,
     mut report: F,
 ) -> SearchResult
 where
@@ -2025,6 +2116,12 @@ where
 {
     let evaluation = settings.evaluation;
     table.start_search(evaluation.aggression());
+    fn lock_memory(memory: &Mutex<SearchMemory>) -> MutexGuard<'_, SearchMemory> {
+        memory.lock().unwrap_or_else(|error| error.into_inner())
+    }
+    let (carried, generation) = memory.map_or((None, 0), |memory| {
+        lock_memory(memory).take_for(position.hash_history(), evaluation.aggression())
+    });
     let time_budget = allocate_time(
         position.board().side_to_move(),
         limits,
@@ -2098,7 +2195,13 @@ where
         return SearchResult::from_parts(fallback, Some(info), SearchTelemetry::default());
     }
 
-    let outcome = drive_search(&shared, &mut report);
+    let outcome = drive_search(&shared, carried, &mut report);
+    if let Some(memory) = memory
+        && let Some(ordering) = outcome.ordering
+        && let Some(&root) = position.hash_history().last()
+    {
+        lock_memory(memory).store(ordering, root, evaluation.aggression(), generation);
+    }
     let best_move = outcome
         .info
         .as_ref()
@@ -2123,9 +2226,13 @@ fn search_stopped_before_starting(limits: &SearchLimits, control: &SearchControl
 /// costs exactly what it did before helpers existed. Additional threads deepen
 /// the same root into the shared table while the main searcher alone keeps the
 /// clock, the reported iterations, and the returned result.
-fn drive_search(shared: &SharedSearch<'_>, report: &mut dyn FnMut(SearchInfo)) -> WorkerOutcome {
+fn drive_search(
+    shared: &SharedSearch<'_>,
+    carried: Option<MoveOrdering>,
+    report: &mut dyn FnMut(SearchInfo),
+) -> WorkerOutcome {
     if shared.threads <= 1 {
-        return run_worker(shared, WorkerRole::Main, report);
+        return run_worker(shared, WorkerRole::Main, carried, report);
     }
 
     std::thread::scope(|scope| {
@@ -2135,14 +2242,14 @@ fn drive_search(shared: &SharedSearch<'_>, report: &mut dyn FnMut(SearchInfo)) -
                     // A helper that fails must cost its thread rather than the
                     // search, so the main result stands even if one panics.
                     catch_unwind(AssertUnwindSafe(|| {
-                        run_worker(shared, WorkerRole::Helper { index }, &mut |_| {})
+                        run_worker(shared, WorkerRole::Helper { index }, None, &mut |_| {})
                     }))
                     .ok()
                 })
             })
             .collect::<Vec<_>>();
 
-        let outcome = run_worker(shared, WorkerRole::Main, report);
+        let outcome = run_worker(shared, WorkerRole::Main, carried, report);
         // Helpers run until released, so the main searcher finishing is what
         // ends them. This is deliberately not an explicit stop, which would be
         // indistinguishable from a cancelled search.
@@ -2164,6 +2271,7 @@ fn drive_search(shared: &SharedSearch<'_>, report: &mut dyn FnMut(SearchInfo)) -
 fn run_worker(
     shared: &SharedSearch<'_>,
     role: WorkerRole,
+    carried: Option<MoveOrdering>,
     report: &mut dyn FnMut(SearchInfo),
 ) -> WorkerOutcome {
     let mut context = SearchContext {
@@ -2200,7 +2308,9 @@ fn run_worker(
         picker_storage: (0..=MAX_PLY)
             .map(|_| MovePickerStorage::default())
             .collect(),
-        ordering: MoveOrdering::new(),
+        // The main searcher may inherit the previous move's ordering; a
+        // helper always starts cold, so its diversification is its own.
+        ordering: carried.unwrap_or_else(MoveOrdering::new),
     };
     let root_moves = rotated_root_moves(&shared.root_moves, role.root_rotation());
     let mut history = RepetitionTracker::new(shared.hash_history);
@@ -2317,6 +2427,7 @@ fn run_worker(
     WorkerOutcome {
         info: final_info,
         telemetry: context.telemetry,
+        ordering: role.is_main().then_some(context.ordering),
     }
 }
 
@@ -7285,5 +7396,48 @@ mod tests {
         assert!(metadata.is_quiet());
         assert!(metadata.gives_check);
         assert!(!metadata.is_tactical());
+    }
+
+    /// The memory hands its ordering only to a search whose root follows the
+    /// remembered root in the same game under the same profile, and keeps
+    /// nothing from a search that ran across a reset.
+    #[test]
+    fn search_memory_is_taken_only_by_the_next_move_of_the_same_game() {
+        let mut memory = super::SearchMemory::default();
+        let mut ordering = MoveOrdering::new();
+        ordering.history[7] = 4000;
+        ordering.killers[3] = [Some("e2e4".parse().unwrap()), None];
+        let (_, generation) = memory.take_for(&[1], 75);
+        memory.store(ordering, 1, 75, generation);
+        assert!(memory.is_warm());
+
+        // The same root again, an unrelated root, and another profile all
+        // search cold, and taking empties the memory either way.
+        assert!(memory.take_for(&[1], 75).0.is_none());
+        assert!(!memory.is_warm());
+        memory.store(warm_ordering(), 1, 75, memory.generation);
+        assert!(memory.take_for(&[9], 75).0.is_none());
+        memory.store(warm_ordering(), 1, 75, memory.generation);
+        assert!(memory.take_for(&[1, 2], 0).0.is_none());
+
+        // The next move of the game takes it, halved and without killers.
+        memory.store(warm_ordering(), 1, 75, memory.generation);
+        let (taken, _) = memory.take_for(&[1, 2], 75);
+        let taken = taken.expect("a continuing game inherits the ordering");
+        assert_eq!(taken.history[7], 2000);
+        assert_eq!(taken.killers[3], [None; 2]);
+
+        // A store from before a reset is refused.
+        let (_, stale) = memory.take_for(&[1], 75);
+        memory.reset();
+        memory.store(warm_ordering(), 3, 75, stale);
+        assert!(!memory.is_warm());
+    }
+
+    fn warm_ordering() -> MoveOrdering {
+        let mut ordering = MoveOrdering::new();
+        ordering.history[7] = 4000;
+        ordering.killers[3] = [Some("e2e4".parse().unwrap()), None];
+        ordering
     }
 }

@@ -74,7 +74,9 @@ impl Error for HashResizeError {}
 ///
 /// The transposition table is shared rather than owned. Its mutex guards
 /// replacement alone: a search clones the handle and releases the guard
-/// immediately, so searches never serialize against each other.
+/// immediately, so searches never serialize against each other. The search
+/// memory is shared the same way, so the ordering one search leaves for the
+/// next move of the game survives the clone the protocol searches on.
 #[derive(Clone, Debug)]
 pub struct Engine {
     position: Position,
@@ -82,6 +84,7 @@ pub struct Engine {
     move_overhead: Duration,
     threads: usize,
     table: Arc<Mutex<Arc<search::TranspositionTable>>>,
+    memory: Arc<Mutex<search::SearchMemory>>,
 }
 
 impl Default for Engine {
@@ -94,6 +97,7 @@ impl Default for Engine {
             move_overhead: Duration::from_millis(DEFAULT_MOVE_OVERHEAD_MS),
             threads: DEFAULT_THREADS,
             table: Arc::new(Mutex::new(Arc::new(table))),
+            memory: Arc::new(Mutex::new(search::SearchMemory::default())),
         }
     }
 }
@@ -180,8 +184,18 @@ impl Engine {
     }
 
     /// Removes all cached search entries without changing the table size.
+    ///
+    /// The move ordering the last search left for the next move of its game
+    /// is forgotten with them, so a cleared engine searches cold.
     pub fn clear_hash(&self) {
         self.shared_table().clear();
+        self.lock_memory().reset();
+    }
+
+    /// Whether the last search left its move ordering for the next move.
+    #[cfg(test)]
+    fn has_search_memory(&self) -> bool {
+        self.lock_memory().is_warm()
     }
 
     /// Searches the current position using the supplied limits.
@@ -202,7 +216,7 @@ impl Engine {
         F: FnMut(SearchInfo),
     {
         let table = self.shared_table();
-        search::search_with_table(
+        search::search_with_memory(
             &self.position,
             limits,
             control,
@@ -212,6 +226,7 @@ impl Engine {
                 threads: self.threads,
             },
             &table,
+            &self.memory,
             report,
         )
     }
@@ -241,6 +256,12 @@ impl Engine {
     fn lock_table(&self) -> MutexGuard<'_, Arc<search::TranspositionTable>> {
         self.table.lock().unwrap_or_else(|error| error.into_inner())
     }
+
+    fn lock_memory(&self) -> MutexGuard<'_, search::SearchMemory> {
+        self.memory
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+    }
 }
 
 #[cfg(test)]
@@ -250,6 +271,30 @@ mod tests {
         MAX_MOVE_OVERHEAD_MS, MAX_THREADS, MIN_THREADS, Position,
     };
     use std::time::Duration;
+
+    /// The ordering a search leaves survives into the next move of the same
+    /// game and is forgotten with the hash. Which searches may take it is
+    /// pinned on the memory itself, in the search module.
+    #[test]
+    fn search_memory_follows_the_game_and_clears_with_the_hash() {
+        let limits = super::SearchLimits {
+            nodes: Some(5_000),
+            ..super::SearchLimits::default()
+        };
+        let mut engine = Engine::new();
+        assert!(!engine.has_search_memory());
+        let _ = engine.search(&limits);
+        assert!(engine.has_search_memory());
+
+        let mut continued = Position::default();
+        continued.apply_uci_moves(["e2e4", "e7e5"]).unwrap();
+        engine.set_position(continued);
+        let _ = engine.search(&limits);
+        assert!(engine.has_search_memory());
+
+        engine.clear_hash();
+        assert!(!engine.has_search_memory());
+    }
 
     #[test]
     fn new_game_restores_the_starting_position() {

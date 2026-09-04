@@ -4,6 +4,7 @@ mod see;
 mod time;
 mod transposition;
 
+use std::sync::Mutex;
 use std::time::Duration;
 
 pub use control::SearchControl;
@@ -26,6 +27,8 @@ pub(super) const MAX_THREADS: usize = 128;
 
 use super::Position;
 use super::evaluation::{EvaluationConfig, MATE_SCORE, MATE_THRESHOLD, Score};
+
+pub(super) use algorithm::SearchMemory;
 
 /// Limits supplied to a search operation.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -546,6 +549,7 @@ where
     )
 }
 
+#[cfg(test)]
 pub(super) fn search_with_table<F>(
     position: &Position,
     limits: &SearchLimits,
@@ -557,7 +561,32 @@ pub(super) fn search_with_table<F>(
 where
     F: FnMut(SearchInfo),
 {
-    algorithm::run(position, limits, control, settings, table, report)
+    algorithm::run(position, limits, control, settings, table, None, report)
+}
+
+/// Searches with a memory that the previous search of the same game left and
+/// this one leaves for the next.
+pub(super) fn search_with_memory<F>(
+    position: &Position,
+    limits: &SearchLimits,
+    control: &SearchControl,
+    settings: SearchSettings,
+    table: &TranspositionTable,
+    memory: &Mutex<SearchMemory>,
+    report: F,
+) -> SearchResult
+where
+    F: FnMut(SearchInfo),
+{
+    algorithm::run(
+        position,
+        limits,
+        control,
+        settings,
+        table,
+        Some(memory),
+        report,
+    )
 }
 
 pub(super) fn time_budget(

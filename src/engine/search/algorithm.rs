@@ -851,8 +851,25 @@ impl<'a> MovePicker<'a> {
         let quiets = &mut self.storage.quiets;
         #[cfg(test)]
         let work = &mut self.work;
+        // When quiescence searches quiet checks, only moves that give check are accepted.
+        // For non-king pieces not on discovery rays, any move not landing on a direct check
+        // square cannot give check. Filtering `piece_moves.to` early avoids move generation,
+        // classification, and metadata overhead for >90% of non-checking quiets.
+        let quiet_checks_only = matches!(
+            mode,
+            MovePickerMode::Quiescence {
+                in_check: false,
+                include_quiet_checks: true,
+            }
+        );
         board.generate_moves(|mut piece_moves| {
             piece_moves.to &= !tactical_move_targets(board, piece_moves.piece);
+            if quiet_checks_only
+                && piece_moves.piece != Piece::King
+                && !masks.discovery_candidates.has(piece_moves.from)
+            {
+                piece_moves.to &= masks.direct[piece_moves.piece as usize];
+            }
             for chess_move in piece_moves {
                 if preferred == Some(chess_move) || picked_killers.contains(&Some(chess_move)) {
                     continue;
@@ -7432,6 +7449,65 @@ mod tests {
         memory.reset();
         memory.store(warm_ordering(), 3, 75, stale);
         assert!(!memory.is_warm());
+    }
+
+    #[test]
+    fn quiescence_check_mask_filtering_emits_identical_moves_to_unfiltered_generation() {
+        let fens = [
+            "r1bqkb1r/pppp1ppp/2n5/4p3/2B1n3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 5",
+            "r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8",
+            "r2qkb1r/pp2pppp/2n2n2/1B1p4/3P4/2N2N2/PPP2PPP/R1BQK2R b KQkq - 0 6",
+            "8/8/8/3k4/8/2B1N3/8/4K3 b - - 0 1",
+            "8/8/8/3K4/8/2b1n3/8/4k3 w - - 0 1",
+        ];
+        let ordering = MoveOrdering::new();
+        let evaluation = super::EvaluationConfig::new(75);
+
+        for fen in fens {
+            let board = fen.parse::<cozy_chess::Board>().unwrap();
+            let mut picker = super::MovePicker::new(
+                &board,
+                super::MovePickerStorage::default(),
+                None,
+                0,
+                None,
+                evaluation,
+                super::MovePickerMode::Quiescence {
+                    in_check: false,
+                    include_quiet_checks: true,
+                },
+            );
+            let mut emitted = Vec::new();
+            while let Some((_, metadata)) = picker.next(&ordering) {
+                if metadata.is_quiet() {
+                    assert!(metadata.gives_check);
+                    emitted.push(metadata.chess_move);
+                }
+            }
+
+            let mut expected = Vec::new();
+            let masks = super::CheckMasks::for_board(&board);
+            board.generate_moves(|piece_moves| {
+                for chess_move in piece_moves {
+                    if !board.is_legal(chess_move) {
+                        continue;
+                    }
+                    let facts = super::MoveFacts::classify(&board, chess_move);
+                    if chess_move.promotion.is_none() && facts.captured.is_none() {
+                        let metadata = facts.search_metadata_with_masks(&board, None, Some(masks));
+                        if metadata.gives_check {
+                            expected.push(chess_move);
+                        }
+                    }
+                }
+                false
+            });
+
+            assert_eq!(emitted.len(), expected.len(), "mismatch in {fen}");
+            for mv in &expected {
+                assert!(emitted.contains(mv), "missing move {mv} in {fen}");
+            }
+        }
     }
 
     fn warm_ordering() -> MoveOrdering {

@@ -162,6 +162,9 @@ pub const BLOCKS: &[FeatureBlock] = &[
         SHELTER_ADJACENT_OFFSET,
         6,
     ),
+    array("STORM_KING_FILE_BY_DISTANCE", STORM_KING_FILE_OFFSET, 6),
+    array("STORM_ADJACENT_FILE_BY_DISTANCE", STORM_ADJACENT_OFFSET, 6),
+    array("BLOCKED_STORM_BY_DISTANCE", BLOCKED_STORM_OFFSET, 6),
 ];
 
 /// Scalar features before the tables, in the order [`super::weights::score`]
@@ -177,8 +180,19 @@ const MOBILITY_CURVE_ENTRIES: usize = KNIGHT_MOBILITY_ENTRIES
 /// Scalar features after the mobility curves.
 pub const TRAILING_SCALARS: usize = 9;
 /// Features in the groups added after the tables.
-pub const TRAILING_FEATURES: usize =
-    MOBILITY_CURVE_ENTRIES + TRAILING_SCALARS + 6 + 6 + 8 + 8 + KING_DANGER_BUCKETS + 4 + 6 + 6;
+pub const TRAILING_FEATURES: usize = MOBILITY_CURVE_ENTRIES
+    + TRAILING_SCALARS
+    + 6
+    + 6
+    + 8
+    + 8
+    + KING_DANGER_BUCKETS
+    + 4
+    + 6
+    + 6
+    + 6
+    + 6
+    + 6;
 /// Length of the feature vector.
 pub const FEATURE_COUNT: usize = SCALAR_FEATURES + PLACEMENT_FEATURES + TRAILING_FEATURES;
 /// Index of the first piece-square feature.
@@ -199,6 +213,10 @@ const SAFE_CHECK_OFFSET: usize = KING_DANGER_OFFSET + KING_DANGER_BUCKETS;
 /// Indices of the graded shelter blocks.
 const SHELTER_KING_FILE_OFFSET: usize = SAFE_CHECK_OFFSET + 4;
 const SHELTER_ADJACENT_OFFSET: usize = SHELTER_KING_FILE_OFFSET + 6;
+/// Indices of the graded storm blocks.
+const STORM_KING_FILE_OFFSET: usize = SHELTER_ADJACENT_OFFSET + 6;
+const STORM_ADJACENT_OFFSET: usize = STORM_KING_FILE_OFFSET + 6;
+const BLOCKED_STORM_OFFSET: usize = STORM_ADJACENT_OFFSET + 6;
 /// The mobility curves as piece, offset within the trailing region and length.
 const MOBILITY_CURVES: [(Piece, usize, usize); 4] = [
     (Piece::Knight, 0, KNIGHT_MOBILITY_ENTRIES),
@@ -370,7 +388,7 @@ pub fn tuning_features(board: &Board) -> TuningPosition {
             *total += sign * count;
         }
     }
-    let indexed_blocks: [(usize, &[Score]); 9] = [
+    let indexed_blocks: [(usize, &[Score]); 12] = [
         (CONNECTED_OFFSET, &structure.connected_by_rank),
         (BLOCKED_PASSER_OFFSET, &blocked),
         (
@@ -391,6 +409,15 @@ pub fn tuning_features(board: &Board) -> TuningPosition {
             SHELTER_ADJACENT_OFFSET,
             &structure.shelter_adjacent_file_by_distance,
         ),
+        (
+            STORM_KING_FILE_OFFSET,
+            &structure.storm_king_file_by_distance,
+        ),
+        (
+            STORM_ADJACENT_OFFSET,
+            &structure.storm_adjacent_file_by_distance,
+        ),
+        (BLOCKED_STORM_OFFSET, &structure.blocked_storm_by_distance),
         (0, &[]),
     ];
     for (offset, counts) in indexed_blocks {
@@ -559,13 +586,18 @@ mod tests {
     use crate::engine::Position;
     use crate::engine::evaluation::{EvaluationConfig, MIN_AGGRESSION, weights};
 
-    const POSITIONS: [&str; 6] = [
+    /// Positions the round trip is checked on. Each block added after the
+    /// tables should be non-zero in at least one of them, or two blocks
+    /// swapped in the layout would pass unnoticed.
+    const POSITIONS: [&str; 7] = [
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
         "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
         "r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8",
         "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
         "6k1/5ppp/8/7Q/2B5/8/5PPP/6K1 w - - 0 1",
         "4k3/8/8/8/8/8/4q3/4R1K1 b - - 0 1",
+        // A blocked pawn storm on each king's file, an open one beside it.
+        "r4rk1/pp3pp1/2n4p/8/6p1/5NP1/PP3P1P/R4RK1 w - - 0 1",
     ];
 
     /// The vector and the engine must agree exactly, or a fit optimizes a model

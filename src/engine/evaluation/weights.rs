@@ -226,6 +226,13 @@ const SHELTER_ADJACENT_FILE_BY_DISTANCE: [ScorePair; 6] = [
     ScorePair::new(0, -2),
     ScorePair::new(0, 0),
 ];
+/// The pawn storm against the king, graded by the nearest enemy pawn's
+/// distance on each file, with the storms a friendly pawn blocks counted
+/// apart; zero until fitted. The style's storm term is a different quantity
+/// and is untouched.
+const STORM_KING_FILE_BY_DISTANCE: [ScorePair; 6] = [ScorePair::new(0, 0); 6];
+const STORM_ADJACENT_FILE_BY_DISTANCE: [ScorePair; 6] = [ScorePair::new(0, 0); 6];
+const BLOCKED_STORM_BY_DISTANCE: [ScorePair; 6] = [ScorePair::new(0, 0); 6];
 const KING_PRESSURE: ScorePair = ScorePair::new(9, 2);
 const PAWN_STORM: ScorePair = ScorePair::new(7, 1);
 const THREAT: ScorePair = ScorePair::new(11, 7);
@@ -289,6 +296,15 @@ pub(super) fn structure_indexed(counts: &StructureCounts) -> ScorePair {
             &SHELTER_ADJACENT_FILE_BY_DISTANCE,
             counts.shelter_adjacent_file_by_distance,
         )
+        + indexed(
+            &STORM_KING_FILE_BY_DISTANCE,
+            counts.storm_king_file_by_distance,
+        )
+        + indexed(
+            &STORM_ADJACENT_FILE_BY_DISTANCE,
+            counts.storm_adjacent_file_by_distance,
+        )
+        + indexed(&BLOCKED_STORM_BY_DISTANCE, counts.blocked_storm_by_distance)
 }
 
 /// Weight of one blockaded passer on the given rank index.
@@ -459,6 +475,9 @@ pub(super) fn trailing_tuning_weights() -> [ScorePair; super::tuning::TRAILING_F
         &SAFE_CHECK_BY_PIECE[..],
         &SHELTER_KING_FILE_BY_DISTANCE[..],
         &SHELTER_ADJACENT_FILE_BY_DISTANCE[..],
+        &STORM_KING_FILE_BY_DISTANCE[..],
+        &STORM_ADJACENT_FILE_BY_DISTANCE[..],
+        &BLOCKED_STORM_BY_DISTANCE[..],
     ] {
         weights[next..next + block.len()].copy_from_slice(block);
         next += block.len();

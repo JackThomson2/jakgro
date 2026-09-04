@@ -251,7 +251,8 @@ pub(super) struct EvalFeatures {
     pub(super) backward_pawns: Score,
     /// Every rank- or distance-indexed pawn and king structure block, already
     /// weighted: passers, protected passers and connected pawns by rank,
-    /// passers by each king's distance, and shelter by pawn distance.
+    /// passers by each king's distance, and shelter and storm by pawn
+    /// distance.
     ///
     /// Like placement, this is a pair added to the blend directly. The
     /// counts behind it are a function of the pawns and the kings, so they
@@ -968,6 +969,51 @@ mod tests {
         );
         // The shelter count is unchanged by the grading.
         assert_eq!(unmoved.shelter, 1);
+    }
+
+    #[test]
+    fn the_storm_is_graded_by_the_nearest_enemy_pawn_on_each_file() {
+        let counts =
+            |fen: &str| super::features::structure_counts(Position::from_fen(fen).unwrap().board());
+
+        // An enemy pawn two ranks ahead on the king's file with nothing in
+        // its path, then one three ranks ahead on the file beside it.
+        let open = counts("k7/8/8/8/8/4p3/8/4K3 w - - 0 1");
+        assert_eq!(open.storm_king_file_by_distance, [0, 1, 0, 0, 0, 0]);
+        assert_eq!(open.storm_adjacent_file_by_distance, [0; 6]);
+        assert_eq!(open.blocked_storm_by_distance, [0; 6]);
+        let flank = counts("k7/8/8/8/5p2/8/8/4K3 w - - 0 1");
+        assert_eq!(flank.storm_king_file_by_distance, [0; 6]);
+        assert_eq!(flank.storm_adjacent_file_by_distance, [0, 0, 1, 0, 0, 0]);
+        assert_eq!(flank.blocked_storm_by_distance, [0; 6]);
+        // A friendly pawn directly in its path makes it a blocked storm,
+        // counted apart from both file blocks.
+        let blocked = counts("k7/8/8/8/8/4p3/4P3/4K3 w - - 0 1");
+        assert_eq!(blocked.storm_king_file_by_distance, [0; 6]);
+        assert_eq!(blocked.storm_adjacent_file_by_distance, [0; 6]);
+        assert_eq!(blocked.blocked_storm_by_distance, [0, 1, 0, 0, 0, 0]);
+        // Only the nearest pawn on a file counts.
+        assert_eq!(
+            counts("k7/8/8/4p3/8/4p3/8/4K3 w - - 0 1").storm_king_file_by_distance,
+            [0, 1, 0, 0, 0, 0]
+        );
+        // A pawn level with or behind the king has passed it.
+        let passed = counts("k7/8/8/8/8/4K3/3p4/8 w - - 0 1");
+        assert_eq!(passed.storm_king_file_by_distance, [0; 6]);
+        assert_eq!(passed.storm_adjacent_file_by_distance, [0; 6]);
+        assert_eq!(passed.blocked_storm_by_distance, [0; 6]);
+        // Black's storm counts against, measured from Black's side.
+        assert_eq!(
+            counts("4k3/8/8/8/8/8/3P4/K7 w - - 0 1").storm_adjacent_file_by_distance,
+            [0, 0, 0, 0, 0, -1]
+        );
+        assert_eq!(
+            counts("4k3/8/4p3/4P3/8/8/8/K7 w - - 0 1").blocked_storm_by_distance,
+            [0, 0, -1, 0, 0, 0]
+        );
+        // The shelter is unchanged by the storm.
+        assert_eq!(blocked.shelter_king_file_by_distance, [1, 0, 0, 0, 0, 0]);
+        assert_eq!(blocked.shelter, 1);
     }
 
     #[test]

@@ -180,8 +180,8 @@ struct StructureTerms {
     /// Every rank- or distance-indexed structure block, already weighted.
     ///
     /// The counts behind it — passers, protected passers and connected pawns
-    /// by rank, passers by each king's distance, shelter by pawn distance —
-    /// are sixty entries that the engine would otherwise copy out of the
+    /// by rank, passers by each king's distance, shelter and storm by pawn
+    /// distance — are eighty entries that the engine would otherwise copy out of the
     /// cache and multiply by their weights at every node, almost all of them
     /// zero. Weighting them once, on the miss, makes a hit one pair. The
     /// counts themselves are recomputed by [`structure_counts`] for the
@@ -213,6 +213,12 @@ pub(super) struct StructureCounts {
     /// each adjacent file, by rank distance.
     pub(super) shelter_king_file_by_distance: [i32; 6],
     pub(super) shelter_adjacent_file_by_distance: [i32; 6],
+    /// The nearest enemy pawn ahead of the king on its own file and on each
+    /// adjacent file, by rank distance, with the pawns a friendly pawn
+    /// stands directly in front of counted apart from both.
+    pub(super) storm_king_file_by_distance: [i32; 6],
+    pub(super) storm_adjacent_file_by_distance: [i32; 6],
+    pub(super) blocked_storm_by_distance: [i32; 6],
 }
 
 /// The inputs a [`StructureTerms`] depends on, stored so a hit is exact.
@@ -330,6 +336,13 @@ pub(super) fn structure_counts(board: &Board) -> StructureCounts {
             counts.shelter_king_file_by_distance[distance] += sign * i32::from(king_file[distance]);
             counts.shelter_adjacent_file_by_distance[distance] +=
                 sign * i32::from(adjacent[distance]);
+        }
+        let (king_file, adjacent, blocked) = storm_distances(board, color);
+        for distance in 0..6 {
+            counts.storm_king_file_by_distance[distance] += sign * i32::from(king_file[distance]);
+            counts.storm_adjacent_file_by_distance[distance] +=
+                sign * i32::from(adjacent[distance]);
+            counts.blocked_storm_by_distance[distance] += sign * i32::from(blocked[distance]);
         }
         let (own, enemy) = passer_king_distances(board, color);
         for distance in 0..8 {
@@ -1496,6 +1509,64 @@ fn shelter_distances(board: &Board, color: Color) -> ([i8; 6], [i8; 6]) {
         counts[distance - 1] += 1;
     }
     (king_file, adjacent)
+}
+
+/// Grades the pawn storm against the king by the nearest enemy pawn's rank.
+///
+/// The shelter says where the king's own pawns stand; this says where the
+/// enemy's are coming from. For the king's own file and each adjacent file
+/// on the board, the nearest enemy pawn ahead of the king is found and
+/// counted by its rank distance, one to six. A storming pawn that a friendly
+/// pawn stands directly in front of is counted in a block of its own rather
+/// than by file: a blocked storm is a closed file and an open one is a
+/// lever, and the fit should be free to price the two apart. An enemy pawn
+/// level with or behind the king has passed it and counts nowhere here.
+/// Like the shelter, the term is a function of the pawns and the king
+/// square, so it rides the structure cache.
+fn storm_distances(board: &Board, color: Color) -> ([i8; 6], [i8; 6], [i8; 6]) {
+    let king = board.king(color);
+    let pawns = board.colored_pieces(color, Piece::Pawn);
+    let enemy_pawns = board.colored_pieces(!color, Piece::Pawn);
+    let spans = if color == Color::White {
+        &WHITE_PASSER_SPANS
+    } else {
+        &BLACK_PASSER_SPANS
+    };
+    let ahead = enemy_pawns & spans[king as usize];
+    // A friendly pawn shifted one rank toward the enemy lands on the
+    // storming pawn it blocks, so the blocked set is one intersection.
+    let blockers = if color == Color::White {
+        BitBoard(pawns.0 << 8)
+    } else {
+        BitBoard(pawns.0 >> 8)
+    };
+    let mut king_file = [0_i8; 6];
+    let mut adjacent = [0_i8; 6];
+    let mut blocked = [0_i8; 6];
+    let king_rank = king.rank() as u32;
+    for file in File::ALL {
+        let file_pawns = ahead & file.bitboard();
+        if file_pawns.is_empty() {
+            continue;
+        }
+        // The nearest enemy pawn on a file is its lowest set square for a
+        // White king and its highest for a Black one, as for the shelter.
+        let nearest = if color == Color::White {
+            file_pawns.0.trailing_zeros()
+        } else {
+            63 - file_pawns.0.leading_zeros()
+        };
+        let distance = (nearest / 8).abs_diff(king_rank) as usize;
+        let counts = if blockers.0 & (1_u64 << nearest) != 0 {
+            &mut blocked
+        } else if file == king.file() {
+            &mut king_file
+        } else {
+            &mut adjacent
+        };
+        counts[distance - 1] += 1;
+    }
+    (king_file, adjacent, blocked)
 }
 
 /// Every square a colour's pawns attack, as two shifts.

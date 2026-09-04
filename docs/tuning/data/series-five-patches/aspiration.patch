@@ -1,0 +1,101 @@
+diff --git a/src/engine/search/algorithm.rs b/src/engine/search/algorithm.rs
+index 374725a..7916881 100644
+--- a/src/engine/search/algorithm.rs
++++ b/src/engine/search/algorithm.rs
+@@ -27,7 +27,10 @@ use crate::engine::position::repetition_key;
+ const DEFAULT_DEPTH: u32 = 4;
+ const MAX_DEPTH: u32 = 64;
+ const QUIESCENCE_DEPTH: u32 = 16;
+-const ASPIRATION_INITIAL: Score = 50;
++/// Half-width of the first aspiration window around the previous score.
++const ASPIRATION_INITIAL: Score = 30;
++/// Score swing between iterations that marks a search volatile.
++const VOLATILE_SCORE_SWING: Score = 50;
+ const VOLATILE_HOLD_ITERATIONS: u8 = 2;
+ pub(super) const CONTROL_POLL_INTERVAL_NODES: u64 = 256;
+ const ITERATION_TIME_MULTIPLIER: u32 = 2;
+@@ -130,7 +133,7 @@ impl IterationStability {
+         let best_move_changed = self.best_move.is_some() && self.best_move != best_move;
+         let score_changed = self
+             .score
+-            .is_some_and(|previous| previous.abs_diff(score) >= ASPIRATION_INITIAL as u32);
++            .is_some_and(|previous| previous.abs_diff(score) >= VOLATILE_SCORE_SWING as u32);
+         if best_move_changed || score_changed {
+             self.volatile_for = VOLATILE_HOLD_ITERATIONS;
+         } else {
+@@ -2263,12 +2266,15 @@ fn run_worker(
+                 break iteration;
+             }
+ 
++            // A failed window widens and moves to where the score went, so
++            // a fail-low is retried below the previous score rather than
++            // around it, and a fail-high above.
+             radius = radius.saturating_mul(2);
+             if iteration.primary_score.abs() >= MATE_THRESHOLD || radius >= POS_INFINITY {
+                 alpha = NEG_INFINITY;
+                 beta = POS_INFINITY;
+-            } else if let Some(score) = previous_score {
+-                (alpha, beta) = aspiration_bounds(score, radius);
++            } else {
++                (alpha, beta) = aspiration_bounds(iteration.primary_score, radius);
+             }
+         };
+         let iteration_duration = iteration_started.elapsed();
+diff --git a/tests/data/dual-channel-null-contract.json b/tests/data/dual-channel-null-contract.json
+index bd0a7e8..cfcab6e 100644
+--- a/tests/data/dual-channel-null-contract.json
++++ b/tests/data/dual-channel-null-contract.json
+@@ -4,7 +4,7 @@
+   "suites": [
+     {
+       "path": "tests/data/objective-personality-contract.epd",
+-      "sha256": "5f876edf46e2c63d6927edbc88b9b1c5b8bd5b079d4d55648e933a2757dd573b",
++      "sha256": "0ff8fbea4ec38201b7cf84608ba19d6c06a89667cd4624cf9c3e52d54c3c34ff",
+       "records": 16,
+       "kind": "objective-personality"
+     },
+@@ -22,7 +22,7 @@
+     },
+     {
+       "path": "tests/data/personality.epd",
+-      "sha256": "d48fc3a459cd375add620e81ec518ed00a68e98dd31b6390b5a640131ff00327",
++      "sha256": "9b74046e6219109d7ef887281b88641ee0477febb4c3424cc43dbd4d89288ac9",
+       "records": 16,
+       "kind": "legacy-personality"
+     },
+diff --git a/tests/data/objective-personality-contract.epd b/tests/data/objective-personality-contract.epd
+index ea33bf8..d8420ab 100644
+--- a/tests/data/objective-personality-contract.epd
++++ b/tests/data/objective-personality-contract.epd
+@@ -6,7 +6,7 @@ rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 2 ; id contract-black
+ 4k3/8/8/8/8/8/4q3/4R1K1 w - - 0 1 ; id contract-tactical-safety ; category safety ; nodes 20000 ; obm e1e2 ; bm0 e1e2 ; bm100 e1e2 ; maxloss 0 ; gate control ; motif forced-capture
+ 7k/8/8/8/8/1r6/8/K7 w - - 0 1 ; id contract-defensive-safety ; category safety ; nodes 20000 ; obm a1a2 ; bm0 a1a2 ; bm100 a1a2 ; maxloss 0 ; gate control ; motif forced-defense
+ r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8 ; id contract-open-king-gambit ; category forcing-attack ; nodes 100000 ; obm c3d5 ; bm0 c3d5 ; bm100 c1g5 ; maxloss 120 ; gate personality ; motif forcing-attack
+-2kr3r/pppq1ppp/2n1bn2/3p4/3P4/2P1PN2/PP1N1PPP/R2Q1RK1 w - - 0 10 ; id contract-opposite-castle-storm ; category pawn-storm ; nodes 20000 ; obm f1e1 ; bm0 f1e1 ; bm100 b2b4 ; maxloss 120 ; gate personality ; motif opposite-castling
++2kr3r/pppq1ppp/2n1bn2/3p4/3P4/2P1PN2/PP1N1PPP/R2Q1RK1 w - - 0 10 ; id contract-opposite-castle-storm ; category pawn-storm ; nodes 20000 ; obm f1e1 ; bm0 f1e1 ; bm100 f3e5 ; maxloss 120 ; gate personality ; motif opposite-castling
+ 4k3/8/8/3q4/8/3Q4/8/4K3 w - - 0 1 ; id contract-hanging-queen-safety ; category safety ; nodes 20000 ; obm d3d5 ; bm0 d3d5 ; bm100 d3d5 ; maxloss 0 ; gate control ; motif forced-capture
+ 6k1/5ppp/8/7Q/2B5/8/5PPP/6K1 w - - 0 1 ; id contract-forcing-mate-safety ; category safety ; nodes 20000 ; obm h5f7 ; bm0 h5f7 ; bm100 h5f7 ; maxloss 0 ; gate control ; motif forced-mate
+ 6k1/5ppp/8/8/6P1/8/5P1P/6K1 w - - 0 1 ; id contract-kingside-pawn-storm ; category pawn-storm ; nodes 20000 ; obm f2f4 ; bm0 f2f4 ; bm100 f2f4 ; maxloss 120 ; gate personality ; motif pawn-storm
+diff --git a/tests/data/personality.epd b/tests/data/personality.epd
+index be20448..feb4268 100644
+--- a/tests/data/personality.epd
++++ b/tests/data/personality.epd
+@@ -6,7 +6,7 @@ rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 2 ; id black-king-pre
+ 4k3/8/8/8/8/8/4q3/4R1K1 w - - 0 1 ; id tactical-safety ; category safety ; nodes 20000 ; bm0 e1e2 ; bm100 e1e2
+ 7k/8/8/8/8/1r6/8/K7 w - - 0 1 ; id defensive-safety ; category safety ; nodes 20000 ; bm0 a1a2 ; bm100 a1a2
+ r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8 ; id open-king-gambit ; category forcing-attack ; nodes 100000 ; bm0 c3d5 ; bm100 c1g5
+-2kr3r/pppq1ppp/2n1bn2/3p4/3P4/2P1PN2/PP1N1PPP/R2Q1RK1 w - - 0 10 ; id opposite-castle-storm ; category pawn-storm ; nodes 20000 ; bm0 f1e1 ; bm100 b2b4
++2kr3r/pppq1ppp/2n1bn2/3p4/3P4/2P1PN2/PP1N1PPP/R2Q1RK1 w - - 0 10 ; id opposite-castle-storm ; category pawn-storm ; nodes 20000 ; bm0 f1e1 ; bm100 f3e5
+ 4k3/8/8/3q4/8/3Q4/8/4K3 w - - 0 1 ; id hanging-queen-safety ; category safety ; nodes 20000 ; bm0 d3d5 ; bm100 d3d5
+ 6k1/5ppp/8/7Q/2B5/8/5PPP/6K1 w - - 0 1 ; id forcing-mate-safety ; category safety ; nodes 20000 ; bm0 h5f7 ; bm100 h5f7
+ 6k1/5ppp/8/8/6P1/8/5P1P/6K1 w - - 0 1 ; id kingside-pawn-storm ; category pawn-storm ; nodes 20000 ; bm0 f2f4 ; bm100 f2f4
+diff --git a/tests/data/tactics.epd b/tests/data/tactics.epd
+index 70b976c..cf2fe69 100644
+--- a/tests/data/tactics.epd
++++ b/tests/data/tactics.epd
+@@ -1,4 +1,4 @@
+ # Six-field FEN; id NAME; category tactical; nodes N; bm MOVE; score cp|mate VALUE
+ 7k/5Q2/6K1/8/8/8/8/8 w - - 0 1 ; id mate-in-one ; category tactical ; nodes 20000 ; bm f7g7 ; score mate 1
+-4k3/8/8/8/8/8/4q3/4R1K1 w - - 0 1 ; id win-hanging-queen ; category tactical ; nodes 20000 ; bm e1e2 ; score cp 659
++4k3/8/8/8/8/8/4q3/4R1K1 w - - 0 1 ; id win-hanging-queen ; category tactical ; nodes 20000 ; bm e1e2 ; score cp 672
+ r3k2r/ppp2ppp/2n5/3qp3/8/2N2N2/PPP2PPP/R2Q1RK1 w kq - 0 10 ; id punish-central-queen ; category tactical ; nodes 20000 ; bm d1d5 ; score cp 1457

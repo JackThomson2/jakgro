@@ -1,0 +1,229 @@
+diff --git a/src/engine/search/algorithm.rs b/src/engine/search/algorithm.rs
+index 374725a..06d6c52 100644
+--- a/src/engine/search/algorithm.rs
++++ b/src/engine/search/algorithm.rs
+@@ -1106,6 +1106,13 @@ struct MoveOrdering {
+     killers: Vec<[Option<Move>; 2]>,
+     history: Vec<i32>,
+     continuation: Vec<i32>,
++    /// Like the continuation table, keyed by the side's own previous move,
++    /// two plies up, rather than the opponent's reply.
++    followup: Vec<i32>,
++    /// The move that led to each ply on the current path, so a node can
++    /// find the move its own side played two plies up without every caller
++    /// carrying it.
++    played: Vec<Option<HistoryMove>>,
+     capture_history: Vec<i16>,
+ }
+ 
+@@ -1115,10 +1122,18 @@ impl MoveOrdering {
+             killers: vec![[None; 2]; MAX_PLY as usize + 1],
+             history: vec![0; 2 * 64 * 64],
+             continuation: vec![0; CONTINUATION_BUCKETS * CONTINUATION_BUCKETS],
++            followup: vec![0; CONTINUATION_BUCKETS * CONTINUATION_BUCKETS],
++            played: vec![None; MAX_PLY as usize + 1],
+             capture_history: vec![0; CAPTURE_HISTORY_ENTRIES],
+         }
+     }
+ 
++    /// The move the side to move at `ply` played itself, two plies up.
++    fn followup_of(&self, ply: u32) -> Option<HistoryMove> {
++        ply.checked_sub(1)
++            .and_then(|earlier| self.played[earlier.min(MAX_PLY) as usize])
++    }
++
+     fn killers(&self, ply: u32) -> [Option<Move>; 2] {
+         self.killers.get(ply as usize).copied().unwrap_or([None; 2])
+     }
+@@ -1131,22 +1146,37 @@ impl MoveOrdering {
+         self.continuation[continuation_index(previous, current)]
+     }
+ 
++    fn followup_score(&self, own_previous: HistoryMove, current: HistoryMove) -> i32 {
++        self.followup[continuation_index(own_previous, current)]
++    }
++
+     fn quiet_history_score(
+         &self,
+         board: &Board,
+         chess_move: Move,
+         previous: Option<HistoryMove>,
++        ply: u32,
+     ) -> i32 {
+         let butterfly = self.history_score(board.side_to_move(), chess_move);
+         let Some(previous) = previous else {
+             return butterfly;
+         };
+-        let continuation =
+-            self.continuation_score(previous, HistoryMove::from_board(board, chess_move));
++        let current = HistoryMove::from_board(board, chess_move);
++        let continuation = self.continuation_score(previous, current);
+         if butterfly == 0 || butterfly.signum() != continuation.signum() {
+             return butterfly;
+         }
+-        (butterfly + continuation / 8).clamp(-HISTORY_MAX, HISTORY_MAX)
++        // The side's own previous move speaks under the same agreement rule:
++        // it adds to the score only when it agrees with the butterfly sign.
++        let followup = self
++            .followup_of(ply)
++            .map_or(0, |own_previous| self.followup_score(own_previous, current));
++        let followup = if followup.signum() == butterfly.signum() {
++            followup
++        } else {
++            0
++        };
++        (butterfly + continuation / 8 + followup / 8).clamp(-HISTORY_MAX, HISTORY_MAX)
+     }
+ 
+     fn record_quiet_cutoff(
+@@ -1184,18 +1214,26 @@ impl MoveOrdering {
+         }
+ 
+         let bonus = history_bonus(depth);
++        let own_previous = self.followup_of(ply);
+         self.update_history(board.side_to_move(), chess_move, bonus);
+         if let Some(previous) = previous {
+             self.update_continuation(previous, HistoryMove::from_board(board, chess_move), bonus);
+         }
++        if let Some(own_previous) = own_previous {
++            self.update_followup(
++                own_previous,
++                HistoryMove::from_board(board, chess_move),
++                bonus,
++            );
++        }
+         for failed in failed_quiets.filter(|failed| failed.is_quiet()) {
+             self.update_history(board.side_to_move(), failed.chess_move, -bonus);
++            let current = HistoryMove::from_board(board, failed.chess_move);
+             if let Some(previous) = previous {
+-                self.update_continuation(
+-                    previous,
+-                    HistoryMove::from_board(board, failed.chess_move),
+-                    -bonus,
+-                );
++                self.update_continuation(previous, current, -bonus);
++            }
++            if let Some(own_previous) = own_previous {
++                self.update_followup(own_previous, current, -bonus);
+             }
+         }
+     }
+@@ -1211,6 +1249,13 @@ impl MoveOrdering {
+         );
+     }
+ 
++    fn update_followup(&mut self, own_previous: HistoryMove, current: HistoryMove, bonus: i32) {
++        update_gravity(
++            &mut self.followup[continuation_index(own_previous, current)],
++            bonus,
++        );
++    }
++
+     fn capture_history_score(&self, color: Color, facts: MoveFacts) -> i32 {
+         let Some(captured) = facts.captured else {
+             return 0;
+@@ -3373,6 +3418,9 @@ fn negamax(
+     }
+ 
+     context.clear_pv(ply);
++    // The move that led here, kept per ply so a child two plies down can
++    // read the move its own side played without every caller carrying it.
++    context.ordering.played[ply.min(MAX_PLY) as usize] = previous_move;
+     context.visit_node()?;
+     if draw_state_pending(board, history, context.mode) || ply >= MAX_PLY {
+         if let Some(result) = terminal_score_for_mode(
+@@ -3576,9 +3624,10 @@ fn negamax(
+                 .into_iter()
+                 .flatten()
+                 .any(|killer| killer == chess_move);
+-        let history_score = context
+-            .ordering
+-            .quiet_history_score(board, chess_move, previous_move);
++        let history_score =
++            context
++                .ordering
++                .quiet_history_score(board, chess_move, previous_move, ply);
+         if pruning_evaluation.is_some_and(|evaluation| {
+             should_prune_quiet_move(
+                 depth,
+@@ -4595,7 +4644,7 @@ fn quiet_order_score(
+     evaluation: EvaluationConfig,
+ ) -> i64 {
+     let chess_move = metadata.chess_move;
+-    let history = i64::from(ordering.quiet_history_score(board, chess_move, previous));
++    let history = i64::from(ordering.quiet_history_score(board, chess_move, previous, ply));
+     let forcing = forcing_order_bonus(metadata, evaluation);
+     if forcing > 0 {
+         return 2_000_000 + history + forcing;
+@@ -5791,20 +5840,67 @@ mod tests {
+         assert!(ordering.continuation_score(predecessor, failed_current) < 0);
+         assert_eq!(ordering.continuation_score(unrelated, current), 0);
+         assert!(
+-            ordering.quiet_history_score(position.board(), winner, Some(predecessor))
+-                > ordering.quiet_history_score(position.board(), winner, Some(unrelated))
++            ordering.quiet_history_score(position.board(), winner, Some(predecessor), 0)
++                > ordering.quiet_history_score(position.board(), winner, Some(unrelated), 0)
+         );
+         ordering.update_continuation(unrelated, current, -super::HISTORY_MAX);
+         assert_eq!(
+-            ordering.quiet_history_score(position.board(), winner, Some(unrelated)),
++            ordering.quiet_history_score(position.board(), winner, Some(unrelated), 0),
+             ordering.history_score(position.board().side_to_move(), winner),
+         );
+         assert_eq!(
+-            ordering.quiet_history_score(position.board(), winner, None),
++            ordering.quiet_history_score(position.board(), winner, None, 0),
+             ordering.history_score(position.board().side_to_move(), winner),
+         );
+     }
+ 
++    #[test]
++    fn followup_history_reads_the_side_own_previous_move() {
++        let position = Position::default();
++        let winner = find_move(&position, "d2d4");
++        let failed = find_move(&position, "e2e4");
++        let failed_metadata = super::MoveMetadata::classify(position.board(), failed);
++        let reply = HistoryMove {
++            piece: Piece::Knight,
++            to: Square::F6,
++        };
++        let own_previous = HistoryMove {
++            piece: Piece::Knight,
++            to: Square::F3,
++        };
++        let current = HistoryMove::from_board(position.board(), winner);
++        let failed_current = HistoryMove::from_board(position.board(), failed);
++        let mut ordering = MoveOrdering::new();
++        // The side to move at ply two played `own_previous` from ply zero,
++        // which the stack records as the move that led to ply one.
++        ordering.played[1] = Some(own_previous);
++        assert_eq!(ordering.followup_of(2), Some(own_previous));
++        assert_eq!(ordering.followup_of(0), None);
++
++        ordering.record_quiet_cutoff(
++            position.board(),
++            Some(reply),
++            winner,
++            &[failed_metadata],
++            2,
++            8,
++        );
++
++        assert!(ordering.followup_score(own_previous, current) > 0);
++        assert!(ordering.followup_score(own_previous, failed_current) < 0);
++        // At ply two the follow-up agrees and adds; at ply zero there is none.
++        assert!(
++            ordering.quiet_history_score(position.board(), winner, Some(reply), 2)
++                > ordering.quiet_history_score(position.board(), winner, Some(reply), 0)
++        );
++        // A follow-up that disagrees with the butterfly sign is ignored.
++        ordering.update_followup(own_previous, current, -super::HISTORY_MAX);
++        assert_eq!(
++            ordering.quiet_history_score(position.board(), winner, Some(reply), 2),
++            ordering.quiet_history_score(position.board(), winner, Some(reply), 0),
++        );
++    }
++
+     #[test]
+     fn capture_history_rewards_cutoffs_without_crossing_see_tiers() {
+         let position = Position::from_fen("k7/8/8/8/3pRp2/8/8/K7 w - - 0 1").unwrap();

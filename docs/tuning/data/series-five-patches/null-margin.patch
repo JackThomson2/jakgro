@@ -1,0 +1,51 @@
+diff --git a/src/engine/search/algorithm.rs b/src/engine/search/algorithm.rs
+index 374725a..d023245 100644
+--- a/src/engine/search/algorithm.rs
++++ b/src/engine/search/algorithm.rs
+@@ -1566,6 +1566,18 @@ fn null_move_reduction(depth: u32) -> u32 {
+     (2 + depth / 4).min(depth.saturating_sub(1))
+ }
+ 
++/// Extra plies the null probe gives up when the static evaluation stands
++/// far above beta: one per two hundred centipawns, at most three.
++///
++/// The probe asks whether passing still beats beta, and the further above
++/// beta the position already stands the shallower the search that can say
++/// so. Only the probe is shortened; the verification that follows a
++/// fail-high keeps the depth it always had, since it is the check on the
++/// guess and not the guess.
++fn null_move_excess_reduction(excess: Score) -> u32 {
++    (excess / 200).clamp(0, 3) as u32
++}
++
+ #[allow(clippy::too_many_arguments)]
+ fn verified_null_move_cutoff(
+     board: &Board,
+@@ -1598,7 +1610,8 @@ fn verified_null_move_cutoff(
+     context.telemetry.null_move_attempts += 1;
+     let (probe_mode, verification_mode) = null_search_modes();
+     let reduction = null_move_reduction(depth);
+-    let null_depth = depth.saturating_sub(reduction).saturating_sub(1);
++    let probe_reduction = reduction + null_move_excess_reduction(static_evaluation - beta);
++    let null_depth = depth.saturating_sub(probe_reduction).saturating_sub(1);
+     let verification_depth = depth.saturating_sub(reduction);
+     let original_mode = context.mode;
+     context.mode = probe_mode;
+@@ -6199,6 +6212,17 @@ mod tests {
+         );
+     }
+ 
++    #[test]
++    fn null_move_excess_reduction_adds_a_ply_per_two_hundred_to_three() {
++        assert_eq!(super::null_move_excess_reduction(-50), 0);
++        assert_eq!(super::null_move_excess_reduction(0), 0);
++        assert_eq!(super::null_move_excess_reduction(199), 0);
++        assert_eq!(super::null_move_excess_reduction(200), 1);
++        assert_eq!(super::null_move_excess_reduction(599), 2);
++        assert_eq!(super::null_move_excess_reduction(600), 3);
++        assert_eq!(super::null_move_excess_reduction(5000), 3);
++    }
++
+     #[test]
+     fn null_move_reduction_is_bounded_by_remaining_depth() {
+         assert_eq!(super::null_move_reduction(1), 0);

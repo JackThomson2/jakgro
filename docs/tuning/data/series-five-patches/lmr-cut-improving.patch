@@ -1,0 +1,200 @@
+diff --git a/src/engine/search/algorithm.rs b/src/engine/search/algorithm.rs
+index 374725a..ffb0ac2 100644
+--- a/src/engine/search/algorithm.rs
++++ b/src/engine/search/algorithm.rs
+@@ -1602,6 +1602,7 @@ fn verified_null_move_cutoff(
+     let verification_depth = depth.saturating_sub(reduction);
+     let original_mode = context.mode;
+     context.mode = probe_mode;
++    context.cut_nodes[ply as usize + 1] = false;
+     let probe = negamax(
+         &null_board,
+         history,
+@@ -1677,6 +1678,15 @@ struct SearchContext<'a> {
+     pv: Vec<Vec<Move>>,
+     hash_pv_depths: Vec<Option<u32>>,
+     static_evaluations: Vec<Option<Score>>,
++    /// Whether the node at each ply is expected to fail high, set by its
++    /// parent before the child search; the reduction ladder goes one ply
++    /// deeper there.
++    cut_nodes: Vec<bool>,
++    /// The static evaluation at each ply wherever one was computed, for
++    /// the reduction ladder's improving signal alone. The pruning rules
++    /// keep reading the narrower stack above, because widening what they
++    /// see once cost the acceptance contract its required investment.
++    wide_static_evaluations: Vec<Option<Score>>,
+     picker_storage: Vec<MovePickerStorage>,
+     ordering: MoveOrdering,
+ }
+@@ -1728,6 +1738,8 @@ impl<'a> SearchContext<'a> {
+                 .collect(),
+             hash_pv_depths: vec![None; MAX_PLY as usize + 1],
+             static_evaluations: vec![None; MAX_PLY as usize + 1],
++            cut_nodes: vec![false; MAX_PLY as usize + 1],
++            wide_static_evaluations: vec![None; MAX_PLY as usize + 1],
+             picker_storage: (0..=MAX_PLY)
+                 .map(|_| MovePickerStorage::default())
+                 .collect(),
+@@ -1821,6 +1833,22 @@ impl SearchContext<'_> {
+     /// evaluation, and a node without a recorded grandparent has nothing to
+     /// compare against; both are treated as improving so that the wider margins
+     /// apply and pruning stays conservative where the signal is unavailable.
++    /// Records the static evaluation at a ply for the reduction ladder and
++    /// says whether it improved on the same side's evaluation two plies
++    /// up. Unknown on either side counts as improving, as the narrow
++    /// signal does.
++    fn record_wide_static_evaluation(&mut self, ply: u32, evaluation: Option<Score>) -> bool {
++        let ply = ply as usize;
++        self.wide_static_evaluations[ply] = evaluation;
++        let earlier = ply
++            .checked_sub(2)
++            .and_then(|ply| self.wide_static_evaluations[ply]);
++        match (evaluation, earlier) {
++            (Some(now), Some(then)) => now > then,
++            _ => true,
++        }
++    }
++
+     fn record_static_evaluation(
+         &mut self,
+         ply: u32,
+@@ -2197,6 +2225,8 @@ fn run_worker(
+             .collect(),
+         hash_pv_depths: vec![None; MAX_PLY as usize + 1],
+         static_evaluations: vec![None; MAX_PLY as usize + 1],
++        cut_nodes: vec![false; MAX_PLY as usize + 1],
++        wide_static_evaluations: vec![None; MAX_PLY as usize + 1],
+         picker_storage: (0..=MAX_PLY)
+             .map(|_| MovePickerStorage::default())
+             .collect(),
+@@ -2549,6 +2579,7 @@ fn search_root_styled(
+         let mut child = board.clone();
+         child.play_unchecked(seed.chess_move);
+         history.push_key(repetition_key(&child));
++        context.cut_nodes[1] = true;
+         let probe = negamax(
+             &child,
+             history,
+@@ -2592,6 +2623,7 @@ fn search_root_styled(
+         let verification_alpha = threshold.saturating_sub(1).max(NEG_INFINITY);
+         let verification_beta = objective.score.saturating_add(1).min(POS_INFINITY);
+         history.push_key(child_key);
++        context.cut_nodes[1] = false;
+         let mut child_result = negamax(
+             &child,
+             history,
+@@ -2649,6 +2681,7 @@ fn search_root_styled(
+             && !context.should_stop();
+         if should_extend {
+             history.push_key(child_key);
++            context.cut_nodes[1] = false;
+             let mut extended = negamax(
+                 &child,
+                 history,
+@@ -3251,6 +3284,7 @@ fn search_root_conventional(
+         } else {
+             (-alpha - 1, -alpha)
+         };
++        context.cut_nodes[1] = index != 0;
+         let mut child_result = negamax(
+             prepared_child,
+             history,
+@@ -3268,6 +3302,7 @@ fn search_root_conventional(
+ 
+         if index != 0 && score > alpha && score < beta {
+             history.push_key(child_key);
++            context.cut_nodes[1] = false;
+             child_result = negamax(
+                 prepared_child,
+                 history,
+@@ -3480,6 +3515,8 @@ fn negamax(
+             None
+         };
+     let improving = context.record_static_evaluation(ply, in_check, pruning_evaluation);
++    let cut_node = context.cut_nodes[ply as usize];
++    let wide_improving = context.record_wide_static_evaluation(ply, static_evaluation);
+     if reverse_futility_allowed(board, depth, alpha, beta, pv_node, context.mode)
+         && static_evaluation.is_some_and(|evaluation| {
+             reverse_futility_cutoff(
+@@ -3617,7 +3654,7 @@ fn negamax(
+             continue;
+         }
+         context.telemetry.lmr_attempts += 1;
+-        let reduction = late_move_reduction(
++        let mut reduction = late_move_reduction(
+             child_depth,
+             index,
+             metadata,
+@@ -3627,6 +3664,18 @@ fn negamax(
+             history_score,
+         );
+         if reduction > 0 {
++            // A cut node's late moves are expected to fail low, and a node
++            // whose evaluation has not improved on its grandparent's is not
++            // where to spend depth: one more ply for each, inside the
++            // ladder's floor on the depth that remains. The ladder's own
++            // exemptions decided above whether there is a reduction at all.
++            let floor = if child_depth == LMR_SHALLOW_CHILD_DEPTH {
++                1
++            } else {
++                2
++            };
++            reduction = (reduction + u32::from(cut_node) + u32::from(!wide_improving))
++                .min(child_depth.saturating_sub(floor));
+             context.telemetry.lmr_reductions += 1;
+             if child_depth <= LMR_MIN_CHILD_DEPTH {
+                 context.telemetry.lmr_shallow_reductions += 1;
+@@ -3641,6 +3690,16 @@ fn negamax(
+         } else {
+             (-alpha - 1, -alpha)
+         };
++        // A reduced search expects to fail low at the child, a later child
++        // of a principal-variation node likewise, and a child of a cut node
++        // is the all node beneath it.
++        context.cut_nodes[ply as usize + 1] = if reduction > 0 {
++            true
++        } else if pv_node {
++            index != 0
++        } else {
++            !cut_node
++        };
+         let mut child_result = negamax(
+             &child,
+             history,
+@@ -3662,6 +3721,7 @@ fn negamax(
+                 context.telemetry.lmr_shallow_researches += 1;
+             }
+             history.push_key(child_key);
++            context.cut_nodes[ply as usize + 1] = !cut_node;
+             child_result = negamax(
+                 &child,
+                 history,
+@@ -3685,6 +3745,7 @@ fn negamax(
+ 
+         if index != 0 && score > alpha && score < beta {
+             history.push_key(child_key);
++            context.cut_nodes[ply as usize + 1] = false;
+             child_result = negamax(
+                 &child,
+                 history,
+@@ -6199,6 +6260,20 @@ mod tests {
+         );
+     }
+ 
++    #[test]
++    fn the_wide_improving_signal_compares_two_plies_up_and_defaults_to_improving() {
++        let table = super::TranspositionTable::new(1).unwrap();
++        let control = super::SearchControl::new();
++        let mut context =
++            super::SearchContext::for_test(&table, &control, super::SearchMode::Normal);
++        assert!(context.record_wide_static_evaluation(0, Some(10)));
++        assert!(context.record_wide_static_evaluation(1, Some(-30)));
++        assert!(context.record_wide_static_evaluation(2, Some(11)));
++        assert!(!context.record_wide_static_evaluation(2, Some(10)));
++        assert!(context.record_wide_static_evaluation(2, None));
++        assert!(context.record_wide_static_evaluation(4, Some(-5)));
++    }
++
+     #[test]
+     fn null_move_reduction_is_bounded_by_remaining_depth() {
+         assert_eq!(super::null_move_reduction(1), 0);

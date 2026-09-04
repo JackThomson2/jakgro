@@ -56,6 +56,10 @@ static WHITE_SHELTER_ZONES: [BitBoard; 64] = build_shelter_zones(true);
 static BLACK_SHELTER_ZONES: [BitBoard; 64] = build_shelter_zones(false);
 /// The file of each square together with both neighbouring files.
 static KING_FILE_SPANS: [BitBoard; 64] = build_king_file_spans();
+/// The four centre files on a side's own second to fourth ranks, where its
+/// space is counted.
+static WHITE_SPACE_ZONE: BitBoard = build_space_zone(true);
+static BLACK_SPACE_ZONE: BitBoard = build_space_zone(false);
 
 const fn square_mask(file: usize, rank: usize) -> u64 {
     1_u64 << (rank * 8 + file)
@@ -139,6 +143,21 @@ const fn build_shelter_zones(white: bool) -> [BitBoard; 64] {
     zones
 }
 
+const fn build_space_zone(white: bool) -> BitBoard {
+    let mut mask = 0_u64;
+    let mut file = 2;
+    while file <= 5 {
+        let mut step = 1;
+        while step <= 3 {
+            let rank = if white { step } else { 7 - step };
+            mask |= square_mask(file, rank);
+            step += 1;
+        }
+        file += 1;
+    }
+    BitBoard(mask)
+}
+
 const fn build_king_file_spans() -> [BitBoard; 64] {
     let mut spans = [BitBoard::EMPTY; 64];
     let mut index = 0;
@@ -187,6 +206,10 @@ struct StructureTerms {
     /// counts themselves are recomputed by [`structure_counts`] for the
     /// fitter and the tests, which are the only readers that need them.
     indexed: ScorePair,
+    /// Each colour's safe centre squares behind its pawns, raw rather than
+    /// weighted, because the extraction multiplies them by a piece count
+    /// that is not a function of the pawns.
+    space_area: [i8; 2],
 }
 
 /// The pawn and king structure counts, side-relative, as the fitter and the
@@ -219,6 +242,10 @@ pub(super) struct StructureCounts {
     pub(super) storm_king_file_by_distance: [i32; 6],
     pub(super) storm_adjacent_file_by_distance: [i32; 6],
     pub(super) blocked_storm_by_distance: [i32; 6],
+    /// Each colour's safe centre squares behind its pawns, by colour rather
+    /// than side-relative, since the weight they earn depends on the
+    /// owner's pieces.
+    pub(super) space_area: [i32; 2],
 }
 
 /// The inputs a [`StructureTerms`] depends on, stored so a hit is exact.
@@ -310,6 +337,7 @@ fn compute_structure_terms(board: &Board) -> StructureTerms {
         shelter: counts.shelter,
         open_files: counts.open_files,
         indexed: weights::structure_indexed(&counts),
+        space_area: [counts.space_area[0] as i8, counts.space_area[1] as i8],
     }
 }
 
@@ -344,6 +372,7 @@ pub(super) fn structure_counts(board: &Board) -> StructureCounts {
                 sign * i32::from(adjacent[distance]);
             counts.blocked_storm_by_distance[distance] += sign * i32::from(blocked[distance]);
         }
+        counts.space_area[color as usize] = i32::from(space_area(board, color));
         let (own, enemy) = passer_king_distances(board, color);
         for distance in 0..8 {
             counts.passer_own_king_distance[distance] += sign * i32::from(own[distance]);
@@ -409,16 +438,27 @@ pub(super) fn extract_with_style(board: &Board, style: bool) -> EvalFeatures {
     features.white_attack = white_attack;
     features.black_attack = black_attack;
 
+    // Pawn and king structure depends only on pawn placement and king squares, so
+    // it is accumulated for both colours at once through the cache.
+    let structure = structure_terms(board);
+
     for color in [Color::White, Color::Black] {
         let sign = if color == Color::White { 1 } else { -1 };
+        let knights = board.colored_pieces(color, Piece::Knight).len() as i32;
+        let bishops = board.colored_pieces(color, Piece::Bishop).len() as i32;
+        let rooks = board.colored_pieces(color, Piece::Rook).len() as i32;
+        let queens = board.colored_pieces(color, Piece::Queen).len() as i32;
         features.pawns += sign * board.colored_pieces(color, Piece::Pawn).len() as i32;
-        features.knights += sign * board.colored_pieces(color, Piece::Knight).len() as i32;
-        features.bishops += sign * board.colored_pieces(color, Piece::Bishop).len() as i32;
-        features.rooks += sign * board.colored_pieces(color, Piece::Rook).len() as i32;
-        features.queens += sign * board.colored_pieces(color, Piece::Queen).len() as i32;
-
-        let bishops = board.colored_pieces(color, Piece::Bishop).len();
+        features.knights += sign * knights;
+        features.bishops += sign * bishops;
+        features.rooks += sign * rooks;
+        features.queens += sign * queens;
         features.bishop_pair += sign * i32::from(bishops >= 2);
+        // Room is worth what wants to use it: the cached count is carried
+        // once as it is and once scaled by the owner's pieces.
+        let area = i32::from(structure.space_area[color as usize]);
+        features.space_area += sign * area;
+        features.space_area_by_pieces += sign * area * (knights + bishops + rooks + queens);
         let scan = &attacks.scans[color as usize];
         features.activity += sign * scan.activity;
         features.placement = features.placement + scan.placement * sign;
@@ -478,9 +518,6 @@ pub(super) fn extract_with_style(board: &Board, style: bool) -> EvalFeatures {
         features.pawn_breaks += sign * attack.pawn_breaks;
     }
 
-    // Pawn and king structure depends only on pawn placement and king squares, so
-    // it is accumulated for both colours at once through the cache.
-    let structure = structure_terms(board);
     features.doubled_pawns = structure.doubled;
     features.isolated_pawns = structure.isolated;
     features.backward_pawns = structure.backward;
@@ -1567,6 +1604,28 @@ fn storm_distances(board: &Board, color: Color) -> ([i8; 6], [i8; 6], [i8; 6]) {
         counts[distance - 1] += 1;
     }
     (king_file, adjacent, blocked)
+}
+
+/// Counts the safe centre squares behind a colour's pawns.
+///
+/// The space a side controls is the centre-file squares on its own second
+/// to fourth ranks that no enemy pawn attacks and no friendly pawn stands
+/// on, and a square with a friendly pawn one or two ranks ahead of it counts
+/// twice, because it is room the pawn chain has fenced off rather than
+/// merely reached. This is the count alone; what the room is worth depends
+/// on how many pieces want it, which the extraction multiplies in because
+/// that product is not a function of the pawns. The whole count is, so it
+/// rides the structure cache.
+fn space_area(board: &Board, color: Color) -> i8 {
+    let pawns = board.colored_pieces(color, Piece::Pawn);
+    let enemy_attacks = pawn_attack_set(board.colored_pieces(!color, Piece::Pawn), !color);
+    let (zone, behind) = if color == Color::White {
+        (WHITE_SPACE_ZONE, BitBoard(pawns.0 >> 8 | pawns.0 >> 16))
+    } else {
+        (BLACK_SPACE_ZONE, BitBoard(pawns.0 << 8 | pawns.0 << 16))
+    };
+    let safe = zone & !pawns & !enemy_attacks;
+    (safe.len() + (safe & behind).len()) as i8
 }
 
 /// Every square a colour's pawns attack, as two shifts.

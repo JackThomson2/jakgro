@@ -165,6 +165,8 @@ pub const BLOCKS: &[FeatureBlock] = &[
     array("STORM_KING_FILE_BY_DISTANCE", STORM_KING_FILE_OFFSET, 6),
     array("STORM_ADJACENT_FILE_BY_DISTANCE", STORM_ADJACENT_OFFSET, 6),
     array("BLOCKED_STORM_BY_DISTANCE", BLOCKED_STORM_OFFSET, 6),
+    scalar("SPACE_AREA", SPACE_AREA_OFFSET),
+    scalar("SPACE_AREA_BY_PIECES", SPACE_AREA_OFFSET + 1),
 ];
 
 /// Scalar features before the tables, in the order [`super::weights::score`]
@@ -192,7 +194,8 @@ pub const TRAILING_FEATURES: usize = MOBILITY_CURVE_ENTRIES
     + 6
     + 6
     + 6
-    + 6;
+    + 6
+    + 2;
 /// Length of the feature vector.
 pub const FEATURE_COUNT: usize = SCALAR_FEATURES + PLACEMENT_FEATURES + TRAILING_FEATURES;
 /// Index of the first piece-square feature.
@@ -217,6 +220,10 @@ const SHELTER_ADJACENT_OFFSET: usize = SHELTER_KING_FILE_OFFSET + 6;
 const STORM_KING_FILE_OFFSET: usize = SHELTER_ADJACENT_OFFSET + 6;
 const STORM_ADJACENT_OFFSET: usize = STORM_KING_FILE_OFFSET + 6;
 const BLOCKED_STORM_OFFSET: usize = STORM_ADJACENT_OFFSET + 6;
+/// Index of the space scalars: the area, then the area scaled by pieces.
+/// Scalars added after the tables are one-length blocks here rather than
+/// entries of `trailing_scalars`, whose length every later offset builds on.
+const SPACE_AREA_OFFSET: usize = BLOCKED_STORM_OFFSET + 6;
 /// The mobility curves as piece, offset within the trailing region and length.
 const MOBILITY_CURVES: [(Piece, usize, usize); 4] = [
     (Piece::Knight, 0, KNIGHT_MOBILITY_ENTRIES),
@@ -425,6 +432,16 @@ pub fn tuning_features(board: &Board) -> TuningPosition {
             if value != 0 {
                 entries.push(((offset + index) as u16, value as i16));
             }
+        }
+    }
+
+    // Scalars added after the indexed blocks, as one-length blocks.
+    for (offset, value) in [
+        (SPACE_AREA_OFFSET, extracted.space_area),
+        (SPACE_AREA_OFFSET + 1, extracted.space_area_by_pieces),
+    ] {
+        if value != 0 {
+            entries.push((offset as u16, value as i16));
         }
     }
 

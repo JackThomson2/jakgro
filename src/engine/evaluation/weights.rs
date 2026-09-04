@@ -233,6 +233,11 @@ const SHELTER_ADJACENT_FILE_BY_DISTANCE: [ScorePair; 6] = [
 const STORM_KING_FILE_BY_DISTANCE: [ScorePair; 6] = [ScorePair::new(0, 0); 6];
 const STORM_ADJACENT_FILE_BY_DISTANCE: [ScorePair; 6] = [ScorePair::new(0, 0); 6];
 const BLOCKED_STORM_BY_DISTANCE: [ScorePair; 6] = [ScorePair::new(0, 0); 6];
+/// Safe centre squares behind the pawn chain, alone and scaled by the
+/// owner's pieces; zero until fitted. The style's space term counts
+/// attacked squares in the enemy half and is a different quantity.
+const SPACE_AREA: ScorePair = ScorePair::new(0, 0);
+const SPACE_AREA_BY_PIECES: ScorePair = ScorePair::new(0, 0);
 const KING_PRESSURE: ScorePair = ScorePair::new(9, 2);
 const PAWN_STORM: ScorePair = ScorePair::new(7, 1);
 const THREAT: ScorePair = ScorePair::new(11, 7);
@@ -270,6 +275,8 @@ pub(super) fn score(features: &EvalFeatures) -> ScorePair {
         + THREAT_HANGING * features.threat_hanging
         + THREAT_BY_LOWER_VALUE * features.threat_by_lower_value
         + features.piece_indexed
+        + SPACE_AREA * features.space_area
+        + SPACE_AREA_BY_PIECES * features.space_area_by_pieces
 }
 
 /// Weights every rank- or distance-indexed structure block at once.
@@ -478,6 +485,7 @@ pub(super) fn trailing_tuning_weights() -> [ScorePair; super::tuning::TRAILING_F
         &STORM_KING_FILE_BY_DISTANCE[..],
         &STORM_ADJACENT_FILE_BY_DISTANCE[..],
         &BLOCKED_STORM_BY_DISTANCE[..],
+        &[SPACE_AREA, SPACE_AREA_BY_PIECES][..],
     ] {
         weights[next..next + block.len()].copy_from_slice(block);
         next += block.len();

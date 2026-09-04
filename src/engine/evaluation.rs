@@ -294,6 +294,11 @@ pub(super) struct EvalFeatures {
     /// ever attack.
     pub(super) knight_outposts: Score,
     pub(super) bishop_outposts: Score,
+    /// Safe centre squares behind the pawn chain, side-relative, and the
+    /// same count scaled by the owner's pieces other than pawns and the
+    /// king, since room is worth what wants to use it.
+    pub(super) space_area: Score,
+    pub(super) space_area_by_pieces: Score,
     pub(super) king_pressure: Score,
     pub(super) pawn_storm: Score,
     pub(super) threats: Score,
@@ -1014,6 +1019,44 @@ mod tests {
         // The shelter is unchanged by the storm.
         assert_eq!(blocked.shelter_king_file_by_distance, [1, 0, 0, 0, 0, 0]);
         assert_eq!(blocked.shelter, 1);
+    }
+
+    #[test]
+    fn space_counts_safe_centre_squares_behind_the_pawns() {
+        let counts =
+            |fen: &str| super::features::structure_counts(Position::from_fen(fen).unwrap().board());
+
+        // Twelve centre squares a side, four holding its own pawns.
+        assert_eq!(
+            counts("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").space_area,
+            [8, 8]
+        );
+        // After 1.e4 the pawn still stands in White's zone, the vacated e2
+        // and e3 behind it count twice, and its attacks on d5 and f5 cost
+        // Black two squares.
+        assert_eq!(
+            counts("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1").space_area,
+            [10, 6]
+        );
+        // After 1.e4 d5 each pawn attacks one free square of the other's
+        // zone, and each side has two squares behind its advanced pawn.
+        assert_eq!(
+            counts("rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 2").space_area,
+            [9, 9]
+        );
+
+        // The extraction carries the signed area and the area scaled by
+        // the owner's pieces, so a side with no pieces earns nothing for
+        // its room.
+        let features = |fen: &str| {
+            super::features::extract_with_style(Position::from_fen(fen).unwrap().board(), false)
+        };
+        let bare = features("4k3/8/8/8/8/8/2PPPP2/4K3 w - - 0 1");
+        assert_eq!(bare.space_area, 8 - 12);
+        assert_eq!(bare.space_area_by_pieces, 0);
+        let knight = features("4k3/8/8/8/8/8/2PPPP2/4K1N1 w - - 0 1");
+        assert_eq!(knight.space_area, 8 - 12);
+        assert_eq!(knight.space_area_by_pieces, 8);
     }
 
     #[test]

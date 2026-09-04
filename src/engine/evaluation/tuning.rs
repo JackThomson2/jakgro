@@ -167,6 +167,9 @@ pub const BLOCKS: &[FeatureBlock] = &[
     array("BLOCKED_STORM_BY_DISTANCE", BLOCKED_STORM_OFFSET, 6),
     scalar("SPACE_AREA", SPACE_AREA_OFFSET),
     scalar("SPACE_AREA_BY_PIECES", SPACE_AREA_OFFSET + 1),
+    array("CANDIDATE_PASSER_BY_RANK", CANDIDATE_PASSER_OFFSET, 6),
+    scalar("PAWN_ISLANDS", CANDIDATE_PASSER_OFFSET + 6),
+    scalar("KING_PAWNLESS_FLANK", CANDIDATE_PASSER_OFFSET + 7),
 ];
 
 /// Scalar features before the tables, in the order [`super::weights::score`]
@@ -194,6 +197,8 @@ pub const TRAILING_FEATURES: usize = MOBILITY_CURVE_ENTRIES
     + 6
     + 6
     + 6
+    + 6
+    + 2
     + 6
     + 2;
 /// Length of the feature vector.
@@ -224,6 +229,9 @@ const BLOCKED_STORM_OFFSET: usize = STORM_ADJACENT_OFFSET + 6;
 /// Scalars added after the tables are one-length blocks here rather than
 /// entries of `trailing_scalars`, whose length every later offset builds on.
 const SPACE_AREA_OFFSET: usize = BLOCKED_STORM_OFFSET + 6;
+/// Index of the candidate-passer block, followed by the island and
+/// pawnless-flank scalars.
+const CANDIDATE_PASSER_OFFSET: usize = SPACE_AREA_OFFSET + 2;
 /// The mobility curves as piece, offset within the trailing region and length.
 const MOBILITY_CURVES: [(Piece, usize, usize); 4] = [
     (Piece::Knight, 0, KNIGHT_MOBILITY_ENTRIES),
@@ -395,7 +403,7 @@ pub fn tuning_features(board: &Board) -> TuningPosition {
             *total += sign * count;
         }
     }
-    let indexed_blocks: [(usize, &[Score]); 12] = [
+    let indexed_blocks: [(usize, &[Score]); 13] = [
         (CONNECTED_OFFSET, &structure.connected_by_rank),
         (BLOCKED_PASSER_OFFSET, &blocked),
         (
@@ -425,6 +433,7 @@ pub fn tuning_features(board: &Board) -> TuningPosition {
             &structure.storm_adjacent_file_by_distance,
         ),
         (BLOCKED_STORM_OFFSET, &structure.blocked_storm_by_distance),
+        (CANDIDATE_PASSER_OFFSET, &structure.candidate_passer_by_rank),
         (0, &[]),
     ];
     for (offset, counts) in indexed_blocks {
@@ -439,6 +448,8 @@ pub fn tuning_features(board: &Board) -> TuningPosition {
     for (offset, value) in [
         (SPACE_AREA_OFFSET, extracted.space_area),
         (SPACE_AREA_OFFSET + 1, extracted.space_area_by_pieces),
+        (CANDIDATE_PASSER_OFFSET + 6, structure.pawn_islands),
+        (CANDIDATE_PASSER_OFFSET + 7, structure.king_pawnless_flank),
     ] {
         if value != 0 {
             entries.push((offset as u16, value as i16));
@@ -606,7 +617,7 @@ mod tests {
     /// Positions the round trip is checked on. Each block added after the
     /// tables should be non-zero in at least one of them, or two blocks
     /// swapped in the layout would pass unnoticed.
-    const POSITIONS: [&str; 7] = [
+    const POSITIONS: [&str; 8] = [
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
         "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
         "r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8",
@@ -615,6 +626,9 @@ mod tests {
         "4k3/8/8/8/8/8/4q3/4R1K1 b - - 0 1",
         // A blocked pawn storm on each king's file, an open one beside it.
         "r4rk1/pp3pp1/2n4p/8/6p1/5NP1/PP3P1P/R4RK1 w - - 0 1",
+        // A candidate passer on b4, two white islands to one, and a white
+        // king on a flank with no pawns.
+        "k7/8/8/2p5/1P6/P7/3P4/7K w - - 0 1",
     ];
 
     /// The vector and the engine must agree exactly, or a fit optimizes a model

@@ -238,6 +238,12 @@ const BLOCKED_STORM_BY_DISTANCE: [ScorePair; 6] = [ScorePair::new(0, 0); 6];
 /// attacked squares in the enemy half and is a different quantity.
 const SPACE_AREA: ScorePair = ScorePair::new(0, 0);
 const SPACE_AREA_BY_PIECES: ScorePair = ScorePair::new(0, 0);
+/// Candidate passers by rank, pawn islands, and a king on a flank with no
+/// pawn of either colour; zero until fitted. All three ride the structure
+/// cache, so they are weighted with the indexed structure blocks.
+const CANDIDATE_PASSER_BY_RANK: [ScorePair; 6] = [ScorePair::new(0, 0); 6];
+const PAWN_ISLANDS: ScorePair = ScorePair::new(0, 0);
+const KING_PAWNLESS_FLANK: ScorePair = ScorePair::new(0, 0);
 const KING_PRESSURE: ScorePair = ScorePair::new(9, 2);
 const PAWN_STORM: ScorePair = ScorePair::new(7, 1);
 const THREAT: ScorePair = ScorePair::new(11, 7);
@@ -312,6 +318,9 @@ pub(super) fn structure_indexed(counts: &StructureCounts) -> ScorePair {
             counts.storm_adjacent_file_by_distance,
         )
         + indexed(&BLOCKED_STORM_BY_DISTANCE, counts.blocked_storm_by_distance)
+        + indexed(&CANDIDATE_PASSER_BY_RANK, counts.candidate_passer_by_rank)
+        + PAWN_ISLANDS * counts.pawn_islands
+        + KING_PAWNLESS_FLANK * counts.king_pawnless_flank
 }
 
 /// Weight of one blockaded passer on the given rank index.
@@ -486,6 +495,8 @@ pub(super) fn trailing_tuning_weights() -> [ScorePair; super::tuning::TRAILING_F
         &STORM_ADJACENT_FILE_BY_DISTANCE[..],
         &BLOCKED_STORM_BY_DISTANCE[..],
         &[SPACE_AREA, SPACE_AREA_BY_PIECES][..],
+        &CANDIDATE_PASSER_BY_RANK[..],
+        &[PAWN_ISLANDS, KING_PAWNLESS_FLANK][..],
     ] {
         weights[next..next + block.len()].copy_from_slice(block);
         next += block.len();

@@ -1060,6 +1060,78 @@ mod tests {
     }
 
     #[test]
+    fn candidate_passers_islands_and_pawnless_flanks_are_counted() {
+        let counts =
+            |fen: &str| super::features::structure_counts(Position::from_fen(fen).unwrap().board());
+
+        // e4 is held back by d5, but its file is clear and d3 can match the
+        // sentry: a candidate on the fourth, rank index two. Without d3 it
+        // is not, and a pawn that is already passed is not a candidate.
+        let candidate = counts("4k3/8/8/3p4/4P3/3P4/8/4K3 w - - 0 1");
+        assert_eq!(candidate.candidate_passer_by_rank, [0, 0, 1, 0, 0, 0]);
+        assert_eq!(
+            counts("4k3/8/8/3p4/4P3/8/8/4K3 w - - 0 1").candidate_passer_by_rank,
+            [0; 6]
+        );
+        let passed = counts("4k3/8/8/8/4P3/8/8/4K3 w - - 0 1");
+        assert_eq!(passed.candidate_passer_by_rank, [0; 6]);
+        assert_eq!(passed.passed_by_rank, [0, 0, 1, 0, 0, 0]);
+        // An enemy pawn on the file ahead rules a pawn out however many
+        // helpers it has.
+        assert_eq!(
+            counts("4k3/8/4p3/8/4P3/3P1P2/8/4K3 w - - 0 1").candidate_passer_by_rank,
+            [0; 6]
+        );
+        // Black's candidate on its own fourth counts against.
+        assert_eq!(
+            counts("4k3/8/3p4/4p3/3P4/8/8/4K3 w - - 0 1").candidate_passer_by_rank,
+            [0, 0, -1, 0, 0, 0]
+        );
+
+        // Islands are runs of occupied files, side-relative.
+        assert_eq!(
+            counts("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").pawn_islands,
+            0
+        );
+        assert_eq!(
+            counts("4k3/8/8/8/8/8/P1P1P1P1/4K3 w - - 0 1").pawn_islands,
+            4
+        );
+        assert_eq!(
+            counts("4k3/pp3ppp/8/8/8/8/PPPPPPPP/4K3 w - - 0 1").pawn_islands,
+            -1
+        );
+
+        // A flank is the four files nearest the king, and it is pawnless
+        // only with no pawn of either colour on it.
+        assert_eq!(counts("k7/8/8/8/8/8/8/7K w - - 0 1").king_pawnless_flank, 0);
+        assert_eq!(
+            counts("k7/8/8/8/8/8/4P3/7K w - - 0 1").king_pawnless_flank,
+            -1
+        );
+        assert_eq!(
+            counts("k7/p7/8/8/8/8/8/7K w - - 0 1").king_pawnless_flank,
+            1
+        );
+        assert_eq!(
+            counts("3k4/8/8/8/8/8/1P6/K7 w - - 0 1").king_pawnless_flank,
+            -1
+        );
+        assert_eq!(
+            counts("4k3/8/8/8/8/8/1P4P1/K7 w - - 0 1").king_pawnless_flank,
+            -1
+        );
+        assert_eq!(
+            counts("5k2/8/8/8/8/8/1P6/K7 w - - 0 1").king_pawnless_flank,
+            -1
+        );
+        assert_eq!(
+            counts("2k5/8/8/8/8/8/3P4/7K w - - 0 1").king_pawnless_flank,
+            1
+        );
+    }
+
+    #[test]
     fn objective_threats_count_attacked_pieces_by_kind() {
         let features =
             |fen: &str| evaluate_with_trace(Position::from_fen(fen).unwrap().board()).features;

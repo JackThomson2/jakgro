@@ -60,6 +60,9 @@ static KING_FILE_SPANS: [BitBoard; 64] = build_king_file_spans();
 /// space is counted.
 static WHITE_SPACE_ZONE: BitBoard = build_space_zone(true);
 static BLACK_SPACE_ZONE: BitBoard = build_space_zone(false);
+/// The four files nearest a king on each file: a to d for a king on a to c,
+/// c to f for one on d or e, e to h for one on f to h.
+static KING_FLANKS: [BitBoard; 8] = build_king_flanks();
 
 const fn square_mask(file: usize, rank: usize) -> u64 {
     1_u64 << (rank * 8 + file)
@@ -141,6 +144,33 @@ const fn build_shelter_zones(white: bool) -> [BitBoard; 64] {
         index += 1;
     }
     zones
+}
+
+const fn build_king_flanks() -> [BitBoard; 8] {
+    let mut flanks = [BitBoard::EMPTY; 8];
+    let mut king_file = 0;
+    while king_file < 8 {
+        let first = if king_file <= 2 {
+            0
+        } else if king_file <= 4 {
+            2
+        } else {
+            4
+        };
+        let mut mask = 0_u64;
+        let mut file = first;
+        while file < first + 4 {
+            let mut rank = 0;
+            while rank < 8 {
+                mask |= square_mask(file, rank);
+                rank += 1;
+            }
+            file += 1;
+        }
+        flanks[king_file] = BitBoard(mask);
+        king_file += 1;
+    }
+    flanks
 }
 
 const fn build_space_zone(white: bool) -> BitBoard {
@@ -246,6 +276,13 @@ pub(super) struct StructureCounts {
     /// than side-relative, since the weight they earn depends on the
     /// owner's pieces.
     pub(super) space_area: [i32; 2],
+    /// Pawns not passed whose own file ahead is clear and whose helpers on
+    /// the adjacent files can match the enemy pawns ahead there, by rank.
+    pub(super) candidate_passer_by_rank: [i32; 6],
+    /// Runs of adjacent files holding a pawn.
+    pub(super) pawn_islands: i32,
+    /// Kings whose four-file flank holds no pawn of either colour.
+    pub(super) king_pawnless_flank: i32,
 }
 
 /// The inputs a [`StructureTerms`] depends on, stored so a hit is exact.
@@ -355,7 +392,11 @@ pub(super) fn structure_counts(board: &Board) -> StructureCounts {
             counts.protected_passer_by_rank[rank] +=
                 sign * i32::from(pawns.protected_passer_by_rank[rank]);
             counts.connected_by_rank[rank] += sign * i32::from(pawns.connected_by_rank[rank]);
+            counts.candidate_passer_by_rank[rank] +=
+                sign * i32::from(pawns.candidate_by_rank[rank]);
         }
+        counts.pawn_islands += sign * pawns.islands;
+        counts.king_pawnless_flank += sign * pawnless_flank(board, color);
         let (shelter, open_files) = king_safety(board, color);
         counts.shelter += sign * shelter;
         counts.open_files += sign * open_files;
@@ -1298,6 +1339,11 @@ struct PawnFeatures {
     protected_passer_by_rank: [i8; 6],
     /// Pawns with a neighbour beside them or defending them, by rank.
     connected_by_rank: [i8; 6],
+    /// Pawns not passed whose own file ahead is clear and whose helpers on
+    /// the adjacent files can match the enemy pawns ahead there, by rank.
+    candidate_by_rank: [i8; 6],
+    /// Runs of adjacent files holding a pawn.
+    islands: i32,
 }
 
 /// Reference pawn structure, retained to check the mask-based extraction.
@@ -1318,6 +1364,9 @@ fn reference_pawn_features(board: &Board, color: Color) -> PawnFeatures {
         result.doubled += i32::from(count.saturating_sub(1));
         if count > 0 && (file == 0 || files[file - 1] == 0) && (file == 7 || files[file + 1] == 0) {
             result.isolated += i32::from(count);
+        }
+        if count > 0 && (file == 0 || files[file - 1] == 0) {
+            result.islands += 1;
         }
     }
 
@@ -1370,6 +1419,22 @@ fn reference_pawn_features(board: &Board, color: Color) -> PawnFeatures {
             result.passed_by_rank[index] += 1;
             if !(get_pawn_attacks(square, !color) & pawns).is_empty() {
                 result.protected_passer_by_rank[index] += 1;
+            }
+        } else {
+            let ahead = |other: Square| (other.rank() as i32 - rank) * forward > 0;
+            let file_clear = !enemy_pawns
+                .into_iter()
+                .any(|enemy| enemy.file() as i32 == file && ahead(enemy));
+            let sentries = enemy_pawns
+                .into_iter()
+                .filter(|&enemy| (enemy.file() as i32 - file).abs() == 1 && ahead(enemy))
+                .count();
+            let helpers = pawns
+                .into_iter()
+                .filter(|&other| (other.file() as i32 - file).abs() == 1 && !ahead(other))
+                .count();
+            if file_clear && helpers >= sentries {
+                result.candidate_by_rank[index] += 1;
             }
         }
     }
@@ -1424,13 +1489,18 @@ fn pawn_features(board: &Board, color: Color) -> PawnFeatures {
     let enemy_attacks = pawn_attack_set(enemy_pawns, !color);
 
     let mut result = PawnFeatures::default();
+    let mut occupied_files = 0_u8;
     for file in File::ALL {
         let count = (pawns & file.bitboard()).len();
         result.doubled += count.saturating_sub(1) as i32;
         if count > 0 && (pawns & file.adjacent()).is_empty() {
             result.isolated += count as i32;
         }
+        occupied_files |= u8::from(count > 0) << (file as u8);
     }
+    // An island starts at every occupied file whose lower neighbour is
+    // empty, which one shift and one mask count for all eight files.
+    result.islands = (occupied_files & !(occupied_files << 1)).count_ones() as i32;
 
     for square in pawns {
         let rank = square.rank() as i32;
@@ -1470,6 +1540,15 @@ fn pawn_features(board: &Board, color: Color) -> PawnFeatures {
             result.passed_by_rank[index] += 1;
             if supported {
                 result.protected_passer_by_rank[index] += 1;
+            }
+        } else if (enemy_pawns & spans[square as usize] & square.file().bitboard()).is_empty() {
+            // Not passed, but nothing stands in its own file's way: a
+            // candidate when the friendly pawns level with or behind it on
+            // the adjacent files can match the enemy pawns ahead on them.
+            let helpers = (pawns & adjacent & !challenges[square as usize]).len();
+            let sentries = (enemy_pawns & challenges[square as usize]).len();
+            if helpers >= sentries {
+                result.candidate_by_rank[index] += 1;
             }
         }
     }
@@ -1604,6 +1683,17 @@ fn storm_distances(board: &Board, color: Color) -> ([i8; 6], [i8; 6], [i8; 6]) {
         counts[distance - 1] += 1;
     }
     (king_file, adjacent, blocked)
+}
+
+/// Whether the king's flank holds no pawn of either colour.
+///
+/// The flank is the four files nearest the king. With no pawns on it the
+/// king has no shelter to rebuild and the attacker no storm to pay for,
+/// which is a different position from the one the shelter and storm terms
+/// describe between them as merely open.
+fn pawnless_flank(board: &Board, color: Color) -> i32 {
+    let flank = KING_FLANKS[board.king(color).file() as usize];
+    i32::from((board.pieces(Piece::Pawn) & flank).is_empty())
 }
 
 /// Counts the safe centre squares behind a colour's pawns.

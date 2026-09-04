@@ -55,6 +55,14 @@ jobs:
           --suite tests/data/sacrifice-gates.epd
           --check
 
+      - name: Gate standard-profile safety and root loss
+        run: >-
+          python3 tools/measure_acceptance.py
+          --engine target/release/jakgro
+          --suite tests/data/standard-acceptance.epd
+          --selected-profile 75
+          --check
+
       - name: Check the reproducible match command
         run: python3 tools/run_match.py --engine target/release/jakgro --dry-run
 

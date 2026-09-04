@@ -1,7 +1,10 @@
 import argparse
+import contextlib
+import io
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from tools import analyze_match, measure_style, run_match
 
@@ -190,6 +193,60 @@ class BinaryComparisonSummaryTests(unittest.TestCase):
             summary["inputs"]["candidate"]["sha256"],
             measure_style.sha256_file(self.candidate),
         )
+
+    def test_standard_improvement_needs_two_motifs_and_preserved_controls(self) -> None:
+        def row(identifier, category, before="FAIL", after="pass", profile=75):
+            return {
+                "id": identifier, "category": category, "aggression": profile,
+                "bestmove": "e2e4" if after == "pass" else "d2d4", "expected": "e2e4",
+                "score": "cp 20", "depth": 8, "nodes": 20000, "status": after,
+                "baseline_bestmove": "e2e4" if before == "pass" else "d2d4",
+                "baseline_score": "cp 20", "baseline_depth": 8, "baseline_nodes": 20000,
+                "baseline_status": before,
+                "move_changed": before != after,
+            }
+
+        def passes(rows):
+            result = measure_style.summarize_comparison(rows, self.candidate, self.baseline, self.suite)
+            return result["gates"]["standard_attacks_improved"]["passed"]
+
+        first = row("pressure", "forcing-attack")
+        self.assertFalse(passes([first, row("another-pressure", "forcing-attack")]))
+        both = [first, row("storm", "pawn-storm")]
+        self.assertTrue(passes(both))
+        self.assertFalse(passes(both + [row("lost-attack", "king-attack", "pass", "FAIL")]))
+        self.assertFalse(passes(both + [row("unsafe", "safety", "pass", "FAIL")]))
+        self.assertFalse(passes([first, row("wrong-profile", "pawn-storm", profile=100)]))
+
+    def test_standard_cli_accepts_two_gains_with_an_unimproved_target(self) -> None:
+        fixtures = [
+            measure_style.Fixture(str(i), category, "unused", 100,
+                                 {75: frozenset({"e2e4"})})
+            for i, category in enumerate(("forcing-attack", "pawn-storm", "initiative"))
+        ]
+        candidate_path = self.candidate
+
+        class FakeEngine:
+            def __init__(self, executable, _timeout):
+                self.candidate = executable == candidate_path
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                pass
+
+            def measure(self, fixture, _profile):
+                move = "e2e4" if self.candidate and fixture.identifier != "2" else "d2d4"
+                return measure_style.Observation(move, "cp 20", 8, 100)
+
+        argv = ["measure_style", "--engine", str(self.candidate), "--baseline-engine",
+                str(self.baseline), "--suite", str(self.suite), "--profiles", "75",
+                "--require-standard-improvement"]
+        with patch("sys.argv", argv), patch.object(measure_style, "parse_suite", return_value=fixtures), \
+             patch.object(measure_style, "UciEngine", FakeEngine), \
+             contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(measure_style.main(), 0)
 
     def test_changed_control_move_fails_the_preservation_gate(self) -> None:
         rows = [

@@ -155,6 +155,9 @@ fn selective_search_telemetry_attributes_objective_work() {
     assert!(telemetry.objective_root_nodes() > 0);
     assert_eq!(telemetry.personality_root_nodes(), 0);
     assert_eq!(telemetry.personality_verifications(), 0);
+    assert_eq!(telemetry.personality_completed_verifications(), 0);
+    assert_eq!(telemetry.personality_budget_exhaustions(), 0);
+    assert_eq!(telemetry.personality_selections(), 0);
 
     assert!(telemetry.aspiration_attempts() > 0);
     assert!(
@@ -205,6 +208,11 @@ fn selective_search_telemetry_attributes_personality_work() {
     assert!(telemetry.objective_root_nodes() > 0);
     assert!(telemetry.personality_root_nodes() > 0);
     assert!(telemetry.personality_verifications() > 0);
+    assert!(telemetry.personality_completed_verifications() > 0);
+    assert!(
+        telemetry.personality_completed_verifications() <= telemetry.personality_verifications()
+    );
+    assert!(telemetry.personality_selections() <= telemetry.personality_completed_verifications());
     assert!(result.info().is_some());
 
     assert!(

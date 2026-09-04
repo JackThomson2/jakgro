@@ -431,6 +431,10 @@ def summarize_comparison(
         int(bucket["regressions"])
         for bucket in categories.get("sacrifice", {}).values()
     )
+    attack_categories = {"initiative", "forcing-attack", "king-attack", "pawn-storm", "sacrifice"}
+    standard_attacks = [p for p in positions if p["aggression"] == 75 and p["category"] in attack_categories]
+    improved_motifs = sorted({p["category"] for p in standard_attacks if p["delta"]["expected_hit"] > 0})
+    standard_regressions = sum(p["delta"]["expected_hit"] < 0 for p in standard_attacks)
     candidate_hash = sha256_file(candidate)
     baseline_hash = sha256_file(baseline)
     return {
@@ -454,6 +458,11 @@ def summarize_comparison(
         "positions": positions,
         "categories": categories,
         "gates": {
+            "standard_attacks_improved": {
+                "passed": len(improved_motifs) >= 2 and standard_regressions == 0 and not control_failures,
+                "improved_motifs": improved_motifs,
+                "regressions": standard_regressions,
+            },
             "candidate_expected_moves": {
                 "passed": not expected_failures,
                 "failed_positions": expected_failures,
@@ -495,6 +504,8 @@ def main() -> int:
         help="fail unless a binary comparison gains a sacrifice-suite hit",
     )
     parser.add_argument("--summary-json", type=Path, help="write categorized hit rates")
+    parser.add_argument("--require-standard-improvement", action="store_true",
+                        help="require Aggression 75 gains in two attack categories without regressions")
     args = parser.parse_args()
     if args.timeout <= 0:
         parser.error("--timeout must be positive")
@@ -502,6 +513,8 @@ def main() -> int:
         parser.error("--move-time-ms must be positive")
     if args.require_improvement and args.baseline_engine is None:
         parser.error("--require-improvement needs --baseline-engine")
+    if args.require_standard_improvement and (args.baseline_engine is None or 75 not in args.profiles):
+        parser.error("--require-standard-improvement needs --baseline-engine and profile 75")
 
     try:
         fixtures = parse_suite(args.suite)
@@ -543,9 +556,11 @@ def main() -> int:
                 raise RuntimeError("candidate engine changed during measurement")
             if sha256_file(args.baseline_engine) != baseline_hash_before:
                 raise RuntimeError("baseline engine changed during measurement")
-            if args.require_improvement and not summary["distinct_binaries"]:
+            if (args.require_improvement or args.require_standard_improvement) and not summary["distinct_binaries"]:
                 raise ValueError("improvement gate needs distinct candidate and baseline binaries")
             if args.require_improvement and not summary["gates"]["sacrifice_improved"]["passed"]:
+                failures += 1
+            if args.require_standard_improvement and not summary["gates"]["standard_attacks_improved"]["passed"]:
                 failures += 1
             if args.check:
                 failures += len(
@@ -600,7 +615,12 @@ def main() -> int:
     writer.writeheader()
     writer.writerows(rows)
     print(f"measured {len(rows)} searches; mismatches={failures}", file=sys.stderr)
-    return 1 if (args.check or args.require_improvement) and failures else 0
+    failed = (args.check or args.require_improvement) and failures
+    standard_failed = (
+        args.require_standard_improvement
+        and not summary["gates"]["standard_attacks_improved"]["passed"]
+    )
+    return 1 if failed or standard_failed else 0
 
 
 if __name__ == "__main__":

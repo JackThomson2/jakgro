@@ -1013,6 +1013,11 @@ mod tests {
         let info = result.info().expect("a fixed-node search still reports");
         assert_eq!(info.depth(), 1);
         assert!(result.best_move().is_some());
+        assert_eq!(
+            result.telemetry().personality_budget_exhaustions(),
+            0,
+            "the global node limit must not be reported as a local budget exhaustion"
+        );
     }
 
     /// The styled root's local budget binds during the guaranteed iteration.

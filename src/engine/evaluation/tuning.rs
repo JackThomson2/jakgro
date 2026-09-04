@@ -174,6 +174,7 @@ pub const BLOCKS: &[FeatureBlock] = &[
     scalar("BISHOP_PER_PAWN", PAWN_COUNT_OFFSET + 1),
     scalar("ROOK_PER_PAWN", PAWN_COUNT_OFFSET + 2),
     scalar("BISHOP_PAWNS_ON_COLOUR", PAWN_COUNT_OFFSET + 3),
+    array("UNSAFE_MOBILITY_BY_PIECE", UNSAFE_MOBILITY_OFFSET, 4),
 ];
 
 /// Scalar features before the tables, in the order [`super::weights::score`]
@@ -205,6 +206,7 @@ pub const TRAILING_FEATURES: usize = MOBILITY_CURVE_ENTRIES
     + 2
     + 6
     + 2
+    + 4
     + 4;
 /// Length of the feature vector.
 pub const FEATURE_COUNT: usize = SCALAR_FEATURES + PLACEMENT_FEATURES + TRAILING_FEATURES;
@@ -240,6 +242,8 @@ const CANDIDATE_PASSER_OFFSET: usize = SPACE_AREA_OFFSET + 2;
 /// Index of the pawn-count products: knights, bishops and rooks by pawn
 /// count, then bishops by pawns on their colour.
 const PAWN_COUNT_OFFSET: usize = CANDIDATE_PASSER_OFFSET + 8;
+/// Index of the moves onto pawn-attacked squares, by piece type.
+const UNSAFE_MOBILITY_OFFSET: usize = PAWN_COUNT_OFFSET + 4;
 /// The mobility curves as piece, offset within the trailing region and length.
 const MOBILITY_CURVES: [(Piece, usize, usize); 4] = [
     (Piece::Knight, 0, KNIGHT_MOBILITY_ENTRIES),
@@ -411,7 +415,7 @@ pub fn tuning_features(board: &Board) -> TuningPosition {
             *total += sign * count;
         }
     }
-    let indexed_blocks: [(usize, &[Score]); 13] = [
+    let indexed_blocks: [(usize, &[Score]); 14] = [
         (CONNECTED_OFFSET, &structure.connected_by_rank),
         (BLOCKED_PASSER_OFFSET, &blocked),
         (
@@ -442,6 +446,7 @@ pub fn tuning_features(board: &Board) -> TuningPosition {
         ),
         (BLOCKED_STORM_OFFSET, &structure.blocked_storm_by_distance),
         (CANDIDATE_PASSER_OFFSET, &structure.candidate_passer_by_rank),
+        (UNSAFE_MOBILITY_OFFSET, &extracted.unsafe_mobility),
         (0, &[]),
     ];
     for (offset, counts) in indexed_blocks {

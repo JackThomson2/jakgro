@@ -521,6 +521,13 @@ pub(super) fn extract_with_style(board: &Board, style: bool) -> EvalFeatures {
         features.queen_mobility += sign * scan.piece_mobility[piece_index(Piece::Queen) as usize];
         features.king_mobility += sign * scan.piece_mobility[piece_index(Piece::King) as usize];
         features.mobility_curves = features.mobility_curves + scan.mobility_curves * sign;
+        for (total, &count) in features
+            .unsafe_mobility
+            .iter_mut()
+            .zip(&scan.unsafe_mobility)
+        {
+            *total += sign * count;
+        }
         let [open, semi_open, seventh] = scan.rook_files;
         features.rook_open_files += sign * open;
         features.rook_semi_open_files += sign * semi_open;
@@ -697,6 +704,9 @@ pub(super) struct ColourScan {
     pub(super) placement: ScorePair,
     /// Friendly pawns on the square colour of each bishop, summed.
     pub(super) bishop_pawns_on_colour: i32,
+    /// Moves onto squares an enemy pawn attacks, for knights, bishops,
+    /// rooks and queens in turn.
+    pub(super) unsafe_mobility: [i32; 4],
 }
 
 impl ColourScan {
@@ -724,6 +734,8 @@ struct ScanContext {
     passer_spans: &'static [BitBoard; 64],
     challenges: &'static [BitBoard; 64],
     outpost_ranks: BitBoard,
+    /// Every square an enemy pawn attacks, two shifts computed once.
+    enemy_pawn_attacks: BitBoard,
 }
 
 /// Scans one colour's pieces of one type.
@@ -782,6 +794,12 @@ fn scan_pieces<const PIECE: usize, const STYLE: bool>(
         let moves = attacks.len() as i32;
         scan.mobility += moves;
         scan.piece_mobility[PIECE] += moves;
+        if let Some(slot) = type_slot {
+            // Moves onto squares an enemy pawn attacks, counted beside the
+            // raw count rather than removed from it, so the curve above and
+            // the profile adjustment keep reading what they read.
+            scan.unsafe_mobility[slot] += (attacks & context.enemy_pawn_attacks).len() as i32;
+        }
         // Weighted here for the same reason placement is: the curve is a
         // table lookup per piece, and expanding it into one count per move
         // count is work only the fitter needs.
@@ -1036,6 +1054,7 @@ pub(super) fn attack_summary_with_style(board: &Board, style: bool) -> AttackSum
             passer_spans,
             challenges,
             outpost_ranks,
+            enemy_pawn_attacks: pawn_attack_set(enemy_pawns, enemy),
         };
         let scan = &mut summary.scans[index];
         if style {

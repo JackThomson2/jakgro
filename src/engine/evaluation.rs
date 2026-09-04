@@ -307,6 +307,10 @@ pub(super) struct EvalFeatures {
     pub(super) bishop_pawns: Score,
     pub(super) rook_pawns: Score,
     pub(super) bishop_pawns_on_colour: Score,
+    /// Moves onto squares an enemy pawn attacks, side-relative, for
+    /// knights, bishops, rooks and queens in turn. The raw move counts
+    /// above include these squares; this says how many of them there were.
+    pub(super) unsafe_mobility: [Score; 4],
     pub(super) king_pressure: Score,
     pub(super) pawn_storm: Score,
     pub(super) threats: Score,
@@ -1166,6 +1170,43 @@ mod tests {
         assert_eq!(black.bishop_pawns, -4);
         assert_eq!(black.bishop_pawns_on_colour, -4);
         assert_eq!(black.knight_pawns, 0);
+    }
+
+    #[test]
+    fn mobility_onto_pawn_attacked_squares_is_counted_by_piece() {
+        let features = |fen: &str| {
+            super::features::extract_with_style(Position::from_fen(fen).unwrap().board(), false)
+        };
+
+        // A knight on d4 has eight moves; the pawn on e6 guards f5.
+        let knight = features("4k3/8/4p3/8/3N4/8/8/4K3 w - - 0 1");
+        assert_eq!(knight.knight_mobility, 8);
+        assert_eq!(knight.unsafe_mobility, [1, 0, 0, 0]);
+        // A bishop on b1 reaches e4, which the pawn on d5 guards.
+        assert_eq!(
+            features("4k3/8/8/3p4/8/8/8/1B2K3 w - - 0 1").unsafe_mobility,
+            [0, 1, 0, 0]
+        );
+        // A rook on a1 reaches a2, which the pawn on b3 guards.
+        assert_eq!(
+            features("4k3/8/8/8/8/1p6/8/R3K3 w - - 0 1").unsafe_mobility,
+            [0, 0, 1, 0]
+        );
+        // A queen on d1 reaches d2, which the pawn on e3 guards.
+        assert_eq!(
+            features("4k3/8/8/8/8/4p3/8/3QK3 w - - 0 1").unsafe_mobility,
+            [0, 0, 0, 1]
+        );
+        // A guarded square a friendly piece occupies is not a move at all.
+        assert_eq!(
+            features("4k3/8/4p3/5P2/3N4/8/8/4K3 w - - 0 1").unsafe_mobility,
+            [0; 4]
+        );
+        // Black's count against.
+        assert_eq!(
+            features("4k3/8/8/3n4/8/4P3/8/4K3 w - - 0 1").unsafe_mobility,
+            [-1, 0, 0, 0]
+        );
     }
 
     #[test]

@@ -251,6 +251,10 @@ const KNIGHT_PER_PAWN: ScorePair = ScorePair::new(0, 0);
 const BISHOP_PER_PAWN: ScorePair = ScorePair::new(0, 0);
 const ROOK_PER_PAWN: ScorePair = ScorePair::new(0, 0);
 const BISHOP_PAWNS_ON_COLOUR: ScorePair = ScorePair::new(0, 0);
+/// Moves onto squares an enemy pawn attacks, per piece type from the
+/// knight to the queen; zero until fitted. The mobility curves count these
+/// squares with the rest, so this is what a guarded square is worth less.
+const UNSAFE_MOBILITY_BY_PIECE: [ScorePair; 4] = [ScorePair::new(0, 0); 4];
 const KING_PRESSURE: ScorePair = ScorePair::new(9, 2);
 const PAWN_STORM: ScorePair = ScorePair::new(7, 1);
 const THREAT: ScorePair = ScorePair::new(11, 7);
@@ -294,6 +298,7 @@ pub(super) fn score(features: &EvalFeatures) -> ScorePair {
         + BISHOP_PER_PAWN * features.bishop_pawns
         + ROOK_PER_PAWN * features.rook_pawns
         + BISHOP_PAWNS_ON_COLOUR * features.bishop_pawns_on_colour
+        + indexed(&UNSAFE_MOBILITY_BY_PIECE, features.unsafe_mobility)
 }
 
 /// Weights every rank- or distance-indexed structure block at once.
@@ -514,6 +519,7 @@ pub(super) fn trailing_tuning_weights() -> [ScorePair; super::tuning::TRAILING_F
             ROOK_PER_PAWN,
             BISHOP_PAWNS_ON_COLOUR,
         ][..],
+        &UNSAFE_MOBILITY_BY_PIECE[..],
     ] {
         weights[next..next + block.len()].copy_from_slice(block);
         next += block.len();

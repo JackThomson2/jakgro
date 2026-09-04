@@ -528,6 +528,7 @@ pub(super) fn extract_with_style(board: &Board, style: bool) -> EvalFeatures {
         {
             *total += sign * count;
         }
+        features.piece_indexed = features.piece_indexed + scan.tropism * sign;
         let [open, semi_open, seventh] = scan.rook_files;
         features.rook_open_files += sign * open;
         features.rook_semi_open_files += sign * semi_open;
@@ -727,6 +728,10 @@ pub(super) struct ColourScan {
     /// Moves onto squares an enemy pawn attacks, for knights, bishops,
     /// rooks and queens in turn.
     pub(super) unsafe_mobility: [i32; 4],
+    /// The tropism block already weighted: each knight, bishop, rook and
+    /// queen by its bucketed distance to the enemy king, looked up in the
+    /// loop as the mobility curves are.
+    pub(super) tropism: ScorePair,
 }
 
 impl ColourScan {
@@ -819,6 +824,10 @@ fn scan_pieces<const PIECE: usize, const STYLE: bool>(
             // raw count rather than removed from it, so the curve above and
             // the profile adjustment keep reading what they read.
             scan.unsafe_mobility[slot] += (attacks & context.enemy_pawn_attacks).len() as i32;
+            // Distance to the enemy king, bucketed at one, two, three and
+            // four or more, weighted here as the mobility curves are.
+            let bucket = king_distance(square, context.enemy_king).min(4) - 1;
+            scan.tropism = scan.tropism + weights::tropism_weight(slot, bucket);
         }
         // Weighted here for the same reason placement is: the curve is a
         // table lookup per piece, and expanding it into one count per move
@@ -1254,6 +1263,28 @@ pub(super) fn attack_summary_with_style(board: &Board, style: bool) -> AttackSum
 #[cfg(feature = "tuning")]
 pub(super) fn mobility_count(board: &Board, piece: Piece, square: Square, color: Color) -> usize {
     (attacks_from(piece, square, color, board.occupied()) & !board.colors(color)).len() as usize
+}
+
+/// Counts each side's knights, bishops, rooks and queens by their bucketed
+/// distance to the enemy king, White-positive, as the fitter's expansion of
+/// the pair the piece loop carries.
+#[cfg(any(test, feature = "tuning"))]
+pub(super) fn tropism_counts(board: &Board) -> [i32; 16] {
+    let mut counts = [0_i32; 16];
+    for color in [Color::White, Color::Black] {
+        let sign = if color == Color::White { 1 } else { -1 };
+        let enemy_king = board.king(!color);
+        for (slot, piece) in [Piece::Knight, Piece::Bishop, Piece::Rook, Piece::Queen]
+            .into_iter()
+            .enumerate()
+        {
+            for square in board.colored_pieces(color, piece) {
+                let bucket = king_distance(square, enemy_king).min(4) - 1;
+                counts[slot * 4 + bucket] += sign;
+            }
+        }
+    }
+    counts
 }
 
 #[cfg(test)]

@@ -1320,6 +1320,33 @@ mod tests {
     }
 
     #[test]
+    fn tropism_buckets_each_piece_by_its_distance_to_the_enemy_king() {
+        let counts =
+            |fen: &str| super::features::tropism_counts(Position::from_fen(fen).unwrap().board());
+
+        // A knight one square from the king, a bishop two, a rook three,
+        // and a queen seven, which shares the last bucket with four.
+        let mut expected = [0; 16];
+        expected[0] = 1;
+        expected[4 + 1] = 1;
+        expected[8 + 2] = 1;
+        expected[12 + 3] = 1;
+        assert_eq!(counts("4k3/3N4/2B5/1R6/8/8/8/Q3K3 w - - 0 1"), expected);
+        assert_eq!(
+            counts("4k3/8/8/8/3Q4/8/8/4K3 w - - 0 1")[12 + 3],
+            1,
+            "distance four is the last bucket",
+        );
+        // Black's pieces count against, measured to White's king.
+        let mut against = [0; 16];
+        against[0] = -1;
+        against[4 + 1] = -1;
+        against[8 + 2] = -1;
+        against[12 + 3] = -1;
+        assert_eq!(counts("q3k3/8/8/8/1r6/2b5/3n4/4K3 w - - 0 1"), against);
+    }
+
+    #[test]
     fn objective_threats_count_attacked_pieces_by_kind() {
         let features =
             |fen: &str| evaluate_with_trace(Position::from_fen(fen).unwrap().board()).features;

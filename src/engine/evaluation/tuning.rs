@@ -180,6 +180,7 @@ pub const BLOCKS: &[FeatureBlock] = &[
     scalar("ROOK_BEHIND_PASSER", PASSER_PATH_OFFSET + 12),
     scalar("THREAT_BY_PAWN_PUSH", PAWN_PUSH_OFFSET),
     scalar("CASTLING_RIGHTS", PAWN_PUSH_OFFSET + 1),
+    array("TROPISM_BY_PIECE_DISTANCE", TROPISM_OFFSET, 16),
 ];
 
 /// Scalar features before the tables, in the order [`super::weights::score`]
@@ -216,7 +217,8 @@ pub const TRAILING_FEATURES: usize = MOBILITY_CURVE_ENTRIES
     + 6
     + 6
     + 1
-    + 2;
+    + 2
+    + 16;
 /// Length of the feature vector.
 pub const FEATURE_COUNT: usize = SCALAR_FEATURES + PLACEMENT_FEATURES + TRAILING_FEATURES;
 /// Index of the first piece-square feature.
@@ -258,6 +260,9 @@ const UNSAFE_MOBILITY_OFFSET: usize = PAWN_COUNT_OFFSET + 4;
 const PASSER_PATH_OFFSET: usize = UNSAFE_MOBILITY_OFFSET + 4;
 /// Index of the pawn-push threat, followed by the castling rights.
 const PAWN_PUSH_OFFSET: usize = PASSER_PATH_OFFSET + 13;
+/// Index of the tropism block: four distance buckets for each of the
+/// knight, bishop, rook and queen.
+const TROPISM_OFFSET: usize = PAWN_PUSH_OFFSET + 2;
 /// The mobility curves as piece, offset within the trailing region and length.
 const MOBILITY_CURVES: [(Piece, usize, usize); 4] = [
     (Piece::Knight, 0, KNIGHT_MOBILITY_ENTRIES),
@@ -437,7 +442,8 @@ pub fn tuning_features(board: &Board) -> TuningPosition {
             *total += sign * count;
         }
     }
-    let indexed_blocks: [(usize, &[Score]); 16] = [
+    let tropism = features::tropism_counts(board);
+    let indexed_blocks: [(usize, &[Score]); 17] = [
         (CONNECTED_OFFSET, &structure.connected_by_rank),
         (BLOCKED_PASSER_OFFSET, &blocked),
         (
@@ -471,6 +477,7 @@ pub fn tuning_features(board: &Board) -> TuningPosition {
         (UNSAFE_MOBILITY_OFFSET, &extracted.unsafe_mobility),
         (PASSER_PATH_OFFSET, &safe_path),
         (PASSER_PATH_OFFSET + 6, &free_path),
+        (TROPISM_OFFSET, &tropism),
         (0, &[]),
     ];
     for (offset, counts) in indexed_blocks {

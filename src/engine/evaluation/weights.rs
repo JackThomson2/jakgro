@@ -265,6 +265,10 @@ const ROOK_BEHIND_PASSER: ScorePair = ScorePair::new(0, 0);
 /// colour may still castle to; zero until fitted.
 const THREAT_BY_PAWN_PUSH: ScorePair = ScorePair::new(0, 0);
 const CASTLING_RIGHTS: ScorePair = ScorePair::new(0, 0);
+/// Knights, bishops, rooks and queens by their distance to the enemy king,
+/// bucketed at one, two, three and four or more, four entries a piece type
+/// in that order; zero until fitted.
+const TROPISM_BY_PIECE_DISTANCE: [ScorePair; 16] = [ScorePair::new(0, 0); 16];
 const KING_PRESSURE: ScorePair = ScorePair::new(9, 2);
 const PAWN_STORM: ScorePair = ScorePair::new(7, 1);
 const THREAT: ScorePair = ScorePair::new(11, 7);
@@ -356,6 +360,13 @@ pub(super) fn structure_indexed(counts: &StructureCounts) -> ScorePair {
 #[inline(always)]
 pub(super) fn blocked_passer_weight(rank: usize) -> ScorePair {
     BLOCKED_PASSER_BY_RANK[rank]
+}
+
+/// Weight of one piece of the given type slot at the given distance bucket
+/// from the enemy king.
+#[inline(always)]
+pub(super) fn tropism_weight(slot: usize, bucket: usize) -> ScorePair {
+    TROPISM_BY_PIECE_DISTANCE[slot * 4 + bucket]
 }
 
 /// Weight of one passer on the given rank index whose path is unattacked.
@@ -549,6 +560,7 @@ pub(super) fn trailing_tuning_weights() -> [ScorePair; super::tuning::TRAILING_F
         &PASSER_FREE_PATH_BY_RANK[..],
         &[ROOK_BEHIND_PASSER][..],
         &[THREAT_BY_PAWN_PUSH, CASTLING_RIGHTS][..],
+        &TROPISM_BY_PIECE_DISTANCE[..],
     ] {
         weights[next..next + block.len()].copy_from_slice(block);
         next += block.len();

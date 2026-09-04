@@ -6,7 +6,8 @@ pub mod tuning;
 mod weights;
 
 pub(super) use tactics::{
-    TacticalSnapshot, exchange_outcome, exchange_risk_on, style_snapshot, tactical_snapshot,
+    StyleSnapshot, TacticalSnapshot, exchange_outcome, exchange_risk_on, style_snapshot,
+    tactical_snapshot,
 };
 
 use std::ops::{Add, Mul};
@@ -387,6 +388,13 @@ pub(super) fn root_complexity_bonus(
         return 0;
     }
     let snapshot = style_snapshot(board, mover);
+    root_complexity_from_snapshot(&snapshot, config)
+}
+
+pub(super) fn root_complexity_from_snapshot(
+    snapshot: &StyleSnapshot,
+    config: EvaluationConfig,
+) -> Score {
     let forcing = snapshot.king_pressure_advantage
         + snapshot.pawn_storm_advantage
         + snapshot.threat_advantage * 2;

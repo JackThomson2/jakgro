@@ -341,7 +341,14 @@ def summarize_comparison(
             if not candidate_hit:
                 expected_failures.append(identifier)
         bucket["move_changes"] += int(changed)
-        if category in control_categories and (not candidate_hit or changed):
+        # A control is preserved when the candidate hits its expected move and
+        # plays what the baseline plays. When the baseline itself no longer
+        # hits the expected move, the suite was re-pinned away from it, which
+        # is a deliberate, hashed and reviewed act, and the control is then
+        # judged by the suite rather than by the baseline.
+        if category in control_categories and (
+            not candidate_hit or (changed and baseline_hit)
+        ):
             control_failures.append(identifier)
         positions.append(
             {

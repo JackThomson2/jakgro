@@ -208,6 +208,44 @@ class BinaryComparisonSummaryTests(unittest.TestCase):
         self.assertFalse(gate["passed"])
         self.assertEqual(gate["failed_positions"], ["control@100"])
 
+    def test_a_control_re_pinned_away_from_the_baseline_is_judged_by_the_suite(self) -> None:
+        def row(bestmove: str, status: str, baseline_bestmove: str, baseline_status: str):
+            return {
+                "id": "control",
+                "category": "anti-sacrifice",
+                "aggression": 100,
+                "bestmove": bestmove,
+                "expected": "b1d2",
+                "score": "cp 43",
+                "depth": 6,
+                "nodes": 100000,
+                "status": status,
+                "baseline_bestmove": baseline_bestmove,
+                "baseline_score": "cp 49",
+                "baseline_depth": 6,
+                "baseline_nodes": 100000,
+                "baseline_status": baseline_status,
+                "move_changed": bestmove != baseline_bestmove,
+                "expected_hit_delta": int(status == "pass") - int(baseline_status == "pass"),
+            }
+
+        # The suite expects b1d2, the candidate plays it, the baseline still
+        # plays the c1f4 the suite used to pin: preserved, by the suite.
+        summary = measure_style.summarize_comparison(
+            [row("b1d2", "pass", "c1f4", "FAIL")], self.candidate, self.baseline, self.suite
+        )
+        self.assertTrue(summary["gates"]["controls_preserved"]["passed"])
+        # A candidate that misses the suite's move fails whatever the baseline
+        # does, and one that changes a move the baseline still hits fails too.
+        summary = measure_style.summarize_comparison(
+            [row("d3h7", "FAIL", "c1f4", "FAIL")], self.candidate, self.baseline, self.suite
+        )
+        self.assertFalse(summary["gates"]["controls_preserved"]["passed"])
+        summary = measure_style.summarize_comparison(
+            [row("c1e3", "pass", "b1d2", "pass")], self.candidate, self.baseline, self.suite
+        )
+        self.assertFalse(summary["gates"]["controls_preserved"]["passed"])
+
 
 class FrozenSacrificeSuiteTests(unittest.TestCase):
     def test_suite_contains_positive_and_control_positions(self) -> None:

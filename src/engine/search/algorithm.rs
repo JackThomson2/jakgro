@@ -20,9 +20,8 @@ use super::{
 use crate::engine::Position;
 use crate::engine::evaluation::{
     EvaluationConfig, MATE_SCORE, MATE_THRESHOLD, MAX_PLY, NEG_INFINITY, POS_INFINITY, Score,
-    StyleSnapshot, TacticalSnapshot, evaluate_with_config, exchange_outcome, exchange_risk_on,
-    piece_value, root_complexity_bonus, root_complexity_from_snapshot, style_snapshot,
-    tactical_snapshot,
+    TacticalSnapshot, evaluate_with_config, exchange_outcome, exchange_risk_on, piece_value,
+    root_complexity_bonus, style_snapshot, tactical_snapshot,
 };
 use crate::engine::position::repetition_key;
 
@@ -2566,15 +2565,7 @@ fn search_root_styled(
     let root_snapshot = tactical_snapshot(board, mover);
     let mut objective_child = board.clone();
     objective_child.play_unchecked(objective_move);
-    let objective_snapshot = tactical_snapshot(&objective_child, mover);
-    let objective_sacrifice = sacrifice_profile_with_snapshots(
-        board,
-        &objective_child,
-        mover,
-        &objective_pv,
-        &root_snapshot,
-        &objective_snapshot,
-    );
+    let objective_sacrifice = sacrifice_profile(board, &objective_child, mover, &objective_pv);
     let objective_outcome = root_line_outcome(
         board,
         history,
@@ -2595,7 +2586,6 @@ fn search_root_styled(
             &objective_child,
             objective_metadata,
             context.personality,
-            &objective_snapshot.style,
         ),
         pv: objective_pv.clone(),
         sacrifice: objective_sacrifice,
@@ -2603,7 +2593,6 @@ fn search_root_styled(
         sterile_simplification: objective_sterile,
     }];
     let mut seeds = Vec::with_capacity(root_moves.len().saturating_sub(1));
-    let mut snapshots = Vec::with_capacity(root_moves.len().saturating_sub(1));
     for &chess_move in root_moves {
         if chess_move == objective_move {
             continue;
@@ -2624,15 +2613,8 @@ fn search_root_styled(
         let mut child = board.clone();
         child.play_unchecked(chess_move);
         let metadata = MoveMetadata::classify_with_child(board, chess_move, &child, true);
+        let interest = root_interest(board, &child, metadata, context.personality);
         let immediate = tactical_snapshot(&child, mover);
-        let interest = root_interest(
-            board,
-            &child,
-            metadata,
-            context.personality,
-            &immediate.style,
-        );
-        snapshots.push((chess_move, immediate));
         let offered_cp = exchange_risk_on(&child, mover, chess_move.to);
         let sacrifice_hint =
             sacrifice_hint_score(&root_snapshot, &immediate, offered_cp, metadata.gives_check);
@@ -2788,13 +2770,7 @@ fn search_root_styled(
         let mut verified_child_pv = context.pv(1).to_vec();
         let mut pv = vec![seed.chess_move];
         pv.extend_from_slice(&verified_child_pv);
-        let immediate = &snapshots
-            .iter()
-            .find(|(chess_move, _)| *chess_move == seed.chess_move)
-            .expect("each seed has an immediate snapshot")
-            .1;
-        let mut sacrifice =
-            sacrifice_profile_with_snapshots(board, &child, mover, &pv, &root_snapshot, immediate);
+        let mut sacrifice = sacrifice_profile(board, &child, mover, &pv);
 
         let should_extend = context.personality.aggression() >= 75
             && seed.sacrifice_hint >= MIN_SACRIFICE_CP
@@ -2838,14 +2814,7 @@ fn search_root_styled(
                     pv.clear();
                     pv.push(seed.chess_move);
                     pv.extend_from_slice(&verified_child_pv);
-                    sacrifice = sacrifice_profile_with_snapshots(
-                        board,
-                        &child,
-                        mover,
-                        &pv,
-                        &root_snapshot,
-                        immediate,
-                    );
+                    sacrifice = sacrifice_profile(board, &child, mover, &pv);
                 }
                 Err(_) => {
                     context.telemetry.personality_completed_verifications -= 1;
@@ -3243,21 +3212,9 @@ fn push_unique_seed(selected: &mut Vec<CandidateSeed>, seed: CandidateSeed) {
 
 const MIN_SACRIFICE_CP: Score = 80;
 
-#[cfg(test)]
 fn sacrifice_profile(root: &Board, child: &Board, mover: Color, pv: &[Move]) -> SacrificeProfile {
     let before = tactical_snapshot(root, mover);
     let immediate = tactical_snapshot(child, mover);
-    sacrifice_profile_with_snapshots(root, child, mover, pv, &before, &immediate)
-}
-
-fn sacrifice_profile_with_snapshots(
-    root: &Board,
-    child: &Board,
-    mover: Color,
-    pv: &[Move],
-    before: &TacticalSnapshot,
-    immediate: &TacticalSnapshot,
-) -> SacrificeProfile {
     let reply_count = generate_moves(child).len();
     let Some(&root_move) = pv.first().filter(|&&chess_move| root.is_legal(chess_move)) else {
         return SacrificeProfile::default();
@@ -3278,7 +3235,7 @@ fn sacrifice_profile_with_snapshots(
             attack_gain: immediate.style.attack_momentum - before.style.attack_momentum,
             king_danger_delta: immediate.style.own_king_danger - before.style.own_king_danger,
             legal_checks: immediate.legal_checks,
-            compensation_signals: compensation_signals(before, immediate, reply_count),
+            compensation_signals: compensation_signals(&before, &immediate, reply_count),
             queens_retained: immediate.style.mover_queens > 0
                 && immediate.style.total_queens >= before.style.total_queens,
             position_stable: immediate.exchange_risk <= before.exchange_risk + offered_cp,
@@ -3305,7 +3262,7 @@ fn sacrifice_profile_with_snapshots(
             attack_gain: after.style.attack_momentum - before.style.attack_momentum,
             king_danger_delta: after.style.own_king_danger - before.style.own_king_danger,
             legal_checks: after.legal_checks,
-            compensation_signals: compensation_signals(before, &after, reply_count),
+            compensation_signals: compensation_signals(&before, &after, reply_count),
             queens_retained: after.style.mover_queens > 0
                 && after.style.total_queens >= before.style.total_queens,
             position_stable: after.exchange_risk <= before.exchange_risk + MIN_SACRIFICE_CP,
@@ -3336,7 +3293,7 @@ fn sacrifice_profile_with_snapshots(
         attack_gain: after.style.attack_momentum - before.style.attack_momentum,
         king_danger_delta: after.style.own_king_danger - before.style.own_king_danger,
         legal_checks: after.legal_checks,
-        compensation_signals: compensation_signals(before, &after, reply_count),
+        compensation_signals: compensation_signals(&before, &after, reply_count),
         queens_retained: after.style.mover_queens > 0
             && after.style.total_queens >= before.style.total_queens,
         position_stable: after.exchange_risk <= before.exchange_risk + MIN_SACRIFICE_CP,
@@ -4792,11 +4749,10 @@ fn root_interest(
     child: &Board,
     metadata: MoveMetadata,
     evaluation: EvaluationConfig,
-    snapshot: &StyleSnapshot,
 ) -> i64 {
     let chess_move = metadata.chess_move;
     let mover = board.side_to_move();
-    let mut interest = i64::from(root_complexity_from_snapshot(snapshot, evaluation)) * 10;
+    let mut interest = i64::from(root_complexity_bonus(child, mover, evaluation)) * 10;
     interest += i64::from(metadata.gives_check) * 120;
     interest += i64::from(metadata.attacking_pawn_push) * 40;
 

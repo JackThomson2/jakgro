@@ -1,0 +1,123 @@
+diff --git a/src/engine/search/algorithm.rs b/src/engine/search/algorithm.rs
+index 83af503..3eb4607 100644
+--- a/src/engine/search/algorithm.rs
++++ b/src/engine/search/algorithm.rs
+@@ -2913,8 +2913,8 @@ fn choose_styled_candidate(
+             continue;
+         }
+         let current = &candidates[selected];
+-        let candidate_interest = selection_interest(candidate, evaluation, best);
+-        let current_interest = selection_interest(current, evaluation, best);
++        let candidate_interest = attack_selection_rank(candidate, evaluation, best);
++        let current_interest = attack_selection_rank(current, evaluation, best);
+         if candidate_interest > current_interest
+             || (candidate_interest == current_interest && candidate.score > current.score)
+             || (candidate_interest == current_interest
+@@ -2927,6 +2927,28 @@ fn choose_styled_candidate(
+     selected
+ }
+ 
++/// Prefer pressure that survives the searched reply over immediate spectacle.
++/// The sacrifice profile also carries reply evidence for ordinary moves. Missing
++/// replies confer no new preference, and verified investments keep priority.
++fn attack_selection_rank(
++    candidate: &RootCandidate,
++    evaluation: EvaluationConfig,
++    best_score: Score,
++) -> (bool, Score, i64) {
++    let sacrifice = &candidate.sacrifice;
++    let compensated = is_compensated_sacrifice(sacrifice);
++    let sustained = if !compensated && sacrifice.verified_reply {
++        sacrifice.attack_gain - sacrifice.king_danger_delta.max(0)
++    } else {
++        0
++    };
++    (
++        compensated,
++        sustained,
++        selection_interest(candidate, evaluation, best_score),
++    )
++}
++
+ fn candidate_within_score_guard(candidate: Score, best: Score, margin: Score) -> bool {
+     if best >= 0 && candidate < 0 {
+         return false;
+@@ -7051,6 +7073,78 @@ mod tests {
+         assert!(super::candidate_within_score_guard(-20, -10, 30));
+     }
+ 
++    fn attack_candidate(
++        chess_move: &str,
++        interest: i64,
++        gain: super::Score,
++    ) -> super::RootCandidate {
++        super::RootCandidate {
++            chess_move: chess_move.parse().unwrap(),
++            score: 50,
++            path_dependent: false,
++            interest,
++            pv: Vec::new(),
++            sacrifice: super::SacrificeProfile {
++                verified_reply: true,
++                attack_gain: gain,
++                ..super::SacrificeProfile::default()
++            },
++            outcome: super::RootLineOutcome::Live,
++            sterile_simplification: false,
++        }
++    }
++
++    #[test]
++    fn ordinary_attacks_must_survive_defense_and_keep_the_king_safe() {
++        let config = super::EvaluationConfig::new(75);
++        let mut candidates = vec![
++            attack_candidate("e2e4", 1000, 0),
++            attack_candidate("d2d4", 10, 30),
++        ];
++        assert_eq!(super::choose_styled_candidate(&candidates, 0, config), 1);
++        candidates[1].sacrifice.king_danger_delta = 40;
++        assert_eq!(super::choose_styled_candidate(&candidates, 0, config), 0);
++        candidates[1].sacrifice.king_danger_delta = 0;
++        candidates[1].sacrifice.verified_reply = false;
++        assert_eq!(super::choose_styled_candidate(&candidates, 0, config), 0);
++        candidates[1].sacrifice.verified_reply = true;
++        candidates[1].score = 23;
++        assert_eq!(super::choose_styled_candidate(&candidates, 0, config), 0);
++    }
++
++    #[test]
++    fn reply_attack_evidence_is_color_symmetric() {
++        let cases = [
++            (
++                "2kr3r/pppq1ppp/2n1bn2/3p4/3P4/2P1PN2/PP1N1PPP/R2Q1RK1 w - - 0 10",
++                "b2b4",
++                "h7h6",
++            ),
++            (
++                "r2q1rk1/pp1n1ppp/2p1pn2/3p4/3P4/2N1BN2/PPPQ1PPP/2KR3R b - - 0 10",
++                "b7b5",
++                "h2h3",
++            ),
++        ];
++        let ranks = cases.map(|(fen, first, reply)| {
++            let position = Position::from_fen(fen).unwrap();
++            let root = position.board();
++            let chess_move = first.parse().unwrap();
++            let mut child = root.clone();
++            child.play(chess_move);
++            let mut candidate = attack_candidate(first, 0, 0);
++            candidate.sacrifice = super::sacrifice_profile(
++                root,
++                &child,
++                root.side_to_move(),
++                &[chess_move, reply.parse().unwrap()],
++            );
++            assert!(candidate.sacrifice.verified_reply);
++            super::attack_selection_rank(&candidate, super::EvaluationConfig::new(75), 50)
++        });
++        assert_eq!(ranks[0], ranks[1]);
++    }
++
+     #[test]
+     fn sacrifice_profile_nets_immediate_recaptures() {
+         let position = Position::from_fen(

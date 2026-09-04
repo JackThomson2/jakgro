@@ -88,13 +88,25 @@ To use Jakgro from a chess GUI, build the release binary and configure the GUI t
 
 - `0` disables style evaluation, retains the conventional forcing-search budgets, and uses the ordinary alpha-beta best move;
 - intermediate values gradually add coordinated attack terms, tactical search effort, and a nonlinear root-choice margin; and
-- `100` uses a 45-centipawn ordinary margin, tightens winning conversions to 20, and reserves the absolute 120-centipawn ceiling for verified investments or already-losing positions where complications are valuable.
+- `100` uses a 26-centipawn ordinary margin, tightens winning conversions to 20, and reserves the absolute 120-centipawn ceiling for verified investments. At the default 75, the corresponding investment ceiling is 67 centipawns.
 
 A sacrifice preference requires a full opponent reply, legal recapture settlement, settled attacking compensation, retained king safety, and a checking resource. Truncated exchanges, declined offers, and immediately recovered material receive no sacrifice preference. At high aggression, an eligible live line also outranks immediate repetition, terminal draws, and balanced queen or rook exchanges that do not increase the attack.
 
 Mate scores always outrank centipawn style preferences, and clearly forced defenses fall outside the bounded margins. Jakgro reports the selected move's actual searched score and principal variation over UCI; it never adds the entertainment score to the reported chess score. High settings can deliberately play weaker chess, which is the intended tradeoff rather than a strength claim.
 
 ## Reproducible style and match measurement
+
+The standard profile now has its own safety and root-loss check:
+
+```sh
+python3 tools/measure_acceptance.py --engine target/release/jakgro \
+  --suite tests/data/standard-acceptance.epd --selected-profile 75 --check
+```
+
+The [standard attacking experiments](docs/tuning/standard-attacks.md) record
+the frozen Aggression 75 attack targets, optional verification diagnostics,
+and why the tested playing changes were rejected. This series adds coverage
+and measurement without claiming a strength or style improvement.
 
 The style gate drives the public UCI interface at fixed node budgets and compares Aggression 0 and 100 against `tests/data/personality.epd`:
 
@@ -188,7 +200,7 @@ measurement protocol and interpretation rules.
 
 - Only standard chess is supported; Chess960 is deferred.
 - Static evaluation tapers material, tuned piece-square placement, tempo, activity, mobility, bishop-pair, pawn-structure, passed-pawn, and king-shelter features between middlegame and endgame. Search scores and transposition bounds remain personality-neutral; aggression instead controls tactical search policy and root interest in coordinated king attacks, supported threats, open attacking lines, and pawn breaks.
-- Higher aggression spends additional search effort on checks and forcing continuations. Root personality work threshold-probes diverse alternatives, fully verifies at most two inside a deterministic node budget, and keeps only completed verification when that local budget expires. Ordinary choices use a 30-centipawn cap, winning conversions use 20, non-negative objective results cannot cross below zero, and only independently verified sacrifices may use the absolute 120-centipawn ceiling.
+- Higher aggression spends additional search effort on checks and forcing continuations. Root personality work threshold-probes diverse alternatives, fully verifies at most two inside a deterministic node budget, and keeps only completed verification when that local budget expires. Ordinary choices use a 26-centipawn cap, winning conversions use 20, non-negative objective results cannot cross below zero, and only independently verified sacrifices may use the absolute 120-centipawn ceiling.
 - Search runs on a configurable number of threads through lazy SMP. One thread, the default, is deterministic and is what every fixed-node fixture, aggression gate, and recorded series measures. More than one thread shares the transposition table between searchers and is deliberately not reproducible move for move, because the tree the helpers explore depends on how their timing interleaves.
 - Every child clones the `cozy-chess` board. A make/unmake layer was implemented and measured for an earlier series and rejected: `size_of::<Board>()` equals `size_of::<BoardState>()`, so a snapshot costs as much as the copy it avoids. A persistent fixed-size transposition table reuses exact and bounded search results, and quiescence consults it as well, which matters because quiescence is roughly 97% of all nodes. Each entry packs its payload into one machine word beside a verification word, so a bucket is one cache line and several searchers can read and write it without locking.
 - Move ordering combines hash and previous-PV moves, promotions, swap-list static-exchange values, killers, signed butterfly history, and agreement-bounded continuation history. Principal-variation search, aspiration windows, table-driven late-move reductions, depth-indexed move-count pruning, always-verified null-move pruning, reverse futility to depth seven, and swap-list quiescence pruning reduce repeated work. Quiescence skips captures the swap list refutes at every profile, exempting promotions, checking captures, king-zone captures, attacking pawn pushes, and the recapture of the square just vacated. Move-count pruning exempts checks, castling, king-zone moves, killers, hash and PV moves, moves with positive history, and — at non-zero aggression — attacking pawn pushes, so the attacking profile keeps its forcing continuations. Null pruning is disabled in checks, PV and mate windows, rule-fifty boundaries, pawn-only and single-minor endings, and synthetic or verification searches; every fail-high is verified from the original legal board.

@@ -1,0 +1,1425 @@
+{
+  "categories": {
+    "anti-sacrifice": {
+      "0": {
+        "baseline_hit_rate_percent": 100.0,
+        "baseline_hits": 2,
+        "candidate_hit_rate_percent": 100.0,
+        "candidate_hits": 2,
+        "hit_delta": 0,
+        "hit_rate_delta_percentage_points": 0.0,
+        "improvements": 0,
+        "measured": 2,
+        "move_changes": 0,
+        "rated": 2,
+        "regressions": 0
+      },
+      "100": {
+        "baseline_hit_rate_percent": 100.0,
+        "baseline_hits": 2,
+        "candidate_hit_rate_percent": 100.0,
+        "candidate_hits": 2,
+        "hit_delta": 0,
+        "hit_rate_delta_percentage_points": 0.0,
+        "improvements": 0,
+        "measured": 2,
+        "move_changes": 0,
+        "rated": 2,
+        "regressions": 0
+      },
+      "75": {
+        "baseline_hit_rate_percent": 100.0,
+        "baseline_hits": 2,
+        "candidate_hit_rate_percent": 100.0,
+        "candidate_hits": 2,
+        "hit_delta": 0,
+        "hit_rate_delta_percentage_points": 0.0,
+        "improvements": 0,
+        "measured": 2,
+        "move_changes": 0,
+        "rated": 2,
+        "regressions": 0
+      }
+    },
+    "forcing-attack": {
+      "0": {
+        "baseline_hit_rate_percent": 0.0,
+        "baseline_hits": 0,
+        "candidate_hit_rate_percent": 0.0,
+        "candidate_hits": 0,
+        "hit_delta": 0,
+        "hit_rate_delta_percentage_points": 0.0,
+        "improvements": 0,
+        "measured": 1,
+        "move_changes": 0,
+        "rated": 1,
+        "regressions": 0
+      },
+      "100": {
+        "baseline_hit_rate_percent": 100.0,
+        "baseline_hits": 1,
+        "candidate_hit_rate_percent": 100.0,
+        "candidate_hits": 1,
+        "hit_delta": 0,
+        "hit_rate_delta_percentage_points": 0.0,
+        "improvements": 0,
+        "measured": 1,
+        "move_changes": 0,
+        "rated": 1,
+        "regressions": 0
+      },
+      "75": {
+        "baseline_hit_rate_percent": 100.0,
+        "baseline_hits": 1,
+        "candidate_hit_rate_percent": 100.0,
+        "candidate_hits": 1,
+        "hit_delta": 0,
+        "hit_rate_delta_percentage_points": 0.0,
+        "improvements": 0,
+        "measured": 1,
+        "move_changes": 0,
+        "rated": 1,
+        "regressions": 0
+      }
+    },
+    "initiative": {
+      "0": {
+        "baseline_hit_rate_percent": 0.0,
+        "baseline_hits": 0,
+        "candidate_hit_rate_percent": 0.0,
+        "candidate_hits": 0,
+        "hit_delta": 0,
+        "hit_rate_delta_percentage_points": 0.0,
+        "improvements": 0,
+        "measured": 1,
+        "move_changes": 0,
+        "rated": 1,
+        "regressions": 0
+      },
+      "100": {
+        "baseline_hit_rate_percent": 100.0,
+        "baseline_hits": 1,
+        "candidate_hit_rate_percent": 100.0,
+        "candidate_hits": 1,
+        "hit_delta": 0,
+        "hit_rate_delta_percentage_points": 0.0,
+        "improvements": 0,
+        "measured": 1,
+        "move_changes": 0,
+        "rated": 1,
+        "regressions": 0
+      },
+      "75": {
+        "baseline_hit_rate_percent": 100.0,
+        "baseline_hits": 1,
+        "candidate_hit_rate_percent": 100.0,
+        "candidate_hits": 1,
+        "hit_delta": 0,
+        "hit_rate_delta_percentage_points": 0.0,
+        "improvements": 0,
+        "measured": 1,
+        "move_changes": 0,
+        "rated": 1,
+        "regressions": 0
+      }
+    },
+    "pawn-storm": {
+      "0": {
+        "baseline_hit_rate_percent": 0.0,
+        "baseline_hits": 0,
+        "candidate_hit_rate_percent": 0.0,
+        "candidate_hits": 0,
+        "hit_delta": 0,
+        "hit_rate_delta_percentage_points": 0.0,
+        "improvements": 0,
+        "measured": 1,
+        "move_changes": 0,
+        "rated": 1,
+        "regressions": 0
+      },
+      "100": {
+        "baseline_hit_rate_percent": 100.0,
+        "baseline_hits": 1,
+        "candidate_hit_rate_percent": 100.0,
+        "candidate_hits": 1,
+        "hit_delta": 0,
+        "hit_rate_delta_percentage_points": 0.0,
+        "improvements": 0,
+        "measured": 1,
+        "move_changes": 0,
+        "rated": 1,
+        "regressions": 0
+      },
+      "75": {
+        "baseline_hit_rate_percent": 100.0,
+        "baseline_hits": 1,
+        "candidate_hit_rate_percent": 100.0,
+        "candidate_hits": 1,
+        "hit_delta": 0,
+        "hit_rate_delta_percentage_points": 0.0,
+        "improvements": 0,
+        "measured": 1,
+        "move_changes": 0,
+        "rated": 1,
+        "regressions": 0
+      }
+    },
+    "sacrifice": {
+      "0": {
+        "baseline_hit_rate_percent": 100.0,
+        "baseline_hits": 1,
+        "candidate_hit_rate_percent": 100.0,
+        "candidate_hits": 1,
+        "hit_delta": 0,
+        "hit_rate_delta_percentage_points": 0.0,
+        "improvements": 0,
+        "measured": 1,
+        "move_changes": 0,
+        "rated": 1,
+        "regressions": 0
+      },
+      "100": {
+        "baseline_hit_rate_percent": 0.0,
+        "baseline_hits": 0,
+        "candidate_hit_rate_percent": 0.0,
+        "candidate_hits": 0,
+        "hit_delta": 0,
+        "hit_rate_delta_percentage_points": 0.0,
+        "improvements": 0,
+        "measured": 1,
+        "move_changes": 0,
+        "rated": 1,
+        "regressions": 0
+      },
+      "75": {
+        "baseline_hit_rate_percent": 0.0,
+        "baseline_hits": 0,
+        "candidate_hit_rate_percent": 0.0,
+        "candidate_hits": 0,
+        "hit_delta": 0,
+        "hit_rate_delta_percentage_points": 0.0,
+        "improvements": 0,
+        "measured": 1,
+        "move_changes": 0,
+        "rated": 1,
+        "regressions": 0
+      }
+    },
+    "safety": {
+      "0": {
+        "baseline_hit_rate_percent": 100.0,
+        "baseline_hits": 3,
+        "candidate_hit_rate_percent": 100.0,
+        "candidate_hits": 3,
+        "hit_delta": 0,
+        "hit_rate_delta_percentage_points": 0.0,
+        "improvements": 0,
+        "measured": 3,
+        "move_changes": 0,
+        "rated": 3,
+        "regressions": 0
+      },
+      "100": {
+        "baseline_hit_rate_percent": 100.0,
+        "baseline_hits": 3,
+        "candidate_hit_rate_percent": 100.0,
+        "candidate_hits": 3,
+        "hit_delta": 0,
+        "hit_rate_delta_percentage_points": 0.0,
+        "improvements": 0,
+        "measured": 3,
+        "move_changes": 0,
+        "rated": 3,
+        "regressions": 0
+      },
+      "75": {
+        "baseline_hit_rate_percent": 100.0,
+        "baseline_hits": 3,
+        "candidate_hit_rate_percent": 100.0,
+        "candidate_hits": 3,
+        "hit_delta": 0,
+        "hit_rate_delta_percentage_points": 0.0,
+        "improvements": 0,
+        "measured": 3,
+        "move_changes": 0,
+        "rated": 3,
+        "regressions": 0
+      }
+    },
+    "simplification": {
+      "0": {
+        "baseline_hit_rate_percent": 100.0,
+        "baseline_hits": 1,
+        "candidate_hit_rate_percent": 100.0,
+        "candidate_hits": 1,
+        "hit_delta": 0,
+        "hit_rate_delta_percentage_points": 0.0,
+        "improvements": 0,
+        "measured": 1,
+        "move_changes": 0,
+        "rated": 1,
+        "regressions": 0
+      },
+      "100": {
+        "baseline_hit_rate_percent": 100.0,
+        "baseline_hits": 1,
+        "candidate_hit_rate_percent": 100.0,
+        "candidate_hits": 1,
+        "hit_delta": 0,
+        "hit_rate_delta_percentage_points": 0.0,
+        "improvements": 0,
+        "measured": 1,
+        "move_changes": 0,
+        "rated": 1,
+        "regressions": 0
+      },
+      "75": {
+        "baseline_hit_rate_percent": 100.0,
+        "baseline_hits": 1,
+        "candidate_hit_rate_percent": 100.0,
+        "candidate_hits": 1,
+        "hit_delta": 0,
+        "hit_rate_delta_percentage_points": 0.0,
+        "improvements": 0,
+        "measured": 1,
+        "move_changes": 0,
+        "rated": 1,
+        "regressions": 0
+      }
+    }
+  },
+  "distinct_binaries": true,
+  "gates": {
+    "candidate_expected_moves": {
+      "failed_positions": [
+        "standard-central-space@0",
+        "standard-open-king-gambit@0",
+        "standard-opposite-castle-storm@0",
+        "standard-knight-c6-investment@75",
+        "standard-knight-c6-investment@100"
+      ],
+      "passed": false
+    },
+    "controls_preserved": {
+      "failed_positions": [],
+      "passed": true
+    },
+    "sacrifice_improved": {
+      "hit_delta": 0,
+      "passed": false,
+      "regressions": 0
+    }
+  },
+  "inputs": {
+    "baseline": {
+      "path": "/Users/jackthomson/Documents/jakgro/artifacts/standard-attacks/baseline-jakgro",
+      "sha256": "c3844ea2085823ea6dcd162fd339bc7adb6f9cdc33b8e909a5b70ac2bb10284e"
+    },
+    "candidate": {
+      "path": "/Users/jackthomson/Documents/jakgro/artifacts/standard-attacks/ranking-jakgro",
+      "sha256": "e2fd25b8583ca56b532b1f164c3882f162355b6b67457e34af6ed2329d5a5041"
+    },
+    "runner": {
+      "path": "/Users/jackthomson/Documents/jakgro/tools/measure_style.py",
+      "sha256": "83a6e8773bf63b22e5b6beb44d2d59253b7b00bf0892da5e78098b70f7c4d8e7"
+    },
+    "suite": {
+      "fixtures": 10,
+      "path": "/Users/jackthomson/Documents/jakgro/tests/data/standard-attacks.epd",
+      "sha256": "2be6305f9c46a2232c4229f1e0c902d169450adaa5847fb126b03a72c5586f90"
+    }
+  },
+  "limit": {
+    "mode": "fixed-movetime",
+    "movetime_ms": 1000
+  },
+  "mode": "binary-comparison",
+  "positions": [
+    {
+      "aggression": 0,
+      "baseline": {
+        "bestmove": "f1c4",
+        "depth": 11,
+        "elapsed_ms": 951,
+        "expected_hit": false,
+        "nodes": 1546726,
+        "personality": {},
+        "score": "cp 54"
+      },
+      "candidate": {
+        "bestmove": "f1c4",
+        "depth": 11,
+        "elapsed_ms": 921,
+        "expected_hit": false,
+        "nodes": 1546726,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "cp 54"
+      },
+      "category": "initiative",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "b1c3"
+      ],
+      "id": "standard-central-space"
+    },
+    {
+      "aggression": 75,
+      "baseline": {
+        "bestmove": "f1c4",
+        "depth": 10,
+        "elapsed_ms": 854,
+        "expected_hit": true,
+        "nodes": 1349400,
+        "personality": {},
+        "score": "cp 50"
+      },
+      "candidate": {
+        "bestmove": "f1c4",
+        "depth": 10,
+        "elapsed_ms": 875,
+        "expected_hit": true,
+        "nodes": 1349400,
+        "personality": {
+          "attempts": 7,
+          "completed": 5,
+          "exhausted": 6,
+          "nodes": 20907,
+          "selections": 0
+        },
+        "score": "cp 50"
+      },
+      "category": "initiative",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "f1c4"
+      ],
+      "id": "standard-central-space"
+    },
+    {
+      "aggression": 100,
+      "baseline": {
+        "bestmove": "f1c4",
+        "depth": 9,
+        "elapsed_ms": 710,
+        "expected_hit": true,
+        "nodes": 1123672,
+        "personality": {},
+        "score": "cp 50"
+      },
+      "candidate": {
+        "bestmove": "f1c4",
+        "depth": 9,
+        "elapsed_ms": 716,
+        "expected_hit": true,
+        "nodes": 1123672,
+        "personality": {
+          "attempts": 9,
+          "completed": 4,
+          "exhausted": 8,
+          "nodes": 21192,
+          "selections": 2
+        },
+        "score": "cp 50"
+      },
+      "category": "initiative",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "f1c4"
+      ],
+      "id": "standard-central-space"
+    },
+    {
+      "aggression": 0,
+      "baseline": {
+        "bestmove": "e1e2",
+        "depth": 16,
+        "elapsed_ms": 792,
+        "expected_hit": true,
+        "nodes": 3928519,
+        "personality": {},
+        "score": "cp 685"
+      },
+      "candidate": {
+        "bestmove": "e1e2",
+        "depth": 16,
+        "elapsed_ms": 787,
+        "expected_hit": true,
+        "nodes": 3928519,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "cp 685"
+      },
+      "category": "safety",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "e1e2"
+      ],
+      "id": "standard-tactical-safety"
+    },
+    {
+      "aggression": 75,
+      "baseline": {
+        "bestmove": "e1e2",
+        "depth": 16,
+        "elapsed_ms": 951,
+        "expected_hit": true,
+        "nodes": 4360431,
+        "personality": {},
+        "score": "cp 706"
+      },
+      "candidate": {
+        "bestmove": "e1e2",
+        "depth": 16,
+        "elapsed_ms": 976,
+        "expected_hit": true,
+        "nodes": 4360431,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 8,
+          "nodes": 32810,
+          "selections": 0
+        },
+        "score": "cp 706"
+      },
+      "category": "safety",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "e1e2"
+      ],
+      "id": "standard-tactical-safety"
+    },
+    {
+      "aggression": 100,
+      "baseline": {
+        "bestmove": "e1e2",
+        "depth": 15,
+        "elapsed_ms": 851,
+        "expected_hit": true,
+        "nodes": 3967467,
+        "personality": {},
+        "score": "cp 685"
+      },
+      "candidate": {
+        "bestmove": "e1e2",
+        "depth": 15,
+        "elapsed_ms": 863,
+        "expected_hit": true,
+        "nodes": 3967467,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 7,
+          "nodes": 28714,
+          "selections": 0
+        },
+        "score": "cp 685"
+      },
+      "category": "safety",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "e1e2"
+      ],
+      "id": "standard-tactical-safety"
+    },
+    {
+      "aggression": 0,
+      "baseline": {
+        "bestmove": "a1a2",
+        "depth": 19,
+        "elapsed_ms": 496,
+        "expected_hit": true,
+        "nodes": 3300533,
+        "personality": {},
+        "score": "mate -12"
+      },
+      "candidate": {
+        "bestmove": "a1a2",
+        "depth": 19,
+        "elapsed_ms": 525,
+        "expected_hit": true,
+        "nodes": 3300533,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "mate -12"
+      },
+      "category": "safety",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "a1a2"
+      ],
+      "id": "standard-defensive-safety"
+    },
+    {
+      "aggression": 75,
+      "baseline": {
+        "bestmove": "a1a2",
+        "depth": 20,
+        "elapsed_ms": 672,
+        "expected_hit": true,
+        "nodes": 4364812,
+        "personality": {},
+        "score": "mate -13"
+      },
+      "candidate": {
+        "bestmove": "a1a2",
+        "depth": 20,
+        "elapsed_ms": 706,
+        "expected_hit": true,
+        "nodes": 4364812,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "mate -13"
+      },
+      "category": "safety",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "a1a2"
+      ],
+      "id": "standard-defensive-safety"
+    },
+    {
+      "aggression": 100,
+      "baseline": {
+        "bestmove": "a1a2",
+        "depth": 19,
+        "elapsed_ms": 646,
+        "expected_hit": true,
+        "nodes": 4335298,
+        "personality": {},
+        "score": "cp -703"
+      },
+      "candidate": {
+        "bestmove": "a1a2",
+        "depth": 19,
+        "elapsed_ms": 670,
+        "expected_hit": true,
+        "nodes": 4335298,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "cp -703"
+      },
+      "category": "safety",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "a1a2"
+      ],
+      "id": "standard-defensive-safety"
+    },
+    {
+      "aggression": 0,
+      "baseline": {
+        "bestmove": "c1g5",
+        "depth": 9,
+        "elapsed_ms": 395,
+        "expected_hit": false,
+        "nodes": 645447,
+        "personality": {},
+        "score": "cp 114"
+      },
+      "candidate": {
+        "bestmove": "c1g5",
+        "depth": 9,
+        "elapsed_ms": 398,
+        "expected_hit": false,
+        "nodes": 645447,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "cp 114"
+      },
+      "category": "forcing-attack",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "c3d5"
+      ],
+      "id": "standard-open-king-gambit"
+    },
+    {
+      "aggression": 75,
+      "baseline": {
+        "bestmove": "c1g5",
+        "depth": 9,
+        "elapsed_ms": 657,
+        "expected_hit": true,
+        "nodes": 997401,
+        "personality": {},
+        "score": "cp 112"
+      },
+      "candidate": {
+        "bestmove": "c1g5",
+        "depth": 9,
+        "elapsed_ms": 643,
+        "expected_hit": true,
+        "nodes": 997401,
+        "personality": {
+          "attempts": 5,
+          "completed": 4,
+          "exhausted": 7,
+          "nodes": 21117,
+          "selections": 0
+        },
+        "score": "cp 112"
+      },
+      "category": "forcing-attack",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "c1g5"
+      ],
+      "id": "standard-open-king-gambit"
+    },
+    {
+      "aggression": 100,
+      "baseline": {
+        "bestmove": "c1g5",
+        "depth": 9,
+        "elapsed_ms": 933,
+        "expected_hit": true,
+        "nodes": 1355359,
+        "personality": {},
+        "score": "cp 109"
+      },
+      "candidate": {
+        "bestmove": "c1g5",
+        "depth": 9,
+        "elapsed_ms": 865,
+        "expected_hit": true,
+        "nodes": 1355359,
+        "personality": {
+          "attempts": 7,
+          "completed": 4,
+          "exhausted": 7,
+          "nodes": 21060,
+          "selections": 0
+        },
+        "score": "cp 109"
+      },
+      "category": "forcing-attack",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "c1g5"
+      ],
+      "id": "standard-open-king-gambit"
+    },
+    {
+      "aggression": 0,
+      "baseline": {
+        "bestmove": "b2b4",
+        "depth": 11,
+        "elapsed_ms": 560,
+        "expected_hit": false,
+        "nodes": 1070600,
+        "personality": {},
+        "score": "cp -254"
+      },
+      "candidate": {
+        "bestmove": "b2b4",
+        "depth": 11,
+        "elapsed_ms": 571,
+        "expected_hit": false,
+        "nodes": 1070600,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "cp -254"
+      },
+      "category": "pawn-storm",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "f1e1"
+      ],
+      "id": "standard-opposite-castle-storm"
+    },
+    {
+      "aggression": 75,
+      "baseline": {
+        "bestmove": "b2b4",
+        "depth": 11,
+        "elapsed_ms": 697,
+        "expected_hit": true,
+        "nodes": 1282983,
+        "personality": {},
+        "score": "cp -266"
+      },
+      "candidate": {
+        "bestmove": "b2b4",
+        "depth": 11,
+        "elapsed_ms": 709,
+        "expected_hit": true,
+        "nodes": 1282983,
+        "personality": {
+          "attempts": 15,
+          "completed": 12,
+          "exhausted": 6,
+          "nodes": 27534,
+          "selections": 3
+        },
+        "score": "cp -266"
+      },
+      "category": "pawn-storm",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "b2b4"
+      ],
+      "id": "standard-opposite-castle-storm"
+    },
+    {
+      "aggression": 100,
+      "baseline": {
+        "bestmove": "b2b4",
+        "depth": 10,
+        "elapsed_ms": 620,
+        "expected_hit": true,
+        "nodes": 1109156,
+        "personality": {},
+        "score": "cp -243"
+      },
+      "candidate": {
+        "bestmove": "b2b4",
+        "depth": 10,
+        "elapsed_ms": 627,
+        "expected_hit": true,
+        "nodes": 1109156,
+        "personality": {
+          "attempts": 17,
+          "completed": 12,
+          "exhausted": 6,
+          "nodes": 24063,
+          "selections": 6
+        },
+        "score": "cp -243"
+      },
+      "category": "pawn-storm",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "b2b4"
+      ],
+      "id": "standard-opposite-castle-storm"
+    },
+    {
+      "aggression": 0,
+      "baseline": {
+        "bestmove": "h5f7",
+        "depth": 1,
+        "elapsed_ms": 0,
+        "expected_hit": true,
+        "nodes": 86,
+        "personality": {},
+        "score": "mate 2"
+      },
+      "candidate": {
+        "bestmove": "h5f7",
+        "depth": 1,
+        "elapsed_ms": 0,
+        "expected_hit": true,
+        "nodes": 86,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "mate 2"
+      },
+      "category": "safety",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "h5f7"
+      ],
+      "id": "standard-forcing-mate-safety"
+    },
+    {
+      "aggression": 75,
+      "baseline": {
+        "bestmove": "h5f7",
+        "depth": 1,
+        "elapsed_ms": 0,
+        "expected_hit": true,
+        "nodes": 366,
+        "personality": {},
+        "score": "mate 2"
+      },
+      "candidate": {
+        "bestmove": "h5f7",
+        "depth": 1,
+        "elapsed_ms": 0,
+        "expected_hit": true,
+        "nodes": 366,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "mate 2"
+      },
+      "category": "safety",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "h5f7"
+      ],
+      "id": "standard-forcing-mate-safety"
+    },
+    {
+      "aggression": 100,
+      "baseline": {
+        "bestmove": "h5f7",
+        "depth": 1,
+        "elapsed_ms": 0,
+        "expected_hit": true,
+        "nodes": 1125,
+        "personality": {},
+        "score": "mate 2"
+      },
+      "candidate": {
+        "bestmove": "h5f7",
+        "depth": 1,
+        "elapsed_ms": 0,
+        "expected_hit": true,
+        "nodes": 1125,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "mate 2"
+      },
+      "category": "safety",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "h5f7"
+      ],
+      "id": "standard-forcing-mate-safety"
+    },
+    {
+      "aggression": 0,
+      "baseline": {
+        "bestmove": "d2d4",
+        "depth": 11,
+        "elapsed_ms": 507,
+        "expected_hit": true,
+        "nodes": 965376,
+        "personality": {},
+        "score": "cp -154"
+      },
+      "candidate": {
+        "bestmove": "d2d4",
+        "depth": 11,
+        "elapsed_ms": 518,
+        "expected_hit": true,
+        "nodes": 965376,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "cp -154"
+      },
+      "category": "sacrifice",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "d2d4"
+      ],
+      "id": "standard-knight-c6-investment"
+    },
+    {
+      "aggression": 75,
+      "baseline": {
+        "bestmove": "d2d4",
+        "depth": 11,
+        "elapsed_ms": 786,
+        "expected_hit": false,
+        "nodes": 1507938,
+        "personality": {},
+        "score": "cp -150"
+      },
+      "candidate": {
+        "bestmove": "d2d4",
+        "depth": 11,
+        "elapsed_ms": 797,
+        "expected_hit": false,
+        "nodes": 1507938,
+        "personality": {
+          "attempts": 9,
+          "completed": 8,
+          "exhausted": 5,
+          "nodes": 22858,
+          "selections": 1
+        },
+        "score": "cp -150"
+      },
+      "category": "sacrifice",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "e5c6"
+      ],
+      "id": "standard-knight-c6-investment"
+    },
+    {
+      "aggression": 100,
+      "baseline": {
+        "bestmove": "d2d4",
+        "depth": 10,
+        "elapsed_ms": 579,
+        "expected_hit": false,
+        "nodes": 1018824,
+        "personality": {},
+        "score": "cp -151"
+      },
+      "candidate": {
+        "bestmove": "d2d4",
+        "depth": 10,
+        "elapsed_ms": 692,
+        "expected_hit": false,
+        "nodes": 1018824,
+        "personality": {
+          "attempts": 9,
+          "completed": 8,
+          "exhausted": 4,
+          "nodes": 19189,
+          "selections": 4
+        },
+        "score": "cp -151"
+      },
+      "category": "sacrifice",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "e5c6"
+      ],
+      "id": "standard-knight-c6-investment"
+    },
+    {
+      "aggression": 0,
+      "baseline": {
+        "bestmove": "b1d2",
+        "depth": 10,
+        "elapsed_ms": 329,
+        "expected_hit": true,
+        "nodes": 623756,
+        "personality": {},
+        "score": "cp 63"
+      },
+      "candidate": {
+        "bestmove": "b1d2",
+        "depth": 10,
+        "elapsed_ms": 335,
+        "expected_hit": true,
+        "nodes": 623756,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "cp 63"
+      },
+      "category": "anti-sacrifice",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "b1d2"
+      ],
+      "id": "standard-unsupported-greek-gift"
+    },
+    {
+      "aggression": 75,
+      "baseline": {
+        "bestmove": "b1d2",
+        "depth": 10,
+        "elapsed_ms": 327,
+        "expected_hit": true,
+        "nodes": 636413,
+        "personality": {},
+        "score": "cp 76"
+      },
+      "candidate": {
+        "bestmove": "b1d2",
+        "depth": 10,
+        "elapsed_ms": 336,
+        "expected_hit": true,
+        "nodes": 636413,
+        "personality": {
+          "attempts": 11,
+          "completed": 7,
+          "exhausted": 7,
+          "nodes": 25053,
+          "selections": 0
+        },
+        "score": "cp 76"
+      },
+      "category": "anti-sacrifice",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "b1d2"
+      ],
+      "id": "standard-unsupported-greek-gift"
+    },
+    {
+      "aggression": 100,
+      "baseline": {
+        "bestmove": "b1d2",
+        "depth": 10,
+        "elapsed_ms": 493,
+        "expected_hit": true,
+        "nodes": 920405,
+        "personality": {},
+        "score": "cp 63"
+      },
+      "candidate": {
+        "bestmove": "b1d2",
+        "depth": 10,
+        "elapsed_ms": 506,
+        "expected_hit": true,
+        "nodes": 920405,
+        "personality": {
+          "attempts": 12,
+          "completed": 7,
+          "exhausted": 7,
+          "nodes": 25099,
+          "selections": 0
+        },
+        "score": "cp 63"
+      },
+      "category": "anti-sacrifice",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "b1d2"
+      ],
+      "id": "standard-unsupported-greek-gift"
+    },
+    {
+      "aggression": 0,
+      "baseline": {
+        "bestmove": "g1h1",
+        "depth": 11,
+        "elapsed_ms": 620,
+        "expected_hit": true,
+        "nodes": 1256309,
+        "personality": {},
+        "score": "cp -413"
+      },
+      "candidate": {
+        "bestmove": "g1h1",
+        "depth": 11,
+        "elapsed_ms": 617,
+        "expected_hit": true,
+        "nodes": 1256309,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "cp -413"
+      },
+      "category": "anti-sacrifice",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "g1h1"
+      ],
+      "id": "standard-unsupported-rook-f7"
+    },
+    {
+      "aggression": 75,
+      "baseline": {
+        "bestmove": "g1h1",
+        "depth": 10,
+        "elapsed_ms": 726,
+        "expected_hit": true,
+        "nodes": 1304226,
+        "personality": {},
+        "score": "cp -420"
+      },
+      "candidate": {
+        "bestmove": "g1h1",
+        "depth": 10,
+        "elapsed_ms": 736,
+        "expected_hit": true,
+        "nodes": 1304226,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 3,
+          "nodes": 14836,
+          "selections": 0
+        },
+        "score": "cp -420"
+      },
+      "category": "anti-sacrifice",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "g1h1"
+      ],
+      "id": "standard-unsupported-rook-f7"
+    },
+    {
+      "aggression": 100,
+      "baseline": {
+        "bestmove": "g1h1",
+        "depth": 10,
+        "elapsed_ms": 931,
+        "expected_hit": true,
+        "nodes": 1713680,
+        "personality": {},
+        "score": "cp -419"
+      },
+      "candidate": {
+        "bestmove": "g1h1",
+        "depth": 10,
+        "elapsed_ms": 939,
+        "expected_hit": true,
+        "nodes": 1713680,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 2,
+          "nodes": 13966,
+          "selections": 0
+        },
+        "score": "cp -419"
+      },
+      "category": "anti-sacrifice",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "g1h1"
+      ],
+      "id": "standard-unsupported-rook-f7"
+    },
+    {
+      "aggression": 0,
+      "baseline": {
+        "bestmove": "d2d7",
+        "depth": 12,
+        "elapsed_ms": 872,
+        "expected_hit": true,
+        "nodes": 2970369,
+        "personality": {},
+        "score": "cp 0"
+      },
+      "candidate": {
+        "bestmove": "d2d7",
+        "depth": 12,
+        "elapsed_ms": 891,
+        "expected_hit": true,
+        "nodes": 2970369,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "cp 0"
+      },
+      "category": "simplification",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "d2d7"
+      ],
+      "id": "standard-avoid-equal-queen-trade"
+    },
+    {
+      "aggression": 75,
+      "baseline": {
+        "bestmove": "d2e2",
+        "depth": 10,
+        "elapsed_ms": 815,
+        "expected_hit": true,
+        "nodes": 2914375,
+        "personality": {},
+        "score": "cp 0"
+      },
+      "candidate": {
+        "bestmove": "d2e2",
+        "depth": 10,
+        "elapsed_ms": 810,
+        "expected_hit": true,
+        "nodes": 2914375,
+        "personality": {
+          "attempts": 9,
+          "completed": 6,
+          "exhausted": 7,
+          "nodes": 24951,
+          "selections": 1
+        },
+        "score": "cp 0"
+      },
+      "category": "simplification",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "d2e2"
+      ],
+      "id": "standard-avoid-equal-queen-trade"
+    },
+    {
+      "aggression": 100,
+      "baseline": {
+        "bestmove": "d2e2",
+        "depth": 8,
+        "elapsed_ms": 389,
+        "expected_hit": true,
+        "nodes": 1340732,
+        "personality": {},
+        "score": "cp 0"
+      },
+      "candidate": {
+        "bestmove": "d2e2",
+        "depth": 8,
+        "elapsed_ms": 391,
+        "expected_hit": true,
+        "nodes": 1340732,
+        "personality": {
+          "attempts": 8,
+          "completed": 3,
+          "exhausted": 7,
+          "nodes": 17215,
+          "selections": 1
+        },
+        "score": "cp 0"
+      },
+      "category": "simplification",
+      "delta": {
+        "expected_hit": 0,
+        "move_changed": false
+      },
+      "expected": [
+        "d2e2"
+      ],
+      "id": "standard-avoid-equal-queen-trade"
+    }
+  ],
+  "profiles": [
+    0,
+    75,
+    100
+  ],
+  "schema_version": 2
+}

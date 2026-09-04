@@ -1,0 +1,782 @@
+[
+  {
+    "suite": "personality",
+    "id": "starting-development",
+    "aggression": 0,
+    "equal": true,
+    "move": "b1c3",
+    "score": "cp 23",
+    "nodes": 9691,
+    "depth": 6
+  },
+  {
+    "suite": "personality",
+    "id": "starting-development",
+    "aggression": 75,
+    "equal": true,
+    "move": "b1c3",
+    "score": "cp 22",
+    "nodes": 14845,
+    "depth": 6
+  },
+  {
+    "suite": "personality",
+    "id": "starting-development",
+    "aggression": 100,
+    "equal": true,
+    "move": "b1c3",
+    "score": "cp 23",
+    "nodes": 17288,
+    "depth": 6
+  },
+  {
+    "suite": "personality",
+    "id": "early-king-pressure",
+    "aggression": 0,
+    "equal": true,
+    "move": "b1c3",
+    "score": "cp 29",
+    "nodes": 18480,
+    "depth": 6
+  },
+  {
+    "suite": "personality",
+    "id": "early-king-pressure",
+    "aggression": 75,
+    "equal": true,
+    "move": "b1c3",
+    "score": "cp 21",
+    "nodes": 13466,
+    "depth": 5
+  },
+  {
+    "suite": "personality",
+    "id": "early-king-pressure",
+    "aggression": 100,
+    "equal": true,
+    "move": "b1c3",
+    "score": "cp 29",
+    "nodes": 19730,
+    "depth": 5
+  },
+  {
+    "suite": "personality",
+    "id": "central-space",
+    "aggression": 0,
+    "equal": true,
+    "move": "b1c3",
+    "score": "cp 46",
+    "nodes": 7403,
+    "depth": 5
+  },
+  {
+    "suite": "personality",
+    "id": "central-space",
+    "aggression": 75,
+    "equal": true,
+    "move": "b1c3",
+    "score": "cp 50",
+    "nodes": 13725,
+    "depth": 5
+  },
+  {
+    "suite": "personality",
+    "id": "central-space",
+    "aggression": 100,
+    "equal": true,
+    "move": "f1c4",
+    "score": "cp 20",
+    "nodes": 13333,
+    "depth": 4
+  },
+  {
+    "suite": "personality",
+    "id": "black-king-pressure",
+    "aggression": 0,
+    "equal": true,
+    "move": "b8c6",
+    "score": "cp 29",
+    "nodes": 16574,
+    "depth": 6
+  },
+  {
+    "suite": "personality",
+    "id": "black-king-pressure",
+    "aggression": 75,
+    "equal": true,
+    "move": "b8c6",
+    "score": "cp 21",
+    "nodes": 14473,
+    "depth": 5
+  },
+  {
+    "suite": "personality",
+    "id": "black-king-pressure",
+    "aggression": 100,
+    "equal": true,
+    "move": "b8c6",
+    "score": "cp 29",
+    "nodes": 18858,
+    "depth": 5
+  },
+  {
+    "suite": "personality",
+    "id": "tactical-safety",
+    "aggression": 0,
+    "equal": true,
+    "move": "e1e2",
+    "score": "cp 642",
+    "nodes": 14568,
+    "depth": 6
+  },
+  {
+    "suite": "personality",
+    "id": "tactical-safety",
+    "aggression": 75,
+    "equal": true,
+    "move": "e1e2",
+    "score": "cp 659",
+    "nodes": 8482,
+    "depth": 5
+  },
+  {
+    "suite": "personality",
+    "id": "tactical-safety",
+    "aggression": 100,
+    "equal": true,
+    "move": "e1e2",
+    "score": "cp 641",
+    "nodes": 19549,
+    "depth": 6
+  },
+  {
+    "suite": "personality",
+    "id": "defensive-safety",
+    "aggression": 0,
+    "equal": true,
+    "move": "a1a2",
+    "score": "cp -647",
+    "nodes": 12773,
+    "depth": 7
+  },
+  {
+    "suite": "personality",
+    "id": "defensive-safety",
+    "aggression": 75,
+    "equal": true,
+    "move": "a1a2",
+    "score": "cp -670",
+    "nodes": 12402,
+    "depth": 7
+  },
+  {
+    "suite": "personality",
+    "id": "defensive-safety",
+    "aggression": 100,
+    "equal": true,
+    "move": "a1a2",
+    "score": "cp -647",
+    "nodes": 14956,
+    "depth": 7
+  },
+  {
+    "suite": "personality",
+    "id": "open-king-gambit",
+    "aggression": 0,
+    "equal": true,
+    "move": "c3d5",
+    "score": "cp 101",
+    "nodes": 59216,
+    "depth": 6
+  },
+  {
+    "suite": "personality",
+    "id": "open-king-gambit",
+    "aggression": 75,
+    "equal": true,
+    "move": "c3d5",
+    "score": "cp 111",
+    "nodes": 74410,
+    "depth": 6
+  },
+  {
+    "suite": "personality",
+    "id": "open-king-gambit",
+    "aggression": 100,
+    "equal": true,
+    "move": "c1g5",
+    "score": "cp 99",
+    "nodes": 71236,
+    "depth": 5
+  },
+  {
+    "suite": "personality",
+    "id": "opposite-castle-storm",
+    "aggression": 0,
+    "equal": true,
+    "move": "f1e1",
+    "score": "cp -256",
+    "nodes": 13002,
+    "depth": 5
+  },
+  {
+    "suite": "personality",
+    "id": "opposite-castle-storm",
+    "aggression": 75,
+    "equal": true,
+    "move": "f3e5",
+    "score": "cp -290",
+    "nodes": 13899,
+    "depth": 5
+  },
+  {
+    "suite": "personality",
+    "id": "opposite-castle-storm",
+    "aggression": 100,
+    "equal": true,
+    "move": "b2b4",
+    "score": "cp -255",
+    "nodes": 20000,
+    "depth": 5
+  },
+  {
+    "suite": "personality",
+    "id": "hanging-queen-safety",
+    "aggression": 0,
+    "equal": true,
+    "move": "d3d5",
+    "score": "cp 1317",
+    "nodes": 7591,
+    "depth": 5
+  },
+  {
+    "suite": "personality",
+    "id": "hanging-queen-safety",
+    "aggression": 75,
+    "equal": true,
+    "move": "d3d5",
+    "score": "cp 1311",
+    "nodes": 17951,
+    "depth": 5
+  },
+  {
+    "suite": "personality",
+    "id": "hanging-queen-safety",
+    "aggression": 100,
+    "equal": true,
+    "move": "d3d5",
+    "score": "cp 1307",
+    "nodes": 7413,
+    "depth": 4
+  },
+  {
+    "suite": "personality",
+    "id": "forcing-mate-safety",
+    "aggression": 0,
+    "equal": true,
+    "move": "h5f7",
+    "score": "mate 2",
+    "nodes": 86,
+    "depth": 1
+  },
+  {
+    "suite": "personality",
+    "id": "forcing-mate-safety",
+    "aggression": 75,
+    "equal": true,
+    "move": "h5f7",
+    "score": "mate 2",
+    "nodes": 366,
+    "depth": 1
+  },
+  {
+    "suite": "personality",
+    "id": "forcing-mate-safety",
+    "aggression": 100,
+    "equal": true,
+    "move": "h5f7",
+    "score": "mate 2",
+    "nodes": 1125,
+    "depth": 1
+  },
+  {
+    "suite": "personality",
+    "id": "kingside-pawn-storm",
+    "aggression": 0,
+    "equal": true,
+    "move": "f2f4",
+    "score": "cp 20",
+    "nodes": 13570,
+    "depth": 8
+  },
+  {
+    "suite": "personality",
+    "id": "kingside-pawn-storm",
+    "aggression": 75,
+    "equal": true,
+    "move": "f2f4",
+    "score": "cp 16",
+    "nodes": 20000,
+    "depth": 8
+  },
+  {
+    "suite": "personality",
+    "id": "kingside-pawn-storm",
+    "aggression": 100,
+    "equal": true,
+    "move": "f2f4",
+    "score": "cp 20",
+    "nodes": 14595,
+    "depth": 7
+  },
+  {
+    "suite": "personality",
+    "id": "central-queen-safety",
+    "aggression": 0,
+    "equal": true,
+    "move": "c3d5",
+    "score": "cp 1119",
+    "nodes": 15983,
+    "depth": 7
+  },
+  {
+    "suite": "personality",
+    "id": "central-queen-safety",
+    "aggression": 75,
+    "equal": true,
+    "move": "c3d5",
+    "score": "cp 1099",
+    "nodes": 20000,
+    "depth": 7
+  },
+  {
+    "suite": "personality",
+    "id": "central-queen-safety",
+    "aggression": 100,
+    "equal": true,
+    "move": "c3d5",
+    "score": "cp 1116",
+    "nodes": 12552,
+    "depth": 6
+  },
+  {
+    "suite": "personality",
+    "id": "knight-c6-investment",
+    "aggression": 0,
+    "equal": true,
+    "move": "d2d4",
+    "score": "cp -113",
+    "nodes": 14353,
+    "depth": 6
+  },
+  {
+    "suite": "personality",
+    "id": "knight-c6-investment",
+    "aggression": 75,
+    "equal": true,
+    "move": "e5c6",
+    "score": "cp -128",
+    "nodes": 12961,
+    "depth": 5
+  },
+  {
+    "suite": "personality",
+    "id": "knight-c6-investment",
+    "aggression": 100,
+    "equal": true,
+    "move": "e5c6",
+    "score": "cp -135",
+    "nodes": 13913,
+    "depth": 5
+  },
+  {
+    "suite": "personality",
+    "id": "unsupported-greek-gift",
+    "aggression": 0,
+    "equal": true,
+    "move": "b1d2",
+    "score": "cp 48",
+    "nodes": 79523,
+    "depth": 7
+  },
+  {
+    "suite": "personality",
+    "id": "unsupported-greek-gift",
+    "aggression": 75,
+    "equal": true,
+    "move": "b1d2",
+    "score": "cp 63",
+    "nodes": 66019,
+    "depth": 7
+  },
+  {
+    "suite": "personality",
+    "id": "unsupported-greek-gift",
+    "aggression": 100,
+    "equal": true,
+    "move": "b1d2",
+    "score": "cp 43",
+    "nodes": 51151,
+    "depth": 6
+  },
+  {
+    "suite": "personality",
+    "id": "unsupported-rook-f7",
+    "aggression": 0,
+    "equal": true,
+    "move": "g1h1",
+    "score": "cp -450",
+    "nodes": 10179,
+    "depth": 5
+  },
+  {
+    "suite": "personality",
+    "id": "unsupported-rook-f7",
+    "aggression": 75,
+    "equal": true,
+    "move": "g1h1",
+    "score": "cp -459",
+    "nodes": 16957,
+    "depth": 5
+  },
+  {
+    "suite": "personality",
+    "id": "unsupported-rook-f7",
+    "aggression": 100,
+    "equal": true,
+    "move": "g1h1",
+    "score": "cp -439",
+    "nodes": 11480,
+    "depth": 4
+  },
+  {
+    "suite": "personality",
+    "id": "avoid-equal-queen-trade",
+    "aggression": 0,
+    "equal": true,
+    "move": "d2d7",
+    "score": "cp 0",
+    "nodes": 47178,
+    "depth": 7
+  },
+  {
+    "suite": "personality",
+    "id": "avoid-equal-queen-trade",
+    "aggression": 75,
+    "equal": true,
+    "move": "d2e2",
+    "score": "cp 0",
+    "nodes": 90193,
+    "depth": 6
+  },
+  {
+    "suite": "personality",
+    "id": "avoid-equal-queen-trade",
+    "aggression": 100,
+    "equal": true,
+    "move": "d2e2",
+    "score": "cp 0",
+    "nodes": 60462,
+    "depth": 5
+  },
+  {
+    "suite": "search-performance",
+    "id": "starting-development",
+    "aggression": 0,
+    "equal": true,
+    "move": "c2c4",
+    "score": "cp 23",
+    "nodes": 72925,
+    "depth": 8
+  },
+  {
+    "suite": "search-performance",
+    "id": "starting-development",
+    "aggression": 75,
+    "equal": true,
+    "move": "b1c3",
+    "score": "cp 22",
+    "nodes": 80018,
+    "depth": 8
+  },
+  {
+    "suite": "search-performance",
+    "id": "starting-development",
+    "aggression": 100,
+    "equal": true,
+    "move": "b1c3",
+    "score": "cp 22",
+    "nodes": 44027,
+    "depth": 7
+  },
+  {
+    "suite": "search-performance",
+    "id": "central-space",
+    "aggression": 0,
+    "equal": true,
+    "move": "f1c4",
+    "score": "cp 53",
+    "nodes": 56178,
+    "depth": 7
+  },
+  {
+    "suite": "search-performance",
+    "id": "central-space",
+    "aggression": 75,
+    "equal": true,
+    "move": "f1c4",
+    "score": "cp 30",
+    "nodes": 58145,
+    "depth": 6
+  },
+  {
+    "suite": "search-performance",
+    "id": "central-space",
+    "aggression": 100,
+    "equal": true,
+    "move": "f1c4",
+    "score": "cp 52",
+    "nodes": 32636,
+    "depth": 5
+  },
+  {
+    "suite": "search-performance",
+    "id": "open-king-gambit",
+    "aggression": 0,
+    "equal": true,
+    "move": "c3d5",
+    "score": "cp 101",
+    "nodes": 59216,
+    "depth": 6
+  },
+  {
+    "suite": "search-performance",
+    "id": "open-king-gambit",
+    "aggression": 75,
+    "equal": true,
+    "move": "c3d5",
+    "score": "cp 111",
+    "nodes": 74410,
+    "depth": 6
+  },
+  {
+    "suite": "search-performance",
+    "id": "open-king-gambit",
+    "aggression": 100,
+    "equal": true,
+    "move": "c1g5",
+    "score": "cp 99",
+    "nodes": 71236,
+    "depth": 5
+  },
+  {
+    "suite": "search-performance",
+    "id": "opposite-castle-storm",
+    "aggression": 0,
+    "equal": true,
+    "move": "b2b4",
+    "score": "cp -243",
+    "nodes": 79153,
+    "depth": 7
+  },
+  {
+    "suite": "search-performance",
+    "id": "opposite-castle-storm",
+    "aggression": 75,
+    "equal": true,
+    "move": "f3e5",
+    "score": "cp -274",
+    "nodes": 34371,
+    "depth": 6
+  },
+  {
+    "suite": "search-performance",
+    "id": "opposite-castle-storm",
+    "aggression": 100,
+    "equal": true,
+    "move": "f3e5",
+    "score": "cp -260",
+    "nodes": 53880,
+    "depth": 6
+  },
+  {
+    "suite": "search-performance",
+    "id": "tactical-safety",
+    "aggression": 0,
+    "equal": true,
+    "move": "e1e2",
+    "score": "cp 656",
+    "nodes": 54613,
+    "depth": 8
+  },
+  {
+    "suite": "search-performance",
+    "id": "tactical-safety",
+    "aggression": 75,
+    "equal": true,
+    "move": "e1e2",
+    "score": "cp 680",
+    "nodes": 86886,
+    "depth": 8
+  },
+  {
+    "suite": "search-performance",
+    "id": "tactical-safety",
+    "aggression": 100,
+    "equal": true,
+    "move": "e1e2",
+    "score": "cp 656",
+    "nodes": 90217,
+    "depth": 8
+  },
+  {
+    "suite": "search-performance",
+    "id": "defensive-safety",
+    "aggression": 0,
+    "equal": true,
+    "move": "a1a2",
+    "score": "cp -652",
+    "nodes": 84271,
+    "depth": 10
+  },
+  {
+    "suite": "search-performance",
+    "id": "defensive-safety",
+    "aggression": 75,
+    "equal": true,
+    "move": "a1a2",
+    "score": "cp -675",
+    "nodes": 49943,
+    "depth": 9
+  },
+  {
+    "suite": "search-performance",
+    "id": "defensive-safety",
+    "aggression": 100,
+    "equal": true,
+    "move": "a1a2",
+    "score": "cp -652",
+    "nodes": 86124,
+    "depth": 10
+  },
+  {
+    "suite": "search-performance",
+    "id": "central-queen-safety",
+    "aggression": 0,
+    "equal": true,
+    "move": "c3d5",
+    "score": "cp 1133",
+    "nodes": 32552,
+    "depth": 8
+  },
+  {
+    "suite": "search-performance",
+    "id": "central-queen-safety",
+    "aggression": 75,
+    "equal": true,
+    "move": "c3d5",
+    "score": "cp 1117",
+    "nodes": 50946,
+    "depth": 8
+  },
+  {
+    "suite": "search-performance",
+    "id": "central-queen-safety",
+    "aggression": 100,
+    "equal": true,
+    "move": "c3d5",
+    "score": "cp 1126",
+    "nodes": 85978,
+    "depth": 8
+  },
+  {
+    "suite": "search-performance",
+    "id": "bishop-f7-sacrifice",
+    "aggression": 0,
+    "equal": true,
+    "move": "g5f7",
+    "score": "cp -141",
+    "nodes": 57108,
+    "depth": 7
+  },
+  {
+    "suite": "search-performance",
+    "id": "bishop-f7-sacrifice",
+    "aggression": 75,
+    "equal": true,
+    "move": "g5f7",
+    "score": "cp -163",
+    "nodes": 72424,
+    "depth": 7
+  },
+  {
+    "suite": "search-performance",
+    "id": "bishop-f7-sacrifice",
+    "aggression": 100,
+    "equal": true,
+    "move": "g5f7",
+    "score": "cp -32",
+    "nodes": 21100,
+    "depth": 6
+  },
+  {
+    "suite": "search-performance",
+    "id": "unsupported-greek-gift",
+    "aggression": 0,
+    "equal": true,
+    "move": "b1d2",
+    "score": "cp 48",
+    "nodes": 79523,
+    "depth": 7
+  },
+  {
+    "suite": "search-performance",
+    "id": "unsupported-greek-gift",
+    "aggression": 75,
+    "equal": true,
+    "move": "b1d2",
+    "score": "cp 63",
+    "nodes": 66019,
+    "depth": 7
+  },
+  {
+    "suite": "search-performance",
+    "id": "unsupported-greek-gift",
+    "aggression": 100,
+    "equal": true,
+    "move": "b1d2",
+    "score": "cp 43",
+    "nodes": 51151,
+    "depth": 6
+  },
+  {
+    "suite": "search-performance",
+    "id": "kingside-pawn-storm",
+    "aggression": 0,
+    "equal": true,
+    "move": "f2f4",
+    "score": "cp 14",
+    "nodes": 62952,
+    "depth": 10
+  },
+  {
+    "suite": "search-performance",
+    "id": "kingside-pawn-storm",
+    "aggression": 75,
+    "equal": true,
+    "move": "g1g2",
+    "score": "cp 14",
+    "nodes": 95718,
+    "depth": 10
+  },
+  {
+    "suite": "search-performance",
+    "id": "kingside-pawn-storm",
+    "aggression": 100,
+    "equal": true,
+    "move": "f2f4",
+    "score": "cp 14",
+    "nodes": 82746,
+    "depth": 10
+  }
+]

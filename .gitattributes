@@ -1,0 +1,3 @@
+# Preserve exact patch context and PGN bytes in archived experiment evidence.
+docs/tuning/data/standard-attacks-patches/*.patch -whitespace
+docs/tuning/data/standard-attacks/*.pgn -whitespace

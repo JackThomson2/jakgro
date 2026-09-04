@@ -1,0 +1,1838 @@
+[
+  {
+    "suite": "personality",
+    "id": "starting-development",
+    "profile": 0,
+    "equal": true,
+    "move": "b1c3",
+    "score": "cp 23",
+    "nodes": 9691,
+    "depth": 6,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "starting-development",
+    "profile": 75,
+    "equal": true,
+    "move": "b1c3",
+    "score": "cp 22",
+    "nodes": 14845,
+    "depth": 6,
+    "personality": {
+      "nodes": 4614,
+      "attempts": 11,
+      "completed": 8,
+      "exhausted": 3,
+      "selections": 1
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "starting-development",
+    "profile": 100,
+    "equal": true,
+    "move": "b1c3",
+    "score": "cp 23",
+    "nodes": 17288,
+    "depth": 6,
+    "personality": {
+      "nodes": 4664,
+      "attempts": 11,
+      "completed": 8,
+      "exhausted": 3,
+      "selections": 1
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "early-king-pressure",
+    "profile": 0,
+    "equal": true,
+    "move": "b1c3",
+    "score": "cp 29",
+    "nodes": 18480,
+    "depth": 6,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "early-king-pressure",
+    "profile": 75,
+    "equal": true,
+    "move": "b1c3",
+    "score": "cp 21",
+    "nodes": 13466,
+    "depth": 5,
+    "personality": {
+      "nodes": 4595,
+      "attempts": 6,
+      "completed": 4,
+      "exhausted": 3,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "early-king-pressure",
+    "profile": 100,
+    "equal": true,
+    "move": "b1c3",
+    "score": "cp 29",
+    "nodes": 19730,
+    "depth": 5,
+    "personality": {
+      "nodes": 4602,
+      "attempts": 9,
+      "completed": 6,
+      "exhausted": 3,
+      "selections": 1
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "central-space",
+    "profile": 0,
+    "equal": true,
+    "move": "b1c3",
+    "score": "cp 46",
+    "nodes": 7403,
+    "depth": 5,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "central-space",
+    "profile": 75,
+    "equal": true,
+    "move": "b1c3",
+    "score": "cp 50",
+    "nodes": 13725,
+    "depth": 5,
+    "personality": {
+      "nodes": 2186,
+      "attempts": 5,
+      "completed": 4,
+      "exhausted": 2,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "central-space",
+    "profile": 100,
+    "equal": true,
+    "move": "f1c4",
+    "score": "cp 20",
+    "nodes": 13333,
+    "depth": 4,
+    "personality": {
+      "nodes": 2248,
+      "attempts": 7,
+      "completed": 4,
+      "exhausted": 3,
+      "selections": 2
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "black-king-pressure",
+    "profile": 0,
+    "equal": true,
+    "move": "b8c6",
+    "score": "cp 29",
+    "nodes": 16574,
+    "depth": 6,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "black-king-pressure",
+    "profile": 75,
+    "equal": true,
+    "move": "b8c6",
+    "score": "cp 21",
+    "nodes": 14473,
+    "depth": 5,
+    "personality": {
+      "nodes": 4578,
+      "attempts": 7,
+      "completed": 4,
+      "exhausted": 3,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "black-king-pressure",
+    "profile": 100,
+    "equal": true,
+    "move": "b8c6",
+    "score": "cp 29",
+    "nodes": 18858,
+    "depth": 5,
+    "personality": {
+      "nodes": 4573,
+      "attempts": 9,
+      "completed": 6,
+      "exhausted": 3,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "tactical-safety",
+    "profile": 0,
+    "equal": true,
+    "move": "e1e2",
+    "score": "cp 642",
+    "nodes": 14568,
+    "depth": 6,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "tactical-safety",
+    "profile": 75,
+    "equal": true,
+    "move": "e1e2",
+    "score": "cp 659",
+    "nodes": 8482,
+    "depth": 5,
+    "personality": {
+      "nodes": 24,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "tactical-safety",
+    "profile": 100,
+    "equal": true,
+    "move": "e1e2",
+    "score": "cp 641",
+    "nodes": 19549,
+    "depth": 6,
+    "personality": {
+      "nodes": 30,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "defensive-safety",
+    "profile": 0,
+    "equal": true,
+    "move": "a1a2",
+    "score": "cp -647",
+    "nodes": 12773,
+    "depth": 7,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "defensive-safety",
+    "profile": 75,
+    "equal": true,
+    "move": "a1a2",
+    "score": "cp -670",
+    "nodes": 12402,
+    "depth": 7,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "defensive-safety",
+    "profile": 100,
+    "equal": true,
+    "move": "a1a2",
+    "score": "cp -647",
+    "nodes": 14956,
+    "depth": 7,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "open-king-gambit",
+    "profile": 0,
+    "equal": true,
+    "move": "c3d5",
+    "score": "cp 101",
+    "nodes": 59216,
+    "depth": 6,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "open-king-gambit",
+    "profile": 75,
+    "equal": true,
+    "move": "c3d5",
+    "score": "cp 111",
+    "nodes": 74410,
+    "depth": 6,
+    "personality": {
+      "nodes": 8829,
+      "attempts": 5,
+      "completed": 4,
+      "exhausted": 4,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "open-king-gambit",
+    "profile": 100,
+    "equal": true,
+    "move": "c1g5",
+    "score": "cp 99",
+    "nodes": 71236,
+    "depth": 5,
+    "personality": {
+      "nodes": 4676,
+      "attempts": 6,
+      "completed": 4,
+      "exhausted": 3,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "opposite-castle-storm",
+    "profile": 0,
+    "equal": true,
+    "move": "f1e1",
+    "score": "cp -256",
+    "nodes": 13002,
+    "depth": 5,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "opposite-castle-storm",
+    "profile": 75,
+    "equal": true,
+    "move": "f3e5",
+    "score": "cp -290",
+    "nodes": 13899,
+    "depth": 5,
+    "personality": {
+      "nodes": 4225,
+      "attempts": 10,
+      "completed": 9,
+      "exhausted": 1,
+      "selections": 2
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "opposite-castle-storm",
+    "profile": 100,
+    "equal": true,
+    "move": "b2b4",
+    "score": "cp -255",
+    "nodes": 20000,
+    "depth": 5,
+    "personality": {
+      "nodes": 3301,
+      "attempts": 9,
+      "completed": 7,
+      "exhausted": 1,
+      "selections": 3
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "hanging-queen-safety",
+    "profile": 0,
+    "equal": true,
+    "move": "d3d5",
+    "score": "cp 1317",
+    "nodes": 7591,
+    "depth": 5,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "hanging-queen-safety",
+    "profile": 75,
+    "equal": true,
+    "move": "d3d5",
+    "score": "cp 1311",
+    "nodes": 17951,
+    "depth": 5,
+    "personality": {
+      "nodes": 2549,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 1,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "hanging-queen-safety",
+    "profile": 100,
+    "equal": true,
+    "move": "d3d5",
+    "score": "cp 1307",
+    "nodes": 7413,
+    "depth": 4,
+    "personality": {
+      "nodes": 852,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 2,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "forcing-mate-safety",
+    "profile": 0,
+    "equal": true,
+    "move": "h5f7",
+    "score": "mate 2",
+    "nodes": 86,
+    "depth": 1,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "forcing-mate-safety",
+    "profile": 75,
+    "equal": true,
+    "move": "h5f7",
+    "score": "mate 2",
+    "nodes": 366,
+    "depth": 1,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "forcing-mate-safety",
+    "profile": 100,
+    "equal": true,
+    "move": "h5f7",
+    "score": "mate 2",
+    "nodes": 1125,
+    "depth": 1,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "kingside-pawn-storm",
+    "profile": 0,
+    "equal": true,
+    "move": "f2f4",
+    "score": "cp 20",
+    "nodes": 13570,
+    "depth": 8,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "kingside-pawn-storm",
+    "profile": 75,
+    "equal": true,
+    "move": "f2f4",
+    "score": "cp 16",
+    "nodes": 20000,
+    "depth": 8,
+    "personality": {
+      "nodes": 3577,
+      "attempts": 13,
+      "completed": 12,
+      "exhausted": 1,
+      "selections": 2
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "kingside-pawn-storm",
+    "profile": 100,
+    "equal": true,
+    "move": "f2f4",
+    "score": "cp 20",
+    "nodes": 14595,
+    "depth": 7,
+    "personality": {
+      "nodes": 3543,
+      "attempts": 13,
+      "completed": 12,
+      "exhausted": 1,
+      "selections": 2
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "central-queen-safety",
+    "profile": 0,
+    "equal": true,
+    "move": "c3d5",
+    "score": "cp 1119",
+    "nodes": 15983,
+    "depth": 7,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "central-queen-safety",
+    "profile": 75,
+    "equal": true,
+    "move": "c3d5",
+    "score": "cp 1099",
+    "nodes": 20000,
+    "depth": 7,
+    "personality": {
+      "nodes": 4411,
+      "attempts": 7,
+      "completed": 6,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "central-queen-safety",
+    "profile": 100,
+    "equal": true,
+    "move": "c3d5",
+    "score": "cp 1116",
+    "nodes": 12552,
+    "depth": 6,
+    "personality": {
+      "nodes": 2192,
+      "attempts": 6,
+      "completed": 6,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "knight-c6-investment",
+    "profile": 0,
+    "equal": true,
+    "move": "d2d4",
+    "score": "cp -113",
+    "nodes": 14353,
+    "depth": 6,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "knight-c6-investment",
+    "profile": 75,
+    "equal": true,
+    "move": "e5c6",
+    "score": "cp -128",
+    "nodes": 12961,
+    "depth": 5,
+    "personality": {
+      "nodes": 1942,
+      "attempts": 7,
+      "completed": 7,
+      "exhausted": 0,
+      "selections": 1
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "knight-c6-investment",
+    "profile": 100,
+    "equal": true,
+    "move": "e5c6",
+    "score": "cp -135",
+    "nodes": 13913,
+    "depth": 5,
+    "personality": {
+      "nodes": 2110,
+      "attempts": 7,
+      "completed": 7,
+      "exhausted": 0,
+      "selections": 3
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "unsupported-greek-gift",
+    "profile": 0,
+    "equal": true,
+    "move": "b1d2",
+    "score": "cp 48",
+    "nodes": 79523,
+    "depth": 7,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "unsupported-greek-gift",
+    "profile": 75,
+    "equal": true,
+    "move": "b1d2",
+    "score": "cp 63",
+    "nodes": 66019,
+    "depth": 7,
+    "personality": {
+      "nodes": 12765,
+      "attempts": 11,
+      "completed": 7,
+      "exhausted": 4,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "unsupported-greek-gift",
+    "profile": 100,
+    "equal": true,
+    "move": "b1d2",
+    "score": "cp 43",
+    "nodes": 51151,
+    "depth": 6,
+    "personality": {
+      "nodes": 8715,
+      "attempts": 10,
+      "completed": 7,
+      "exhausted": 3,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "unsupported-rook-f7",
+    "profile": 0,
+    "equal": true,
+    "move": "g1h1",
+    "score": "cp -450",
+    "nodes": 10179,
+    "depth": 5,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "unsupported-rook-f7",
+    "profile": 75,
+    "equal": true,
+    "move": "g1h1",
+    "score": "cp -459",
+    "nodes": 16957,
+    "depth": 5,
+    "personality": {
+      "nodes": 199,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "unsupported-rook-f7",
+    "profile": 100,
+    "equal": true,
+    "move": "g1h1",
+    "score": "cp -439",
+    "nodes": 11480,
+    "depth": 4,
+    "personality": {
+      "nodes": 549,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "avoid-equal-queen-trade",
+    "profile": 0,
+    "equal": true,
+    "move": "d2d7",
+    "score": "cp 0",
+    "nodes": 47178,
+    "depth": 7,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "avoid-equal-queen-trade",
+    "profile": 75,
+    "equal": true,
+    "move": "d2e2",
+    "score": "cp 0",
+    "nodes": 90193,
+    "depth": 6,
+    "personality": {
+      "nodes": 8567,
+      "attempts": 9,
+      "completed": 6,
+      "exhausted": 3,
+      "selections": 1
+    }
+  },
+  {
+    "suite": "personality",
+    "id": "avoid-equal-queen-trade",
+    "profile": 100,
+    "equal": true,
+    "move": "d2e2",
+    "score": "cp 0",
+    "nodes": 60462,
+    "depth": 5,
+    "personality": {
+      "nodes": 4927,
+      "attempts": 7,
+      "completed": 3,
+      "exhausted": 4,
+      "selections": 1
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "starting-development",
+    "profile": 0,
+    "equal": true,
+    "move": "c2c4",
+    "score": "cp 23",
+    "nodes": 72925,
+    "depth": 8,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "starting-development",
+    "profile": 75,
+    "equal": true,
+    "move": "b1c3",
+    "score": "cp 22",
+    "nodes": 80018,
+    "depth": 8,
+    "personality": {
+      "nodes": 8710,
+      "attempts": 12,
+      "completed": 8,
+      "exhausted": 5,
+      "selections": 1
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "starting-development",
+    "profile": 100,
+    "equal": true,
+    "move": "b1c3",
+    "score": "cp 22",
+    "nodes": 44027,
+    "depth": 7,
+    "personality": {
+      "nodes": 6712,
+      "attempts": 12,
+      "completed": 8,
+      "exhausted": 4,
+      "selections": 1
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "central-space",
+    "profile": 0,
+    "equal": true,
+    "move": "f1c4",
+    "score": "cp 53",
+    "nodes": 56178,
+    "depth": 7,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "central-space",
+    "profile": 75,
+    "equal": true,
+    "move": "f1c4",
+    "score": "cp 30",
+    "nodes": 58145,
+    "depth": 6,
+    "personality": {
+      "nodes": 4523,
+      "attempts": 6,
+      "completed": 5,
+      "exhausted": 2,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "central-space",
+    "profile": 100,
+    "equal": true,
+    "move": "f1c4",
+    "score": "cp 52",
+    "nodes": 32636,
+    "depth": 5,
+    "personality": {
+      "nodes": 4808,
+      "attempts": 8,
+      "completed": 4,
+      "exhausted": 4,
+      "selections": 2
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "open-king-gambit",
+    "profile": 0,
+    "equal": true,
+    "move": "c3d5",
+    "score": "cp 101",
+    "nodes": 59216,
+    "depth": 6,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "open-king-gambit",
+    "profile": 75,
+    "equal": true,
+    "move": "c3d5",
+    "score": "cp 111",
+    "nodes": 74410,
+    "depth": 6,
+    "personality": {
+      "nodes": 8829,
+      "attempts": 5,
+      "completed": 4,
+      "exhausted": 4,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "open-king-gambit",
+    "profile": 100,
+    "equal": true,
+    "move": "c1g5",
+    "score": "cp 99",
+    "nodes": 71236,
+    "depth": 5,
+    "personality": {
+      "nodes": 4676,
+      "attempts": 6,
+      "completed": 4,
+      "exhausted": 3,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "opposite-castle-storm",
+    "profile": 0,
+    "equal": true,
+    "move": "b2b4",
+    "score": "cp -243",
+    "nodes": 79153,
+    "depth": 7,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "opposite-castle-storm",
+    "profile": 75,
+    "equal": true,
+    "move": "f3e5",
+    "score": "cp -274",
+    "nodes": 34371,
+    "depth": 6,
+    "personality": {
+      "nodes": 7054,
+      "attempts": 12,
+      "completed": 11,
+      "exhausted": 1,
+      "selections": 3
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "opposite-castle-storm",
+    "profile": 100,
+    "equal": true,
+    "move": "f3e5",
+    "score": "cp -260",
+    "nodes": 53880,
+    "depth": 6,
+    "personality": {
+      "nodes": 7679,
+      "attempts": 12,
+      "completed": 10,
+      "exhausted": 2,
+      "selections": 5
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "tactical-safety",
+    "profile": 0,
+    "equal": true,
+    "move": "e1e2",
+    "score": "cp 656",
+    "nodes": 54613,
+    "depth": 8,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "tactical-safety",
+    "profile": 75,
+    "equal": true,
+    "move": "e1e2",
+    "score": "cp 680",
+    "nodes": 86886,
+    "depth": 8,
+    "personality": {
+      "nodes": 42,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "tactical-safety",
+    "profile": 100,
+    "equal": true,
+    "move": "e1e2",
+    "score": "cp 656",
+    "nodes": 90217,
+    "depth": 8,
+    "personality": {
+      "nodes": 42,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "defensive-safety",
+    "profile": 0,
+    "equal": true,
+    "move": "a1a2",
+    "score": "cp -652",
+    "nodes": 84271,
+    "depth": 10,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "defensive-safety",
+    "profile": 75,
+    "equal": true,
+    "move": "a1a2",
+    "score": "cp -675",
+    "nodes": 49943,
+    "depth": 9,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "defensive-safety",
+    "profile": 100,
+    "equal": true,
+    "move": "a1a2",
+    "score": "cp -652",
+    "nodes": 86124,
+    "depth": 10,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "central-queen-safety",
+    "profile": 0,
+    "equal": true,
+    "move": "c3d5",
+    "score": "cp 1133",
+    "nodes": 32552,
+    "depth": 8,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "central-queen-safety",
+    "profile": 75,
+    "equal": true,
+    "move": "c3d5",
+    "score": "cp 1117",
+    "nodes": 50946,
+    "depth": 8,
+    "personality": {
+      "nodes": 9533,
+      "attempts": 8,
+      "completed": 7,
+      "exhausted": 1,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "central-queen-safety",
+    "profile": 100,
+    "equal": true,
+    "move": "c3d5",
+    "score": "cp 1126",
+    "nodes": 85978,
+    "depth": 8,
+    "personality": {
+      "nodes": 10384,
+      "attempts": 8,
+      "completed": 6,
+      "exhausted": 2,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "bishop-f7-sacrifice",
+    "profile": 0,
+    "equal": true,
+    "move": "g5f7",
+    "score": "cp -141",
+    "nodes": 57108,
+    "depth": 7,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "bishop-f7-sacrifice",
+    "profile": 75,
+    "equal": true,
+    "move": "g5f7",
+    "score": "cp -163",
+    "nodes": 72424,
+    "depth": 7,
+    "personality": {
+      "nodes": 8613,
+      "attempts": 5,
+      "completed": 3,
+      "exhausted": 2,
+      "selections": 1
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "bishop-f7-sacrifice",
+    "profile": 100,
+    "equal": true,
+    "move": "g5f7",
+    "score": "cp -32",
+    "nodes": 21100,
+    "depth": 6,
+    "personality": {
+      "nodes": 3441,
+      "attempts": 1,
+      "completed": 1,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "unsupported-greek-gift",
+    "profile": 0,
+    "equal": true,
+    "move": "b1d2",
+    "score": "cp 48",
+    "nodes": 79523,
+    "depth": 7,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "unsupported-greek-gift",
+    "profile": 75,
+    "equal": true,
+    "move": "b1d2",
+    "score": "cp 63",
+    "nodes": 66019,
+    "depth": 7,
+    "personality": {
+      "nodes": 12765,
+      "attempts": 11,
+      "completed": 7,
+      "exhausted": 4,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "unsupported-greek-gift",
+    "profile": 100,
+    "equal": true,
+    "move": "b1d2",
+    "score": "cp 43",
+    "nodes": 51151,
+    "depth": 6,
+    "personality": {
+      "nodes": 8715,
+      "attempts": 10,
+      "completed": 7,
+      "exhausted": 3,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "kingside-pawn-storm",
+    "profile": 0,
+    "equal": true,
+    "move": "f2f4",
+    "score": "cp 14",
+    "nodes": 62952,
+    "depth": 10,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "kingside-pawn-storm",
+    "profile": 75,
+    "equal": true,
+    "move": "g1g2",
+    "score": "cp 14",
+    "nodes": 95718,
+    "depth": 10,
+    "personality": {
+      "nodes": 9647,
+      "attempts": 15,
+      "completed": 12,
+      "exhausted": 4,
+      "selections": 2
+    }
+  },
+  {
+    "suite": "search-performance",
+    "id": "kingside-pawn-storm",
+    "profile": 100,
+    "equal": true,
+    "move": "f2f4",
+    "score": "cp 14",
+    "nodes": 82746,
+    "depth": 10,
+    "personality": {
+      "nodes": 9687,
+      "attempts": 14,
+      "completed": 12,
+      "exhausted": 4,
+      "selections": 2
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-central-space",
+    "profile": 0,
+    "equal": true,
+    "move": "b1c3",
+    "score": "cp 46",
+    "nodes": 7403,
+    "depth": 5,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-central-space",
+    "profile": 75,
+    "equal": true,
+    "move": "b1c3",
+    "score": "cp 50",
+    "nodes": 13725,
+    "depth": 5,
+    "personality": {
+      "nodes": 2186,
+      "attempts": 5,
+      "completed": 4,
+      "exhausted": 2,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-central-space",
+    "profile": 100,
+    "equal": true,
+    "move": "f1c4",
+    "score": "cp 20",
+    "nodes": 13333,
+    "depth": 4,
+    "personality": {
+      "nodes": 2248,
+      "attempts": 7,
+      "completed": 4,
+      "exhausted": 3,
+      "selections": 2
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-tactical-safety",
+    "profile": 0,
+    "equal": true,
+    "move": "e1e2",
+    "score": "cp 642",
+    "nodes": 14568,
+    "depth": 6,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-tactical-safety",
+    "profile": 75,
+    "equal": true,
+    "move": "e1e2",
+    "score": "cp 659",
+    "nodes": 8482,
+    "depth": 5,
+    "personality": {
+      "nodes": 24,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-tactical-safety",
+    "profile": 100,
+    "equal": true,
+    "move": "e1e2",
+    "score": "cp 641",
+    "nodes": 19549,
+    "depth": 6,
+    "personality": {
+      "nodes": 30,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-defensive-safety",
+    "profile": 0,
+    "equal": true,
+    "move": "a1a2",
+    "score": "cp -647",
+    "nodes": 12773,
+    "depth": 7,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-defensive-safety",
+    "profile": 75,
+    "equal": true,
+    "move": "a1a2",
+    "score": "cp -670",
+    "nodes": 12402,
+    "depth": 7,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-defensive-safety",
+    "profile": 100,
+    "equal": true,
+    "move": "a1a2",
+    "score": "cp -647",
+    "nodes": 14956,
+    "depth": 7,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-open-king-gambit",
+    "profile": 0,
+    "equal": true,
+    "move": "c3d5",
+    "score": "cp 101",
+    "nodes": 59216,
+    "depth": 6,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-open-king-gambit",
+    "profile": 75,
+    "equal": true,
+    "move": "c3d5",
+    "score": "cp 111",
+    "nodes": 74410,
+    "depth": 6,
+    "personality": {
+      "nodes": 8829,
+      "attempts": 5,
+      "completed": 4,
+      "exhausted": 4,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-open-king-gambit",
+    "profile": 100,
+    "equal": true,
+    "move": "c1g5",
+    "score": "cp 99",
+    "nodes": 71236,
+    "depth": 5,
+    "personality": {
+      "nodes": 4676,
+      "attempts": 6,
+      "completed": 4,
+      "exhausted": 3,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-opposite-castle-storm",
+    "profile": 0,
+    "equal": true,
+    "move": "f1e1",
+    "score": "cp -256",
+    "nodes": 13002,
+    "depth": 5,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-opposite-castle-storm",
+    "profile": 75,
+    "equal": true,
+    "move": "f3e5",
+    "score": "cp -290",
+    "nodes": 13899,
+    "depth": 5,
+    "personality": {
+      "nodes": 4225,
+      "attempts": 10,
+      "completed": 9,
+      "exhausted": 1,
+      "selections": 2
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-opposite-castle-storm",
+    "profile": 100,
+    "equal": true,
+    "move": "b2b4",
+    "score": "cp -255",
+    "nodes": 20000,
+    "depth": 5,
+    "personality": {
+      "nodes": 3301,
+      "attempts": 9,
+      "completed": 7,
+      "exhausted": 1,
+      "selections": 3
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-forcing-mate-safety",
+    "profile": 0,
+    "equal": true,
+    "move": "h5f7",
+    "score": "mate 2",
+    "nodes": 86,
+    "depth": 1,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-forcing-mate-safety",
+    "profile": 75,
+    "equal": true,
+    "move": "h5f7",
+    "score": "mate 2",
+    "nodes": 366,
+    "depth": 1,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-forcing-mate-safety",
+    "profile": 100,
+    "equal": true,
+    "move": "h5f7",
+    "score": "mate 2",
+    "nodes": 1125,
+    "depth": 1,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-knight-c6-investment",
+    "profile": 0,
+    "equal": true,
+    "move": "d2d4",
+    "score": "cp -113",
+    "nodes": 14353,
+    "depth": 6,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-knight-c6-investment",
+    "profile": 75,
+    "equal": true,
+    "move": "e5c6",
+    "score": "cp -128",
+    "nodes": 12961,
+    "depth": 5,
+    "personality": {
+      "nodes": 1942,
+      "attempts": 7,
+      "completed": 7,
+      "exhausted": 0,
+      "selections": 1
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-knight-c6-investment",
+    "profile": 100,
+    "equal": true,
+    "move": "e5c6",
+    "score": "cp -135",
+    "nodes": 13913,
+    "depth": 5,
+    "personality": {
+      "nodes": 2110,
+      "attempts": 7,
+      "completed": 7,
+      "exhausted": 0,
+      "selections": 3
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-unsupported-greek-gift",
+    "profile": 0,
+    "equal": true,
+    "move": "b1d2",
+    "score": "cp 48",
+    "nodes": 79523,
+    "depth": 7,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-unsupported-greek-gift",
+    "profile": 75,
+    "equal": true,
+    "move": "b1d2",
+    "score": "cp 63",
+    "nodes": 66019,
+    "depth": 7,
+    "personality": {
+      "nodes": 12765,
+      "attempts": 11,
+      "completed": 7,
+      "exhausted": 4,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-unsupported-greek-gift",
+    "profile": 100,
+    "equal": true,
+    "move": "b1d2",
+    "score": "cp 43",
+    "nodes": 51151,
+    "depth": 6,
+    "personality": {
+      "nodes": 8715,
+      "attempts": 10,
+      "completed": 7,
+      "exhausted": 3,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-unsupported-rook-f7",
+    "profile": 0,
+    "equal": true,
+    "move": "g1h1",
+    "score": "cp -450",
+    "nodes": 10179,
+    "depth": 5,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-unsupported-rook-f7",
+    "profile": 75,
+    "equal": true,
+    "move": "g1h1",
+    "score": "cp -459",
+    "nodes": 16957,
+    "depth": 5,
+    "personality": {
+      "nodes": 199,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-unsupported-rook-f7",
+    "profile": 100,
+    "equal": true,
+    "move": "g1h1",
+    "score": "cp -439",
+    "nodes": 11480,
+    "depth": 4,
+    "personality": {
+      "nodes": 549,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-avoid-equal-queen-trade",
+    "profile": 0,
+    "equal": true,
+    "move": "d2d7",
+    "score": "cp 0",
+    "nodes": 47178,
+    "depth": 7,
+    "personality": {
+      "nodes": 0,
+      "attempts": 0,
+      "completed": 0,
+      "exhausted": 0,
+      "selections": 0
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-avoid-equal-queen-trade",
+    "profile": 75,
+    "equal": true,
+    "move": "d2e2",
+    "score": "cp 0",
+    "nodes": 90193,
+    "depth": 6,
+    "personality": {
+      "nodes": 8567,
+      "attempts": 9,
+      "completed": 6,
+      "exhausted": 3,
+      "selections": 1
+    }
+  },
+  {
+    "suite": "standard-attacks",
+    "id": "standard-avoid-equal-queen-trade",
+    "profile": 100,
+    "equal": true,
+    "move": "d2e2",
+    "score": "cp 0",
+    "nodes": 60462,
+    "depth": 5,
+    "personality": {
+      "nodes": 4927,
+      "attempts": 7,
+      "completed": 3,
+      "exhausted": 4,
+      "selections": 1
+    }
+  }
+]

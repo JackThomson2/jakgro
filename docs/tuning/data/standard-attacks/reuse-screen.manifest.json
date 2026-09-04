@@ -1,0 +1,125 @@
+{
+  "command": [
+    "/Users/jackthomson/Documents/jakgro/artifacts/standard-attacks/selfplay",
+    "--engine",
+    "/Users/jackthomson/Documents/jakgro/artifacts/standard-attacks/reuse-jakgro",
+    "--baseline-engine",
+    "/Users/jackthomson/Documents/jakgro/artifacts/standard-attacks/baseline-jakgro",
+    "--candidate-aggression",
+    "75",
+    "--baseline-aggression",
+    "75",
+    "--candidate-name",
+    "Candidate-Aggression-75",
+    "--baseline-name",
+    "Baseline-Aggression-75",
+    "--games",
+    "512",
+    "--openings",
+    "/Users/jackthomson/Documents/jakgro/docs/tuning/data/selective-search-confirmation.epd",
+    "--hash",
+    "16",
+    "--concurrency",
+    "8",
+    "--pgn",
+    "/Users/jackthomson/Documents/jakgro/artifacts/standard-attacks/reuse-screen.pgn",
+    "--results-json",
+    "/Users/jackthomson/Documents/jakgro/artifacts/standard-attacks/reuse-screen.arbiter.json",
+    "--movetime-ms",
+    "50"
+  ],
+  "comparison": {
+    "distinct_binaries_required": true,
+    "distinct_binary_hashes": true,
+    "identical_binaries_allowed": false,
+    "mode": "same-profile-binaries"
+  },
+  "created_utc": "2026-09-04T22:31:14.285694+00:00",
+  "execution": {
+    "changed_inputs": [],
+    "completed_games": 512,
+    "duration_seconds": 183.481869,
+    "error": null,
+    "expected_games": 512,
+    "faults": [],
+    "finished_utc": "2026-09-04T22:34:17.795770+00:00",
+    "inputs_unchanged": true,
+    "pgn_sha256": "04c2b9733d0128ef5a99a280fd5a093da67c1be60a5a058511d0595e5be6060b",
+    "return_code": 0,
+    "started_utc": "2026-09-04T22:31:14.313901+00:00",
+    "status": "complete"
+  },
+  "host": {
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "python": "3.14.7"
+  },
+  "inputs": {
+    "baseline": {
+      "aggression": 75,
+      "name": "Baseline-Aggression-75",
+      "path": "/Users/jackthomson/Documents/jakgro/artifacts/standard-attacks/baseline-jakgro",
+      "revision": null,
+      "sha256": "c3844ea2085823ea6dcd162fd339bc7adb6f9cdc33b8e909a5b70ac2bb10284e"
+    },
+    "candidate": {
+      "aggression": 75,
+      "name": "Candidate-Aggression-75",
+      "path": "/Users/jackthomson/Documents/jakgro/artifacts/standard-attacks/reuse-jakgro",
+      "revision": null,
+      "sha256": "3ac3489d4d2ca49b5d0eb78ea6c1e273d0f3aac12af8aa14955830bd3eba9f39"
+    },
+    "harness": {
+      "path": "/Users/jackthomson/Documents/jakgro/tools/run_sprt.py",
+      "sha256": "a471d092cc9f6a48088f5c61bbd041a192f1dc6b872541abba4a4b8c9eed7e96"
+    },
+    "openings": {
+      "count": 2048,
+      "path": "/Users/jackthomson/Documents/jakgro/docs/tuning/data/selective-search-confirmation.epd",
+      "sha256": "9f44058d953324751ed1db1a3325f8bfa8ccf31ee6f6cffa3e1e98a391a9de37"
+    },
+    "runner": {
+      "path": "/Users/jackthomson/Documents/jakgro/artifacts/standard-attacks/selfplay",
+      "sha256": "66b71a350cde8f6edc5b1f7118567d6fb6dcfb9b04c83bca0c0db45a157e8f36"
+    }
+  },
+  "outputs": {
+    "manifest": "/Users/jackthomson/Documents/jakgro/artifacts/standard-attacks/reuse-screen.manifest.json",
+    "pgn": "/Users/jackthomson/Documents/jakgro/artifacts/standard-attacks/reuse-screen.pgn"
+  },
+  "provenance": {
+    "build_profile": null,
+    "dependency_revision": null
+  },
+  "schema_version": 2,
+  "settings": {
+    "concurrency": 8,
+    "draw": {
+      "movecount": 10,
+      "movenumber": 80,
+      "score": 10
+    },
+    "games": 512,
+    "hash_mib": 16,
+    "limit": {
+      "mode": "fixed-movetime",
+      "movetime_ms": 50,
+      "nodes_per_move": null,
+      "time_control": null
+    },
+    "maxmoves": 200,
+    "nodes_per_move": null,
+    "resign": {
+      "movecount": 4,
+      "score": 800,
+      "twosided": true
+    },
+    "rounds": 256,
+    "sprt": {
+      "alpha": 0.05,
+      "beta": 0.05,
+      "elo0": 0.0,
+      "elo1": 10.0
+    },
+    "time_control": null
+  }
+}

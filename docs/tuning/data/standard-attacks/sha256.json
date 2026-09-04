@@ -1,0 +1,23 @@
+{
+  "final-improvement-gate.json": "a63266560c17dbc82d72013ceeea98ac4bc610f4442ca3965e33c40d141fa614",
+  "final-legacy-acceptance.json": "37f27f326a3159860d152a4369593d4caefc73d32295b1fba5df03086da6669a",
+  "final-standard-acceptance.json": "ff6da5d16e08e9c16e565809ac867569144eab05645ef31456efb870a0f76567",
+  "final-tree-equality.json": "287f1199c0a944b89dc15d4e5310282c354d966a180f54599371778f95fbc4c6",
+  "guarded-acceptance.json": "eed16f47ece69c9e152817c95ecf2390bdad0f7151b1be3b21f82281b5bc2245",
+  "guarded-style.json": "f2e1b87dcba8d709336e22ba68a2019da5a473c93434783a2b9dc847aa5a3891",
+  "match-style.json": "f7866653a5a537eb700caeb63707d07dd4c7da521bdaef577249e6c0f2a5302c",
+  "ranking-screen.arbiter.json": "4cca251c5868727e05a21c7d511a6155dce4db24e3fc31d04e4bcffd33fd7930",
+  "ranking-screen.json": "29ba64ba29c6ed0f8af5e0678684a2d7fae37b308d2165cee362d2502df54d75",
+  "ranking-screen.manifest.json": "27facf69697f9a4e1f057b684fa6f8303e4ea19f00c072a2617f298829fdfff8",
+  "ranking-screen.pgn": "537e0e845da875728285e5badd146d4f540c9890834174f477053d212c64f6f4",
+  "ranking-style.json": "63700016fd245c4ba3779263d7007877c604e4195e37a8a0adb0ee23ec8c4c79",
+  "ranking-time-1000.json": "3bfe2c2d5374882c763928252b5ce3a82a999eab7e70147b55760abbb89b55f7",
+  "ranking-time-200.json": "88f1cfdb81eb1b43cc5f6a564f4dd0324490a8ff2a4844d82876466f3db1b078",
+  "ranking-time-50.json": "bf802ad73eac84b5b50df810662ca0b23e4f727bb5fe39021887fce9afaee282",
+  "reuse-efficiency.json": "4189a00a6c1cd9cd70de8353fbbbb9c43a2abaa00fff6e39f69259171e4c842d",
+  "reuse-screen.arbiter.json": "efecba57d5278479085a4ee5988a120d7ce10a5918cb0700718cb5db8d68a8ac",
+  "reuse-screen.json": "dea4e56f8f3e8fd2950ebc77faa91b665e948a3ed9c1d9344837ec8e020049ee",
+  "reuse-screen.manifest.json": "a547114b843e53481ad37a7cb49c74a7b4bb3a574d37c002c833d3cd323c2f6f",
+  "reuse-screen.pgn": "04c2b9733d0128ef5a99a280fd5a093da67c1be60a5a058511d0595e5be6060b",
+  "reuse-tree-equality.json": "7c9b753fd8cf6611ec7c43eed525588a491fc5463d385d95c899faa3456ce074"
+}

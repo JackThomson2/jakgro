@@ -170,6 +170,10 @@ pub const BLOCKS: &[FeatureBlock] = &[
     array("CANDIDATE_PASSER_BY_RANK", CANDIDATE_PASSER_OFFSET, 6),
     scalar("PAWN_ISLANDS", CANDIDATE_PASSER_OFFSET + 6),
     scalar("KING_PAWNLESS_FLANK", CANDIDATE_PASSER_OFFSET + 7),
+    scalar("KNIGHT_PER_PAWN", PAWN_COUNT_OFFSET),
+    scalar("BISHOP_PER_PAWN", PAWN_COUNT_OFFSET + 1),
+    scalar("ROOK_PER_PAWN", PAWN_COUNT_OFFSET + 2),
+    scalar("BISHOP_PAWNS_ON_COLOUR", PAWN_COUNT_OFFSET + 3),
 ];
 
 /// Scalar features before the tables, in the order [`super::weights::score`]
@@ -200,7 +204,8 @@ pub const TRAILING_FEATURES: usize = MOBILITY_CURVE_ENTRIES
     + 6
     + 2
     + 6
-    + 2;
+    + 2
+    + 4;
 /// Length of the feature vector.
 pub const FEATURE_COUNT: usize = SCALAR_FEATURES + PLACEMENT_FEATURES + TRAILING_FEATURES;
 /// Index of the first piece-square feature.
@@ -232,6 +237,9 @@ const SPACE_AREA_OFFSET: usize = BLOCKED_STORM_OFFSET + 6;
 /// Index of the candidate-passer block, followed by the island and
 /// pawnless-flank scalars.
 const CANDIDATE_PASSER_OFFSET: usize = SPACE_AREA_OFFSET + 2;
+/// Index of the pawn-count products: knights, bishops and rooks by pawn
+/// count, then bishops by pawns on their colour.
+const PAWN_COUNT_OFFSET: usize = CANDIDATE_PASSER_OFFSET + 8;
 /// The mobility curves as piece, offset within the trailing region and length.
 const MOBILITY_CURVES: [(Piece, usize, usize); 4] = [
     (Piece::Knight, 0, KNIGHT_MOBILITY_ENTRIES),
@@ -450,6 +458,10 @@ pub fn tuning_features(board: &Board) -> TuningPosition {
         (SPACE_AREA_OFFSET + 1, extracted.space_area_by_pieces),
         (CANDIDATE_PASSER_OFFSET + 6, structure.pawn_islands),
         (CANDIDATE_PASSER_OFFSET + 7, structure.king_pawnless_flank),
+        (PAWN_COUNT_OFFSET, extracted.knight_pawns),
+        (PAWN_COUNT_OFFSET + 1, extracted.bishop_pawns),
+        (PAWN_COUNT_OFFSET + 2, extracted.rook_pawns),
+        (PAWN_COUNT_OFFSET + 3, extracted.bishop_pawns_on_colour),
     ] {
         if value != 0 {
             entries.push((offset as u16, value as i16));

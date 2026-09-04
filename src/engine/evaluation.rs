@@ -299,6 +299,14 @@ pub(super) struct EvalFeatures {
     /// king, since room is worth what wants to use it.
     pub(super) space_area: Score,
     pub(super) space_area_by_pieces: Score,
+    /// Each side's knights, bishops and rooks multiplied by its own pawn
+    /// count, side-relative, so a fit can bend a piece's worth with the
+    /// pawns on the board; and its bishops multiplied by the friendly
+    /// pawns on their square colour.
+    pub(super) knight_pawns: Score,
+    pub(super) bishop_pawns: Score,
+    pub(super) rook_pawns: Score,
+    pub(super) bishop_pawns_on_colour: Score,
     pub(super) king_pressure: Score,
     pub(super) pawn_storm: Score,
     pub(super) threats: Score,
@@ -1129,6 +1137,35 @@ mod tests {
             counts("2k5/8/8/8/8/8/3P4/7K w - - 0 1").king_pawnless_flank,
             1
         );
+    }
+
+    #[test]
+    fn piece_values_scale_with_the_pawn_count() {
+        let features = |fen: &str| {
+            super::features::extract_with_style(Position::from_fen(fen).unwrap().board(), false)
+        };
+
+        // One knight and three pawns; one rook and two.
+        let knight = features("4k3/8/8/8/8/8/PPP5/4K1N1 w - - 0 1");
+        assert_eq!(knight.knight_pawns, 3);
+        assert_eq!(knight.bishop_pawns, 0);
+        assert_eq!(knight.rook_pawns, 0);
+        let rook = features("4k3/8/8/8/8/8/PP6/R3K3 w - - 0 1");
+        assert_eq!(rook.rook_pawns, 2);
+        // A bishop counts the friendly pawns on its own colour: none for a
+        // dark-squared bishop behind four light-square pawns, all four for
+        // the light-squared one.
+        let dark = features("4k3/8/8/8/8/8/P1P1P1P1/2B1K3 w - - 0 1");
+        assert_eq!(dark.bishop_pawns, 4);
+        assert_eq!(dark.bishop_pawns_on_colour, 0);
+        let light = features("4k3/8/8/8/8/8/P1P1P1P1/1B2K3 w - - 0 1");
+        assert_eq!(light.bishop_pawns, 4);
+        assert_eq!(light.bishop_pawns_on_colour, 4);
+        // Black's count against, with its own pawns.
+        let black = features("1b2k3/p1p1p1p1/8/8/8/8/8/4K3 w - - 0 1");
+        assert_eq!(black.bishop_pawns, -4);
+        assert_eq!(black.bishop_pawns_on_colour, -4);
+        assert_eq!(black.knight_pawns, 0);
     }
 
     #[test]

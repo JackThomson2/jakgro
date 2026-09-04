@@ -244,6 +244,13 @@ const SPACE_AREA_BY_PIECES: ScorePair = ScorePair::new(0, 0);
 const CANDIDATE_PASSER_BY_RANK: [ScorePair; 6] = [ScorePair::new(0, 0); 6];
 const PAWN_ISLANDS: ScorePair = ScorePair::new(0, 0);
 const KING_PAWNLESS_FLANK: ScorePair = ScorePair::new(0, 0);
+/// Knights, bishops and rooks scaled by their side's pawn count, and
+/// bishops by the friendly pawns on their colour; zero until fitted, so the
+/// material weights above keep their meaning.
+const KNIGHT_PER_PAWN: ScorePair = ScorePair::new(0, 0);
+const BISHOP_PER_PAWN: ScorePair = ScorePair::new(0, 0);
+const ROOK_PER_PAWN: ScorePair = ScorePair::new(0, 0);
+const BISHOP_PAWNS_ON_COLOUR: ScorePair = ScorePair::new(0, 0);
 const KING_PRESSURE: ScorePair = ScorePair::new(9, 2);
 const PAWN_STORM: ScorePair = ScorePair::new(7, 1);
 const THREAT: ScorePair = ScorePair::new(11, 7);
@@ -283,6 +290,10 @@ pub(super) fn score(features: &EvalFeatures) -> ScorePair {
         + features.piece_indexed
         + SPACE_AREA * features.space_area
         + SPACE_AREA_BY_PIECES * features.space_area_by_pieces
+        + KNIGHT_PER_PAWN * features.knight_pawns
+        + BISHOP_PER_PAWN * features.bishop_pawns
+        + ROOK_PER_PAWN * features.rook_pawns
+        + BISHOP_PAWNS_ON_COLOUR * features.bishop_pawns_on_colour
 }
 
 /// Weights every rank- or distance-indexed structure block at once.
@@ -497,6 +508,12 @@ pub(super) fn trailing_tuning_weights() -> [ScorePair; super::tuning::TRAILING_F
         &[SPACE_AREA, SPACE_AREA_BY_PIECES][..],
         &CANDIDATE_PASSER_BY_RANK[..],
         &[PAWN_ISLANDS, KING_PAWNLESS_FLANK][..],
+        &[
+            KNIGHT_PER_PAWN,
+            BISHOP_PER_PAWN,
+            ROOK_PER_PAWN,
+            BISHOP_PAWNS_ON_COLOUR,
+        ][..],
     ] {
         weights[next..next + block.len()].copy_from_slice(block);
         next += block.len();

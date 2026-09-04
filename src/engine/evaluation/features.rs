@@ -63,6 +63,8 @@ static BLACK_SPACE_ZONE: BitBoard = build_space_zone(false);
 /// The four files nearest a king on each file: a to d for a king on a to c,
 /// c to f for one on d or e, e to h for one on f to h.
 static KING_FLANKS: [BitBoard; 8] = build_king_flanks();
+/// The light squares, b1 among them.
+const LIGHT_SQUARES: BitBoard = BitBoard(0x55aa_55aa_55aa_55aa);
 
 const fn square_mask(file: usize, rank: usize) -> u64 {
     1_u64 << (rank * 8 + file)
@@ -489,7 +491,8 @@ pub(super) fn extract_with_style(board: &Board, style: bool) -> EvalFeatures {
         let bishops = board.colored_pieces(color, Piece::Bishop).len() as i32;
         let rooks = board.colored_pieces(color, Piece::Rook).len() as i32;
         let queens = board.colored_pieces(color, Piece::Queen).len() as i32;
-        features.pawns += sign * board.colored_pieces(color, Piece::Pawn).len() as i32;
+        let pawns = board.colored_pieces(color, Piece::Pawn).len() as i32;
+        features.pawns += sign * pawns;
         features.knights += sign * knights;
         features.bishops += sign * bishops;
         features.rooks += sign * rooks;
@@ -501,6 +504,13 @@ pub(super) fn extract_with_style(board: &Board, style: bool) -> EvalFeatures {
         features.space_area += sign * area;
         features.space_area_by_pieces += sign * area * (knights + bishops + rooks + queens);
         let scan = &attacks.scans[color as usize];
+        // A piece's worth bends with the pawn count, and a bishop's with the
+        // pawns on its colour: products the fit weights, linear in the
+        // weights.
+        features.knight_pawns += sign * knights * pawns;
+        features.bishop_pawns += sign * bishops * pawns;
+        features.rook_pawns += sign * rooks * pawns;
+        features.bishop_pawns_on_colour += sign * scan.bishop_pawns_on_colour;
         features.activity += sign * scan.activity;
         features.placement = features.placement + scan.placement * sign;
         features.mobility += sign * scan.mobility;
@@ -685,6 +695,8 @@ pub(super) struct ColourScan {
     pub(super) pawn_attacks: BitBoard,
     pub(super) activity: i32,
     pub(super) placement: ScorePair,
+    /// Friendly pawns on the square colour of each bishop, summed.
+    pub(super) bishop_pawns_on_colour: i32,
 }
 
 impl ColourScan {
@@ -737,6 +749,7 @@ fn scan_pieces<const PIECE: usize, const STYLE: bool>(
     let units = king_attack_units(piece);
     let is_pawn = piece == Piece::Pawn;
     let is_minor = matches!(piece, Piece::Knight | Piece::Bishop);
+    let is_bishop = piece == Piece::Bishop;
     let is_rook = piece == Piece::Rook;
     let is_king = piece == Piece::King;
     let pressure_weight = match piece {
@@ -784,6 +797,15 @@ fn scan_pieces<const PIECE: usize, const STYLE: bool>(
             && (context.enemy_pawns & context.challenges[square as usize]).is_empty()
         {
             scan.outposts[usize::from(piece == Piece::Bishop)] += 1;
+        }
+        if is_bishop {
+            // A bishop's own pawns on its colour are the ones in its way.
+            let same_colour = if LIGHT_SQUARES.has(square) {
+                LIGHT_SQUARES
+            } else {
+                !LIGHT_SQUARES
+            };
+            scan.bishop_pawns_on_colour += (context.own_pawns & same_colour).len() as i32;
         }
         if is_rook {
             let file = square.file().bitboard();

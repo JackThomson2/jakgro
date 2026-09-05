@@ -150,9 +150,9 @@ struct RepetitionTracker {
 
 impl RepetitionTracker {
     fn new(history: &[u64]) -> Self {
-        Self {
-            keys: history.to_vec(),
-        }
+        let mut keys = Vec::with_capacity(history.len() + MAX_PLY as usize);
+        keys.extend_from_slice(history);
+        Self { keys }
     }
 
     fn current_key(&self) -> u64 {
@@ -364,9 +364,9 @@ impl MoveFacts {
         self.see(board, enabled)
     }
 
+    #[cfg(test)]
     fn search_metadata(self, board: &Board, see: Option<Score>) -> MoveMetadata {
-        let gives_check = move_gives_check(board, self.chess_move, self.attacker);
-        self.metadata(board, gives_check, see)
+        self.search_metadata_with_masks(board, see, None)
     }
 
     /// Builds metadata using a per-node mask to skip impossible checks.
@@ -384,28 +384,36 @@ impl MoveFacts {
             masks.may_give_check(
                 self.chess_move,
                 self.attacker,
-                is_en_passant(board, self.chess_move, self.attacker),
+                self.captured.is_some() && is_en_passant(board, self.chess_move, self.attacker),
             )
         });
         let gives_check = possible && move_gives_check(board, self.chess_move, self.attacker);
-        self.metadata(board, gives_check, see)
+        self.metadata(board, gives_check, see, masks.map(|m| m.king_zone))
     }
 
     fn child_metadata(self, board: &Board, child: &Board, see: Option<Score>) -> MoveMetadata {
-        self.metadata(board, !child.checkers().is_empty(), see)
+        self.metadata(board, !child.checkers().is_empty(), see, None)
     }
 
-    fn metadata(self, board: &Board, gives_check: bool, see: Option<Score>) -> MoveMetadata {
-        let enemy_king = board.king(!board.side_to_move());
-        let king_zone_move = (self.chess_move.to.file() as i32 - enemy_king.file() as i32).abs()
-            <= 1
-            && (self.chess_move.to.rank() as i32 - enemy_king.rank() as i32).abs() <= 1;
+    fn metadata(
+        self,
+        board: &Board,
+        gives_check: bool,
+        see: Option<Score>,
+        king_zone: Option<BitBoard>,
+    ) -> MoveMetadata {
+        let king_zone = king_zone.unwrap_or_else(|| {
+            let enemy_king = board.king(!board.side_to_move());
+            get_king_moves(enemy_king) | enemy_king.bitboard()
+        });
+        let king_zone_move = king_zone.has(self.chess_move.to);
         MoveMetadata {
             chess_move: self.chess_move,
             attacker: self.attacker,
             captured: self.captured,
             gives_check,
-            attacking_pawn_push: is_attacking_pawn_push(board, self.chess_move),
+            attacking_pawn_push: self.attacker == Piece::Pawn
+                && is_attacking_pawn_push(board, self.chess_move),
             castling: self.attacker == Piece::King
                 && (self.chess_move.from.file() as i32 - self.chess_move.to.file() as i32).abs()
                     > 1,
@@ -499,7 +507,12 @@ struct PickerMove {
 
 impl PickerMove {
     fn metadata(self, board: &Board) -> MoveMetadata {
-        self.facts.search_metadata(board, self.see)
+        self.metadata_with_masks(board, None)
+    }
+
+    fn metadata_with_masks(self, board: &Board, masks: Option<CheckMasks>) -> MoveMetadata {
+        self.facts
+            .search_metadata_with_masks(board, self.see, masks)
     }
 }
 
@@ -583,6 +596,7 @@ struct MovePickerWork {
 
 struct MovePicker<'a> {
     board: &'a Board,
+    masks: CheckMasks,
     storage: MovePickerStorage,
     preferred: Option<Move>,
     picked_killers: [Option<Move>; 2],
@@ -610,6 +624,7 @@ impl<'a> MovePicker<'a> {
         storage.clear();
         Self {
             board,
+            masks: CheckMasks::for_board(board),
             storage,
             preferred: preferred.filter(|chess_move| board.is_legal(*chess_move)),
             picked_killers: [None; 2],
@@ -797,13 +812,26 @@ impl<'a> MovePicker<'a> {
         let bad_captures = &mut self.storage.bad_captures;
         #[cfg(test)]
         let work = &mut self.work;
+        let enemies = board.colors(!board.side_to_move());
+        let pawn_tacticals = {
+            let mut targets = enemies | Rank::First.bitboard() | Rank::Eighth.bitboard();
+            if let Some(file) = board.en_passant() {
+                targets |=
+                    Square::new(file, Rank::Sixth.relative_to(board.side_to_move())).bitboard();
+            }
+            targets
+        };
         board.generate_moves(|mut piece_moves| {
-            piece_moves.to &= tactical_move_targets(board, piece_moves.piece);
+            piece_moves.to &= if piece_moves.piece == Piece::Pawn {
+                pawn_tacticals
+            } else {
+                enemies
+            };
             for chess_move in piece_moves {
                 if preferred == Some(chess_move) {
                     continue;
                 }
-                let facts = MoveFacts::classify(board, chess_move);
+                let facts = MoveFacts::classify_with_attacker(board, chess_move, piece_moves.piece);
                 if let Some(order_score) = promotion_order_score(chess_move) {
                     promotions.push(PickerMove {
                         facts,
@@ -847,7 +875,7 @@ impl<'a> MovePicker<'a> {
         let preferred = self.preferred;
         let picked_killers = self.picked_killers;
         let mode = self.mode;
-        let masks = CheckMasks::for_board(board);
+        let masks = self.masks;
         let quiets = &mut self.storage.quiets;
         #[cfg(test)]
         let work = &mut self.work;
@@ -862,8 +890,21 @@ impl<'a> MovePicker<'a> {
                 include_quiet_checks: true,
             }
         );
+        let enemies = board.colors(!board.side_to_move());
+        let pawn_tacticals = {
+            let mut targets = enemies | Rank::First.bitboard() | Rank::Eighth.bitboard();
+            if let Some(file) = board.en_passant() {
+                targets |=
+                    Square::new(file, Rank::Sixth.relative_to(board.side_to_move())).bitboard();
+            }
+            targets
+        };
         board.generate_moves(|mut piece_moves| {
-            piece_moves.to &= !tactical_move_targets(board, piece_moves.piece);
+            piece_moves.to &= !if piece_moves.piece == Piece::Pawn {
+                pawn_tacticals
+            } else {
+                enemies
+            };
             if quiet_checks_only
                 && piece_moves.piece != Piece::King
                 && !masks.discovery_candidates.has(piece_moves.from)
@@ -874,7 +915,11 @@ impl<'a> MovePicker<'a> {
                 if preferred == Some(chess_move) || picked_killers.contains(&Some(chess_move)) {
                     continue;
                 }
-                let facts = MoveFacts::classify(board, chess_move);
+                let facts = MoveFacts {
+                    chess_move,
+                    attacker: piece_moves.piece,
+                    captured: None,
+                };
                 #[cfg(test)]
                 {
                     work.check_detections += 1;
@@ -903,17 +948,6 @@ impl<'a> MovePicker<'a> {
             self.work.quiet_sorts += 1;
         }
     }
-}
-
-fn tactical_move_targets(board: &Board, piece: Piece) -> BitBoard {
-    let mut targets = board.colors(!board.side_to_move());
-    if piece == Piece::Pawn {
-        targets |= Rank::First.bitboard() | Rank::Eighth.bitboard();
-        if let Some(file) = board.en_passant() {
-            targets |= Square::new(file, Rank::Sixth.relative_to(board.side_to_move())).bitboard();
-        }
-    }
-    targets
 }
 
 fn capture_is_good(facts: MoveFacts, see: Option<Score>, _evaluation: EvaluationConfig) -> bool {
@@ -1238,7 +1272,10 @@ impl MoveOrdering {
             if let Some(previous) = previous {
                 self.update_continuation(
                     previous,
-                    HistoryMove::from_board(board, failed.chess_move),
+                    HistoryMove {
+                        piece: failed.attacker,
+                        to: failed.chess_move.to,
+                    },
                     -bonus,
                 );
             }
@@ -1303,17 +1340,20 @@ impl MoveOrdering {
     }
 }
 
+#[inline(always)]
 fn history_index(color: Color, chess_move: Move) -> usize {
-    ((color as usize * 64 + chess_move.from as usize) * 64) + chess_move.to as usize
+    ((color as usize) << 12) | ((chess_move.from as usize) << 6) | (chess_move.to as usize)
 }
 
+#[inline(always)]
 fn capture_history_index(color: Color, attacker: Piece, to: Square, captured: Piece) -> usize {
     (((color as usize * 6 + attacker as usize) * 64 + to as usize) * 6) + captured as usize
 }
 
+#[inline(always)]
 fn continuation_index(previous: HistoryMove, current: HistoryMove) -> usize {
-    let previous = previous.piece as usize * 64 + previous.to as usize;
-    let current = current.piece as usize * 64 + current.to as usize;
+    let previous = (previous.piece as usize) << 6 | previous.to as usize;
+    let current = (current.piece as usize) << 6 | current.to as usize;
     previous * CONTINUATION_BUCKETS + current
 }
 
@@ -4329,6 +4369,7 @@ fn is_dead_material(board: &Board) -> bool {
 struct CheckMasks {
     direct: [BitBoard; Piece::NUM],
     discovery_candidates: BitBoard,
+    king_zone: BitBoard,
 }
 
 impl CheckMasks {
@@ -4350,6 +4391,7 @@ impl CheckMasks {
             direct,
             discovery_candidates: (get_bishop_rays(enemy_king) | get_rook_rays(enemy_king))
                 & board.colors(color),
+            king_zone: get_king_moves(enemy_king) | enemy_king.bitboard(),
         }
     }
 
@@ -4378,6 +4420,7 @@ impl CheckMasks {
 /// capture, which removes a pawn from a square the move itself never occupies.
 fn is_en_passant(board: &Board, chess_move: Move, moved: Piece) -> bool {
     moved == Piece::Pawn
+        && board.en_passant().is_some()
         && chess_move.from.file() != chess_move.to.file()
         && board.piece_on(chess_move.to).is_none()
 }
@@ -4699,11 +4742,14 @@ fn move_order_score(
         return score;
     }
 
-    let capture_history = ordering.capture_history_score(board.side_to_move(), metadata.facts());
-    if let Some(score) =
-        capture_order_score(metadata.facts(), metadata.see, evaluation, capture_history)
-    {
-        return score;
+    if metadata.facts().captured.is_some() {
+        let capture_history =
+            ordering.capture_history_score(board.side_to_move(), metadata.facts());
+        if let Some(score) =
+            capture_order_score(metadata.facts(), metadata.see, evaluation, capture_history)
+        {
+            return score;
+        }
     }
 
     quiet_order_score(board, metadata, ply, previous, ordering, evaluation)
@@ -4832,15 +4878,15 @@ fn forcing_order_bonus(metadata: MoveMetadata, evaluation: EvaluationConfig) -> 
 }
 
 fn is_attacking_pawn_push(board: &Board, chess_move: Move) -> bool {
-    if board.piece_on(chess_move.from) != Some(Piece::Pawn) {
-        return false;
-    }
     let color = board.side_to_move();
     let enemy_king = board.king(!color);
-    let own_king = board.king(color);
     let near_enemy_king = (chess_move.to.file() as i32 - enemy_king.file() as i32).abs() <= 1;
+    if !near_enemy_king {
+        return false;
+    }
+    let own_king = board.king(color);
     let away_from_own_king = (chess_move.to.file() as i32 - own_king.file() as i32).abs() >= 2;
-    let advanced = if away_from_own_king {
+    if away_from_own_king {
         if color == Color::White {
             chess_move.to.rank() as i32 >= Rank::Fourth as i32
         } else {
@@ -4850,8 +4896,7 @@ fn is_attacking_pawn_push(board: &Board, chess_move: Move) -> bool {
         chess_move.to.rank() as i32 >= 4
     } else {
         chess_move.to.rank() as i32 <= 3
-    };
-    near_enemy_king && advanced
+    }
 }
 
 fn move_key(chess_move: Move) -> u32 {
@@ -4868,11 +4913,12 @@ fn ordering_piece_value(piece: Piece) -> Score {
 }
 
 fn captured_piece(board: &Board, chess_move: Move) -> Option<Piece> {
-    if board.color_on(chess_move.to) == Some(!board.side_to_move()) {
+    if board.colors(!board.side_to_move()).has(chess_move.to) {
         return board.piece_on(chess_move.to);
     }
-    if board.piece_on(chess_move.from) == Some(Piece::Pawn)
+    if board.en_passant() == Some(chess_move.to.file())
         && chess_move.from.file() != chess_move.to.file()
+        && board.piece_on(chess_move.from) == Some(Piece::Pawn)
         && board.piece_on(chess_move.to).is_none()
     {
         return Some(Piece::Pawn);

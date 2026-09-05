@@ -37,6 +37,7 @@ const ATTACK_ORDER: [Piece; 6] = [
 const MAX_SWAPS: usize = 32;
 
 /// Returns the material a move wins or loses once the exchange settles.
+#[inline(always)]
 pub(super) fn static_exchange_eval(board: &Board, chess_move: Move) -> Score {
     let Some(gain) = move_gain(board, chess_move) else {
         return 0;
@@ -110,25 +111,58 @@ fn least_valuable_attacker(
     color: Color,
     occupied: BitBoard,
 ) -> Option<(Piece, Square)> {
-    ATTACK_ORDER.into_iter().find_map(|piece| {
-        (attackers_of_piece(board, target, color, piece, occupied) & occupied)
-            .into_iter()
-            .next()
-            .map(|square| (piece, square))
-    })
+    for piece in ATTACK_ORDER {
+        let candidates = board.colored_pieces(color, piece) & occupied;
+        if candidates.is_empty() {
+            continue;
+        }
+        let attackers = match piece {
+            Piece::Pawn => candidates & get_pawn_attacks(target, !color),
+            Piece::Knight => candidates & get_knight_moves(target),
+            Piece::Bishop => candidates & get_bishop_moves(target, occupied),
+            Piece::Rook => candidates & get_rook_moves(target, occupied),
+            Piece::Queen => {
+                candidates & (get_bishop_moves(target, occupied) | get_rook_moves(target, occupied))
+            }
+            Piece::King => candidates & get_king_moves(target),
+        };
+        if let Some(square) = attackers.into_iter().next() {
+            return Some((piece, square));
+        }
+    }
+    None
 }
 
 /// Returns whether a side still attacks a square under a given occupancy.
 fn has_attacker(board: &Board, target: Square, color: Color, occupied: BitBoard) -> bool {
-    ATTACK_ORDER.into_iter().any(|piece| {
-        !(attackers_of_piece(board, target, color, piece, occupied) & occupied).is_empty()
-    })
+    for piece in ATTACK_ORDER {
+        let candidates = board.colored_pieces(color, piece) & occupied;
+        if candidates.is_empty() {
+            continue;
+        }
+        let has = match piece {
+            Piece::Pawn => !(candidates & get_pawn_attacks(target, !color)).is_empty(),
+            Piece::Knight => !(candidates & get_knight_moves(target)).is_empty(),
+            Piece::Bishop => !(candidates & get_bishop_moves(target, occupied)).is_empty(),
+            Piece::Rook => !(candidates & get_rook_moves(target, occupied)).is_empty(),
+            Piece::Queen => {
+                !(candidates & get_bishop_moves(target, occupied)).is_empty()
+                    || !(candidates & get_rook_moves(target, occupied)).is_empty()
+            }
+            Piece::King => !(candidates & get_king_moves(target)).is_empty(),
+        };
+        if has {
+            return true;
+        }
+    }
+    false
 }
 
 /// Returns one side's pieces of one kind that attack a square.
 ///
 /// Sliders are recomputed against the supplied occupancy, which is what reveals
 /// an x-ray attacker once the piece in front of it has joined the exchange.
+#[allow(dead_code)]
 fn attackers_of_piece(
     board: &Board,
     target: Square,
@@ -137,6 +171,9 @@ fn attackers_of_piece(
     occupied: BitBoard,
 ) -> BitBoard {
     let candidates = board.colored_pieces(color, piece);
+    if candidates.is_empty() {
+        return BitBoard::EMPTY;
+    }
     match piece {
         Piece::Pawn => candidates & get_pawn_attacks(target, !color),
         Piece::Knight => candidates & get_knight_moves(target),
@@ -151,9 +188,9 @@ fn attackers_of_piece(
 
 /// Returns whether a move is an en passant capture.
 fn is_en_passant(board: &Board, chess_move: Move) -> bool {
-    board.piece_on(chess_move.from) == Some(Piece::Pawn)
-        && board.en_passant() == Some(chess_move.to.file())
+    board.en_passant() == Some(chess_move.to.file())
         && chess_move.from.file() != chess_move.to.file()
+        && board.piece_on(chess_move.from) == Some(Piece::Pawn)
         && board.color_on(chess_move.to).is_none()
 }
 
@@ -170,7 +207,7 @@ fn move_gain(board: &Board, chess_move: Move) -> Option<Score> {
 }
 
 fn captured_piece(board: &Board, chess_move: Move) -> Option<Piece> {
-    if board.color_on(chess_move.to) == Some(!board.side_to_move()) {
+    if board.colors(!board.side_to_move()).has(chess_move.to) {
         return board.piece_on(chess_move.to);
     }
     if is_en_passant(board, chess_move) {

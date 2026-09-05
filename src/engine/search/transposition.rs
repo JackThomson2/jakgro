@@ -120,6 +120,7 @@ fn encode_move(chess_move: Option<Move>) -> u64 {
 ///
 /// A stored move never has equal origin and destination squares, so an all-zero
 /// move field cannot collide with a real one.
+#[inline(always)]
 fn decode_move(bits: u64) -> Option<Move> {
     if bits == 0 {
         return None;
@@ -162,9 +163,15 @@ impl Slot {
     }
 
     /// Returns the payload this slot holds for `mixed`, when it holds one.
+    #[inline(always)]
     fn load_verified(&self, mixed: u64) -> Option<Entry> {
-        let (entry, verified) = self.snapshot(mixed);
-        verified.then_some(entry).flatten()
+        let verify = self.verify.load(Ordering::Relaxed);
+        let data = self.data.load(Ordering::Relaxed);
+        if verify ^ data == mixed && data != 0 {
+            Entry::decode(data)
+        } else {
+            None
+        }
     }
 
     fn store(&self, mixed: u64, entry: Entry) {
@@ -191,6 +198,7 @@ impl Entry {
     }
 
     /// Unpacks a stored word, reporting `None` for an unoccupied slot.
+    #[inline(always)]
     fn decode(data: u64) -> Option<Self> {
         if data == 0 {
             return None;
@@ -314,11 +322,16 @@ impl TranspositionTable {
             None,
         );
     }
+    #[inline(always)]
     pub(super) fn probe_key(&self, key: u64, halfmove_clock: u8) -> Option<Entry> {
         let mixed = mixed_key(key, halfmove_clock);
-        self.buckets[self.index(key)]
-            .iter()
-            .find_map(|slot| slot.load_verified(mixed))
+        let bucket = &self.buckets[self.index(key)];
+        for slot in bucket {
+            if let Some(entry) = slot.load_verified(mixed) {
+                return Some(entry);
+            }
+        }
+        None
     }
 
     #[allow(clippy::too_many_arguments)]

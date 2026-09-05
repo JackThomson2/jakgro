@@ -390,7 +390,7 @@ pub(super) fn root_complexity_bonus(
     let forcing = snapshot.king_pressure_advantage
         + snapshot.pawn_storm_advantage
         + snapshot.threat_advantage * 2;
-    (forcing.max(0) / 4).min(12) * Score::from(config.aggression()) / 100
+    ((forcing.max(0) * Score::from(config.aggression()) + 50) / 100 / 4).min(12)
 }
 
 #[cfg(test)]

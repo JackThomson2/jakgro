@@ -2649,14 +2649,24 @@ fn search_root_styled(
     let original_first_iteration_pending = context.first_iteration_pending;
     context.first_iteration_pending = false;
     let personality_start_nodes = context.nodes;
+    let personality_budget = personality_node_limit.saturating_sub(personality_start_nodes);
+    let verification_reserve = (personality_budget / 2).max(128);
     let mut probe_passers = Vec::new();
     let mut personality_exhausted = false;
 
     for seed in alternatives {
-        if context.should_stop() {
-            personality_exhausted = true;
+        let probe_node_limit = if probe_passers.is_empty() {
+            personality_node_limit
+        } else {
+            personality_node_limit.saturating_sub(verification_reserve)
+        };
+        if context.nodes >= probe_node_limit || context.control_stop_requested() {
+            if probe_passers.is_empty() {
+                personality_exhausted = true;
+            }
             break;
         }
+        context.node_limit = Some(probe_node_limit);
         if let Some(entry) = evidence
             .iter()
             .find(|entry| entry.chess_move == seed.chess_move)
@@ -2691,7 +2701,9 @@ fn search_root_styled(
         );
         history.pop();
         let Ok(probe) = probe else {
-            personality_exhausted = true;
+            if probe_passers.is_empty() {
+                personality_exhausted = true;
+            }
             break;
         };
         if -probe.score >= threshold {
@@ -2706,6 +2718,7 @@ fn search_root_styled(
         }
     }
 
+    context.node_limit = Some(personality_node_limit);
     for probed in select_verification_candidates(probe_passers) {
         context.telemetry.personality_verifications += 1;
         if context.should_stop() {
@@ -4808,13 +4821,21 @@ fn is_attacking_pawn_push(board: &Board, chess_move: Move) -> bool {
     }
     let color = board.side_to_move();
     let enemy_king = board.king(!color);
-    let near_king = (chess_move.to.file() as i32 - enemy_king.file() as i32).abs() <= 1;
-    let advanced = if color == Color::White {
+    let own_king = board.king(color);
+    let near_enemy_king = (chess_move.to.file() as i32 - enemy_king.file() as i32).abs() <= 1;
+    let away_from_own_king = (chess_move.to.file() as i32 - own_king.file() as i32).abs() >= 2;
+    let advanced = if away_from_own_king {
+        if color == Color::White {
+            chess_move.to.rank() as i32 >= Rank::Fourth as i32
+        } else {
+            chess_move.to.rank() as i32 <= Rank::Fifth as i32
+        }
+    } else if color == Color::White {
         chess_move.to.rank() as i32 >= 4
     } else {
         chess_move.to.rank() as i32 <= 3
     };
-    near_king && advanced
+    near_enemy_king && advanced
 }
 
 fn move_key(chess_move: Move) -> u32 {

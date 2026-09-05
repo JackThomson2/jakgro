@@ -343,6 +343,7 @@ const SUPPORTED_THREAT: ScorePair = ScorePair::new(18, 5);
 const OPEN_LINE: ScorePair = ScorePair::new(14, 1);
 const PAWN_BREAK: ScorePair = ScorePair::new(12, 1);
 
+#[inline(always)]
 pub(super) fn score(features: &EvalFeatures) -> ScorePair {
     PAWN * features.pawns
         + KNIGHT * features.knights
@@ -524,6 +525,7 @@ pub(super) fn mobility_curve(piece: Piece, count: usize) -> ScorePair {
 }
 
 /// Returns the dot product of an indexed weight block with its counts.
+#[inline(always)]
 fn indexed<const N: usize>(weights: &[ScorePair; N], features: [Score; N]) -> ScorePair {
     let mut total = ScorePair::new(0, 0);
     for index in 0..N {
@@ -532,6 +534,7 @@ fn indexed<const N: usize>(weights: &[ScorePair; N], features: [Score; N]) -> Sc
     total
 }
 
+#[inline(always)]
 pub(super) fn profile_mobility_adjustment(features: &EvalFeatures) -> ScorePair {
     PAWN_MOBILITY_ADJUSTMENT * features.pawn_mobility
         + KNIGHT_MOBILITY_ADJUSTMENT * features.knight_mobility

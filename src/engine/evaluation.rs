@@ -354,6 +354,7 @@ pub(super) fn evaluate(board: &Board) -> Score {
     evaluate_with_config(board, EvaluationConfig::default())
 }
 
+#[inline(always)]
 pub(super) fn evaluate_with_config(board: &Board, config: EvaluationConfig) -> Score {
     let blended = if config.aggression() == MIN_AGGRESSION {
         objective_blended_score(board, config)
@@ -374,6 +375,7 @@ pub(super) fn evaluate_with_config(board: &Board, config: EvaluationConfig) -> S
 /// zeroes aggression and therefore scales every attacking-style weight to zero.
 /// Extracting those features would compute king-pressure, threat, space, and
 /// supported-threat terms only to multiply them away.
+#[inline(always)]
 fn objective_blended_score(board: &Board, config: EvaluationConfig) -> Score {
     let features = features::extract_with_style(board, false);
     let base = weights::score(&features)

@@ -116,6 +116,7 @@ impl Position {
     }
 }
 
+#[inline(always)]
 pub(super) fn repetition_key(board: &Board) -> u64 {
     if let Some(file) = board.en_passant() {
         let color = board.side_to_move();

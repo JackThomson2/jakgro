@@ -37,12 +37,24 @@ const ATTACK_ORDER: [Piece; 6] = [
 const MAX_SWAPS: usize = 32;
 
 /// Returns the material a move wins or loses once the exchange settles.
+#[cfg(test)]
 #[inline(always)]
 pub(super) fn static_exchange_eval(board: &Board, chess_move: Move) -> Score {
     let Some(gain) = move_gain(board, chess_move) else {
         return 0;
     };
-    settle(board, chess_move, gain)
+    let attacker = board.piece_on(chess_move.from).unwrap_or(Piece::Pawn);
+    settle(board, chess_move, gain, attacker)
+}
+
+#[inline(always)]
+pub(super) fn static_exchange_eval_settle(
+    board: &Board,
+    chess_move: Move,
+    attacker: Piece,
+    first_gain: Score,
+) -> Score {
+    settle(board, chess_move, first_gain, attacker)
 }
 
 /// Runs the swap list over a move's destination square.
@@ -52,7 +64,7 @@ pub(super) fn static_exchange_eval(board: &Board, chess_move: Move) -> Score {
 /// win, and exposes its own value to the next recapture. The backward fold then
 /// applies each side's option to decline: a side that cannot improve on refusing
 /// the capture refuses it.
-fn settle(board: &Board, chess_move: Move, first_gain: Score) -> Score {
+fn settle(board: &Board, chess_move: Move, first_gain: Score, attacker: Piece) -> Score {
     let target = chess_move.to;
     let mut occupied = board.occupied() ^ chess_move.from.bitboard();
     if is_en_passant(board, chess_move) {
@@ -65,7 +77,7 @@ fn settle(board: &Board, chess_move: Move, first_gain: Score) -> Score {
     // The piece the move leaves on the square is what the next capture wins.
     let mut exposed = match chess_move.promotion {
         Some(promotion) => piece_value(promotion),
-        None => board.piece_on(chess_move.from).map_or(0, piece_value),
+        None => piece_value(attacker),
     };
     let mut side = !board.side_to_move();
     let mut depth = 0;
@@ -195,6 +207,7 @@ fn is_en_passant(board: &Board, chess_move: Move) -> bool {
 }
 
 /// Returns the material a move wins immediately, or `None` when it wins nothing.
+#[cfg(test)]
 fn move_gain(board: &Board, chess_move: Move) -> Option<Score> {
     let captured = captured_piece(board, chess_move);
     let promotion_gain = chess_move
@@ -206,6 +219,7 @@ fn move_gain(board: &Board, chess_move: Move) -> Option<Score> {
     Some(captured.map_or(0, piece_value) + promotion_gain.unwrap_or(0))
 }
 
+#[cfg(test)]
 fn captured_piece(board: &Board, chess_move: Move) -> Option<Piece> {
     if board.colors(!board.side_to_move()).has(chess_move.to) {
         return board.piece_on(chess_move.to);

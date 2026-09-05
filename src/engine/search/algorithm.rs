@@ -10,7 +10,7 @@ use cozy_chess::{
 };
 
 use super::control::DeadlineWindow;
-use super::see::static_exchange_eval;
+use super::see::static_exchange_eval_settle;
 use super::time::allocate_time;
 use super::transposition::{Bound, Entry, RULE_FIFTY_EXACT_HORIZON, TranspositionTable};
 use super::{
@@ -85,8 +85,9 @@ const IMPROVING_REVERSE_FUTILITY_RELIEF: Score = 40;
 /// ground is less likely to be rescued by such a move.
 const DECLINING_QUIET_FUTILITY_RELIEF: Score = 40;
 
+#[inline(always)]
 fn should_poll_control(nodes: u64) -> bool {
-    nodes % CONTROL_POLL_INTERVAL_NODES == 0
+    nodes & (CONTROL_POLL_INTERVAL_NODES - 1) == 0
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum IterationDecision {
@@ -155,6 +156,7 @@ impl RepetitionTracker {
         Self { keys }
     }
 
+    #[inline(always)]
     fn current_key(&self) -> u64 {
         *self
             .keys
@@ -162,10 +164,12 @@ impl RepetitionTracker {
             .expect("search repetition history is empty")
     }
 
+    #[inline(always)]
     fn push_key(&mut self, key: u64) {
         self.keys.push(key);
     }
 
+    #[inline(always)]
     fn pop(&mut self) {
         self.keys.pop().expect("search repetition stack underflow");
     }
@@ -337,7 +341,7 @@ impl MoveFacts {
         Self {
             chess_move,
             attacker,
-            captured: captured_piece(board, chess_move),
+            captured: captured_piece_with_attacker(board, chess_move, attacker),
         }
     }
 
@@ -352,7 +356,14 @@ impl MoveFacts {
     fn see(self, board: &Board, enabled: bool) -> Option<Score> {
         self.captured
             .filter(|&piece| enabled && piece_value(piece) < piece_value(self.attacker))
-            .map(|_| static_exchange_eval(board, self.chess_move))
+            .map(|piece| {
+                let promotion_gain = match self.chess_move.promotion {
+                    Some(promotion) => piece_value(promotion) - piece_value(Piece::Pawn),
+                    None => 0,
+                };
+                let first_gain = piece_value(piece) + promotion_gain;
+                static_exchange_eval_settle(board, self.chess_move, self.attacker, first_gain)
+            })
     }
 
     /// Returns the settled exchange value, ignoring the already-played child.
@@ -527,6 +538,17 @@ struct MovePickerStorage {
 }
 
 impl MovePickerStorage {
+    fn with_typical_capacity() -> Self {
+        Self {
+            promotions: Vec::with_capacity(8),
+            good_captures: Vec::with_capacity(32),
+            quiets: Vec::with_capacity(64),
+            bad_captures: Vec::with_capacity(32),
+            failed_quiets: Vec::with_capacity(64),
+            failed_captures: Vec::with_capacity(32),
+        }
+    }
+
     fn clear(&mut self) {
         self.promotions.clear();
         self.good_captures.clear();
@@ -596,7 +618,6 @@ struct MovePickerWork {
 
 struct MovePicker<'a> {
     board: &'a Board,
-    masks: CheckMasks,
     storage: MovePickerStorage,
     preferred: Option<Move>,
     picked_killers: [Option<Move>; 2],
@@ -624,7 +645,6 @@ impl<'a> MovePicker<'a> {
         storage.clear();
         Self {
             board,
-            masks: CheckMasks::for_board(board),
             storage,
             preferred: preferred.filter(|chess_move| board.is_legal(*chess_move)),
             picked_killers: [None; 2],
@@ -781,14 +801,15 @@ impl<'a> MovePicker<'a> {
         slot: usize,
     ) -> Option<(usize, MoveMetadata)> {
         let chess_move = ordering.killers(self.ply)[slot]?;
-        if self.preferred == Some(chess_move)
+        if chess_move.promotion.is_some()
+            || self.preferred == Some(chess_move)
             || self.picked_killers.contains(&Some(chess_move))
             || !self.board.is_legal(chess_move)
         {
             return None;
         }
         let facts = MoveFacts::classify(self.board, chess_move);
-        if chess_move.promotion.is_some() || facts.captured.is_some() {
+        if facts.captured.is_some() {
             return None;
         }
         self.picked_killers[slot] = Some(chess_move);
@@ -875,7 +896,7 @@ impl<'a> MovePicker<'a> {
         let preferred = self.preferred;
         let picked_killers = self.picked_killers;
         let mode = self.mode;
-        let masks = self.masks;
+        let masks = CheckMasks::for_board(board);
         let quiets = &mut self.storage.quiets;
         #[cfg(test)]
         let work = &mut self.work;
@@ -1811,7 +1832,7 @@ impl<'a> SearchContext<'a> {
             hash_pv_depths: vec![None; MAX_PLY as usize + 1],
             static_evaluations: vec![None; MAX_PLY as usize + 1],
             picker_storage: (0..=MAX_PLY)
-                .map(|_| MovePickerStorage::default())
+                .map(|_| MovePickerStorage::with_typical_capacity())
                 .collect(),
             ordering: MoveOrdering::new(),
         }
@@ -1820,12 +1841,13 @@ impl<'a> SearchContext<'a> {
 
 impl SearchContext<'_> {
     fn visit_node(&mut self) -> Result<(), Aborted> {
-        if self.node_limit_reached()
-            || (should_poll_control(self.nodes) && self.control_stop_requested())
-        {
+        if self.node_limit_reached() {
             return Err(Aborted);
         }
         if should_poll_control(self.nodes) {
+            if self.control_stop_requested() {
+                return Err(Aborted);
+            }
             self.publish_nodes();
         }
         self.nodes += 1;
@@ -2360,7 +2382,7 @@ fn run_worker(
         hash_pv_depths: vec![None; MAX_PLY as usize + 1],
         static_evaluations: vec![None; MAX_PLY as usize + 1],
         picker_storage: (0..=MAX_PLY)
-            .map(|_| MovePickerStorage::default())
+            .map(|_| MovePickerStorage::with_typical_capacity())
             .collect(),
         // The main searcher may inherit the previous move's ordering; a
         // helper always starts cold, so its diversification is its own.
@@ -4485,6 +4507,7 @@ fn move_gives_check(board: &Board, chess_move: Move, moved: Piece) -> bool {
             .is_empty()
 }
 
+#[inline(always)]
 fn has_legal_move(board: &Board) -> bool {
     let mut found = false;
     board.generate_moves(|piece_moves| {
@@ -4912,18 +4935,25 @@ fn ordering_piece_value(piece: Piece) -> Score {
     }
 }
 
-fn captured_piece(board: &Board, chess_move: Move) -> Option<Piece> {
+#[inline(always)]
+fn captured_piece_with_attacker(board: &Board, chess_move: Move, attacker: Piece) -> Option<Piece> {
     if board.colors(!board.side_to_move()).has(chess_move.to) {
         return board.piece_on(chess_move.to);
     }
     if board.en_passant() == Some(chess_move.to.file())
         && chess_move.from.file() != chess_move.to.file()
-        && board.piece_on(chess_move.from) == Some(Piece::Pawn)
+        && attacker == Piece::Pawn
         && board.piece_on(chess_move.to).is_none()
     {
         return Some(Piece::Pawn);
     }
     None
+}
+
+#[inline(always)]
+fn captured_piece(board: &Board, chess_move: Move) -> Option<Piece> {
+    let attacker = board.piece_on(chess_move.from).unwrap_or(Piece::King);
+    captured_piece_with_attacker(board, chess_move, attacker)
 }
 
 fn format_pv(root: &Board, pv: &[Move]) -> Vec<String> {

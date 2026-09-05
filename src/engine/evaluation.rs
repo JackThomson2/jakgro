@@ -31,6 +31,7 @@ pub(super) struct ScorePair {
 }
 
 impl ScorePair {
+    #[inline(always)]
     pub(super) const fn new(middle_game: Score, end_game: Score) -> Self {
         Self {
             middle_game,
@@ -48,6 +49,7 @@ impl ScorePair {
         self.end_game
     }
 
+    #[inline(always)]
     fn scaled(self, percent: u8) -> Self {
         let percent = Score::from(percent);
         Self::new(
@@ -75,6 +77,7 @@ fn soft_bound(score: Score, limit: Score) -> Score {
 impl Add for ScorePair {
     type Output = Self;
 
+    #[inline(always)]
     fn add(self, other: Self) -> Self {
         Self::new(
             self.middle_game + other.middle_game,
@@ -86,6 +89,7 @@ impl Add for ScorePair {
 impl Mul<Score> for ScorePair {
     type Output = Self;
 
+    #[inline(always)]
     fn mul(self, feature: Score) -> Self {
         Self::new(self.middle_game * feature, self.end_game * feature)
     }

@@ -19,6 +19,7 @@ use cozy_chess::{Color, Piece, Square};
 use super::{Score, ScorePair};
 
 /// Returns the tapered placement delta for a piece on a square.
+#[inline(always)]
 pub(super) fn placement(piece: Piece, square: Square, color: Color) -> ScorePair {
     let index = table_index(square, color);
     let table = table_for(piece);
@@ -39,14 +40,13 @@ pub(super) fn table_entry(piece: Piece, index: usize) -> ScorePair {
 }
 
 /// Maps a square onto a table index written from White's perspective.
+#[inline(always)]
 const fn table_index(square: Square, color: Color) -> usize {
     let square = square as usize;
-    let file = square % 8;
-    let rank = square / 8;
     match color {
-        // White's first rank is the table's last row.
-        Color::White => (7 - rank) * 8 + file,
-        Color::Black => rank * 8 + file,
+        // White's first rank is the table's last row (flips rank bits 3..=5: square ^ 56).
+        Color::White => square ^ 56,
+        Color::Black => square,
     }
 }
 
@@ -56,6 +56,7 @@ struct Table {
     end_game: [Score; 64],
 }
 
+#[inline(always)]
 const fn table_for(piece: Piece) -> &'static Table {
     match piece {
         Piece::Pawn => &PAWN,

@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::Cell;
 
 use cozy_chess::{
     BitBoard, Board, Color, File, Piece, Rank, Square, get_bishop_moves, get_king_moves,
@@ -328,6 +328,12 @@ impl StructureKey {
 /// 64 KiB, which a search revisits far more often than it evicts.
 const STRUCTURE_CACHE_SLOTS: usize = 2048;
 
+#[derive(Clone, Copy, Default)]
+struct StructureCacheEntry {
+    key: StructureKey,
+    terms: StructureTerms,
+}
+
 thread_local! {
     /// Per-thread structure cache.
     ///
@@ -335,10 +341,13 @@ thread_local! {
     /// optimization with no observable effect and needs no sharing between
     /// threads. Keeping it thread-local also keeps the search deterministic:
     /// whatever the cache state, a hit is verified against the full key.
-    static STRUCTURE_CACHE: RefCell<Box<[(StructureKey, StructureTerms)]>> = RefCell::new(
-        vec![(StructureKey::default(), StructureTerms::default()); STRUCTURE_CACHE_SLOTS]
-            .into_boxed_slice(),
-    );
+    static STRUCTURE_CACHE: Box<[Cell<StructureCacheEntry>]> = {
+        let mut entries = Vec::with_capacity(STRUCTURE_CACHE_SLOTS);
+        for _ in 0..STRUCTURE_CACHE_SLOTS {
+            entries.push(Cell::new(StructureCacheEntry::default()));
+        }
+        entries.into_boxed_slice()
+    };
 }
 
 /// Returns pawn and king structure terms, computing them only on a miss.
@@ -346,20 +355,18 @@ thread_local! {
 /// The empty key cannot collide with a real position, because every legal
 /// position has two kings and `Square::A1` is square zero only for one of them at
 /// a time; a slot still holding the default is simply a miss and is recomputed.
+#[inline(always)]
 fn structure_terms(board: &Board) -> StructureTerms {
     let key = StructureKey::new(board);
     let slot = key.slot();
     STRUCTURE_CACHE.with(|cache| {
-        if let Ok(mut cache) = cache.try_borrow_mut() {
-            let (stored_key, stored) = cache[slot];
-            if stored_key == key {
-                return stored;
-            }
-            let terms = compute_structure_terms(board);
-            cache[slot] = (key, terms);
-            return terms;
+        let entry = cache[slot].get();
+        if entry.key == key {
+            return entry.terms;
         }
-        compute_structure_terms(board)
+        let terms = compute_structure_terms(board);
+        cache[slot].set(StructureCacheEntry { key, terms });
+        terms
     })
 }
 
@@ -569,19 +576,21 @@ pub(super) fn extract_with_style(board: &Board, style: bool) -> EvalFeatures {
         features.threat_minor_by_pawn += sign * by_pawn;
         features.threat_hanging += sign * hanging;
         features.threat_by_lower_value += sign * by_lower;
-        let attack = if color == Color::White {
-            white_attack
-        } else {
-            black_attack
-        };
-        features.king_pressure += sign * attack.king_pressure;
-        features.pawn_storm += sign * attack.pawn_storm;
-        features.threats += sign * attack.threats;
-        features.space += sign * attack.space;
-        features.coordination += sign * attack.coordination();
-        features.supported_threats += sign * attack.supported_threats;
-        features.open_lines += sign * attack.open_lines;
-        features.pawn_breaks += sign * attack.pawn_breaks;
+        if style {
+            let attack = if color == Color::White {
+                white_attack
+            } else {
+                black_attack
+            };
+            features.king_pressure += sign * attack.king_pressure;
+            features.pawn_storm += sign * attack.pawn_storm;
+            features.threats += sign * attack.threats;
+            features.space += sign * attack.space;
+            features.coordination += sign * attack.coordination();
+            features.supported_threats += sign * attack.supported_threats;
+            features.open_lines += sign * attack.open_lines;
+            features.pawn_breaks += sign * attack.pawn_breaks;
+        }
     }
 
     features.doubled_pawns = structure.doubled;
@@ -631,13 +640,37 @@ fn activity(board: &Board, color: Color) -> i32 {
     score
 }
 
+static CENTRALITY: [i32; 64] = build_centrality_table();
+
+const fn build_centrality_table() -> [i32; 64] {
+    let mut table = [0; 64];
+    let mut index = 0;
+    while index < 64 {
+        let file = (index % 8) as i32;
+        let rank = (index / 8) as i32;
+        let file_dist_3 = (file - 3).abs();
+        let file_dist_4 = (file - 4).abs();
+        let file_distance = if file_dist_3 < file_dist_4 {
+            file_dist_3
+        } else {
+            file_dist_4
+        };
+        let rank_dist_3 = (rank - 3).abs();
+        let rank_dist_4 = (rank - 4).abs();
+        let rank_distance = if rank_dist_3 < rank_dist_4 {
+            rank_dist_3
+        } else {
+            rank_dist_4
+        };
+        table[index] = 6 - file_distance - rank_distance;
+        index += 1;
+    }
+    table
+}
+
 #[inline(always)]
 fn centrality(square: Square) -> i32 {
-    let file = square.file() as i32;
-    let rank = square.rank() as i32;
-    let file_distance = (file - 3).abs().min((file - 4).abs());
-    let rank_distance = (rank - 3).abs().min((rank - 4).abs());
-    6 - file_distance - rank_distance
+    CENTRALITY[square as usize]
 }
 
 #[cfg(test)]
@@ -756,6 +789,7 @@ struct ScanContext {
     own_king_zone: BitBoard,
     seventh: Rank,
     eighth: Rank,
+    space_mask: BitBoard,
     passer_spans: &'static [BitBoard; 64],
     challenges: &'static [BitBoard; 64],
     outpost_ranks: BitBoard,
@@ -904,29 +938,21 @@ fn scan_pieces<const PIECE: usize, const STYLE: bool>(
             }
         }
 
-        for target in attacks & context.enemy_pieces {
-            let Some(target_piece) = board.piece_on(target) else {
-                continue;
-            };
-            if !is_king
-                && target_piece != Piece::King
-                && piece_value(piece) < piece_value(target_piece)
-            {
-                scan.profile.threats += 1 + (piece_value(target_piece) - piece_value(piece)) / 100;
+        if STYLE && !is_king && piece != Piece::Queen {
+            for target in attacks & context.enemy_pieces {
+                let Some(target_piece) = board.piece_on(target) else {
+                    continue;
+                };
+                if target_piece != Piece::King && piece_value(piece) < piece_value(target_piece) {
+                    scan.profile.threats +=
+                        1 + (piece_value(target_piece) - piece_value(piece)) / 100;
+                }
             }
         }
 
-        scan.profile.space += attacks
-            .into_iter()
-            .filter(|target| {
-                let rank = target.rank() as i32;
-                if color == Color::White {
-                    rank >= 4
-                } else {
-                    rank <= 3
-                }
-            })
-            .count() as i32;
+        if STYLE {
+            scan.profile.space += (attacks & context.space_mask).len() as i32;
+        }
     }
 }
 
@@ -1080,6 +1106,11 @@ pub(super) fn attack_summary_with_style(board: &Board, style: bool) -> AttackSum
             own_king_zone: king_zones[index],
             seventh,
             eighth,
+            space_mask: if color == Color::White {
+                BitBoard(0xFFFF_FFFF_0000_0000)
+            } else {
+                BitBoard(0x0000_0000_FFFF_FFFF)
+            },
             passer_spans,
             challenges,
             outpost_ranks,
@@ -1142,17 +1173,13 @@ pub(super) fn attack_summary_with_style(board: &Board, style: bool) -> AttackSum
             let defenders = summary.scans[enemy as usize].zone_defenders;
             let result = &mut summary.scans[index].profile;
             result.defender_shortage = (result.attackers - defenders).max(0);
-            for target in board.colors(enemy) {
-                let Some(target_piece) = board.piece_on(target) else {
-                    continue;
-                };
-                if target_piece == Piece::King {
-                    continue;
-                }
+            for target in board.colors(enemy) & !board.pieces(Piece::King) {
                 let attackers = i32::from(attack_counts[index][target as usize]);
                 if attackers >= 2 {
-                    result.supported_threats +=
-                        (attackers - 1) * (1 + piece_value(target_piece) / 300);
+                    if let Some(target_piece) = board.piece_on(target) {
+                        result.supported_threats +=
+                            (attackers - 1) * (1 + piece_value(target_piece) / 300);
+                    }
                 }
             }
         }

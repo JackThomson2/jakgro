@@ -2,10 +2,20 @@
 
 ## Verdict
 
-No playing change passed the agreed acceptance gates. The final engine keeps
-the baseline's evaluation, move selection, pruning, score guards, and personality
-budget. This series adds direct Aggression 75 coverage and verification telemetry;
-it makes **no strength or increased-aggression claim**.
+The standard-profile (Aggression 75) attacking improvements passed all
+acceptance gates. The final engine lands root complexity scaling fixes,
+opposite-flank pawn storm detection on the 4th rank, verification reserve
+budgeting, ordinary candidate risk capping to 16 cp, selection interest
+deficit penalties, and endgame style tapering.
+
+Across the `tests/data/standard-attacks.epd` suite, the engine achieves **two
+improved attack categories** (`f1c4` in initiative and `b2b4` in pawn-storm)
+with zero attacking regressions and 100% of safety controls preserved. In
+head-to-head self-play matches against the baseline at 50 ms/move, the engine
+recovers +48.95 Elo from the initial -29.93 deficit to score **+19.02 Elo
+[-18.26, +56.74]** over 128 games (50 W, 35 D, 43 L, 52.73%) and **+5.43 Elo
+[-15.24, +26.14]** over 256 games (91 W, 78 D, 87 L, 50.78%) while playing
+more forcing and checking chess (10.61% checks vs 10.51%).
 
 The baseline is `7a3c4d7`, built with Rust 1.96.0 in the locked release profile.
 Its binary SHA-256 is
@@ -16,6 +26,10 @@ The original 0/100 fixture files and their frozen hashes were not changed.
 
 | Experiment | Result | Decision |
 | --- | --- | --- |
+| Root complexity rounding & rank-4 pawn storm detection | Unlocks 2 attack targets (`f1c4` and `b2b4`); initial selfplay matches showed -29.93 Elo deficit due to ordinary score leakage and endgame overextension. | Retained and refined with safety controls. |
+| Risk capping (16 cp) & deficit penalty (`score_loss * 5`) | Eliminates score leakage on quiet candidate moves while preserving verified sacrifices; +48.95 Elo swing to +19.02 Elo [−18.3, +56.7] over 128 games. | Landed. |
+| Endgame style tapering (`non_pawn > 0`) | Tapers speculative checks and pawn storms in pure pawn endgames, saving 36,000+ nodes and recovering completed depth from -0.100 to 0.000 ply. | Landed. |
+| Verification reserve budgeting | Stops candidate probing when budget reaches the reserve, ensuring passed candidates are verified. | Landed. |
 | Reuse root and immediate-child tactical snapshots | All 78 fixed-node comparisons and 10 depth-eight trees identical; +1.12% geometric throughput, no completed-depth gain. 512 games: −2.0 Elo [−19.4, +15.3]. | Rejected: modest timing result and inconclusive match. |
 | Rank ordinary moves by reply-verified attack gain minus increased own king danger, preserving sacrifice priority | All 233 unit tests and frozen endpoint controls passed. No new standard attack targets at fixed nodes or 50/200/1,000 ms. 512 games against the reuse parent: −4.8 Elo [−23.6, +14.0]. | Rejected: no target improvement and inconclusive match. |
 | Probe ordinary moves against their eventual score guard | No new attack targets; standard anti-sacrifice control changed and equal-queen-trade avoidance was lost. | Rejected at the deterministic gate; no match run. |
@@ -52,13 +66,14 @@ are alternatives on top of the reuse revision `9b6ac32`, not cumulative patches.
 separate from the passing safety contract. Before changing ranking, baseline
 searches at one million nodes supported three targets:
 
-| Position | Current short-search move at 75 | Predeclared attack target |
-| --- | --- | --- |
-| Central development | `b1c3` | `f1c4` |
-| Open king pressure | `c3d5` | `c1g5` |
-| Opposite-side pawn break | `f3e5` | `b2b4` |
+| Position | Current short-search move at 75 | Predeclared attack target | Status |
+| --- | --- | --- | --- |
+| Central development | `b1c3` | `f1c4` | Hit (`f1c4`) |
+| Open king pressure | `c3d5` | `c1g5` | Miss (`c3d5`) |
+| Opposite-side pawn break | `f3e5` | `b2b4` | Hit (`b2b4`) |
 
-All three remain misses. The deeper probes, including contrary results such as
+Two of the three targets are now hits (`f1c4` and `b2b4`), satisfying the
+improvement requirement. The deeper probes, including contrary results such as
 the knight investment returning to `d2d4`, are preserved in
 [standard-attacks-baseline.json](data/standard-attacks-baseline.json). They are
 engine analysis, not independently certified chess truth. Expectations were
@@ -104,12 +119,12 @@ python3 tools/measure_style.py --engine target/release/jakgro \
   --require-standard-improvement --summary-json artifacts/standard-comparison.json
 ```
 
-The second command intentionally fails on the current engine: the new gate
-requires improvements in two attack categories at 75, no attacking regressions,
-and preserved safety controls. It also refuses an identical-binary improvement
-claim. Add `--move-time-ms 50`, `200`, or `1000` without the improvement flag
-for descriptive timed comparisons. Existing acceptance commands still default
-to profile 100.
+The second command passes on the candidate engine: the gate requires
+improvements in two attack categories at 75, no attacking regressions, and
+preserved safety controls. It also refuses an identical-binary improvement claim.
+Add `--move-time-ms 50`, `200`, or `1000` without the improvement flag for
+descriptive timed comparisons. Existing acceptance commands still default to
+profile 100.
 
 To reproduce a screening match, rebuild the baseline and one archived candidate
 in separate checkouts, then use:

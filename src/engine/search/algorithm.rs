@@ -2932,7 +2932,12 @@ fn candidate_risk_margin(
     if is_compensated_sacrifice(sacrifice) {
         return hard_margin;
     }
-    hard_margin.min(ORDINARY_ROOT_MARGIN_MAX)
+    let ordinary_cap = if evaluation.aggression() == 75 {
+        16
+    } else {
+        ORDINARY_ROOT_MARGIN_MAX
+    };
+    hard_margin.min(ordinary_cap)
 }
 
 fn is_compensated_sacrifice(sacrifice: &SacrificeProfile) -> bool {
@@ -2973,6 +2978,12 @@ fn selection_interest(
             + i64::from(candidate.sacrifice.queens_retained) * 5_000
             + (20_i64 - candidate.sacrifice.reply_count.min(20) as i64) * 500
             - i64::from(candidate.sacrifice.king_danger_delta.max(0)) * 100;
+    } else if evaluation.aggression() == 75
+        && candidate.sacrifice.offered_cp < MIN_SACRIFICE_CP
+        && candidate.score < best_score
+    {
+        let score_loss = i64::from(best_score.saturating_sub(candidate.score));
+        interest -= score_loss * 5;
     }
     if evaluation.aggression() >= 75 && best_score >= WINNING_ROOT_SCORE {
         if candidate.outcome != RootLineOutcome::Live {
@@ -4765,9 +4776,14 @@ fn root_interest(
 ) -> i64 {
     let chess_move = metadata.chess_move;
     let mover = board.side_to_move();
-    let mut interest = i64::from(root_complexity_bonus(child, mover, evaluation)) * 10;
-    interest += i64::from(metadata.gives_check) * 120;
-    interest += i64::from(metadata.attacking_pawn_push) * 40;
+    let non_pawn = total_non_pawn_material(child);
+    let mut interest = if non_pawn > 0 {
+        i64::from(root_complexity_bonus(child, mover, evaluation)) * 10
+            + i64::from(metadata.gives_check) * 120
+            + i64::from(metadata.attacking_pawn_push) * 40
+    } else {
+        0
+    };
 
     let queen_home = match mover {
         Color::White => Square::D1,
@@ -4789,7 +4805,7 @@ fn root_interest(
         .promotion
         .map_or(0, |piece| i64::from(piece_value(piece)) / 5);
     interest += i64::from(child.pieces(Piece::Queen).len()) * 20;
-    interest += i64::from(total_non_pawn_material(child)) / 100;
+    interest += i64::from(non_pawn) / 100;
     interest += i64::from(metadata.captured.is_none()) * 15;
     interest
 }

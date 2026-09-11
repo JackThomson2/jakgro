@@ -19,6 +19,8 @@ Legality, tactical soundness, and reproducible testing remain hard constraints. 
 
 The latest [Aggression 75 follow-up](docs/tuning/aggression75-quiet-checks.md) measures a further +44.9 Elo at 50 ms/move and +39.6 at `1.0+0.01` against the [fitted-mobility series](docs/tuning/aggression75-fitted-mobility.md), retaining 100.1% and 101.8% of its forcing-move rate. Both confirmation channels accept H1. It reduces optional quiescence checks without changing the attacking root policy, and explicitly documents a one-centipawn tolerance change for one alternative development move. These are short-control relative results, not an absolute rating or a tournament-strength claim.
 
+The [follow-up screens and 200 ms check](docs/tuning/aggression75-followup-screens.md) record two rejected candidates and additional evidence for the already accepted quiet-check change. That round retained no playing-code changes.
+
 ## Requirements
 
 - Rust 1.85 or newer

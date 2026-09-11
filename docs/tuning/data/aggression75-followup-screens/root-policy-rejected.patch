@@ -1,0 +1,160 @@
+diff --git a/src/engine/search/algorithm.rs b/src/engine/search/algorithm.rs
+index f845a7a..ae76d66 100644
+--- a/src/engine/search/algorithm.rs
++++ b/src/engine/search/algorithm.rs
+@@ -2992,18 +2992,21 @@ fn candidate_risk_margin(
+     sacrifice: &SacrificeProfile,
+ ) -> Score {
+     let hard_margin = evaluation.root_style_margin().min(120);
+-    if best_score >= WINNING_ROOT_SCORE {
+-        return hard_margin.min(WINNING_ROOT_MARGIN_MAX);
+-    }
+-    if is_compensated_sacrifice(sacrifice) {
+-        return hard_margin;
+-    }
+     let ordinary_cap = if evaluation.aggression() == 75 {
+         16
+     } else {
+         ORDINARY_ROOT_MARGIN_MAX
+     };
+-    hard_margin.min(ordinary_cap)
++    let margin = if is_compensated_sacrifice(sacrifice) {
++        hard_margin
++    } else {
++        hard_margin.min(ordinary_cap)
++    };
++    if best_score >= WINNING_ROOT_SCORE {
++        margin.min(WINNING_ROOT_MARGIN_MAX)
++    } else {
++        margin
++    }
+ }
+ 
+ fn is_compensated_sacrifice(sacrifice: &SacrificeProfile) -> bool {
+@@ -3044,10 +3047,7 @@ fn selection_interest(
+             + i64::from(candidate.sacrifice.queens_retained) * 5_000
+             + (20_i64 - candidate.sacrifice.reply_count.min(20) as i64) * 500
+             - i64::from(candidate.sacrifice.king_danger_delta.max(0)) * 100;
+-    } else if evaluation.aggression() == 75
+-        && candidate.sacrifice.offered_cp < MIN_SACRIFICE_CP
+-        && candidate.score < best_score
+-    {
++    } else if evaluation.aggression() == 75 && candidate.score < best_score {
+         let score_loss = i64::from(best_score.saturating_sub(candidate.score));
+         interest -= score_loss * 5;
+     }
+@@ -7021,6 +7021,114 @@ mod tests {
+     }
+ 
+     #[test]
++    fn unverified_offers_receive_the_ordinary_score_loss_penalty() {
++        let mut candidate = super::RootCandidate {
++            chess_move: "e2e4".parse().unwrap(),
++            score: 90,
++            path_dependent: false,
++            interest: 40,
++            pv: vec![],
++            sacrifice: super::SacrificeProfile::default(),
++            outcome: super::RootLineOutcome::Live,
++            sterile_simplification: false,
++        };
++        let verified = super::SacrificeProfile {
++            state: super::SacrificeState::Accepted,
++            settled_exchange: true,
++            offered_cp: 330,
++            accepted_cp: 330,
++            attack_gain: 10,
++            legal_checks: 1,
++            compensation_signals: 3,
++            position_stable: true,
++            verified_reply: true,
++            ..super::SacrificeProfile::default()
++        };
++        let default = super::EvaluationConfig::default();
++        for profile in [
++            super::SacrificeProfile::default(),
++            super::SacrificeProfile {
++                state: super::SacrificeState::Declined,
++                ..verified
++            },
++            super::SacrificeProfile {
++                state: super::SacrificeState::Unverified,
++                ..verified
++            },
++            super::SacrificeProfile {
++                settled_exchange: false,
++                ..verified
++            },
++            super::SacrificeProfile {
++                verified_reply: false,
++                ..verified
++            },
++            super::SacrificeProfile {
++                accepted_cp: 0,
++                ..verified
++            },
++            super::SacrificeProfile {
++                compensation_signals: 1,
++                ..verified
++            },
++            super::SacrificeProfile {
++                legal_checks: 0,
++                ..verified
++            },
++            super::SacrificeProfile {
++                position_stable: false,
++                ..verified
++            },
++            super::SacrificeProfile {
++                king_danger_delta: 21,
++                ..verified
++            },
++        ] {
++            candidate.sacrifice = profile;
++            assert!(!super::is_compensated_sacrifice(&profile));
++            assert_eq!(super::selection_interest(&candidate, default, 100), -10);
++            assert_eq!(super::selection_interest(&candidate, default, 90), 40);
++            assert_eq!(
++                super::selection_interest(&candidate, super::EvaluationConfig::new(100), 100),
++                40
++            );
++        }
++        candidate.sacrifice = verified;
++        assert!(super::selection_interest(&candidate, default, 100) > 1_000_000);
++    }
++
++    #[test]
++    fn winning_positions_do_not_loosen_ordinary_root_risk() {
++        let ordinary = super::SacrificeProfile::default();
++        for aggression in 0..=100 {
++            let evaluation = super::EvaluationConfig::new(aggression);
++            let before =
++                super::candidate_risk_margin(evaluation, super::WINNING_ROOT_SCORE - 1, &ordinary);
++            let winning =
++                super::candidate_risk_margin(evaluation, super::WINNING_ROOT_SCORE, &ordinary);
++            assert!(winning <= before, "aggression {aggression}");
++        }
++        let default = super::EvaluationConfig::default();
++        for best in [-200, 0, 199, 200, 201, 400] {
++            assert_eq!(super::candidate_risk_margin(default, best, &ordinary), 16);
++        }
++        let verified = super::SacrificeProfile {
++            state: super::SacrificeState::Accepted,
++            settled_exchange: true,
++            offered_cp: 330,
++            accepted_cp: 330,
++            attack_gain: 10,
++            legal_checks: 1,
++            compensation_signals: 3,
++            position_stable: true,
++            verified_reply: true,
++            ..super::SacrificeProfile::default()
++        };
++        assert_eq!(super::candidate_risk_margin(default, 199, &verified), 67);
++        assert_eq!(super::candidate_risk_margin(default, 200, &verified), 20);
++    }
++
++    #[test]
+     fn sacrifice_seed_hints_match_full_tactical_snapshots() {
+         let positions = [
+             "r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8",

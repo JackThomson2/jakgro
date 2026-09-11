@@ -1,0 +1,66 @@
+{
+  "binaries_sha256": {
+    "followup-base": "aab08df1d6e479010d68d8feba5a604db58393acf7d202868ad41e8e46fc497f",
+    "followup-q1": "761fbb44921e9bb7eff967b4aae603f47c9c7871297229848e9cc9b062c7a009",
+    "root-analysis-base": "8558c2e87f5249d4f2f211763630410f40b7e95c973f25582fa6a6793996690e",
+    "root-analysis-candidate": "bef3e069a79f81c53a27ff3ca59955c7559c4c91a1fa496160e9a5546ff1edba",
+    "root-policy-candidate": "c03f08e926ada46ce14145fb24bfc46979410cff2191d2d095d52d60af0c38c6"
+  },
+  "build": "cargo build --release --locked --bin jakgro --bin selfplay",
+  "dependency_revision": "7e93cdea094a50c1574081ceb6e7b269ad0234ee",
+  "hash_mib": 16,
+  "host": "Linux x86_64, 96 online logical CPUs",
+  "longer_control_concurrency": 24,
+  "longer_control_openings": "First 768 positions of ../aggression75-fitted-mobility/a75-heldout.epd; reused opening families and previously measured positions.",
+  "quiet_check_200ms_baseline_source": "a0d24fbd77878b208ce9a86ac10e8312a88a8500",
+  "quiet_check_200ms_candidate_source": "c957c4d94f58c6f73955ab9f0501b2fed59ce8ef (accepted as b913f6c58edbe53b9129c090c0bc39bae1052d2f)",
+  "quiet_check_200ms_note": "Uses the immutable binary pair retained from the accepted quiet-check series; this is not an incremental root-experiment result.",
+  "retained_engine_change": false,
+  "screen_candidates_are_alternatives": true,
+  "screen_concurrency": 20,
+  "screen_openings": "First 512 positions of ../selective-search-confirmation.epd",
+  "screen_patch_base": "b913f6c58edbe53b9129c090c0bc39bae1052d2f",
+  "series_base": "b913f6c58edbe53b9129c090c0bc39bae1052d2f",
+  "shared_host": "The longer-control match overlapped with screens, builds and checks; not a dedicated benchmark host.",
+  "threads_per_engine": 1,
+  "toolchain": "Rust/Cargo 1.88.0",
+  "validation": [
+    {
+      "candidate": "root-analysis",
+      "command": "NEXTEST_TEST_THREADS=4 cargo nextest run --no-tests=pass",
+      "exit_status": 0,
+      "job": "bash-29",
+      "passed": 282
+    },
+    {
+      "candidate": "root-analysis",
+      "command": "NEXTEST_TEST_THREADS=4 cargo nextest run --no-tests=pass --features tuning",
+      "exit_status": 0,
+      "job": "bash-30",
+      "passed": 298
+    },
+    {
+      "candidate": "root-analysis",
+      "command": "cargo fmt --check",
+      "exit_status": 0
+    },
+    {
+      "candidate": "root-analysis",
+      "command": "cargo clippy --locked --all-targets --features tuning -- -D warnings",
+      "exit_status": 0
+    },
+    {
+      "candidate": "root-policy",
+      "command": "NEXTEST_TEST_THREADS=4 cargo nextest run --no-tests=pass",
+      "exit_status": 0,
+      "job": "bash-32",
+      "passed": 282
+    },
+    {
+      "candidate": "root-policy",
+      "command": "standard acceptance at selected profile 75",
+      "exit_status": 1,
+      "reason": "standard-knight-c6-investment chose d2d4 rather than e5c6"
+    }
+  ]
+}

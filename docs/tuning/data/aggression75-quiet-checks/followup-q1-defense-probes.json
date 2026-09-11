@@ -1,0 +1,101 @@
+[
+  {
+    "nodes": 100000,
+    "candidate": {
+      "bestmove": "f1e1",
+      "score": "cp 42",
+      "depth": 7,
+      "nodes": 97174,
+      "elapsed_ms": 77,
+      "nps": 1258697,
+      "personality": {
+        "nodes": 10558,
+        "attempts": 11,
+        "completed": 8,
+        "exhausted": 3,
+        "selections": 0
+      }
+    },
+    "baseline": {
+      "bestmove": "b1d2",
+      "score": "cp 43",
+      "depth": 6,
+      "nodes": 43357,
+      "elapsed_ms": 36,
+      "nps": 1202823,
+      "personality": {
+        "nodes": 8518,
+        "attempts": 10,
+        "completed": 7,
+        "exhausted": 3,
+        "selections": 0
+      }
+    }
+  },
+  {
+    "nodes": 500000,
+    "candidate": {
+      "bestmove": "b1d2",
+      "score": "cp 50",
+      "depth": 9,
+      "nodes": 448190,
+      "elapsed_ms": 351,
+      "nps": 1276109,
+      "personality": {
+        "nodes": 18750,
+        "attempts": 12,
+        "completed": 8,
+        "exhausted": 5,
+        "selections": 0
+      }
+    },
+    "baseline": {
+      "bestmove": "c1f4",
+      "score": "cp 46",
+      "depth": 8,
+      "nodes": 209171,
+      "elapsed_ms": 170,
+      "nps": 1226507,
+      "personality": {
+        "nodes": 14663,
+        "attempts": 12,
+        "completed": 8,
+        "exhausted": 4,
+        "selections": 0
+      }
+    }
+  },
+  {
+    "nodes": 2000000,
+    "candidate": {
+      "bestmove": "b1d2",
+      "score": "cp 63",
+      "depth": 10,
+      "nodes": 786954,
+      "elapsed_ms": 596,
+      "nps": 1320113,
+      "personality": {
+        "nodes": 22846,
+        "attempts": 12,
+        "completed": 8,
+        "exhausted": 6,
+        "selections": 0
+      }
+    },
+    "baseline": {
+      "bestmove": "b1d2",
+      "score": "cp 63",
+      "depth": 10,
+      "nodes": 1623288,
+      "elapsed_ms": 1308,
+      "nps": 1240780,
+      "personality": {
+        "nodes": 22855,
+        "attempts": 12,
+        "completed": 8,
+        "exhausted": 6,
+        "selections": 0
+      }
+    }
+  }
+]

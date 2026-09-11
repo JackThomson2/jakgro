@@ -1,0 +1,51 @@
+{
+  "base_revision": "a0d24fbd77878b208ce9a86ac10e8312a88a8500",
+  "binary_sha256": {
+    "followup-base": "aab08df1d6e479010d68d8feba5a604db58393acf7d202868ad41e8e46fc497f",
+    "followup-q1": "761fbb44921e9bb7eff967b4aae603f47c9c7871297229848e9cc9b062c7a009"
+  },
+  "build_command": "cargo build --release --locked --bin jakgro --bin selfplay",
+  "candidate_label_note": "Immutable binary built before test additions; the final committed source was rebuilt and produced the identical SHA-256.",
+  "candidate_manifest_label": "q1-screen",
+  "candidate_revision": "c957c4d94f58c6f73955ab9f0501b2fed59ce8ef",
+  "checks_and_builds_shared_host": true,
+  "concurrency_per_match": 24,
+  "confirmation_pairs": "Last 1536 positions, stored at ../aggression75-fitted-mobility/a75-heldout.epd; clock match uses the first 1000 of these.",
+  "dependency_revision": "7e93cdea094a50c1574081ceb6e7b269ad0234ee",
+  "hash_mib": 16,
+  "host": "Linux x86_64, 96 online logical CPUs",
+  "matches_overlapped": true,
+  "opening_limitation": "Excluded from this round of screening, but used by the previous series; not a new opening family or external book.",
+  "screening_pairs": "First 512 positions in ../selective-search-confirmation.epd",
+  "threads_per_engine": 1,
+  "toolchain": "rustc 1.88.0 (6b00bc388 2025-06-23); cargo 1.88.0 (873a06493 2025-05-10)",
+  "validation": [
+    {
+      "command": "NEXTEST_TEST_THREADS=4 cargo nextest run --no-tests=pass",
+      "exit_status": 0,
+      "passed": 280
+    },
+    {
+      "command": "NEXTEST_TEST_THREADS=4 cargo nextest run --no-tests=pass --features tuning",
+      "exit_status": 0,
+      "passed": 296
+    },
+    {
+      "command": "cargo fmt --check",
+      "exit_status": 0
+    },
+    {
+      "command": "cargo clippy --locked --all-targets --features tuning -- -D warnings",
+      "exit_status": 0
+    },
+    {
+      "command": "python3 -m pytest tools/tests/test_acceptance_contract.py tools/tests/test_acceptance_measurement.py -q",
+      "exit_status": 0,
+      "passed": 12
+    },
+    {
+      "command": "python3 tools/validate_acceptance_contract.py",
+      "exit_status": 0
+    }
+  ]
+}

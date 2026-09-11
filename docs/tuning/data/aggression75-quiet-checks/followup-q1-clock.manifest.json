@@ -1,0 +1,125 @@
+{
+  "command": [
+    "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-4144808-1789128296906555603-0/workspace/target/release/selfplay",
+    "--engine",
+    "/tmp/jakkoo-temp/session-4144808-1789126624908-0/followup-q1",
+    "--baseline-engine",
+    "/tmp/jakkoo-temp/session-4144808-1789126624908-0/followup-base",
+    "--candidate-aggression",
+    "75",
+    "--baseline-aggression",
+    "75",
+    "--candidate-name",
+    "Candidate-Aggression-75",
+    "--baseline-name",
+    "Baseline-Aggression-75",
+    "--games",
+    "2000",
+    "--openings",
+    "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-4144808-1789128296906555603-0/workspace/docs/tuning/data/aggression75-fitted-mobility/a75-heldout.epd",
+    "--hash",
+    "16",
+    "--concurrency",
+    "24",
+    "--pgn",
+    "/tmp/jakkoo-temp/session-4144808-1789126624908-0/followup-q1-clock.pgn",
+    "--results-json",
+    "/tmp/jakkoo-temp/session-4144808-1789126624908-0/followup-q1-clock.arbiter.json",
+    "--time-control",
+    "1.0+0.01"
+  ],
+  "comparison": {
+    "distinct_binaries_required": true,
+    "distinct_binary_hashes": true,
+    "identical_binaries_allowed": false,
+    "mode": "same-profile-binaries"
+  },
+  "created_utc": "2026-09-11T12:10:35.291085+00:00",
+  "execution": {
+    "changed_inputs": [],
+    "completed_games": 2000,
+    "duration_seconds": 177.410665,
+    "error": null,
+    "expected_games": 2000,
+    "faults": [],
+    "finished_utc": "2026-09-11T12:13:32.704865+00:00",
+    "inputs_unchanged": true,
+    "pgn_sha256": "d8dfabaab2c3aaab64addaa3fa7c8560a4815d0b76bbf9c0d70fec6cb549e531",
+    "return_code": 0,
+    "started_utc": "2026-09-11T12:10:35.294200+00:00",
+    "status": "complete"
+  },
+  "host": {
+    "platform": "Linux-7.0.0-1010-aws-x86_64-with-glibc2.39",
+    "python": "3.12.3"
+  },
+  "inputs": {
+    "baseline": {
+      "aggression": 75,
+      "name": "Baseline-Aggression-75",
+      "path": "/tmp/jakkoo-temp/session-4144808-1789126624908-0/followup-base",
+      "revision": "a0d24fbd77878b208ce9a86ac10e8312a88a8500",
+      "sha256": "aab08df1d6e479010d68d8feba5a604db58393acf7d202868ad41e8e46fc497f"
+    },
+    "candidate": {
+      "aggression": 75,
+      "name": "Candidate-Aggression-75",
+      "path": "/tmp/jakkoo-temp/session-4144808-1789126624908-0/followup-q1",
+      "revision": "q1-screen",
+      "sha256": "761fbb44921e9bb7eff967b4aae603f47c9c7871297229848e9cc9b062c7a009"
+    },
+    "harness": {
+      "path": "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-4144808-1789128296906555603-0/workspace/tools/run_sprt.py",
+      "sha256": "a471d092cc9f6a48088f5c61bbd041a192f1dc6b872541abba4a4b8c9eed7e96"
+    },
+    "openings": {
+      "count": 1536,
+      "path": "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-4144808-1789128296906555603-0/workspace/docs/tuning/data/aggression75-fitted-mobility/a75-heldout.epd",
+      "sha256": "5e11312942869d196476eac6e4f493596f1b2e81f11271cfc4152a163e99a9ec"
+    },
+    "runner": {
+      "path": "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-4144808-1789128296906555603-0/workspace/target/release/selfplay",
+      "sha256": "f606920ce7b9242f3cb023d8bf24323cb7ce9a40d506061dc93105a85d878f80"
+    }
+  },
+  "outputs": {
+    "manifest": "/tmp/jakkoo-temp/session-4144808-1789126624908-0/followup-q1-clock.manifest.json",
+    "pgn": "/tmp/jakkoo-temp/session-4144808-1789126624908-0/followup-q1-clock.pgn"
+  },
+  "provenance": {
+    "build_profile": "release",
+    "dependency_revision": "7e93cdea094a50c1574081ceb6e7b269ad0234ee"
+  },
+  "schema_version": 2,
+  "settings": {
+    "concurrency": 24,
+    "draw": {
+      "movecount": 10,
+      "movenumber": 80,
+      "score": 10
+    },
+    "games": 2000,
+    "hash_mib": 16,
+    "limit": {
+      "mode": "fixed-time",
+      "movetime_ms": null,
+      "nodes_per_move": null,
+      "time_control": "1.0+0.01"
+    },
+    "maxmoves": 200,
+    "nodes_per_move": null,
+    "resign": {
+      "movecount": 4,
+      "score": 800,
+      "twosided": true
+    },
+    "rounds": 1000,
+    "sprt": {
+      "alpha": 0.05,
+      "beta": 0.05,
+      "elo0": 0.0,
+      "elo1": 10.0
+    },
+    "time_control": "1.0+0.01"
+  }
+}

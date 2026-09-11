@@ -1,0 +1,152 @@
+[
+  {
+    "nodes": 100000,
+    "restricted_objective": {
+      "b1d2": {
+        "bestmove": "b1d2",
+        "score": "cp 50",
+        "depth": 9,
+        "nodes": 93810,
+        "elapsed_ms": 65,
+        "nps": 1442588,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "f1e1": {
+        "bestmove": "f1e1",
+        "score": "cp 49",
+        "depth": 8,
+        "nodes": 86967,
+        "elapsed_ms": 69,
+        "nps": 1247657,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "d3h7": {
+        "bestmove": "d3h7",
+        "score": "cp -274",
+        "depth": 8,
+        "nodes": 62952,
+        "elapsed_ms": 44,
+        "nps": 1409856,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  },
+  {
+    "nodes": 500000,
+    "restricted_objective": {
+      "b1d2": {
+        "bestmove": "b1d2",
+        "score": "cp 63",
+        "depth": 10,
+        "nodes": 222484,
+        "elapsed_ms": 159,
+        "nps": 1399252,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "f1e1": {
+        "bestmove": "f1e1",
+        "score": "cp 59",
+        "depth": 10,
+        "nodes": 423951,
+        "elapsed_ms": 336,
+        "nps": 1258561,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "d3h7": {
+        "bestmove": "d3h7",
+        "score": "cp -274",
+        "depth": 10,
+        "nodes": 374167,
+        "elapsed_ms": 278,
+        "nps": 1344204,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  },
+  {
+    "nodes": 2000000,
+    "restricted_objective": {
+      "b1d2": {
+        "bestmove": "b1d2",
+        "score": "cp 56",
+        "depth": 12,
+        "nodes": 1256953,
+        "elapsed_ms": 915,
+        "nps": 1373143,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "f1e1": {
+        "bestmove": "f1e1",
+        "score": "cp 57",
+        "depth": 12,
+        "nodes": 1714056,
+        "elapsed_ms": 1312,
+        "nps": 1305480,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "d3h7": {
+        "bestmove": "d3h7",
+        "score": "cp -261",
+        "depth": 12,
+        "nodes": 1373252,
+        "elapsed_ms": 1012,
+        "nps": 1356686,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  }
+]

@@ -1,0 +1,94 @@
+{
+  "average_plies": 87.598,
+  "colors": {
+    "black": {
+      "draws": 257,
+      "losses": 346,
+      "score_percent": 52.55,
+      "wins": 397
+    },
+    "score_gap_percentage_points": 6.25,
+    "white": {
+      "draws": 258,
+      "losses": 283,
+      "score_percent": 58.8,
+      "wins": 459
+    }
+  },
+  "confidence": {
+    "elo": 39.604593,
+    "elo_ci95": [
+      9.593786,
+      70.21717
+    ],
+    "method": "95% Hoeffding bound over color-reversed pair scores",
+    "score_percent_ci95": [
+      51.380306,
+      59.969694
+    ]
+  },
+  "engines": {
+    "baseline": "Baseline-Aggression-75",
+    "candidate": "Candidate-Aggression-75"
+  },
+  "games": 2000,
+  "inputs": {
+    "manifest": "followup-q1-clock.manifest.json",
+    "manifest_sha256": "1d16270db246771d3df313885dc655c51151a4a0bfbd9580206ef9e0617e4d93",
+    "pgn": "followup-q1-clock.pgn",
+    "pgn_sha256": "d8dfabaab2c3aaab64addaa3fa7c8560a4815d0b76bbf9c0d70fec6cb549e531"
+  },
+  "pairs": {
+    "count": 1000,
+    "decisive_splits": 447,
+    "double_draws": 78,
+    "point_distribution": {
+      "0.0": 30,
+      "0.5": 122,
+      "1.0": 525,
+      "1.5": 237,
+      "2.0": 86
+    }
+  },
+  "result": {
+    "decisive_percent": 74.25,
+    "draws": 515,
+    "losses": 629,
+    "score_percent": 55.675,
+    "wins": 856
+  },
+  "schema_version": 2,
+  "style": {
+    "baseline": {
+      "captures": 18503,
+      "captures_per_100_moves": 21.1048,
+      "checks": 10357,
+      "checks_per_100_moves": 11.81335,
+      "forcing_moves": 27150,
+      "forcing_moves_per_100_moves": 30.967698,
+      "moves": 87672,
+      "promotions": 208,
+      "promotions_per_100_moves": 0.237248
+    },
+    "candidate": {
+      "captures": 18988,
+      "captures_per_100_moves": 21.694621,
+      "checks": 10352,
+      "checks_per_100_moves": 11.827613,
+      "forcing_moves": 27600,
+      "forcing_moves_per_100_moves": 31.534208,
+      "moves": 87524,
+      "promotions": 272,
+      "promotions_per_100_moves": 0.310772
+    }
+  },
+  "terminations": {
+    "adjudication: drawn score": 5,
+    "adjudication: resignation": 1460,
+    "checkmate": 25,
+    "fifty-move rule": 27,
+    "insufficient material": 33,
+    "stalemate": 3,
+    "threefold repetition": 447
+  }
+}

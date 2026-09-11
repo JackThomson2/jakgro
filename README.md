@@ -17,7 +17,7 @@ Jakgro will favor initiative and practical winning chances without replacing che
 
 Legality, tactical soundness, and reproducible testing remain hard constraints. The engine and UCI APIs bound `Aggression` from 0 to 100 and default to the accepted attacking profile at 75; profile 100 remains available as the wilder endpoint. Fixed-node fixtures gate the objective, default, and maximum profiles so style changes remain deliberate and reviewable.
 
-The latest [Aggression 75 measurements](docs/tuning/aggression75-fitted-mobility.md) remove a legacy mobility overlay and unused root analysis: +7.9 Elo at 50 ms/move and +16.3 at `1.0+0.01` against the preceding engine, retaining 98.5% and 96.3% of its forcing-move rate. The clocked channel accepts H1; the fixed-movetime channel does not. These are short-control relative results, not an absolute rating or a tournament-strength claim.
+The latest [Aggression 75 follow-up](docs/tuning/aggression75-quiet-checks.md) measures a further +44.9 Elo at 50 ms/move and +39.6 at `1.0+0.01` against the [fitted-mobility series](docs/tuning/aggression75-fitted-mobility.md), retaining 100.1% and 101.8% of its forcing-move rate. Both confirmation channels accept H1. It reduces optional quiescence checks without changing the attacking root policy, and explicitly documents a one-centipawn tolerance change for one alternative development move. These are short-control relative results, not an absolute rating or a tournament-strength claim.
 
 ## Requirements
 
@@ -93,6 +93,8 @@ To use Jakgro from a chess GUI, build the release binary and configure the GUI t
 - `100` uses a 26-centipawn ordinary margin, tightens winning conversions to 20, and reserves the absolute 120-centipawn ceiling for verified investments. At the default 75, the corresponding investment ceiling is 67 centipawns.
 
 All profiles use the same fitted objective evaluation, including per-piece mobility curves and unsafe-square penalties. Aggression changes attacking preferences and search policy, not an extra mobility overlay. At 75, ordinary alternatives have a 16-centipawn margin outside winning conversions; the existing winning-conversion margin is 20.
+
+Quiescence allows one optional quiet check per line at profiles 0–79, two at 80–99, and three at 100. Captures and promotions do not consume this allowance, and legal check evasions remain searchable after it is exhausted. The default 75 still has three main-search check extensions.
 
 A sacrifice preference requires a full opponent reply, legal recapture settlement, settled attacking compensation, retained king safety, and a checking resource. Truncated exchanges, declined offers, and immediately recovered material receive no sacrifice preference. At high aggression, an eligible live line also outranks immediate repetition, terminal draws, and balanced queen or rook exchanges that do not increase the attack.
 

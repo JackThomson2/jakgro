@@ -15,7 +15,7 @@ dependencies = [
 [[package]]
 name = "cozy-chess"
 version = "0.3.4"
-source = "git+https://github.com/JackThomson2/cozy-chess?branch=board-state-save-restore#7e93cdea094a50c1574081ceb6e7b269ad0234ee"
+source = "git+https://github.com/JackThomson2/cozy-chess?branch=board-state-save-restore#5851b224ca58ef3330b9d41813fa76f391bb60cf"
 dependencies = [
  "cozy-chess-types",
 ]
@@ -23,7 +23,7 @@ dependencies = [
 [[package]]
 name = "cozy-chess-types"
 version = "0.2.2"
-source = "git+https://github.com/JackThomson2/cozy-chess?branch=board-state-save-restore#7e93cdea094a50c1574081ceb6e7b269ad0234ee"
+source = "git+https://github.com/JackThomson2/cozy-chess?branch=board-state-save-restore#5851b224ca58ef3330b9d41813fa76f391bb60cf"
 
 [[package]]
 name = "find-msvc-tools"

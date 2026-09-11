@@ -842,12 +842,9 @@ impl<'a> MovePicker<'a> {
             }
             targets
         };
-        board.generate_moves(|mut piece_moves| {
-            piece_moves.to &= if piece_moves.piece == Piece::Pawn {
-                pawn_tacticals
-            } else {
-                enemies
-            };
+        let mut targets = [enemies; Piece::NUM];
+        targets[Piece::Pawn as usize] = pawn_tacticals;
+        board.generate_moves_for_targets(BitBoard::FULL, &targets, |piece_moves| {
             for chess_move in piece_moves {
                 if preferred == Some(chess_move) {
                     continue;
@@ -920,12 +917,9 @@ impl<'a> MovePicker<'a> {
             }
             targets
         };
-        board.generate_moves(|mut piece_moves| {
-            piece_moves.to &= !if piece_moves.piece == Piece::Pawn {
-                pawn_tacticals
-            } else {
-                enemies
-            };
+        let mut targets = [!enemies; Piece::NUM];
+        targets[Piece::Pawn as usize] = !pawn_tacticals;
+        board.generate_moves_for_targets(BitBoard::FULL, &targets, |mut piece_moves| {
             if quiet_checks_only
                 && piece_moves.piece != Piece::King
                 && !masks.discovery_candidates.has(piece_moves.from)

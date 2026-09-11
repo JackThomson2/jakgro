@@ -1,0 +1,720 @@
+{
+  "categories": {
+    "anti-sacrifice": {
+      "0": {
+        "hit_rate_percent": 100.0,
+        "hits": 2,
+        "measured": 2,
+        "rated": 2
+      },
+      "100": {
+        "hit_rate_percent": 100.0,
+        "hits": 2,
+        "measured": 2,
+        "rated": 2
+      },
+      "75": {
+        "hit_rate_percent": 100.0,
+        "hits": 2,
+        "measured": 2,
+        "rated": 2
+      }
+    },
+    "forcing-attack": {
+      "0": {
+        "hit_rate_percent": 100.0,
+        "hits": 1,
+        "measured": 1,
+        "rated": 1
+      },
+      "100": {
+        "hit_rate_percent": 100.0,
+        "hits": 1,
+        "measured": 1,
+        "rated": 1
+      },
+      "75": {
+        "hit_rate_percent": 100.0,
+        "hits": 1,
+        "measured": 1,
+        "rated": 1
+      }
+    },
+    "initiative": {
+      "0": {
+        "hit_rate_percent": 100.0,
+        "hits": 1,
+        "measured": 1,
+        "rated": 1
+      },
+      "100": {
+        "hit_rate_percent": 100.0,
+        "hits": 1,
+        "measured": 1,
+        "rated": 1
+      },
+      "75": {
+        "hit_rate_percent": 0.0,
+        "hits": 0,
+        "measured": 1,
+        "rated": 1
+      }
+    },
+    "pawn-storm": {
+      "0": {
+        "hit_rate_percent": 100.0,
+        "hits": 1,
+        "measured": 1,
+        "rated": 1
+      },
+      "100": {
+        "hit_rate_percent": 100.0,
+        "hits": 1,
+        "measured": 1,
+        "rated": 1
+      },
+      "75": {
+        "hit_rate_percent": 100.0,
+        "hits": 1,
+        "measured": 1,
+        "rated": 1
+      }
+    },
+    "sacrifice": {
+      "0": {
+        "hit_rate_percent": 100.0,
+        "hits": 1,
+        "measured": 1,
+        "rated": 1
+      },
+      "100": {
+        "hit_rate_percent": 100.0,
+        "hits": 1,
+        "measured": 1,
+        "rated": 1
+      },
+      "75": {
+        "hit_rate_percent": 100.0,
+        "hits": 1,
+        "measured": 1,
+        "rated": 1
+      }
+    },
+    "safety": {
+      "0": {
+        "hit_rate_percent": 100.0,
+        "hits": 3,
+        "measured": 3,
+        "rated": 3
+      },
+      "100": {
+        "hit_rate_percent": 100.0,
+        "hits": 3,
+        "measured": 3,
+        "rated": 3
+      },
+      "75": {
+        "hit_rate_percent": 100.0,
+        "hits": 3,
+        "measured": 3,
+        "rated": 3
+      }
+    },
+    "simplification": {
+      "0": {
+        "hit_rate_percent": 100.0,
+        "hits": 1,
+        "measured": 1,
+        "rated": 1
+      },
+      "100": {
+        "hit_rate_percent": 100.0,
+        "hits": 1,
+        "measured": 1,
+        "rated": 1
+      },
+      "75": {
+        "hit_rate_percent": 100.0,
+        "hits": 1,
+        "measured": 1,
+        "rated": 1
+      }
+    }
+  },
+  "limit": {
+    "mode": "fixture-nodes"
+  },
+  "positions": [
+    {
+      "aggression": 0,
+      "bestmove": "b1c3",
+      "category": "initiative",
+      "depth": 5,
+      "elapsed_ms": 6,
+      "expected": "b1c3",
+      "id": "standard-central-space",
+      "nodes": 7404,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp 46",
+      "status": "pass"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "b1c3",
+      "category": "initiative",
+      "depth": 5,
+      "elapsed_ms": 12,
+      "expected": "f1c4",
+      "id": "standard-central-space",
+      "nodes": 14294,
+      "personality": {
+        "attempts": 7,
+        "completed": 5,
+        "exhausted": 2,
+        "nodes": 4531,
+        "selections": 0
+      },
+      "score": "cp 52",
+      "status": "FAIL"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "f1c4",
+      "category": "initiative",
+      "depth": 4,
+      "elapsed_ms": 11,
+      "expected": "f1c4",
+      "id": "standard-central-space",
+      "nodes": 13223,
+      "personality": {
+        "attempts": 7,
+        "completed": 4,
+        "exhausted": 3,
+        "nodes": 2248,
+        "selections": 2
+      },
+      "score": "cp 20",
+      "status": "pass"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "e1e2",
+      "category": "safety",
+      "depth": 6,
+      "elapsed_ms": 5,
+      "expected": "e1e2",
+      "id": "standard-tactical-safety",
+      "nodes": 14568,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp 642",
+      "status": "pass"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "e1e2",
+      "category": "safety",
+      "depth": 6,
+      "elapsed_ms": 6,
+      "expected": "e1e2",
+      "id": "standard-tactical-safety",
+      "nodes": 17150,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 30,
+        "selections": 0
+      },
+      "score": "cp 641",
+      "status": "pass"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "e1e2",
+      "category": "safety",
+      "depth": 6,
+      "elapsed_ms": 6,
+      "expected": "e1e2",
+      "id": "standard-tactical-safety",
+      "nodes": 19549,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 30,
+        "selections": 0
+      },
+      "score": "cp 641",
+      "status": "pass"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "a1a2",
+      "category": "safety",
+      "depth": 7,
+      "elapsed_ms": 4,
+      "expected": "a1a2",
+      "id": "standard-defensive-safety",
+      "nodes": 12773,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp -647",
+      "status": "pass"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "a1a2",
+      "category": "safety",
+      "depth": 7,
+      "elapsed_ms": 4,
+      "expected": "a1a2",
+      "id": "standard-defensive-safety",
+      "nodes": 12877,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp -647",
+      "status": "pass"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "a1a2",
+      "category": "safety",
+      "depth": 7,
+      "elapsed_ms": 4,
+      "expected": "a1a2",
+      "id": "standard-defensive-safety",
+      "nodes": 14956,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp -647",
+      "status": "pass"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "c3d5",
+      "category": "forcing-attack",
+      "depth": 6,
+      "elapsed_ms": 50,
+      "expected": "c3d5",
+      "id": "standard-open-king-gambit",
+      "nodes": 59216,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp 101",
+      "status": "pass"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "c1g5",
+      "category": "forcing-attack",
+      "depth": 6,
+      "elapsed_ms": 86,
+      "expected": "c1g5",
+      "id": "standard-open-king-gambit",
+      "nodes": 98204,
+      "personality": {
+        "attempts": 6,
+        "completed": 5,
+        "exhausted": 3,
+        "nodes": 8619,
+        "selections": 0
+      },
+      "score": "cp 101",
+      "status": "pass"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "c1g5",
+      "category": "forcing-attack",
+      "depth": 5,
+      "elapsed_ms": 59,
+      "expected": "c1g5",
+      "id": "standard-open-king-gambit",
+      "nodes": 65859,
+      "personality": {
+        "attempts": 7,
+        "completed": 4,
+        "exhausted": 3,
+        "nodes": 4676,
+        "selections": 0
+      },
+      "score": "cp 99",
+      "status": "pass"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "f1e1",
+      "category": "pawn-storm",
+      "depth": 5,
+      "elapsed_ms": 9,
+      "expected": "f1e1",
+      "id": "standard-opposite-castle-storm",
+      "nodes": 13024,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp -256",
+      "status": "pass"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "b2b4",
+      "category": "pawn-storm",
+      "depth": 5,
+      "elapsed_ms": 15,
+      "expected": "b2b4",
+      "id": "standard-opposite-castle-storm",
+      "nodes": 20000,
+      "personality": {
+        "attempts": 9,
+        "completed": 7,
+        "exhausted": 1,
+        "nodes": 3649,
+        "selections": 0
+      },
+      "score": "cp -255",
+      "status": "pass"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "b2b4",
+      "category": "pawn-storm",
+      "depth": 5,
+      "elapsed_ms": 10,
+      "expected": "b2b4",
+      "id": "standard-opposite-castle-storm",
+      "nodes": 13830,
+      "personality": {
+        "attempts": 9,
+        "completed": 8,
+        "exhausted": 1,
+        "nodes": 3933,
+        "selections": 4
+      },
+      "score": "cp -255",
+      "status": "pass"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "h5f7",
+      "category": "safety",
+      "depth": 1,
+      "elapsed_ms": 0,
+      "expected": "h5f7",
+      "id": "standard-forcing-mate-safety",
+      "nodes": 86,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "mate 2",
+      "status": "pass"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "h5f7",
+      "category": "safety",
+      "depth": 1,
+      "elapsed_ms": 0,
+      "expected": "h5f7",
+      "id": "standard-forcing-mate-safety",
+      "nodes": 376,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "mate 2",
+      "status": "pass"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "h5f7",
+      "category": "safety",
+      "depth": 1,
+      "elapsed_ms": 0,
+      "expected": "h5f7",
+      "id": "standard-forcing-mate-safety",
+      "nodes": 1126,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "mate 2",
+      "status": "pass"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "d2d4",
+      "category": "sacrifice",
+      "depth": 6,
+      "elapsed_ms": 11,
+      "expected": "d2d4",
+      "id": "standard-knight-c6-investment",
+      "nodes": 14357,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp -113",
+      "status": "pass"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "e5c6",
+      "category": "sacrifice",
+      "depth": 5,
+      "elapsed_ms": 11,
+      "expected": "e5c6",
+      "id": "standard-knight-c6-investment",
+      "nodes": 12809,
+      "personality": {
+        "attempts": 8,
+        "completed": 8,
+        "exhausted": 0,
+        "nodes": 2899,
+        "selections": 1
+      },
+      "score": "cp -135",
+      "status": "pass"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "e5c6",
+      "category": "sacrifice",
+      "depth": 5,
+      "elapsed_ms": 18,
+      "expected": "e5c6",
+      "id": "standard-knight-c6-investment",
+      "nodes": 13942,
+      "personality": {
+        "attempts": 7,
+        "completed": 7,
+        "exhausted": 0,
+        "nodes": 2119,
+        "selections": 3
+      },
+      "score": "cp -135",
+      "status": "pass"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "b1d2",
+      "category": "anti-sacrifice",
+      "depth": 7,
+      "elapsed_ms": 59,
+      "expected": "b1d2",
+      "id": "standard-unsupported-greek-gift",
+      "nodes": 79527,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp 48",
+      "status": "pass"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "b1d2",
+      "category": "anti-sacrifice",
+      "depth": 6,
+      "elapsed_ms": 34,
+      "expected": "b1d2",
+      "id": "standard-unsupported-greek-gift",
+      "nodes": 43357,
+      "personality": {
+        "attempts": 10,
+        "completed": 7,
+        "exhausted": 3,
+        "nodes": 8518,
+        "selections": 0
+      },
+      "score": "cp 43",
+      "status": "pass"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "b1d2",
+      "category": "anti-sacrifice",
+      "depth": 6,
+      "elapsed_ms": 39,
+      "expected": "b1d2",
+      "id": "standard-unsupported-greek-gift",
+      "nodes": 50540,
+      "personality": {
+        "attempts": 10,
+        "completed": 7,
+        "exhausted": 3,
+        "nodes": 8724,
+        "selections": 0
+      },
+      "score": "cp 43",
+      "status": "pass"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "g1h1",
+      "category": "anti-sacrifice",
+      "depth": 5,
+      "elapsed_ms": 7,
+      "expected": "g1h1",
+      "id": "standard-unsupported-rook-f7",
+      "nodes": 10179,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp -450",
+      "status": "pass"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "g1h1",
+      "category": "anti-sacrifice",
+      "depth": 5,
+      "elapsed_ms": 10,
+      "expected": "g1h1",
+      "id": "standard-unsupported-rook-f7",
+      "nodes": 14212,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 192,
+        "selections": 0
+      },
+      "score": "cp -450",
+      "status": "pass"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "g1h1",
+      "category": "anti-sacrifice",
+      "depth": 4,
+      "elapsed_ms": 9,
+      "expected": "g1h1",
+      "id": "standard-unsupported-rook-f7",
+      "nodes": 11496,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 565,
+        "selections": 0
+      },
+      "score": "cp -439",
+      "status": "pass"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "d2d7",
+      "category": "simplification",
+      "depth": 7,
+      "elapsed_ms": 18,
+      "expected": "d2d7",
+      "id": "standard-avoid-equal-queen-trade",
+      "nodes": 47178,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp 0",
+      "status": "pass"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "d2e2",
+      "category": "simplification",
+      "depth": 6,
+      "elapsed_ms": 36,
+      "expected": "d2e2",
+      "id": "standard-avoid-equal-queen-trade",
+      "nodes": 91148,
+      "personality": {
+        "attempts": 9,
+        "completed": 6,
+        "exhausted": 3,
+        "nodes": 8280,
+        "selections": 1
+      },
+      "score": "cp 0",
+      "status": "pass"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "d2e2",
+      "category": "simplification",
+      "depth": 5,
+      "elapsed_ms": 23,
+      "expected": "d2e2",
+      "id": "standard-avoid-equal-queen-trade",
+      "nodes": 59146,
+      "personality": {
+        "attempts": 7,
+        "completed": 3,
+        "exhausted": 4,
+        "nodes": 4866,
+        "selections": 1
+      },
+      "score": "cp 0",
+      "status": "pass"
+    }
+  ],
+  "schema_version": 1
+}

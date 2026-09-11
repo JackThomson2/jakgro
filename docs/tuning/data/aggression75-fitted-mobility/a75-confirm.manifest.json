@@ -1,0 +1,125 @@
+{
+  "command": [
+    "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-4144808-1789126691401322703-0/workspace/target/release/selfplay",
+    "--engine",
+    "/tmp/jakkoo-temp/session-4144808-1789126624908-0/jakgro-fitted-final",
+    "--baseline-engine",
+    "/tmp/jakkoo-temp/session-4144808-1789126624908-0/jakgro-baseline",
+    "--candidate-aggression",
+    "75",
+    "--baseline-aggression",
+    "75",
+    "--candidate-name",
+    "Candidate-Aggression-75",
+    "--baseline-name",
+    "Baseline-Aggression-75",
+    "--games",
+    "3072",
+    "--openings",
+    "/tmp/jakkoo-temp/session-4144808-1789126624908-0/a75-heldout.epd",
+    "--hash",
+    "16",
+    "--concurrency",
+    "24",
+    "--pgn",
+    "/tmp/jakkoo-temp/session-4144808-1789126624908-0/a75-confirm.pgn",
+    "--results-json",
+    "/tmp/jakkoo-temp/session-4144808-1789126624908-0/a75-confirm.arbiter.json",
+    "--movetime-ms",
+    "50"
+  ],
+  "comparison": {
+    "distinct_binaries_required": true,
+    "distinct_binary_hashes": true,
+    "identical_binaries_allowed": false,
+    "mode": "same-profile-binaries"
+  },
+  "created_utc": "2026-09-11T11:51:22.095103+00:00",
+  "execution": {
+    "changed_inputs": [],
+    "completed_games": 3072,
+    "duration_seconds": 367.759757,
+    "error": null,
+    "expected_games": 3072,
+    "faults": [],
+    "finished_utc": "2026-09-11T11:57:29.857699+00:00",
+    "inputs_unchanged": true,
+    "pgn_sha256": "8f5f7b0084e917fb5c9998f8f4172b6c12ad51656129fa1ce0ba081a5d6d508c",
+    "return_code": 0,
+    "started_utc": "2026-09-11T11:51:22.097942+00:00",
+    "status": "complete"
+  },
+  "host": {
+    "platform": "Linux-7.0.0-1010-aws-x86_64-with-glibc2.39",
+    "python": "3.12.3"
+  },
+  "inputs": {
+    "baseline": {
+      "aggression": 75,
+      "name": "Baseline-Aggression-75",
+      "path": "/tmp/jakkoo-temp/session-4144808-1789126624908-0/jakgro-baseline",
+      "revision": null,
+      "sha256": "05dbdd61f0d682674a706ae0ebddc81a2172c0bd4c3984db2e2fea8d245c31f1"
+    },
+    "candidate": {
+      "aggression": 75,
+      "name": "Candidate-Aggression-75",
+      "path": "/tmp/jakkoo-temp/session-4144808-1789126624908-0/jakgro-fitted-final",
+      "revision": null,
+      "sha256": "4473dd01f432f40c6d207e44b9b82f5ce7a4069cafc26dc5b00a6b072189060a"
+    },
+    "harness": {
+      "path": "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-4144808-1789126691401322703-0/workspace/tools/run_sprt.py",
+      "sha256": "a471d092cc9f6a48088f5c61bbd041a192f1dc6b872541abba4a4b8c9eed7e96"
+    },
+    "openings": {
+      "count": 1536,
+      "path": "/tmp/jakkoo-temp/session-4144808-1789126624908-0/a75-heldout.epd",
+      "sha256": "5e11312942869d196476eac6e4f493596f1b2e81f11271cfc4152a163e99a9ec"
+    },
+    "runner": {
+      "path": "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-4144808-1789126691401322703-0/workspace/target/release/selfplay",
+      "sha256": "f606920ce7b9242f3cb023d8bf24323cb7ce9a40d506061dc93105a85d878f80"
+    }
+  },
+  "outputs": {
+    "manifest": "/tmp/jakkoo-temp/session-4144808-1789126624908-0/a75-confirm.manifest.json",
+    "pgn": "/tmp/jakkoo-temp/session-4144808-1789126624908-0/a75-confirm.pgn"
+  },
+  "provenance": {
+    "build_profile": null,
+    "dependency_revision": null
+  },
+  "schema_version": 2,
+  "settings": {
+    "concurrency": 24,
+    "draw": {
+      "movecount": 10,
+      "movenumber": 80,
+      "score": 10
+    },
+    "games": 3072,
+    "hash_mib": 16,
+    "limit": {
+      "mode": "fixed-movetime",
+      "movetime_ms": 50,
+      "nodes_per_move": null,
+      "time_control": null
+    },
+    "maxmoves": 200,
+    "nodes_per_move": null,
+    "resign": {
+      "movecount": 4,
+      "score": 800,
+      "twosided": true
+    },
+    "rounds": 1536,
+    "sprt": {
+      "alpha": 0.05,
+      "beta": 0.05,
+      "elo0": 0.0,
+      "elo1": 10.0
+    },
+    "time_control": null
+  }
+}

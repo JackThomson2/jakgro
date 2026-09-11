@@ -1,0 +1,2194 @@
+{
+  "candidate_sha256": "4473dd01f432f40c6d207e44b9b82f5ce7a4069cafc26dc5b00a6b072189060a",
+  "baseline_sha256": "05dbdd61f0d682674a706ae0ebddc81a2172c0bd4c3984db2e2fea8d245c31f1",
+  "comparisons": 60,
+  "identical": 60,
+  "rows": [
+    {
+      "suite": "personality",
+      "id": "starting-development",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "b1c3",
+        "score": "cp 23",
+        "depth": 6,
+        "nodes": 9691,
+        "trace": [
+          "info depth 1 score cp 52 nodes 22 pv g1f3",
+          "info depth 2 score cp 22 nodes 91 pv g1f3 g8f6",
+          "info depth 3 score cp 44 nodes 494 pv g1f3 e7e6 b1c3",
+          "info depth 4 score cp 22 nodes 1735 pv b1c3 e7e6 e2e3 b8c6",
+          "info depth 5 score cp 32 nodes 3820 pv b1c3 e7e6 e2e3 b8c6 g1f3",
+          "info depth 6 score cp 23 nodes 9691 pv b1c3 e7e6 d2d4 g8f6 e2e4 b8c6",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove b1c3 ponder e7e6"
+        ]
+      },
+      "baseline": {
+        "bestmove": "b1c3",
+        "score": "cp 23",
+        "depth": 6,
+        "nodes": 9691,
+        "trace": [
+          "info depth 1 score cp 52 nodes 22 pv g1f3",
+          "info depth 2 score cp 22 nodes 91 pv g1f3 g8f6",
+          "info depth 3 score cp 44 nodes 494 pv g1f3 e7e6 b1c3",
+          "info depth 4 score cp 22 nodes 1735 pv b1c3 e7e6 e2e3 b8c6",
+          "info depth 5 score cp 32 nodes 3820 pv b1c3 e7e6 e2e3 b8c6 g1f3",
+          "info depth 6 score cp 23 nodes 9691 pv b1c3 e7e6 d2d4 g8f6 e2e4 b8c6",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove b1c3 ponder e7e6"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "starting-development",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "b1c3",
+        "score": "cp 23",
+        "depth": 6,
+        "nodes": 17288,
+        "trace": [
+          "info depth 1 score cp 52 nodes 28 pv g1f3",
+          "info depth 2 score cp 22 nodes 172 pv g1f3 g8f6",
+          "info depth 3 score cp 44 nodes 813 pv b1c3 e7e6 g1f3",
+          "info depth 4 score cp 22 nodes 2773 pv b1c3 e7e6 e2e3 b8c6",
+          "info depth 5 score cp 32 nodes 6855 pv b1c3 e7e6 e2e3 b8c6 g1f3",
+          "info depth 6 score cp 23 nodes 17288 pv b1c3 e7e6 d2d4 g8f6 e2e4 b8c6",
+          "info string personality nodes=4664 attempts=11 completed=8 exhausted=3 selections=1",
+          "bestmove b1c3 ponder e7e6"
+        ]
+      },
+      "baseline": {
+        "bestmove": "b1c3",
+        "score": "cp 23",
+        "depth": 6,
+        "nodes": 17288,
+        "trace": [
+          "info depth 1 score cp 52 nodes 28 pv g1f3",
+          "info depth 2 score cp 22 nodes 172 pv g1f3 g8f6",
+          "info depth 3 score cp 44 nodes 813 pv b1c3 e7e6 g1f3",
+          "info depth 4 score cp 22 nodes 2773 pv b1c3 e7e6 e2e3 b8c6",
+          "info depth 5 score cp 32 nodes 6855 pv b1c3 e7e6 e2e3 b8c6 g1f3",
+          "info depth 6 score cp 23 nodes 17288 pv b1c3 e7e6 d2d4 g8f6 e2e4 b8c6",
+          "info string personality nodes=4664 attempts=11 completed=8 exhausted=3 selections=1",
+          "bestmove b1c3 ponder e7e6"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "early-king-pressure",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "b1c3",
+        "score": "cp 29",
+        "depth": 6,
+        "nodes": 18483,
+        "trace": [
+          "info depth 1 score cp 47 nodes 32 pv b1c3",
+          "info depth 2 score cp 24 nodes 283 pv d2d4 b8c6",
+          "info depth 3 score cp 30 nodes 1036 pv d2d4 b8c6 c2c3",
+          "info depth 4 score cp 22 nodes 3915 pv b1c3 b8c6 c3d5 c6d4",
+          "info depth 5 score cp 29 nodes 7707 pv b1c3 b8c6 g1f3 g8f6 d2d4 e5d4 f3d4",
+          "info depth 6 score cp 29 nodes 18483 pv b1c3 b8c6 g1f3 g8f6 d2d4 e5d4",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove b1c3 ponder b8c6"
+        ]
+      },
+      "baseline": {
+        "bestmove": "b1c3",
+        "score": "cp 29",
+        "depth": 6,
+        "nodes": 18483,
+        "trace": [
+          "info depth 1 score cp 47 nodes 32 pv b1c3",
+          "info depth 2 score cp 24 nodes 283 pv d2d4 b8c6",
+          "info depth 3 score cp 30 nodes 1036 pv d2d4 b8c6 c2c3",
+          "info depth 4 score cp 22 nodes 3915 pv b1c3 b8c6 c3d5 c6d4",
+          "info depth 5 score cp 29 nodes 7707 pv b1c3 b8c6 g1f3 g8f6 d2d4 e5d4 f3d4",
+          "info depth 6 score cp 29 nodes 18483 pv b1c3 b8c6 g1f3 g8f6 d2d4 e5d4",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove b1c3 ponder b8c6"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "early-king-pressure",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "b1c3",
+        "score": "cp 29",
+        "depth": 5,
+        "nodes": 19408,
+        "trace": [
+          "info depth 1 score cp 47 nodes 36 pv b1c3",
+          "info depth 2 score cp 24 nodes 501 pv d2d4 b8c6",
+          "info depth 3 score cp 8 nodes 2014 pv d1f3 g8f6 f3g3",
+          "info depth 4 score cp 22 nodes 7771 pv b1c3 b8c6 g1f3 g8f6",
+          "info depth 5 score cp 29 nodes 19408 pv b1c3 b8c6 g1f3 g8f6 d2d4 e5d4 f3d4",
+          "info string personality nodes=4606 attempts=9 completed=6 exhausted=3 selections=1",
+          "bestmove b1c3 ponder b8c6"
+        ]
+      },
+      "baseline": {
+        "bestmove": "b1c3",
+        "score": "cp 29",
+        "depth": 5,
+        "nodes": 19408,
+        "trace": [
+          "info depth 1 score cp 47 nodes 36 pv b1c3",
+          "info depth 2 score cp 24 nodes 501 pv d2d4 b8c6",
+          "info depth 3 score cp 8 nodes 2014 pv d1f3 g8f6 f3g3",
+          "info depth 4 score cp 22 nodes 7771 pv b1c3 b8c6 g1f3 g8f6",
+          "info depth 5 score cp 29 nodes 19408 pv b1c3 b8c6 g1f3 g8f6 d2d4 e5d4 f3d4",
+          "info string personality nodes=4606 attempts=9 completed=6 exhausted=3 selections=1",
+          "bestmove b1c3 ponder b8c6"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "central-space",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "b1c3",
+        "score": "cp 46",
+        "depth": 5,
+        "nodes": 7404,
+        "trace": [
+          "info depth 1 score cp 25 nodes 34 pv b1c3",
+          "info depth 2 score cp 22 nodes 160 pv b1c3 g8f6",
+          "info depth 3 score cp 29 nodes 788 pv b1c3 g8f6 d2d4 e5d4 f3d4",
+          "info depth 4 score cp 29 nodes 2858 pv b1c3 g8f6 d2d4 e5d4",
+          "info depth 5 score cp 46 nodes 7404 pv b1c3 f8c5 f1c4 d7d6 e1g1",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove b1c3 ponder f8c5"
+        ]
+      },
+      "baseline": {
+        "bestmove": "b1c3",
+        "score": "cp 46",
+        "depth": 5,
+        "nodes": 7404,
+        "trace": [
+          "info depth 1 score cp 25 nodes 34 pv b1c3",
+          "info depth 2 score cp 22 nodes 160 pv b1c3 g8f6",
+          "info depth 3 score cp 29 nodes 788 pv b1c3 g8f6 d2d4 e5d4 f3d4",
+          "info depth 4 score cp 29 nodes 2858 pv b1c3 g8f6 d2d4 e5d4",
+          "info depth 5 score cp 46 nodes 7404 pv b1c3 f8c5 f1c4 d7d6 e1g1",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove b1c3 ponder f8c5"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "central-space",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "f1c4",
+        "score": "cp 20",
+        "depth": 4,
+        "nodes": 13223,
+        "trace": [
+          "info depth 1 score cp 25 nodes 40 pv b1c3",
+          "info depth 2 score cp 22 nodes 599 pv b1c3 g8f6",
+          "info depth 3 score cp 17 nodes 2208 pv f1c4 g8f6 b1c3",
+          "info depth 4 score cp 20 nodes 13223 pv f1c4 g8f6 b1c3 f8d6",
+          "info string personality nodes=2248 attempts=7 completed=4 exhausted=3 selections=2",
+          "bestmove f1c4 ponder g8f6"
+        ]
+      },
+      "baseline": {
+        "bestmove": "f1c4",
+        "score": "cp 20",
+        "depth": 4,
+        "nodes": 13223,
+        "trace": [
+          "info depth 1 score cp 25 nodes 40 pv b1c3",
+          "info depth 2 score cp 22 nodes 599 pv b1c3 g8f6",
+          "info depth 3 score cp 17 nodes 2208 pv f1c4 g8f6 b1c3",
+          "info depth 4 score cp 20 nodes 13223 pv f1c4 g8f6 b1c3 f8d6",
+          "info string personality nodes=2248 attempts=7 completed=4 exhausted=3 selections=2",
+          "bestmove f1c4 ponder g8f6"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "black-king-pressure",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "b8c6",
+        "score": "cp 29",
+        "depth": 6,
+        "nodes": 16574,
+        "trace": [
+          "info depth 1 score cp 47 nodes 43 pv b8c6",
+          "info depth 2 score cp 24 nodes 247 pv d7d5 b1c3",
+          "info depth 3 score cp 30 nodes 940 pv d7d5 b1c3 c7c6",
+          "info depth 4 score cp 22 nodes 3582 pv b8c6 b1c3 c6d4 c3d5",
+          "info depth 5 score cp 29 nodes 7593 pv b8c6 b1c3 g8f6 g1f3 d7d5 e4d5 f6d5",
+          "info depth 6 score cp 29 nodes 16574 pv b8c6 b1c3 g8f6 g1f3 d7d5 e4d5",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove b8c6 ponder b1c3"
+        ]
+      },
+      "baseline": {
+        "bestmove": "b8c6",
+        "score": "cp 29",
+        "depth": 6,
+        "nodes": 16574,
+        "trace": [
+          "info depth 1 score cp 47 nodes 43 pv b8c6",
+          "info depth 2 score cp 24 nodes 247 pv d7d5 b1c3",
+          "info depth 3 score cp 30 nodes 940 pv d7d5 b1c3 c7c6",
+          "info depth 4 score cp 22 nodes 3582 pv b8c6 b1c3 c6d4 c3d5",
+          "info depth 5 score cp 29 nodes 7593 pv b8c6 b1c3 g8f6 g1f3 d7d5 e4d5 f6d5",
+          "info depth 6 score cp 29 nodes 16574 pv b8c6 b1c3 g8f6 g1f3 d7d5 e4d5",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove b8c6 ponder b1c3"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "black-king-pressure",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "b8c6",
+        "score": "cp 29",
+        "depth": 5,
+        "nodes": 18932,
+        "trace": [
+          "info depth 1 score cp 47 nodes 48 pv b8c6",
+          "info depth 2 score cp 24 nodes 413 pv d7d5 b1c3",
+          "info depth 3 score cp 30 nodes 1834 pv d7d5 b1c3 c7c6",
+          "info depth 4 score cp 22 nodes 7871 pv b8c6 b1c3 c6d4 c3d5",
+          "info depth 5 score cp 29 nodes 18932 pv b8c6 b1c3 g8f6 g1f3 d7d5 e4d5 f6d5",
+          "info string personality nodes=4573 attempts=9 completed=6 exhausted=3 selections=0",
+          "bestmove b8c6 ponder b1c3"
+        ]
+      },
+      "baseline": {
+        "bestmove": "b8c6",
+        "score": "cp 29",
+        "depth": 5,
+        "nodes": 18932,
+        "trace": [
+          "info depth 1 score cp 47 nodes 48 pv b8c6",
+          "info depth 2 score cp 24 nodes 413 pv d7d5 b1c3",
+          "info depth 3 score cp 30 nodes 1834 pv d7d5 b1c3 c7c6",
+          "info depth 4 score cp 22 nodes 7871 pv b8c6 b1c3 c6d4 c3d5",
+          "info depth 5 score cp 29 nodes 18932 pv b8c6 b1c3 g8f6 g1f3 d7d5 e4d5 f6d5",
+          "info string personality nodes=4573 attempts=9 completed=6 exhausted=3 selections=0",
+          "bestmove b8c6 ponder b1c3"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "tactical-safety",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "e1e2",
+        "score": "cp 642",
+        "depth": 6,
+        "nodes": 14568,
+        "trace": [
+          "info depth 1 score cp 574 nodes 21 pv e1e2 e8d7 e2d2 d7e6",
+          "info depth 2 score cp 610 nodes 75 pv e1e2 e8d7 e2g2",
+          "info depth 3 score cp 611 nodes 325 pv e1e2 e8d7 e2g2 d7e6",
+          "info depth 4 score cp 633 nodes 1001 pv e1e2 e8d7 g1f1 d7d6 e2f2",
+          "info depth 5 score cp 628 nodes 5231 pv e1e2 e8f7 g1f1 f7f6 e2a2 f6e6",
+          "info depth 6 score cp 642 nodes 14568 pv e1e2 e8d7 g1f1 d7d6 e2e8 d6d7 e8a8",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove e1e2 ponder e8d7"
+        ]
+      },
+      "baseline": {
+        "bestmove": "e1e2",
+        "score": "cp 642",
+        "depth": 6,
+        "nodes": 14568,
+        "trace": [
+          "info depth 1 score cp 574 nodes 21 pv e1e2 e8d7 e2d2 d7e6",
+          "info depth 2 score cp 610 nodes 75 pv e1e2 e8d7 e2g2",
+          "info depth 3 score cp 611 nodes 325 pv e1e2 e8d7 e2g2 d7e6",
+          "info depth 4 score cp 633 nodes 1001 pv e1e2 e8d7 g1f1 d7d6 e2f2",
+          "info depth 5 score cp 628 nodes 5231 pv e1e2 e8f7 g1f1 f7f6 e2a2 f6e6",
+          "info depth 6 score cp 642 nodes 14568 pv e1e2 e8d7 g1f1 d7d6 e2e8 d6d7 e8a8",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove e1e2 ponder e8d7"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "tactical-safety",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "e1e2",
+        "score": "cp 641",
+        "depth": 6,
+        "nodes": 19549,
+        "trace": [
+          "info depth 1 score cp 574 nodes 111 pv e1e2 e8d7 e2d2 d7e6",
+          "info depth 2 score cp 610 nodes 207 pv e1e2 e8d7 e2g2",
+          "info depth 3 score cp 611 nodes 747 pv e1e2 e8d7 e2g2 d7e6",
+          "info depth 4 score cp 633 nodes 1778 pv e1e2 e8d7 g1f1 d7d6 e2f2",
+          "info depth 5 score cp 628 nodes 7840 pv e1e2 e8f7 g1f1 f7f6 e2a2 f6e6",
+          "info depth 6 score cp 641 nodes 19549 pv e1e2 e8d7 g1f2 d7d6 e2e8 d6d7 e8a8",
+          "info string personality nodes=30 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove e1e2 ponder e8d7"
+        ]
+      },
+      "baseline": {
+        "bestmove": "e1e2",
+        "score": "cp 641",
+        "depth": 6,
+        "nodes": 19549,
+        "trace": [
+          "info depth 1 score cp 574 nodes 111 pv e1e2 e8d7 e2d2 d7e6",
+          "info depth 2 score cp 610 nodes 207 pv e1e2 e8d7 e2g2",
+          "info depth 3 score cp 611 nodes 747 pv e1e2 e8d7 e2g2 d7e6",
+          "info depth 4 score cp 633 nodes 1778 pv e1e2 e8d7 g1f1 d7d6 e2f2",
+          "info depth 5 score cp 628 nodes 7840 pv e1e2 e8f7 g1f1 f7f6 e2a2 f6e6",
+          "info depth 6 score cp 641 nodes 19549 pv e1e2 e8d7 g1f2 d7d6 e2e8 d6d7 e8a8",
+          "info string personality nodes=30 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove e1e2 ponder e8d7"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "defensive-safety",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "a1a2",
+        "score": "cp -647",
+        "depth": 7,
+        "nodes": 12773,
+        "trace": [
+          "info depth 1 score cp -586 nodes 9 pv a1a2",
+          "info depth 2 score cp -623 nodes 30 pv a1a2 b3h3",
+          "info depth 3 score cp -627 nodes 139 pv a1a2 b3h3 a2b2",
+          "info depth 4 score cp -648 nodes 397 pv a1a2 b3g3 a2b2 g3g8",
+          "info depth 5 score cp -644 nodes 1448 pv a1a2 b3b8 a2a3 b8g8 a3b3",
+          "info depth 6 score cp -646 nodes 3959 pv a1a2 b3b7 a2a3 h8g7 a3a4 b7c7",
+          "info depth 7 score cp -647 nodes 12773 pv a1a2 b3g3 a2b2 h8g7 b2c2 g3g2 c2d1 g7f6",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove a1a2 ponder b3g3"
+        ]
+      },
+      "baseline": {
+        "bestmove": "a1a2",
+        "score": "cp -647",
+        "depth": 7,
+        "nodes": 12773,
+        "trace": [
+          "info depth 1 score cp -586 nodes 9 pv a1a2",
+          "info depth 2 score cp -623 nodes 30 pv a1a2 b3h3",
+          "info depth 3 score cp -627 nodes 139 pv a1a2 b3h3 a2b2",
+          "info depth 4 score cp -648 nodes 397 pv a1a2 b3g3 a2b2 g3g8",
+          "info depth 5 score cp -644 nodes 1448 pv a1a2 b3b8 a2a3 b8g8 a3b3",
+          "info depth 6 score cp -646 nodes 3959 pv a1a2 b3b7 a2a3 h8g7 a3a4 b7c7",
+          "info depth 7 score cp -647 nodes 12773 pv a1a2 b3g3 a2b2 h8g7 b2c2 g3g2 c2d1 g7f6",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove a1a2 ponder b3g3"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "defensive-safety",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "a1a2",
+        "score": "cp -647",
+        "depth": 7,
+        "nodes": 14956,
+        "trace": [
+          "info depth 1 score cp -586 nodes 35 pv a1a2",
+          "info depth 2 score cp -623 nodes 56 pv a1a2 b3h3",
+          "info depth 3 score cp -627 nodes 302 pv a1a2 b3h3 a2b2",
+          "info depth 4 score cp -648 nodes 624 pv a1a2 b3g3 a2b2 g3g8",
+          "info depth 5 score cp -644 nodes 1978 pv a1a2 b3b8 a2a3 b8g8 a3b3",
+          "info depth 6 score cp -646 nodes 4687 pv a1a2 b3b7 a2a3 h8g7 a3a4 b7c7",
+          "info depth 7 score cp -647 nodes 14956 pv a1a2 b3g3 a2b2 h8g7 b2c2 g3g2 c2d1 g7f6",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove a1a2 ponder b3g3"
+        ]
+      },
+      "baseline": {
+        "bestmove": "a1a2",
+        "score": "cp -647",
+        "depth": 7,
+        "nodes": 14956,
+        "trace": [
+          "info depth 1 score cp -586 nodes 35 pv a1a2",
+          "info depth 2 score cp -623 nodes 56 pv a1a2 b3h3",
+          "info depth 3 score cp -627 nodes 302 pv a1a2 b3h3 a2b2",
+          "info depth 4 score cp -648 nodes 624 pv a1a2 b3g3 a2b2 g3g8",
+          "info depth 5 score cp -644 nodes 1978 pv a1a2 b3b8 a2a3 b8g8 a3b3",
+          "info depth 6 score cp -646 nodes 4687 pv a1a2 b3b7 a2a3 h8g7 a3a4 b7c7",
+          "info depth 7 score cp -647 nodes 14956 pv a1a2 b3g3 a2b2 h8g7 b2c2 g3g2 c2d1 g7f6",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove a1a2 ponder b3g3"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "open-king-gambit",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "c3d5",
+        "score": "cp 101",
+        "depth": 6,
+        "nodes": 59216,
+        "trace": [
+          "info depth 1 score cp 103 nodes 121 pv a2a3",
+          "info depth 2 score cp 111 nodes 371 pv a2a3 a7a6",
+          "info depth 3 score cp 97 nodes 1897 pv a2a3 a7a5 f1e1",
+          "info depth 4 score cp 104 nodes 8205 pv a2a3 a7a6 f1e1 f8e8",
+          "info depth 5 score cp 104 nodes 27638 pv c3d5 f6d5 c4d5 f8e8 c2c3",
+          "info depth 6 score cp 101 nodes 59216 pv c3d5 f6d5 c4d5 c6e7 c1g5 c7c6",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove c3d5 ponder f6d5"
+        ]
+      },
+      "baseline": {
+        "bestmove": "c3d5",
+        "score": "cp 101",
+        "depth": 6,
+        "nodes": 59216,
+        "trace": [
+          "info depth 1 score cp 103 nodes 121 pv a2a3",
+          "info depth 2 score cp 111 nodes 371 pv a2a3 a7a6",
+          "info depth 3 score cp 97 nodes 1897 pv a2a3 a7a5 f1e1",
+          "info depth 4 score cp 104 nodes 8205 pv a2a3 a7a6 f1e1 f8e8",
+          "info depth 5 score cp 104 nodes 27638 pv c3d5 f6d5 c4d5 f8e8 c2c3",
+          "info depth 6 score cp 101 nodes 59216 pv c3d5 f6d5 c4d5 c6e7 c1g5 c7c6",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove c3d5 ponder f6d5"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "open-king-gambit",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "c1g5",
+        "score": "cp 99",
+        "depth": 5,
+        "nodes": 65859,
+        "trace": [
+          "info depth 1 score cp 103 nodes 262 pv a2a3",
+          "info depth 2 score cp 111 nodes 806 pv a2a3 a7a6",
+          "info depth 3 score cp 97 nodes 3143 pv a2a3 a7a5 f1e1",
+          "info depth 4 score cp 104 nodes 23287 pv a2a3 a7a6 f1e1 f8e8",
+          "info depth 5 score cp 99 nodes 65859 pv c1g5 h7h6 g5f6 d8f6 c3d5",
+          "info string personality nodes=4676 attempts=7 completed=4 exhausted=3 selections=0",
+          "bestmove c1g5 ponder h7h6"
+        ]
+      },
+      "baseline": {
+        "bestmove": "c1g5",
+        "score": "cp 99",
+        "depth": 5,
+        "nodes": 65859,
+        "trace": [
+          "info depth 1 score cp 103 nodes 262 pv a2a3",
+          "info depth 2 score cp 111 nodes 806 pv a2a3 a7a6",
+          "info depth 3 score cp 97 nodes 3143 pv a2a3 a7a5 f1e1",
+          "info depth 4 score cp 104 nodes 23287 pv a2a3 a7a6 f1e1 f8e8",
+          "info depth 5 score cp 99 nodes 65859 pv c1g5 h7h6 g5f6 d8f6 c3d5",
+          "info string personality nodes=4676 attempts=7 completed=4 exhausted=3 selections=0",
+          "bestmove c1g5 ponder h7h6"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "opposite-castle-storm",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "f1e1",
+        "score": "cp -256",
+        "depth": 5,
+        "nodes": 13024,
+        "trace": [
+          "info depth 1 score cp -236 nodes 33 pv d1c2",
+          "info depth 2 score cp -237 nodes 404 pv d1b3 h7h6",
+          "info depth 3 score cp -247 nodes 1115 pv h2h3 h7h6 d1c2",
+          "info depth 4 score cp -247 nodes 3170 pv h2h3 h7h6 d1b3 c8b8",
+          "info depth 5 score cp -256 nodes 13024 pv f1e1 e6f5 h2h3 f5d3 d2b3",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove f1e1 ponder e6f5"
+        ]
+      },
+      "baseline": {
+        "bestmove": "f1e1",
+        "score": "cp -256",
+        "depth": 5,
+        "nodes": 13024,
+        "trace": [
+          "info depth 1 score cp -236 nodes 33 pv d1c2",
+          "info depth 2 score cp -237 nodes 404 pv d1b3 h7h6",
+          "info depth 3 score cp -247 nodes 1115 pv h2h3 h7h6 d1c2",
+          "info depth 4 score cp -247 nodes 3170 pv h2h3 h7h6 d1b3 c8b8",
+          "info depth 5 score cp -256 nodes 13024 pv f1e1 e6f5 h2h3 f5d3 d2b3",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove f1e1 ponder e6f5"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "opposite-castle-storm",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "b2b4",
+        "score": "cp -255",
+        "depth": 5,
+        "nodes": 13830,
+        "trace": [
+          "info depth 1 score cp -261 nodes 44 pv b2b4",
+          "info depth 2 score cp -259 nodes 304 pv b2b4 h7h6",
+          "info depth 3 score cp -258 nodes 1595 pv b2b4 c8b8 d1c2",
+          "info depth 4 score cp -258 nodes 6382 pv b2b4 c8b8 a2a4 h7h6",
+          "info depth 5 score cp -255 nodes 13830 pv b2b4 c8b8 a2a4 h7h6 b4b5",
+          "info string personality nodes=3933 attempts=9 completed=8 exhausted=1 selections=4",
+          "bestmove b2b4 ponder c8b8"
+        ]
+      },
+      "baseline": {
+        "bestmove": "b2b4",
+        "score": "cp -255",
+        "depth": 5,
+        "nodes": 13830,
+        "trace": [
+          "info depth 1 score cp -261 nodes 44 pv b2b4",
+          "info depth 2 score cp -259 nodes 304 pv b2b4 h7h6",
+          "info depth 3 score cp -258 nodes 1595 pv b2b4 c8b8 d1c2",
+          "info depth 4 score cp -258 nodes 6382 pv b2b4 c8b8 a2a4 h7h6",
+          "info depth 5 score cp -255 nodes 13830 pv b2b4 c8b8 a2a4 h7h6 b4b5",
+          "info string personality nodes=3933 attempts=9 completed=8 exhausted=1 selections=4",
+          "bestmove b2b4 ponder c8b8"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "hanging-queen-safety",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "d3d5",
+        "score": "cp 1317",
+        "depth": 5,
+        "nodes": 7591,
+        "trace": [
+          "info depth 1 score cp 1346 nodes 97 pv d3d5",
+          "info depth 2 score cp 1287 nodes 269 pv d3d5 e8e7 d5e5 e7d7",
+          "info depth 3 score cp 1325 nodes 750 pv d3d5 e8e7 d5d4",
+          "info depth 4 score cp 1307 nodes 2135 pv d3d5 e8e7 e1e2 e7f6",
+          "info depth 5 score cp 1317 nodes 7591 pv d3d5 e8e7 d5e5 e7d8 e1d2 d8d7",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove d3d5 ponder e8e7"
+        ]
+      },
+      "baseline": {
+        "bestmove": "d3d5",
+        "score": "cp 1317",
+        "depth": 5,
+        "nodes": 7591,
+        "trace": [
+          "info depth 1 score cp 1346 nodes 97 pv d3d5",
+          "info depth 2 score cp 1287 nodes 269 pv d3d5 e8e7 d5e5 e7d7",
+          "info depth 3 score cp 1325 nodes 750 pv d3d5 e8e7 d5d4",
+          "info depth 4 score cp 1307 nodes 2135 pv d3d5 e8e7 e1e2 e7f6",
+          "info depth 5 score cp 1317 nodes 7591 pv d3d5 e8e7 d5e5 e7d8 e1d2 d8d7",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove d3d5 ponder e8e7"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "hanging-queen-safety",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "d3d5",
+        "score": "cp 1307",
+        "depth": 4,
+        "nodes": 7413,
+        "trace": [
+          "info depth 1 score cp 1346 nodes 1066 pv d3d5",
+          "info depth 2 score cp 1287 nodes 2800 pv d3d5 e8e7 d5e5 e7d7",
+          "info depth 3 score cp 1325 nodes 3288 pv d3d5 e8e7 d5d4",
+          "info depth 4 score cp 1307 nodes 7413 pv d3d5 e8e7 e1e2 e7f6",
+          "info string personality nodes=852 attempts=0 completed=0 exhausted=2 selections=0",
+          "bestmove d3d5 ponder e8e7"
+        ]
+      },
+      "baseline": {
+        "bestmove": "d3d5",
+        "score": "cp 1307",
+        "depth": 4,
+        "nodes": 7413,
+        "trace": [
+          "info depth 1 score cp 1346 nodes 1066 pv d3d5",
+          "info depth 2 score cp 1287 nodes 2800 pv d3d5 e8e7 d5e5 e7d7",
+          "info depth 3 score cp 1325 nodes 3288 pv d3d5 e8e7 d5d4",
+          "info depth 4 score cp 1307 nodes 7413 pv d3d5 e8e7 e1e2 e7f6",
+          "info string personality nodes=852 attempts=0 completed=0 exhausted=2 selections=0",
+          "bestmove d3d5 ponder e8e7"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "forcing-mate-safety",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "h5f7",
+        "score": "mate 2",
+        "depth": 1,
+        "nodes": 86,
+        "trace": [
+          "info depth 1 score mate 2 nodes 86 pv h5f7 g8h8 f7e8",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove h5f7 ponder g8h8"
+        ]
+      },
+      "baseline": {
+        "bestmove": "h5f7",
+        "score": "mate 2",
+        "depth": 1,
+        "nodes": 86,
+        "trace": [
+          "info depth 1 score mate 2 nodes 86 pv h5f7 g8h8 f7e8",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove h5f7 ponder g8h8"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "forcing-mate-safety",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "h5f7",
+        "score": "mate 2",
+        "depth": 1,
+        "nodes": 1126,
+        "trace": [
+          "info depth 1 score mate 2 nodes 1126 pv h5f7 g8h8 f7e8",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove h5f7 ponder g8h8"
+        ]
+      },
+      "baseline": {
+        "bestmove": "h5f7",
+        "score": "mate 2",
+        "depth": 1,
+        "nodes": 1126,
+        "trace": [
+          "info depth 1 score mate 2 nodes 1126 pv h5f7 g8h8 f7e8",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove h5f7 ponder g8h8"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "kingside-pawn-storm",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "f2f4",
+        "score": "cp 20",
+        "depth": 8,
+        "nodes": 13570,
+        "trace": [
+          "info depth 1 score cp 65 nodes 9 pv g1g2",
+          "info depth 2 score cp 27 nodes 42 pv g1g2 g8f8",
+          "info depth 3 score cp 44 nodes 173 pv g1f1 g8f8 f1e2",
+          "info depth 4 score cp 15 nodes 373 pv g1f1 g8f8 f1e2 f8e7",
+          "info depth 5 score cp 24 nodes 1109 pv g1f1 g8f8 f1e2 f8e7 e2e3",
+          "info depth 6 score cp 12 nodes 2556 pv g1f1 g8f8 f1e2 f8e7 f2f4 e7e6 f4f5 e6f6",
+          "info depth 7 score cp 20 nodes 8184 pv f2f4 g8f8 g1f2 f8e7 f2e3 e7e6 e3e4 f7f5 g4f5 e6f6",
+          "info depth 8 score cp 20 nodes 13570 pv f2f4 g8f8 g1f2 f8e7 f2e3 e7e6 e3e4 f7f5",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove f2f4 ponder g8f8"
+        ]
+      },
+      "baseline": {
+        "bestmove": "f2f4",
+        "score": "cp 20",
+        "depth": 8,
+        "nodes": 13570,
+        "trace": [
+          "info depth 1 score cp 65 nodes 9 pv g1g2",
+          "info depth 2 score cp 27 nodes 42 pv g1g2 g8f8",
+          "info depth 3 score cp 44 nodes 173 pv g1f1 g8f8 f1e2",
+          "info depth 4 score cp 15 nodes 373 pv g1f1 g8f8 f1e2 f8e7",
+          "info depth 5 score cp 24 nodes 1109 pv g1f1 g8f8 f1e2 f8e7 e2e3",
+          "info depth 6 score cp 12 nodes 2556 pv g1f1 g8f8 f1e2 f8e7 f2f4 e7e6 f4f5 e6f6",
+          "info depth 7 score cp 20 nodes 8184 pv f2f4 g8f8 g1f2 f8e7 f2e3 e7e6 e3e4 f7f5 g4f5 e6f6",
+          "info depth 8 score cp 20 nodes 13570 pv f2f4 g8f8 g1f2 f8e7 f2e3 e7e6 e3e4 f7f5",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove f2f4 ponder g8f8"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "kingside-pawn-storm",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "f2f4",
+        "score": "cp 20",
+        "depth": 8,
+        "nodes": 20000,
+        "trace": [
+          "info depth 1 score cp 65 nodes 13 pv g1g2",
+          "info depth 2 score cp 27 nodes 84 pv g1g2 g8f8",
+          "info depth 3 score cp 44 nodes 321 pv g1f1 g8f8 f1e2",
+          "info depth 4 score cp 15 nodes 838 pv g1f1 g8f8 f1e2 f8e7",
+          "info depth 5 score cp 24 nodes 2239 pv g1f1 g8f8 f1e2 f8e7 e2e3",
+          "info depth 6 score cp 12 nodes 5508 pv g1f1 g8f8 f1e2 f8e7 f2f4 e7e6 f4f5 e6f6",
+          "info depth 7 score cp 20 nodes 12759 pv f2f4 g8f8 g1f2 f8e7 f2e3 e7e6 e3e4 f7f5 g4f5 e6f6",
+          "info depth 8 score cp 20 nodes 20000 pv f2f4 g8f8 g1f2 f8e7 f2e3 e7e6 e3e4 f7f5",
+          "info string personality nodes=5519 attempts=14 completed=14 exhausted=0 selections=0",
+          "bestmove f2f4 ponder g8f8"
+        ]
+      },
+      "baseline": {
+        "bestmove": "f2f4",
+        "score": "cp 20",
+        "depth": 8,
+        "nodes": 20000,
+        "trace": [
+          "info depth 1 score cp 65 nodes 13 pv g1g2",
+          "info depth 2 score cp 27 nodes 84 pv g1g2 g8f8",
+          "info depth 3 score cp 44 nodes 321 pv g1f1 g8f8 f1e2",
+          "info depth 4 score cp 15 nodes 838 pv g1f1 g8f8 f1e2 f8e7",
+          "info depth 5 score cp 24 nodes 2239 pv g1f1 g8f8 f1e2 f8e7 e2e3",
+          "info depth 6 score cp 12 nodes 5508 pv g1f1 g8f8 f1e2 f8e7 f2f4 e7e6 f4f5 e6f6",
+          "info depth 7 score cp 20 nodes 12759 pv f2f4 g8f8 g1f2 f8e7 f2e3 e7e6 e3e4 f7f5 g4f5 e6f6",
+          "info depth 8 score cp 20 nodes 20000 pv f2f4 g8f8 g1f2 f8e7 f2e3 e7e6 e3e4 f7f5",
+          "info string personality nodes=5519 attempts=14 completed=14 exhausted=0 selections=0",
+          "bestmove f2f4 ponder g8f8"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "central-queen-safety",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "c3d5",
+        "score": "cp 1119",
+        "depth": 7,
+        "nodes": 15984,
+        "trace": [
+          "info depth 1 score cp 1072 nodes 65 pv c3d5",
+          "info depth 2 score cp 1064 nodes 205 pv c3d5 f6e4",
+          "info depth 3 score cp 1084 nodes 788 pv c3d5 f6e4 d2e3",
+          "info depth 4 score cp 1069 nodes 1714 pv c3d5 f6d5 e1e8 a8e8 d2d5",
+          "info depth 5 score cp 1055 nodes 2592 pv c3d5 f6d5 e1e8 a8e8 d2d5 c6b4",
+          "info depth 6 score cp 1116 nodes 8269 pv c3d5 f6d5 d2d5 a8d8 e1e8 d8e8 d5d7",
+          "info depth 7 score cp 1119 nodes 15984 pv c3d5 f6d5 d2d5 e8d8 d5b5 a8b8 a1d1",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove c3d5 ponder f6d5"
+        ]
+      },
+      "baseline": {
+        "bestmove": "c3d5",
+        "score": "cp 1119",
+        "depth": 7,
+        "nodes": 15984,
+        "trace": [
+          "info depth 1 score cp 1072 nodes 65 pv c3d5",
+          "info depth 2 score cp 1064 nodes 205 pv c3d5 f6e4",
+          "info depth 3 score cp 1084 nodes 788 pv c3d5 f6e4 d2e3",
+          "info depth 4 score cp 1069 nodes 1714 pv c3d5 f6d5 e1e8 a8e8 d2d5",
+          "info depth 5 score cp 1055 nodes 2592 pv c3d5 f6d5 e1e8 a8e8 d2d5 c6b4",
+          "info depth 6 score cp 1116 nodes 8269 pv c3d5 f6d5 d2d5 a8d8 e1e8 d8e8 d5d7",
+          "info depth 7 score cp 1119 nodes 15984 pv c3d5 f6d5 d2d5 e8d8 d5b5 a8b8 a1d1",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove c3d5 ponder f6d5"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "central-queen-safety",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "c3d5",
+        "score": "cp 1116",
+        "depth": 6,
+        "nodes": 12552,
+        "trace": [
+          "info depth 1 score cp 1072 nodes 90 pv c3d5",
+          "info depth 2 score cp 1064 nodes 289 pv c3d5 f6e4",
+          "info depth 3 score cp 1084 nodes 1187 pv c3d5 f6e4 d2e3",
+          "info depth 4 score cp 1069 nodes 4100 pv c3d5 f6d5 e1e8 a8e8 d2d5",
+          "info depth 5 score cp 1091 nodes 6545 pv c3d5 f6d5 d2d5 a8d8 e1e8 d8e8",
+          "info depth 6 score cp 1116 nodes 12552 pv c3d5 f6d5 d2d5 a8d8 e1e8 d8e8 d5d7",
+          "info string personality nodes=2192 attempts=6 completed=6 exhausted=0 selections=0",
+          "bestmove c3d5 ponder f6d5"
+        ]
+      },
+      "baseline": {
+        "bestmove": "c3d5",
+        "score": "cp 1116",
+        "depth": 6,
+        "nodes": 12552,
+        "trace": [
+          "info depth 1 score cp 1072 nodes 90 pv c3d5",
+          "info depth 2 score cp 1064 nodes 289 pv c3d5 f6e4",
+          "info depth 3 score cp 1084 nodes 1187 pv c3d5 f6e4 d2e3",
+          "info depth 4 score cp 1069 nodes 4100 pv c3d5 f6d5 e1e8 a8e8 d2d5",
+          "info depth 5 score cp 1091 nodes 6545 pv c3d5 f6d5 d2d5 a8d8 e1e8 d8e8",
+          "info depth 6 score cp 1116 nodes 12552 pv c3d5 f6d5 d2d5 a8d8 e1e8 d8e8 d5d7",
+          "info string personality nodes=2192 attempts=6 completed=6 exhausted=0 selections=0",
+          "bestmove c3d5 ponder f6d5"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "knight-c6-investment",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "d2d4",
+        "score": "cp -113",
+        "depth": 6,
+        "nodes": 14357,
+        "trace": [
+          "info depth 1 score cp -138 nodes 131 pv d2d4",
+          "info depth 2 score cp -128 nodes 722 pv d2d4 f6e4",
+          "info depth 3 score cp -107 nodes 1814 pv d2d4 a5a4 f5g6",
+          "info depth 4 score cp -110 nodes 4476 pv d2d4 c6e5 d4e5 f6e4",
+          "info depth 5 score cp -119 nodes 7571 pv d2d4 c6e5 d4e5 f6e4 e5e6",
+          "info depth 6 score cp -113 nodes 14357 pv d2d4 d7f5 h3f5 g6f5 e5c6 b7c6 f1f5",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove d2d4 ponder d7f5"
+        ]
+      },
+      "baseline": {
+        "bestmove": "d2d4",
+        "score": "cp -113",
+        "depth": 6,
+        "nodes": 14357,
+        "trace": [
+          "info depth 1 score cp -138 nodes 131 pv d2d4",
+          "info depth 2 score cp -128 nodes 722 pv d2d4 f6e4",
+          "info depth 3 score cp -107 nodes 1814 pv d2d4 a5a4 f5g6",
+          "info depth 4 score cp -110 nodes 4476 pv d2d4 c6e5 d4e5 f6e4",
+          "info depth 5 score cp -119 nodes 7571 pv d2d4 c6e5 d4e5 f6e4 e5e6",
+          "info depth 6 score cp -113 nodes 14357 pv d2d4 d7f5 h3f5 g6f5 e5c6 b7c6 f1f5",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove d2d4 ponder d7f5"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "knight-c6-investment",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "e5c6",
+        "score": "cp -135",
+        "depth": 5,
+        "nodes": 13942,
+        "trace": [
+          "info depth 1 score cp -161 nodes 190 pv e5c6 b7c6",
+          "info depth 2 score cp -128 nodes 998 pv d2d4 f6e4",
+          "info depth 3 score cp -107 nodes 2623 pv d2d4 a5a4 f5g6",
+          "info depth 4 score cp -135 nodes 6880 pv e5c6 b7c6 d2d3 c6c5",
+          "info depth 5 score cp -135 nodes 13942 pv e5c6 b7c6 d2d3 d8c8 c2c4",
+          "info string personality nodes=2119 attempts=7 completed=7 exhausted=0 selections=3",
+          "bestmove e5c6 ponder b7c6"
+        ]
+      },
+      "baseline": {
+        "bestmove": "e5c6",
+        "score": "cp -135",
+        "depth": 5,
+        "nodes": 13942,
+        "trace": [
+          "info depth 1 score cp -161 nodes 190 pv e5c6 b7c6",
+          "info depth 2 score cp -128 nodes 998 pv d2d4 f6e4",
+          "info depth 3 score cp -107 nodes 2623 pv d2d4 a5a4 f5g6",
+          "info depth 4 score cp -135 nodes 6880 pv e5c6 b7c6 d2d3 c6c5",
+          "info depth 5 score cp -135 nodes 13942 pv e5c6 b7c6 d2d3 d8c8 c2c4",
+          "info string personality nodes=2119 attempts=7 completed=7 exhausted=0 selections=3",
+          "bestmove e5c6 ponder b7c6"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "unsupported-greek-gift",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "b1d2",
+        "score": "cp 48",
+        "depth": 7,
+        "nodes": 79527,
+        "trace": [
+          "info depth 1 score cp 70 nodes 42 pv f1e1",
+          "info depth 2 score cp 52 nodes 270 pv f1e1 f8e8",
+          "info depth 3 score cp 48 nodes 1194 pv f1e1 c8e6 c1e3",
+          "info depth 4 score cp 43 nodes 3424 pv f1e1 c8e6 d1b3 d8d6 b3b7",
+          "info depth 5 score cp 35 nodes 11150 pv f1e1 c8g4 f2f3 g4e6 c1e3",
+          "info depth 6 score cp 37 nodes 37284 pv h2h3 c8e6 c1e3 f8e8 f1e1 d8e7",
+          "info depth 7 score cp 48 nodes 79527 pv b1d2 f8e8 d2f3 h7h6 c1e3 c8e6 f1e1",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove b1d2 ponder f8e8"
+        ]
+      },
+      "baseline": {
+        "bestmove": "b1d2",
+        "score": "cp 48",
+        "depth": 7,
+        "nodes": 79527,
+        "trace": [
+          "info depth 1 score cp 70 nodes 42 pv f1e1",
+          "info depth 2 score cp 52 nodes 270 pv f1e1 f8e8",
+          "info depth 3 score cp 48 nodes 1194 pv f1e1 c8e6 c1e3",
+          "info depth 4 score cp 43 nodes 3424 pv f1e1 c8e6 d1b3 d8d6 b3b7",
+          "info depth 5 score cp 35 nodes 11150 pv f1e1 c8g4 f2f3 g4e6 c1e3",
+          "info depth 6 score cp 37 nodes 37284 pv h2h3 c8e6 c1e3 f8e8 f1e1 d8e7",
+          "info depth 7 score cp 48 nodes 79527 pv b1d2 f8e8 d2f3 h7h6 c1e3 c8e6 f1e1",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove b1d2 ponder f8e8"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "unsupported-greek-gift",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "b1d2",
+        "score": "cp 43",
+        "depth": 6,
+        "nodes": 50540,
+        "trace": [
+          "info depth 1 score cp 70 nodes 65 pv f1e1",
+          "info depth 2 score cp 52 nodes 569 pv f1e1 f8e8",
+          "info depth 3 score cp 48 nodes 2128 pv f1e1 c8e6 c1e3",
+          "info depth 4 score cp 43 nodes 8579 pv f1e1 c8e6 d1b3 d8d6 b3b7",
+          "info depth 5 score cp 35 nodes 27367 pv b1d2 f8e8 d2f3 c8g4 c1e3",
+          "info depth 6 score cp 43 nodes 50540 pv b1d2 f8e8 d2f3 d8d6 c1e3 c8e6",
+          "info string personality nodes=8724 attempts=10 completed=7 exhausted=3 selections=0",
+          "bestmove b1d2 ponder f8e8"
+        ]
+      },
+      "baseline": {
+        "bestmove": "b1d2",
+        "score": "cp 43",
+        "depth": 6,
+        "nodes": 50540,
+        "trace": [
+          "info depth 1 score cp 70 nodes 65 pv f1e1",
+          "info depth 2 score cp 52 nodes 569 pv f1e1 f8e8",
+          "info depth 3 score cp 48 nodes 2128 pv f1e1 c8e6 c1e3",
+          "info depth 4 score cp 43 nodes 8579 pv f1e1 c8e6 d1b3 d8d6 b3b7",
+          "info depth 5 score cp 35 nodes 27367 pv b1d2 f8e8 d2f3 c8g4 c1e3",
+          "info depth 6 score cp 43 nodes 50540 pv b1d2 f8e8 d2f3 d8d6 c1e3 c8e6",
+          "info string personality nodes=8724 attempts=10 completed=7 exhausted=3 selections=0",
+          "bestmove b1d2 ponder f8e8"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "unsupported-rook-f7",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "g1h1",
+        "score": "cp -450",
+        "depth": 5,
+        "nodes": 10179,
+        "trace": [
+          "info depth 1 score cp -394 nodes 156 pv g1h1 a7a6",
+          "info depth 2 score cp -402 nodes 865 pv g1h1 c6d4 c3d5 d4c2 d5c7",
+          "info depth 3 score cp -414 nodes 2161 pv g1h1 f6g4 h2h3 g4e3",
+          "info depth 4 score cp -439 nodes 5284 pv g1h1 f6g4 c3d1 a7a6 h2h3",
+          "info depth 5 score cp -450 nodes 10179 pv g1h1 f6g4 c3a4 g4f2 h1g1 f2d3 a4c5 d3c5",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove g1h1 ponder f6g4"
+        ]
+      },
+      "baseline": {
+        "bestmove": "g1h1",
+        "score": "cp -450",
+        "depth": 5,
+        "nodes": 10179,
+        "trace": [
+          "info depth 1 score cp -394 nodes 156 pv g1h1 a7a6",
+          "info depth 2 score cp -402 nodes 865 pv g1h1 c6d4 c3d5 d4c2 d5c7",
+          "info depth 3 score cp -414 nodes 2161 pv g1h1 f6g4 h2h3 g4e3",
+          "info depth 4 score cp -439 nodes 5284 pv g1h1 f6g4 c3d1 a7a6 h2h3",
+          "info depth 5 score cp -450 nodes 10179 pv g1h1 f6g4 c3a4 g4f2 h1g1 f2d3 a4c5 d3c5",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove g1h1 ponder f6g4"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "unsupported-rook-f7",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "g1h1",
+        "score": "cp -439",
+        "depth": 4,
+        "nodes": 11496,
+        "trace": [
+          "info depth 1 score cp -394 nodes 336 pv g1h1 a7a6",
+          "info depth 2 score cp -402 nodes 3064 pv g1h1 c6d4 c3d5 d4c2 d5c7",
+          "info depth 3 score cp -414 nodes 4546 pv g1h1 f6g4 h2h3 g4e3",
+          "info depth 4 score cp -439 nodes 11496 pv g1h1 f6g4 c3d1 a7a6 h2h3",
+          "info string personality nodes=565 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove g1h1 ponder f6g4"
+        ]
+      },
+      "baseline": {
+        "bestmove": "g1h1",
+        "score": "cp -439",
+        "depth": 4,
+        "nodes": 11496,
+        "trace": [
+          "info depth 1 score cp -394 nodes 336 pv g1h1 a7a6",
+          "info depth 2 score cp -402 nodes 3064 pv g1h1 c6d4 c3d5 d4c2 d5c7",
+          "info depth 3 score cp -414 nodes 4546 pv g1h1 f6g4 h2h3 g4e3",
+          "info depth 4 score cp -439 nodes 11496 pv g1h1 f6g4 c3d1 a7a6 h2h3",
+          "info string personality nodes=565 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove g1h1 ponder f6g4"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "avoid-equal-queen-trade",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "d2d7",
+        "score": "cp 0",
+        "depth": 7,
+        "nodes": 47178,
+        "trace": [
+          "info depth 1 score cp 94 nodes 280 pv d2h6",
+          "info depth 2 score cp 0 nodes 720 pv d2d7 e8d7",
+          "info depth 3 score cp 0 nodes 1099 pv d2d7 e8d7",
+          "info depth 4 score cp 0 nodes 4149 pv d2d7 e8d7",
+          "info depth 5 score cp 0 nodes 13986 pv d2d7 e8d7",
+          "info depth 6 score cp 0 nodes 22288 pv d2d7 e8d7",
+          "info depth 7 score cp 0 nodes 47178 pv d2d7 e8d7",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove d2d7 ponder e8d7"
+        ]
+      },
+      "baseline": {
+        "bestmove": "d2d7",
+        "score": "cp 0",
+        "depth": 7,
+        "nodes": 47178,
+        "trace": [
+          "info depth 1 score cp 94 nodes 280 pv d2h6",
+          "info depth 2 score cp 0 nodes 720 pv d2d7 e8d7",
+          "info depth 3 score cp 0 nodes 1099 pv d2d7 e8d7",
+          "info depth 4 score cp 0 nodes 4149 pv d2d7 e8d7",
+          "info depth 5 score cp 0 nodes 13986 pv d2d7 e8d7",
+          "info depth 6 score cp 0 nodes 22288 pv d2d7 e8d7",
+          "info depth 7 score cp 0 nodes 47178 pv d2d7 e8d7",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove d2d7 ponder e8d7"
+        ]
+      }
+    },
+    {
+      "suite": "personality",
+      "id": "avoid-equal-queen-trade",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "d2e2",
+        "score": "cp 0",
+        "depth": 5,
+        "nodes": 59146,
+        "trace": [
+          "info depth 1 score cp 70 nodes 1945 pv d2h6 d7e7 e1d1",
+          "info depth 2 score cp 0 nodes 4582 pv d2e2 d7e7 e2e7 e8e7",
+          "info depth 3 score cp 0 nodes 9793 pv d2e2 d7e7 e2e7 e8e7",
+          "info depth 4 score cp 0 nodes 23440 pv d2e2 d7e7 e2e7 e8e7",
+          "info depth 5 score cp 0 nodes 59146 pv d2e2 d7e7 e2e7 e8e7",
+          "info string personality nodes=4866 attempts=7 completed=3 exhausted=4 selections=1",
+          "bestmove d2e2 ponder d7e7"
+        ]
+      },
+      "baseline": {
+        "bestmove": "d2e2",
+        "score": "cp 0",
+        "depth": 5,
+        "nodes": 59146,
+        "trace": [
+          "info depth 1 score cp 70 nodes 1945 pv d2h6 d7e7 e1d1",
+          "info depth 2 score cp 0 nodes 4582 pv d2e2 d7e7 e2e7 e8e7",
+          "info depth 3 score cp 0 nodes 9793 pv d2e2 d7e7 e2e7 e8e7",
+          "info depth 4 score cp 0 nodes 23440 pv d2e2 d7e7 e2e7 e8e7",
+          "info depth 5 score cp 0 nodes 59146 pv d2e2 d7e7 e2e7 e8e7",
+          "info string personality nodes=4866 attempts=7 completed=3 exhausted=4 selections=1",
+          "bestmove d2e2 ponder d7e7"
+        ]
+      }
+    },
+    {
+      "suite": "standard-attacks",
+      "id": "standard-central-space",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "b1c3",
+        "score": "cp 46",
+        "depth": 5,
+        "nodes": 7404,
+        "trace": [
+          "info depth 1 score cp 25 nodes 34 pv b1c3",
+          "info depth 2 score cp 22 nodes 160 pv b1c3 g8f6",
+          "info depth 3 score cp 29 nodes 788 pv b1c3 g8f6 d2d4 e5d4 f3d4",
+          "info depth 4 score cp 29 nodes 2858 pv b1c3 g8f6 d2d4 e5d4",
+          "info depth 5 score cp 46 nodes 7404 pv b1c3 f8c5 f1c4 d7d6 e1g1",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove b1c3 ponder f8c5"
+        ]
+      },
+      "baseline": {
+        "bestmove": "b1c3",
+        "score": "cp 46",
+        "depth": 5,
+        "nodes": 7404,
+        "trace": [
+          "info depth 1 score cp 25 nodes 34 pv b1c3",
+          "info depth 2 score cp 22 nodes 160 pv b1c3 g8f6",
+          "info depth 3 score cp 29 nodes 788 pv b1c3 g8f6 d2d4 e5d4 f3d4",
+          "info depth 4 score cp 29 nodes 2858 pv b1c3 g8f6 d2d4 e5d4",
+          "info depth 5 score cp 46 nodes 7404 pv b1c3 f8c5 f1c4 d7d6 e1g1",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove b1c3 ponder f8c5"
+        ]
+      }
+    },
+    {
+      "suite": "standard-attacks",
+      "id": "standard-central-space",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "f1c4",
+        "score": "cp 20",
+        "depth": 4,
+        "nodes": 13223,
+        "trace": [
+          "info depth 1 score cp 25 nodes 40 pv b1c3",
+          "info depth 2 score cp 22 nodes 599 pv b1c3 g8f6",
+          "info depth 3 score cp 17 nodes 2208 pv f1c4 g8f6 b1c3",
+          "info depth 4 score cp 20 nodes 13223 pv f1c4 g8f6 b1c3 f8d6",
+          "info string personality nodes=2248 attempts=7 completed=4 exhausted=3 selections=2",
+          "bestmove f1c4 ponder g8f6"
+        ]
+      },
+      "baseline": {
+        "bestmove": "f1c4",
+        "score": "cp 20",
+        "depth": 4,
+        "nodes": 13223,
+        "trace": [
+          "info depth 1 score cp 25 nodes 40 pv b1c3",
+          "info depth 2 score cp 22 nodes 599 pv b1c3 g8f6",
+          "info depth 3 score cp 17 nodes 2208 pv f1c4 g8f6 b1c3",
+          "info depth 4 score cp 20 nodes 13223 pv f1c4 g8f6 b1c3 f8d6",
+          "info string personality nodes=2248 attempts=7 completed=4 exhausted=3 selections=2",
+          "bestmove f1c4 ponder g8f6"
+        ]
+      }
+    },
+    {
+      "suite": "standard-attacks",
+      "id": "standard-tactical-safety",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "e1e2",
+        "score": "cp 642",
+        "depth": 6,
+        "nodes": 14568,
+        "trace": [
+          "info depth 1 score cp 574 nodes 21 pv e1e2 e8d7 e2d2 d7e6",
+          "info depth 2 score cp 610 nodes 75 pv e1e2 e8d7 e2g2",
+          "info depth 3 score cp 611 nodes 325 pv e1e2 e8d7 e2g2 d7e6",
+          "info depth 4 score cp 633 nodes 1001 pv e1e2 e8d7 g1f1 d7d6 e2f2",
+          "info depth 5 score cp 628 nodes 5231 pv e1e2 e8f7 g1f1 f7f6 e2a2 f6e6",
+          "info depth 6 score cp 642 nodes 14568 pv e1e2 e8d7 g1f1 d7d6 e2e8 d6d7 e8a8",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove e1e2 ponder e8d7"
+        ]
+      },
+      "baseline": {
+        "bestmove": "e1e2",
+        "score": "cp 642",
+        "depth": 6,
+        "nodes": 14568,
+        "trace": [
+          "info depth 1 score cp 574 nodes 21 pv e1e2 e8d7 e2d2 d7e6",
+          "info depth 2 score cp 610 nodes 75 pv e1e2 e8d7 e2g2",
+          "info depth 3 score cp 611 nodes 325 pv e1e2 e8d7 e2g2 d7e6",
+          "info depth 4 score cp 633 nodes 1001 pv e1e2 e8d7 g1f1 d7d6 e2f2",
+          "info depth 5 score cp 628 nodes 5231 pv e1e2 e8f7 g1f1 f7f6 e2a2 f6e6",
+          "info depth 6 score cp 642 nodes 14568 pv e1e2 e8d7 g1f1 d7d6 e2e8 d6d7 e8a8",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove e1e2 ponder e8d7"
+        ]
+      }
+    },
+    {
+      "suite": "standard-attacks",
+      "id": "standard-tactical-safety",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "e1e2",
+        "score": "cp 641",
+        "depth": 6,
+        "nodes": 19549,
+        "trace": [
+          "info depth 1 score cp 574 nodes 111 pv e1e2 e8d7 e2d2 d7e6",
+          "info depth 2 score cp 610 nodes 207 pv e1e2 e8d7 e2g2",
+          "info depth 3 score cp 611 nodes 747 pv e1e2 e8d7 e2g2 d7e6",
+          "info depth 4 score cp 633 nodes 1778 pv e1e2 e8d7 g1f1 d7d6 e2f2",
+          "info depth 5 score cp 628 nodes 7840 pv e1e2 e8f7 g1f1 f7f6 e2a2 f6e6",
+          "info depth 6 score cp 641 nodes 19549 pv e1e2 e8d7 g1f2 d7d6 e2e8 d6d7 e8a8",
+          "info string personality nodes=30 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove e1e2 ponder e8d7"
+        ]
+      },
+      "baseline": {
+        "bestmove": "e1e2",
+        "score": "cp 641",
+        "depth": 6,
+        "nodes": 19549,
+        "trace": [
+          "info depth 1 score cp 574 nodes 111 pv e1e2 e8d7 e2d2 d7e6",
+          "info depth 2 score cp 610 nodes 207 pv e1e2 e8d7 e2g2",
+          "info depth 3 score cp 611 nodes 747 pv e1e2 e8d7 e2g2 d7e6",
+          "info depth 4 score cp 633 nodes 1778 pv e1e2 e8d7 g1f1 d7d6 e2f2",
+          "info depth 5 score cp 628 nodes 7840 pv e1e2 e8f7 g1f1 f7f6 e2a2 f6e6",
+          "info depth 6 score cp 641 nodes 19549 pv e1e2 e8d7 g1f2 d7d6 e2e8 d6d7 e8a8",
+          "info string personality nodes=30 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove e1e2 ponder e8d7"
+        ]
+      }
+    },
+    {
+      "suite": "standard-attacks",
+      "id": "standard-defensive-safety",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "a1a2",
+        "score": "cp -647",
+        "depth": 7,
+        "nodes": 12773,
+        "trace": [
+          "info depth 1 score cp -586 nodes 9 pv a1a2",
+          "info depth 2 score cp -623 nodes 30 pv a1a2 b3h3",
+          "info depth 3 score cp -627 nodes 139 pv a1a2 b3h3 a2b2",
+          "info depth 4 score cp -648 nodes 397 pv a1a2 b3g3 a2b2 g3g8",
+          "info depth 5 score cp -644 nodes 1448 pv a1a2 b3b8 a2a3 b8g8 a3b3",
+          "info depth 6 score cp -646 nodes 3959 pv a1a2 b3b7 a2a3 h8g7 a3a4 b7c7",
+          "info depth 7 score cp -647 nodes 12773 pv a1a2 b3g3 a2b2 h8g7 b2c2 g3g2 c2d1 g7f6",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove a1a2 ponder b3g3"
+        ]
+      },
+      "baseline": {
+        "bestmove": "a1a2",
+        "score": "cp -647",
+        "depth": 7,
+        "nodes": 12773,
+        "trace": [
+          "info depth 1 score cp -586 nodes 9 pv a1a2",
+          "info depth 2 score cp -623 nodes 30 pv a1a2 b3h3",
+          "info depth 3 score cp -627 nodes 139 pv a1a2 b3h3 a2b2",
+          "info depth 4 score cp -648 nodes 397 pv a1a2 b3g3 a2b2 g3g8",
+          "info depth 5 score cp -644 nodes 1448 pv a1a2 b3b8 a2a3 b8g8 a3b3",
+          "info depth 6 score cp -646 nodes 3959 pv a1a2 b3b7 a2a3 h8g7 a3a4 b7c7",
+          "info depth 7 score cp -647 nodes 12773 pv a1a2 b3g3 a2b2 h8g7 b2c2 g3g2 c2d1 g7f6",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove a1a2 ponder b3g3"
+        ]
+      }
+    },
+    {
+      "suite": "standard-attacks",
+      "id": "standard-defensive-safety",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "a1a2",
+        "score": "cp -647",
+        "depth": 7,
+        "nodes": 14956,
+        "trace": [
+          "info depth 1 score cp -586 nodes 35 pv a1a2",
+          "info depth 2 score cp -623 nodes 56 pv a1a2 b3h3",
+          "info depth 3 score cp -627 nodes 302 pv a1a2 b3h3 a2b2",
+          "info depth 4 score cp -648 nodes 624 pv a1a2 b3g3 a2b2 g3g8",
+          "info depth 5 score cp -644 nodes 1978 pv a1a2 b3b8 a2a3 b8g8 a3b3",
+          "info depth 6 score cp -646 nodes 4687 pv a1a2 b3b7 a2a3 h8g7 a3a4 b7c7",
+          "info depth 7 score cp -647 nodes 14956 pv a1a2 b3g3 a2b2 h8g7 b2c2 g3g2 c2d1 g7f6",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove a1a2 ponder b3g3"
+        ]
+      },
+      "baseline": {
+        "bestmove": "a1a2",
+        "score": "cp -647",
+        "depth": 7,
+        "nodes": 14956,
+        "trace": [
+          "info depth 1 score cp -586 nodes 35 pv a1a2",
+          "info depth 2 score cp -623 nodes 56 pv a1a2 b3h3",
+          "info depth 3 score cp -627 nodes 302 pv a1a2 b3h3 a2b2",
+          "info depth 4 score cp -648 nodes 624 pv a1a2 b3g3 a2b2 g3g8",
+          "info depth 5 score cp -644 nodes 1978 pv a1a2 b3b8 a2a3 b8g8 a3b3",
+          "info depth 6 score cp -646 nodes 4687 pv a1a2 b3b7 a2a3 h8g7 a3a4 b7c7",
+          "info depth 7 score cp -647 nodes 14956 pv a1a2 b3g3 a2b2 h8g7 b2c2 g3g2 c2d1 g7f6",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove a1a2 ponder b3g3"
+        ]
+      }
+    },
+    {
+      "suite": "standard-attacks",
+      "id": "standard-open-king-gambit",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "c3d5",
+        "score": "cp 101",
+        "depth": 6,
+        "nodes": 59216,
+        "trace": [
+          "info depth 1 score cp 103 nodes 121 pv a2a3",
+          "info depth 2 score cp 111 nodes 371 pv a2a3 a7a6",
+          "info depth 3 score cp 97 nodes 1897 pv a2a3 a7a5 f1e1",
+          "info depth 4 score cp 104 nodes 8205 pv a2a3 a7a6 f1e1 f8e8",
+          "info depth 5 score cp 104 nodes 27638 pv c3d5 f6d5 c4d5 f8e8 c2c3",
+          "info depth 6 score cp 101 nodes 59216 pv c3d5 f6d5 c4d5 c6e7 c1g5 c7c6",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove c3d5 ponder f6d5"
+        ]
+      },
+      "baseline": {
+        "bestmove": "c3d5",
+        "score": "cp 101",
+        "depth": 6,
+        "nodes": 59216,
+        "trace": [
+          "info depth 1 score cp 103 nodes 121 pv a2a3",
+          "info depth 2 score cp 111 nodes 371 pv a2a3 a7a6",
+          "info depth 3 score cp 97 nodes 1897 pv a2a3 a7a5 f1e1",
+          "info depth 4 score cp 104 nodes 8205 pv a2a3 a7a6 f1e1 f8e8",
+          "info depth 5 score cp 104 nodes 27638 pv c3d5 f6d5 c4d5 f8e8 c2c3",
+          "info depth 6 score cp 101 nodes 59216 pv c3d5 f6d5 c4d5 c6e7 c1g5 c7c6",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove c3d5 ponder f6d5"
+        ]
+      }
+    },
+    {
+      "suite": "standard-attacks",
+      "id": "standard-open-king-gambit",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "c1g5",
+        "score": "cp 99",
+        "depth": 5,
+        "nodes": 65859,
+        "trace": [
+          "info depth 1 score cp 103 nodes 262 pv a2a3",
+          "info depth 2 score cp 111 nodes 806 pv a2a3 a7a6",
+          "info depth 3 score cp 97 nodes 3143 pv a2a3 a7a5 f1e1",
+          "info depth 4 score cp 104 nodes 23287 pv a2a3 a7a6 f1e1 f8e8",
+          "info depth 5 score cp 99 nodes 65859 pv c1g5 h7h6 g5f6 d8f6 c3d5",
+          "info string personality nodes=4676 attempts=7 completed=4 exhausted=3 selections=0",
+          "bestmove c1g5 ponder h7h6"
+        ]
+      },
+      "baseline": {
+        "bestmove": "c1g5",
+        "score": "cp 99",
+        "depth": 5,
+        "nodes": 65859,
+        "trace": [
+          "info depth 1 score cp 103 nodes 262 pv a2a3",
+          "info depth 2 score cp 111 nodes 806 pv a2a3 a7a6",
+          "info depth 3 score cp 97 nodes 3143 pv a2a3 a7a5 f1e1",
+          "info depth 4 score cp 104 nodes 23287 pv a2a3 a7a6 f1e1 f8e8",
+          "info depth 5 score cp 99 nodes 65859 pv c1g5 h7h6 g5f6 d8f6 c3d5",
+          "info string personality nodes=4676 attempts=7 completed=4 exhausted=3 selections=0",
+          "bestmove c1g5 ponder h7h6"
+        ]
+      }
+    },
+    {
+      "suite": "standard-attacks",
+      "id": "standard-opposite-castle-storm",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "f1e1",
+        "score": "cp -256",
+        "depth": 5,
+        "nodes": 13024,
+        "trace": [
+          "info depth 1 score cp -236 nodes 33 pv d1c2",
+          "info depth 2 score cp -237 nodes 404 pv d1b3 h7h6",
+          "info depth 3 score cp -247 nodes 1115 pv h2h3 h7h6 d1c2",
+          "info depth 4 score cp -247 nodes 3170 pv h2h3 h7h6 d1b3 c8b8",
+          "info depth 5 score cp -256 nodes 13024 pv f1e1 e6f5 h2h3 f5d3 d2b3",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove f1e1 ponder e6f5"
+        ]
+      },
+      "baseline": {
+        "bestmove": "f1e1",
+        "score": "cp -256",
+        "depth": 5,
+        "nodes": 13024,
+        "trace": [
+          "info depth 1 score cp -236 nodes 33 pv d1c2",
+          "info depth 2 score cp -237 nodes 404 pv d1b3 h7h6",
+          "info depth 3 score cp -247 nodes 1115 pv h2h3 h7h6 d1c2",
+          "info depth 4 score cp -247 nodes 3170 pv h2h3 h7h6 d1b3 c8b8",
+          "info depth 5 score cp -256 nodes 13024 pv f1e1 e6f5 h2h3 f5d3 d2b3",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove f1e1 ponder e6f5"
+        ]
+      }
+    },
+    {
+      "suite": "standard-attacks",
+      "id": "standard-opposite-castle-storm",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "b2b4",
+        "score": "cp -255",
+        "depth": 5,
+        "nodes": 13830,
+        "trace": [
+          "info depth 1 score cp -261 nodes 44 pv b2b4",
+          "info depth 2 score cp -259 nodes 304 pv b2b4 h7h6",
+          "info depth 3 score cp -258 nodes 1595 pv b2b4 c8b8 d1c2",
+          "info depth 4 score cp -258 nodes 6382 pv b2b4 c8b8 a2a4 h7h6",
+          "info depth 5 score cp -255 nodes 13830 pv b2b4 c8b8 a2a4 h7h6 b4b5",
+          "info string personality nodes=3933 attempts=9 completed=8 exhausted=1 selections=4",
+          "bestmove b2b4 ponder c8b8"
+        ]
+      },
+      "baseline": {
+        "bestmove": "b2b4",
+        "score": "cp -255",
+        "depth": 5,
+        "nodes": 13830,
+        "trace": [
+          "info depth 1 score cp -261 nodes 44 pv b2b4",
+          "info depth 2 score cp -259 nodes 304 pv b2b4 h7h6",
+          "info depth 3 score cp -258 nodes 1595 pv b2b4 c8b8 d1c2",
+          "info depth 4 score cp -258 nodes 6382 pv b2b4 c8b8 a2a4 h7h6",
+          "info depth 5 score cp -255 nodes 13830 pv b2b4 c8b8 a2a4 h7h6 b4b5",
+          "info string personality nodes=3933 attempts=9 completed=8 exhausted=1 selections=4",
+          "bestmove b2b4 ponder c8b8"
+        ]
+      }
+    },
+    {
+      "suite": "standard-attacks",
+      "id": "standard-forcing-mate-safety",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "h5f7",
+        "score": "mate 2",
+        "depth": 1,
+        "nodes": 86,
+        "trace": [
+          "info depth 1 score mate 2 nodes 86 pv h5f7 g8h8 f7e8",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove h5f7 ponder g8h8"
+        ]
+      },
+      "baseline": {
+        "bestmove": "h5f7",
+        "score": "mate 2",
+        "depth": 1,
+        "nodes": 86,
+        "trace": [
+          "info depth 1 score mate 2 nodes 86 pv h5f7 g8h8 f7e8",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove h5f7 ponder g8h8"
+        ]
+      }
+    },
+    {
+      "suite": "standard-attacks",
+      "id": "standard-forcing-mate-safety",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "h5f7",
+        "score": "mate 2",
+        "depth": 1,
+        "nodes": 1126,
+        "trace": [
+          "info depth 1 score mate 2 nodes 1126 pv h5f7 g8h8 f7e8",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove h5f7 ponder g8h8"
+        ]
+      },
+      "baseline": {
+        "bestmove": "h5f7",
+        "score": "mate 2",
+        "depth": 1,
+        "nodes": 1126,
+        "trace": [
+          "info depth 1 score mate 2 nodes 1126 pv h5f7 g8h8 f7e8",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove h5f7 ponder g8h8"
+        ]
+      }
+    },
+    {
+      "suite": "standard-attacks",
+      "id": "standard-knight-c6-investment",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "d2d4",
+        "score": "cp -113",
+        "depth": 6,
+        "nodes": 14357,
+        "trace": [
+          "info depth 1 score cp -138 nodes 131 pv d2d4",
+          "info depth 2 score cp -128 nodes 722 pv d2d4 f6e4",
+          "info depth 3 score cp -107 nodes 1814 pv d2d4 a5a4 f5g6",
+          "info depth 4 score cp -110 nodes 4476 pv d2d4 c6e5 d4e5 f6e4",
+          "info depth 5 score cp -119 nodes 7571 pv d2d4 c6e5 d4e5 f6e4 e5e6",
+          "info depth 6 score cp -113 nodes 14357 pv d2d4 d7f5 h3f5 g6f5 e5c6 b7c6 f1f5",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove d2d4 ponder d7f5"
+        ]
+      },
+      "baseline": {
+        "bestmove": "d2d4",
+        "score": "cp -113",
+        "depth": 6,
+        "nodes": 14357,
+        "trace": [
+          "info depth 1 score cp -138 nodes 131 pv d2d4",
+          "info depth 2 score cp -128 nodes 722 pv d2d4 f6e4",
+          "info depth 3 score cp -107 nodes 1814 pv d2d4 a5a4 f5g6",
+          "info depth 4 score cp -110 nodes 4476 pv d2d4 c6e5 d4e5 f6e4",
+          "info depth 5 score cp -119 nodes 7571 pv d2d4 c6e5 d4e5 f6e4 e5e6",
+          "info depth 6 score cp -113 nodes 14357 pv d2d4 d7f5 h3f5 g6f5 e5c6 b7c6 f1f5",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove d2d4 ponder d7f5"
+        ]
+      }
+    },
+    {
+      "suite": "standard-attacks",
+      "id": "standard-knight-c6-investment",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "e5c6",
+        "score": "cp -135",
+        "depth": 5,
+        "nodes": 13942,
+        "trace": [
+          "info depth 1 score cp -161 nodes 190 pv e5c6 b7c6",
+          "info depth 2 score cp -128 nodes 998 pv d2d4 f6e4",
+          "info depth 3 score cp -107 nodes 2623 pv d2d4 a5a4 f5g6",
+          "info depth 4 score cp -135 nodes 6880 pv e5c6 b7c6 d2d3 c6c5",
+          "info depth 5 score cp -135 nodes 13942 pv e5c6 b7c6 d2d3 d8c8 c2c4",
+          "info string personality nodes=2119 attempts=7 completed=7 exhausted=0 selections=3",
+          "bestmove e5c6 ponder b7c6"
+        ]
+      },
+      "baseline": {
+        "bestmove": "e5c6",
+        "score": "cp -135",
+        "depth": 5,
+        "nodes": 13942,
+        "trace": [
+          "info depth 1 score cp -161 nodes 190 pv e5c6 b7c6",
+          "info depth 2 score cp -128 nodes 998 pv d2d4 f6e4",
+          "info depth 3 score cp -107 nodes 2623 pv d2d4 a5a4 f5g6",
+          "info depth 4 score cp -135 nodes 6880 pv e5c6 b7c6 d2d3 c6c5",
+          "info depth 5 score cp -135 nodes 13942 pv e5c6 b7c6 d2d3 d8c8 c2c4",
+          "info string personality nodes=2119 attempts=7 completed=7 exhausted=0 selections=3",
+          "bestmove e5c6 ponder b7c6"
+        ]
+      }
+    },
+    {
+      "suite": "standard-attacks",
+      "id": "standard-unsupported-greek-gift",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "b1d2",
+        "score": "cp 48",
+        "depth": 7,
+        "nodes": 79527,
+        "trace": [
+          "info depth 1 score cp 70 nodes 42 pv f1e1",
+          "info depth 2 score cp 52 nodes 270 pv f1e1 f8e8",
+          "info depth 3 score cp 48 nodes 1194 pv f1e1 c8e6 c1e3",
+          "info depth 4 score cp 43 nodes 3424 pv f1e1 c8e6 d1b3 d8d6 b3b7",
+          "info depth 5 score cp 35 nodes 11150 pv f1e1 c8g4 f2f3 g4e6 c1e3",
+          "info depth 6 score cp 37 nodes 37284 pv h2h3 c8e6 c1e3 f8e8 f1e1 d8e7",
+          "info depth 7 score cp 48 nodes 79527 pv b1d2 f8e8 d2f3 h7h6 c1e3 c8e6 f1e1",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove b1d2 ponder f8e8"
+        ]
+      },
+      "baseline": {
+        "bestmove": "b1d2",
+        "score": "cp 48",
+        "depth": 7,
+        "nodes": 79527,
+        "trace": [
+          "info depth 1 score cp 70 nodes 42 pv f1e1",
+          "info depth 2 score cp 52 nodes 270 pv f1e1 f8e8",
+          "info depth 3 score cp 48 nodes 1194 pv f1e1 c8e6 c1e3",
+          "info depth 4 score cp 43 nodes 3424 pv f1e1 c8e6 d1b3 d8d6 b3b7",
+          "info depth 5 score cp 35 nodes 11150 pv f1e1 c8g4 f2f3 g4e6 c1e3",
+          "info depth 6 score cp 37 nodes 37284 pv h2h3 c8e6 c1e3 f8e8 f1e1 d8e7",
+          "info depth 7 score cp 48 nodes 79527 pv b1d2 f8e8 d2f3 h7h6 c1e3 c8e6 f1e1",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove b1d2 ponder f8e8"
+        ]
+      }
+    },
+    {
+      "suite": "standard-attacks",
+      "id": "standard-unsupported-greek-gift",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "b1d2",
+        "score": "cp 43",
+        "depth": 6,
+        "nodes": 50540,
+        "trace": [
+          "info depth 1 score cp 70 nodes 65 pv f1e1",
+          "info depth 2 score cp 52 nodes 569 pv f1e1 f8e8",
+          "info depth 3 score cp 48 nodes 2128 pv f1e1 c8e6 c1e3",
+          "info depth 4 score cp 43 nodes 8579 pv f1e1 c8e6 d1b3 d8d6 b3b7",
+          "info depth 5 score cp 35 nodes 27367 pv b1d2 f8e8 d2f3 c8g4 c1e3",
+          "info depth 6 score cp 43 nodes 50540 pv b1d2 f8e8 d2f3 d8d6 c1e3 c8e6",
+          "info string personality nodes=8724 attempts=10 completed=7 exhausted=3 selections=0",
+          "bestmove b1d2 ponder f8e8"
+        ]
+      },
+      "baseline": {
+        "bestmove": "b1d2",
+        "score": "cp 43",
+        "depth": 6,
+        "nodes": 50540,
+        "trace": [
+          "info depth 1 score cp 70 nodes 65 pv f1e1",
+          "info depth 2 score cp 52 nodes 569 pv f1e1 f8e8",
+          "info depth 3 score cp 48 nodes 2128 pv f1e1 c8e6 c1e3",
+          "info depth 4 score cp 43 nodes 8579 pv f1e1 c8e6 d1b3 d8d6 b3b7",
+          "info depth 5 score cp 35 nodes 27367 pv b1d2 f8e8 d2f3 c8g4 c1e3",
+          "info depth 6 score cp 43 nodes 50540 pv b1d2 f8e8 d2f3 d8d6 c1e3 c8e6",
+          "info string personality nodes=8724 attempts=10 completed=7 exhausted=3 selections=0",
+          "bestmove b1d2 ponder f8e8"
+        ]
+      }
+    },
+    {
+      "suite": "standard-attacks",
+      "id": "standard-unsupported-rook-f7",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "g1h1",
+        "score": "cp -450",
+        "depth": 5,
+        "nodes": 10179,
+        "trace": [
+          "info depth 1 score cp -394 nodes 156 pv g1h1 a7a6",
+          "info depth 2 score cp -402 nodes 865 pv g1h1 c6d4 c3d5 d4c2 d5c7",
+          "info depth 3 score cp -414 nodes 2161 pv g1h1 f6g4 h2h3 g4e3",
+          "info depth 4 score cp -439 nodes 5284 pv g1h1 f6g4 c3d1 a7a6 h2h3",
+          "info depth 5 score cp -450 nodes 10179 pv g1h1 f6g4 c3a4 g4f2 h1g1 f2d3 a4c5 d3c5",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove g1h1 ponder f6g4"
+        ]
+      },
+      "baseline": {
+        "bestmove": "g1h1",
+        "score": "cp -450",
+        "depth": 5,
+        "nodes": 10179,
+        "trace": [
+          "info depth 1 score cp -394 nodes 156 pv g1h1 a7a6",
+          "info depth 2 score cp -402 nodes 865 pv g1h1 c6d4 c3d5 d4c2 d5c7",
+          "info depth 3 score cp -414 nodes 2161 pv g1h1 f6g4 h2h3 g4e3",
+          "info depth 4 score cp -439 nodes 5284 pv g1h1 f6g4 c3d1 a7a6 h2h3",
+          "info depth 5 score cp -450 nodes 10179 pv g1h1 f6g4 c3a4 g4f2 h1g1 f2d3 a4c5 d3c5",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove g1h1 ponder f6g4"
+        ]
+      }
+    },
+    {
+      "suite": "standard-attacks",
+      "id": "standard-unsupported-rook-f7",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "g1h1",
+        "score": "cp -439",
+        "depth": 4,
+        "nodes": 11496,
+        "trace": [
+          "info depth 1 score cp -394 nodes 336 pv g1h1 a7a6",
+          "info depth 2 score cp -402 nodes 3064 pv g1h1 c6d4 c3d5 d4c2 d5c7",
+          "info depth 3 score cp -414 nodes 4546 pv g1h1 f6g4 h2h3 g4e3",
+          "info depth 4 score cp -439 nodes 11496 pv g1h1 f6g4 c3d1 a7a6 h2h3",
+          "info string personality nodes=565 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove g1h1 ponder f6g4"
+        ]
+      },
+      "baseline": {
+        "bestmove": "g1h1",
+        "score": "cp -439",
+        "depth": 4,
+        "nodes": 11496,
+        "trace": [
+          "info depth 1 score cp -394 nodes 336 pv g1h1 a7a6",
+          "info depth 2 score cp -402 nodes 3064 pv g1h1 c6d4 c3d5 d4c2 d5c7",
+          "info depth 3 score cp -414 nodes 4546 pv g1h1 f6g4 h2h3 g4e3",
+          "info depth 4 score cp -439 nodes 11496 pv g1h1 f6g4 c3d1 a7a6 h2h3",
+          "info string personality nodes=565 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove g1h1 ponder f6g4"
+        ]
+      }
+    },
+    {
+      "suite": "standard-attacks",
+      "id": "standard-avoid-equal-queen-trade",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "d2d7",
+        "score": "cp 0",
+        "depth": 7,
+        "nodes": 47178,
+        "trace": [
+          "info depth 1 score cp 94 nodes 280 pv d2h6",
+          "info depth 2 score cp 0 nodes 720 pv d2d7 e8d7",
+          "info depth 3 score cp 0 nodes 1099 pv d2d7 e8d7",
+          "info depth 4 score cp 0 nodes 4149 pv d2d7 e8d7",
+          "info depth 5 score cp 0 nodes 13986 pv d2d7 e8d7",
+          "info depth 6 score cp 0 nodes 22288 pv d2d7 e8d7",
+          "info depth 7 score cp 0 nodes 47178 pv d2d7 e8d7",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove d2d7 ponder e8d7"
+        ]
+      },
+      "baseline": {
+        "bestmove": "d2d7",
+        "score": "cp 0",
+        "depth": 7,
+        "nodes": 47178,
+        "trace": [
+          "info depth 1 score cp 94 nodes 280 pv d2h6",
+          "info depth 2 score cp 0 nodes 720 pv d2d7 e8d7",
+          "info depth 3 score cp 0 nodes 1099 pv d2d7 e8d7",
+          "info depth 4 score cp 0 nodes 4149 pv d2d7 e8d7",
+          "info depth 5 score cp 0 nodes 13986 pv d2d7 e8d7",
+          "info depth 6 score cp 0 nodes 22288 pv d2d7 e8d7",
+          "info depth 7 score cp 0 nodes 47178 pv d2d7 e8d7",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove d2d7 ponder e8d7"
+        ]
+      }
+    },
+    {
+      "suite": "standard-attacks",
+      "id": "standard-avoid-equal-queen-trade",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "d2e2",
+        "score": "cp 0",
+        "depth": 5,
+        "nodes": 59146,
+        "trace": [
+          "info depth 1 score cp 70 nodes 1945 pv d2h6 d7e7 e1d1",
+          "info depth 2 score cp 0 nodes 4582 pv d2e2 d7e7 e2e7 e8e7",
+          "info depth 3 score cp 0 nodes 9793 pv d2e2 d7e7 e2e7 e8e7",
+          "info depth 4 score cp 0 nodes 23440 pv d2e2 d7e7 e2e7 e8e7",
+          "info depth 5 score cp 0 nodes 59146 pv d2e2 d7e7 e2e7 e8e7",
+          "info string personality nodes=4866 attempts=7 completed=3 exhausted=4 selections=1",
+          "bestmove d2e2 ponder d7e7"
+        ]
+      },
+      "baseline": {
+        "bestmove": "d2e2",
+        "score": "cp 0",
+        "depth": 5,
+        "nodes": 59146,
+        "trace": [
+          "info depth 1 score cp 70 nodes 1945 pv d2h6 d7e7 e1d1",
+          "info depth 2 score cp 0 nodes 4582 pv d2e2 d7e7 e2e7 e8e7",
+          "info depth 3 score cp 0 nodes 9793 pv d2e2 d7e7 e2e7 e8e7",
+          "info depth 4 score cp 0 nodes 23440 pv d2e2 d7e7 e2e7 e8e7",
+          "info depth 5 score cp 0 nodes 59146 pv d2e2 d7e7 e2e7 e8e7",
+          "info string personality nodes=4866 attempts=7 completed=3 exhausted=4 selections=1",
+          "bestmove d2e2 ponder d7e7"
+        ]
+      }
+    },
+    {
+      "suite": "sacrifice-gates",
+      "id": "gate-knight-c6-investment",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "d2d4",
+        "score": "cp -113",
+        "depth": 6,
+        "nodes": 14357,
+        "trace": [
+          "info depth 1 score cp -138 nodes 131 pv d2d4",
+          "info depth 2 score cp -128 nodes 722 pv d2d4 f6e4",
+          "info depth 3 score cp -107 nodes 1814 pv d2d4 a5a4 f5g6",
+          "info depth 4 score cp -110 nodes 4476 pv d2d4 c6e5 d4e5 f6e4",
+          "info depth 5 score cp -119 nodes 7571 pv d2d4 c6e5 d4e5 f6e4 e5e6",
+          "info depth 6 score cp -113 nodes 14357 pv d2d4 d7f5 h3f5 g6f5 e5c6 b7c6 f1f5",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove d2d4 ponder d7f5"
+        ]
+      },
+      "baseline": {
+        "bestmove": "d2d4",
+        "score": "cp -113",
+        "depth": 6,
+        "nodes": 14357,
+        "trace": [
+          "info depth 1 score cp -138 nodes 131 pv d2d4",
+          "info depth 2 score cp -128 nodes 722 pv d2d4 f6e4",
+          "info depth 3 score cp -107 nodes 1814 pv d2d4 a5a4 f5g6",
+          "info depth 4 score cp -110 nodes 4476 pv d2d4 c6e5 d4e5 f6e4",
+          "info depth 5 score cp -119 nodes 7571 pv d2d4 c6e5 d4e5 f6e4 e5e6",
+          "info depth 6 score cp -113 nodes 14357 pv d2d4 d7f5 h3f5 g6f5 e5c6 b7c6 f1f5",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove d2d4 ponder d7f5"
+        ]
+      }
+    },
+    {
+      "suite": "sacrifice-gates",
+      "id": "gate-knight-c6-investment",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "e5c6",
+        "score": "cp -135",
+        "depth": 5,
+        "nodes": 13942,
+        "trace": [
+          "info depth 1 score cp -161 nodes 190 pv e5c6 b7c6",
+          "info depth 2 score cp -128 nodes 998 pv d2d4 f6e4",
+          "info depth 3 score cp -107 nodes 2623 pv d2d4 a5a4 f5g6",
+          "info depth 4 score cp -135 nodes 6880 pv e5c6 b7c6 d2d3 c6c5",
+          "info depth 5 score cp -135 nodes 13942 pv e5c6 b7c6 d2d3 d8c8 c2c4",
+          "info string personality nodes=2119 attempts=7 completed=7 exhausted=0 selections=3",
+          "bestmove e5c6 ponder b7c6"
+        ]
+      },
+      "baseline": {
+        "bestmove": "e5c6",
+        "score": "cp -135",
+        "depth": 5,
+        "nodes": 13942,
+        "trace": [
+          "info depth 1 score cp -161 nodes 190 pv e5c6 b7c6",
+          "info depth 2 score cp -128 nodes 998 pv d2d4 f6e4",
+          "info depth 3 score cp -107 nodes 2623 pv d2d4 a5a4 f5g6",
+          "info depth 4 score cp -135 nodes 6880 pv e5c6 b7c6 d2d3 c6c5",
+          "info depth 5 score cp -135 nodes 13942 pv e5c6 b7c6 d2d3 d8c8 c2c4",
+          "info string personality nodes=2119 attempts=7 completed=7 exhausted=0 selections=3",
+          "bestmove e5c6 ponder b7c6"
+        ]
+      }
+    },
+    {
+      "suite": "sacrifice-gates",
+      "id": "gate-unsupported-greek-gift",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "b1d2",
+        "score": "cp 48",
+        "depth": 7,
+        "nodes": 79527,
+        "trace": [
+          "info depth 1 score cp 70 nodes 42 pv f1e1",
+          "info depth 2 score cp 52 nodes 270 pv f1e1 f8e8",
+          "info depth 3 score cp 48 nodes 1194 pv f1e1 c8e6 c1e3",
+          "info depth 4 score cp 43 nodes 3424 pv f1e1 c8e6 d1b3 d8d6 b3b7",
+          "info depth 5 score cp 35 nodes 11150 pv f1e1 c8g4 f2f3 g4e6 c1e3",
+          "info depth 6 score cp 37 nodes 37284 pv h2h3 c8e6 c1e3 f8e8 f1e1 d8e7",
+          "info depth 7 score cp 48 nodes 79527 pv b1d2 f8e8 d2f3 h7h6 c1e3 c8e6 f1e1",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove b1d2 ponder f8e8"
+        ]
+      },
+      "baseline": {
+        "bestmove": "b1d2",
+        "score": "cp 48",
+        "depth": 7,
+        "nodes": 79527,
+        "trace": [
+          "info depth 1 score cp 70 nodes 42 pv f1e1",
+          "info depth 2 score cp 52 nodes 270 pv f1e1 f8e8",
+          "info depth 3 score cp 48 nodes 1194 pv f1e1 c8e6 c1e3",
+          "info depth 4 score cp 43 nodes 3424 pv f1e1 c8e6 d1b3 d8d6 b3b7",
+          "info depth 5 score cp 35 nodes 11150 pv f1e1 c8g4 f2f3 g4e6 c1e3",
+          "info depth 6 score cp 37 nodes 37284 pv h2h3 c8e6 c1e3 f8e8 f1e1 d8e7",
+          "info depth 7 score cp 48 nodes 79527 pv b1d2 f8e8 d2f3 h7h6 c1e3 c8e6 f1e1",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove b1d2 ponder f8e8"
+        ]
+      }
+    },
+    {
+      "suite": "sacrifice-gates",
+      "id": "gate-unsupported-greek-gift",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "b1d2",
+        "score": "cp 43",
+        "depth": 6,
+        "nodes": 50540,
+        "trace": [
+          "info depth 1 score cp 70 nodes 65 pv f1e1",
+          "info depth 2 score cp 52 nodes 569 pv f1e1 f8e8",
+          "info depth 3 score cp 48 nodes 2128 pv f1e1 c8e6 c1e3",
+          "info depth 4 score cp 43 nodes 8579 pv f1e1 c8e6 d1b3 d8d6 b3b7",
+          "info depth 5 score cp 35 nodes 27367 pv b1d2 f8e8 d2f3 c8g4 c1e3",
+          "info depth 6 score cp 43 nodes 50540 pv b1d2 f8e8 d2f3 d8d6 c1e3 c8e6",
+          "info string personality nodes=8724 attempts=10 completed=7 exhausted=3 selections=0",
+          "bestmove b1d2 ponder f8e8"
+        ]
+      },
+      "baseline": {
+        "bestmove": "b1d2",
+        "score": "cp 43",
+        "depth": 6,
+        "nodes": 50540,
+        "trace": [
+          "info depth 1 score cp 70 nodes 65 pv f1e1",
+          "info depth 2 score cp 52 nodes 569 pv f1e1 f8e8",
+          "info depth 3 score cp 48 nodes 2128 pv f1e1 c8e6 c1e3",
+          "info depth 4 score cp 43 nodes 8579 pv f1e1 c8e6 d1b3 d8d6 b3b7",
+          "info depth 5 score cp 35 nodes 27367 pv b1d2 f8e8 d2f3 c8g4 c1e3",
+          "info depth 6 score cp 43 nodes 50540 pv b1d2 f8e8 d2f3 d8d6 c1e3 c8e6",
+          "info string personality nodes=8724 attempts=10 completed=7 exhausted=3 selections=0",
+          "bestmove b1d2 ponder f8e8"
+        ]
+      }
+    },
+    {
+      "suite": "sacrifice-gates",
+      "id": "gate-unsupported-rook-f7",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "g1h1",
+        "score": "cp -450",
+        "depth": 5,
+        "nodes": 10179,
+        "trace": [
+          "info depth 1 score cp -394 nodes 156 pv g1h1 a7a6",
+          "info depth 2 score cp -402 nodes 865 pv g1h1 c6d4 c3d5 d4c2 d5c7",
+          "info depth 3 score cp -414 nodes 2161 pv g1h1 f6g4 h2h3 g4e3",
+          "info depth 4 score cp -439 nodes 5284 pv g1h1 f6g4 c3d1 a7a6 h2h3",
+          "info depth 5 score cp -450 nodes 10179 pv g1h1 f6g4 c3a4 g4f2 h1g1 f2d3 a4c5 d3c5",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove g1h1 ponder f6g4"
+        ]
+      },
+      "baseline": {
+        "bestmove": "g1h1",
+        "score": "cp -450",
+        "depth": 5,
+        "nodes": 10179,
+        "trace": [
+          "info depth 1 score cp -394 nodes 156 pv g1h1 a7a6",
+          "info depth 2 score cp -402 nodes 865 pv g1h1 c6d4 c3d5 d4c2 d5c7",
+          "info depth 3 score cp -414 nodes 2161 pv g1h1 f6g4 h2h3 g4e3",
+          "info depth 4 score cp -439 nodes 5284 pv g1h1 f6g4 c3d1 a7a6 h2h3",
+          "info depth 5 score cp -450 nodes 10179 pv g1h1 f6g4 c3a4 g4f2 h1g1 f2d3 a4c5 d3c5",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove g1h1 ponder f6g4"
+        ]
+      }
+    },
+    {
+      "suite": "sacrifice-gates",
+      "id": "gate-unsupported-rook-f7",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "g1h1",
+        "score": "cp -439",
+        "depth": 4,
+        "nodes": 11496,
+        "trace": [
+          "info depth 1 score cp -394 nodes 336 pv g1h1 a7a6",
+          "info depth 2 score cp -402 nodes 3064 pv g1h1 c6d4 c3d5 d4c2 d5c7",
+          "info depth 3 score cp -414 nodes 4546 pv g1h1 f6g4 h2h3 g4e3",
+          "info depth 4 score cp -439 nodes 11496 pv g1h1 f6g4 c3d1 a7a6 h2h3",
+          "info string personality nodes=565 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove g1h1 ponder f6g4"
+        ]
+      },
+      "baseline": {
+        "bestmove": "g1h1",
+        "score": "cp -439",
+        "depth": 4,
+        "nodes": 11496,
+        "trace": [
+          "info depth 1 score cp -394 nodes 336 pv g1h1 a7a6",
+          "info depth 2 score cp -402 nodes 3064 pv g1h1 c6d4 c3d5 d4c2 d5c7",
+          "info depth 3 score cp -414 nodes 4546 pv g1h1 f6g4 h2h3 g4e3",
+          "info depth 4 score cp -439 nodes 11496 pv g1h1 f6g4 c3d1 a7a6 h2h3",
+          "info string personality nodes=565 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove g1h1 ponder f6g4"
+        ]
+      }
+    },
+    {
+      "suite": "sacrifice-gates",
+      "id": "gate-forcing-mate-safety",
+      "aggression": 0,
+      "identical": true,
+      "candidate": {
+        "bestmove": "h5f7",
+        "score": "mate 2",
+        "depth": 1,
+        "nodes": 86,
+        "trace": [
+          "info depth 1 score mate 2 nodes 86 pv h5f7 g8h8 f7e8",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove h5f7 ponder g8h8"
+        ]
+      },
+      "baseline": {
+        "bestmove": "h5f7",
+        "score": "mate 2",
+        "depth": 1,
+        "nodes": 86,
+        "trace": [
+          "info depth 1 score mate 2 nodes 86 pv h5f7 g8h8 f7e8",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove h5f7 ponder g8h8"
+        ]
+      }
+    },
+    {
+      "suite": "sacrifice-gates",
+      "id": "gate-forcing-mate-safety",
+      "aggression": 100,
+      "identical": true,
+      "candidate": {
+        "bestmove": "h5f7",
+        "score": "mate 2",
+        "depth": 1,
+        "nodes": 1126,
+        "trace": [
+          "info depth 1 score mate 2 nodes 1126 pv h5f7 g8h8 f7e8",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove h5f7 ponder g8h8"
+        ]
+      },
+      "baseline": {
+        "bestmove": "h5f7",
+        "score": "mate 2",
+        "depth": 1,
+        "nodes": 1126,
+        "trace": [
+          "info depth 1 score mate 2 nodes 1126 pv h5f7 g8h8 f7e8",
+          "info string personality nodes=0 attempts=0 completed=0 exhausted=0 selections=0",
+          "bestmove h5f7 ponder g8h8"
+        ]
+      }
+    }
+  ]
+}

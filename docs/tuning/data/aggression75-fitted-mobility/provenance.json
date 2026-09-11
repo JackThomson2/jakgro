@@ -1,0 +1,27 @@
+{
+  "base_revision": "b80144e3a413a08b9db0d816f11bc75e46e2bdbf",
+  "binaries_sha256": {
+    "jakgro-baseline": "05dbdd61f0d682674a706ae0ebddc81a2172c0bd4c3984db2e2fea8d245c31f1",
+    "jakgro-fitted-final": "4473dd01f432f40c6d207e44b9b82f5ce7a4069cafc26dc5b00a6b072189060a",
+    "jakgro-fitted-mobility": "b009495bd6c67968db4f36351632dece21fad7353501b34db442c236a905cbc8",
+    "jakgro-lean-seeds": "65c558e0921a34e54a2e2a11f1954a72961c7b77c2125d9f5837f2d6602bf645",
+    "jakgro-qhash": "aaef7190ffaba9c7e604ae5aac57bce2dd5d95ecbcd44910f6ab8e4126f9098b"
+  },
+  "build_command": "cargo build --release --locked --bin jakgro --bin selfplay",
+  "builds_and_checks_shared_host": true,
+  "candidate_revision": "b6b896133b7e738ba410eda8d9b772d5626f2de9",
+  "cargo": "cargo 1.88.0 (873a06493 2025-05-10)",
+  "concurrency_per_match": 24,
+  "confirmation_matches_overlapped": true,
+  "confirmation_openings": "Remaining 1536 positions; clock channel uses first 1000 of these",
+  "dependency_revision": "7e93cdea094a50c1574081ceb6e7b269ad0234ee",
+  "host": "Linux x86_64, 96 online logical CPUs",
+  "lean_seeds_revision": "6131d5d6883d3f08587a790ab81970e776443c20",
+  "manifest_note": "Original manifests retained byte-for-byte. Revision and build metadata omitted at invocation are supplied here rather than rewriting hashed manifests.",
+  "rustc": "rustc 1.88.0 (6b00bc388 2025-06-23)",
+  "screen_recipes": {
+    "jakgro-fitted-mobility": "On lean_seeds_revision, replace the body of EvaluationConfig::mobility_profile_intensity with 0; no other engine change.",
+    "jakgro-qhash": "Apply qhash-rejected.patch to lean_seeds_revision."
+  },
+  "screening_openings": "First 512 non-comment positions of ../selective-search-confirmation.epd"
+}

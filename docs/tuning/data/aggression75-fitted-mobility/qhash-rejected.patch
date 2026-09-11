@@ -1,0 +1,178 @@
+diff --git a/src/engine/search/algorithm.rs b/src/engine/search/algorithm.rs
+index db40f49..d22c471 100644
+--- a/src/engine/search/algorithm.rs
++++ b/src/engine/search/algorithm.rs
+@@ -667,11 +667,17 @@ impl<'a> MovePicker<'a> {
+                     self.stage = MovePickerStage::GenerateTacticals;
+                     if let Some(chess_move) = self.preferred {
+                         let facts = MoveFacts::classify(self.board, chess_move);
+-                        return Some(self.emit_candidate(PickerMove {
+-                            facts,
+-                            see: None,
+-                            order_score: 6_000_000,
+-                        }));
++                        let see = facts.see(self.board, self.mode != MovePickerMode::Main);
++                        #[cfg(test)]
++                        {
++                            self.work.see_evaluations += usize::from(see.is_some());
++                            self.work.check_detections += 1;
++                        }
++                        let metadata = facts.search_metadata_with_masks(self.board, see, None);
++                        if metadata.is_tactical() || self.mode.accepts_quiet(metadata) {
++                            return Some(self.emit(metadata));
++                        }
++                        self.preferred = None;
+                     }
+                 }
+                 MovePickerStage::GenerateTacticals => {
+@@ -4121,7 +4127,7 @@ fn quiescence(
+     let mut picker = MovePicker::new(
+         board,
+         picker_storage,
+-        None,
++        hash_entry.and_then(|entry| entry.best_move()),
+         ply,
+         None,
+         context.personality,
+@@ -5725,6 +5731,141 @@ mod tests {
+         assert_eq!(picker.work().tactical_generations, 1);
+         assert_eq!(picker.work().quiet_generations, 1);
+     }
++
++    #[test]
++    fn quiescence_hash_preference_preserves_eligibility_and_pruning() {
++        for fen in [
++            "7k/8/8/8/8/8/4Q3/4K3 w - - 0 1",
++            "4k3/8/8/8/8/8/4r3/4K3 w - - 0 1",
++            "3r3k/8/8/3p4/8/8/8/3Q3K w - - 0 1",
++            "7k/P7/8/8/8/8/8/4K3 w - - 0 1",
++            "4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1",
++        ] {
++            let board: cozy_chess::Board = fen.parse().unwrap();
++            let in_check = !board.checkers().is_empty();
++            let ordering = MoveOrdering::new();
++            for include_quiet_checks in [false, true] {
++                let mode = super::MovePickerMode::Quiescence {
++                    in_check,
++                    include_quiet_checks,
++                };
++                let make_picker = |preferred| {
++                    super::MovePicker::new(
++                        &board,
++                        super::MovePickerStorage::default(),
++                        preferred,
++                        0,
++                        None,
++                        super::EvaluationConfig::new(75),
++                        mode,
++                    )
++                };
++                let describe = |metadata: super::MoveMetadata| {
++                    (
++                        super::move_key(metadata.chess_move),
++                        metadata.see,
++                        metadata.gives_check,
++                        super::should_prune_quiescence_capture(metadata, in_check, None),
++                        super::should_prune_quiescence_capture(
++                            metadata,
++                            in_check,
++                            Some(metadata.chess_move.to),
++                        ),
++                    )
++                };
++                let mut ordinary = make_picker(None);
++                let mut expected = Vec::new();
++                while let Some((_, metadata)) = ordinary.next(&ordering) {
++                    expected.push(describe(metadata));
++                }
++                expected.sort_unstable();
++                let mut preferences = generate_moves(&board);
++                preferences.push("a1a8".parse().unwrap());
++                for preferred in preferences {
++                    let mut picker = make_picker(Some(preferred));
++                    let first = picker.next(&ordering);
++                    if expected
++                        .iter()
++                        .any(|entry| entry.0 == super::move_key(preferred))
++                    {
++                        assert_eq!(first.unwrap().1.chess_move, preferred);
++                        assert_eq!(picker.work().tactical_generations, 0);
++                        assert_eq!(picker.work().quiet_generations, 0);
++                    }
++                    let mut actual = first
++                        .into_iter()
++                        .map(|(_, m)| describe(m))
++                        .collect::<Vec<_>>();
++                    while let Some((_, metadata)) = picker.next(&ordering) {
++                        actual.push(describe(metadata));
++                    }
++                    actual.sort_unstable();
++                    assert_eq!(
++                        actual, expected,
++                        "{fen}: {preferred}, checks={include_quiet_checks}"
++                    );
++                }
++            }
++        }
++    }
++
++    #[test]
++    fn quiescence_uses_a_non_cutting_hash_move_for_the_first_capture() {
++        let position = Position::from_fen("7k/8/4p3/8/1p2Q3/8/8/7K w - - 0 1").unwrap();
++        let board = position.board();
++        let control = super::SearchControl::new();
++        let table = super::TranspositionTable::new(1).unwrap();
++        table.start_search(0);
++        let mut context =
++            super::SearchContext::for_test(&table, &control, super::SearchMode::Normal);
++        let mut history = RepetitionTracker::new(position.hash_history());
++        let mut picker = super::MovePicker::new(
++            board,
++            super::MovePickerStorage::default(),
++            None,
++            0,
++            None,
++            context.personality,
++            super::MovePickerMode::Quiescence {
++                in_check: false,
++                include_quiet_checks: false,
++            },
++        );
++        let first = picker.next(&context.ordering).unwrap().1.chess_move;
++        let preferred = picker.next(&context.ordering).unwrap().1.chess_move;
++        assert_ne!(first, preferred);
++        let stand_pat = super::evaluate_with_config(board, context.scoring);
++        let beta = stand_pat + 1;
++        table.store_key(
++            history.current_key(),
++            board.halfmove_clock(),
++            0,
++            0,
++            beta + 100,
++            super::Bound::Upper,
++            Some(preferred),
++            None,
++        );
++        let result = super::quiescence(
++            board,
++            &mut history,
++            0,
++            super::NEG_INFINITY,
++            beta,
++            1,
++            0,
++            None,
++            true,
++            &mut context,
++        )
++        .unwrap();
++        assert!(result.score >= beta);
++        assert_eq!(context.pv(0).first(), Some(&preferred));
++        assert_eq!(context.telemetry.tt_cutoffs, 0);
++        assert_eq!(context.telemetry.capture_cutoffs, 1);
++        assert_eq!(context.telemetry.capture_cutoff_index_sum, 0);
++    }
++
+     #[test]
+     fn static_pruning_requires_stable_non_pv_nodes() {
+         let board = cozy_chess::Board::default();

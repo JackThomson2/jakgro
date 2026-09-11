@@ -5040,6 +5040,41 @@ mod tests {
         }
     }
 
+    #[test]
+    fn exhausted_quiescence_budgets_still_search_quiet_check_evasions() {
+        let position = Position::from_fen("8/8/8/8/8/4k3/4r3/4K3 w - - 0 1").unwrap();
+        let board = position.board();
+        assert!(!board.checkers().is_empty());
+        let table = super::TranspositionTable::new(1).unwrap();
+        table.start_search(0);
+        let control = super::SearchControl::new();
+        let mut context =
+            super::SearchContext::for_test(&table, &control, super::SearchMode::Normal);
+        let mut history = RepetitionTracker::new(position.hash_history());
+        let result = super::quiescence(
+            board,
+            &mut history,
+            0,
+            super::NEG_INFINITY,
+            super::POS_INFINITY,
+            0,
+            0,
+            None,
+            true,
+            &mut context,
+        )
+        .unwrap();
+        let evasion = context
+            .pv(0)
+            .first()
+            .copied()
+            .expect("a quiet evasion is searched");
+        assert!(board.is_legal(evasion));
+        assert!(super::MoveMetadata::classify(board, evasion).is_quiet());
+        assert!(result.score > -super::MATE_THRESHOLD);
+        assert!(context.telemetry.quiescence_nodes >= 3);
+    }
+
     /// A stored bound must be classified at the window edges as well as inside.
     #[test]
     fn quiescence_stores_classify_bounds_at_the_window_edges() {

@@ -125,7 +125,7 @@ impl EvaluationConfig {
     }
 
     pub(super) const fn quiescence_check_budget(self) -> u8 {
-        1 + self.aggression / 50
+        1 + (self.aggression >= 80) as u8 + (self.aggression == MAX_AGGRESSION) as u8
     }
 
     pub(super) const fn root_style_margin(self) -> Score {
@@ -703,7 +703,27 @@ mod tests {
         assert_eq!(config.aggression(), 75);
         assert_eq!(config.root_style_margin(), 67);
         assert_eq!(config.max_check_extensions(), 3);
-        assert_eq!(config.quiescence_check_budget(), 2);
+        assert_eq!(config.quiescence_check_budget(), 1);
+    }
+
+    #[test]
+    fn quiet_check_budgets_are_bounded_and_monotone() {
+        let mut previous = 1;
+        for aggression in 0..=u8::MAX {
+            let config = EvaluationConfig::new(aggression);
+            let expected = match aggression {
+                0..=79 => 1,
+                80..=99 => 2,
+                _ => 3,
+            };
+            let budget = config.quiescence_check_budget();
+            assert_eq!(budget, expected);
+            assert!((1..=3).contains(&budget));
+            assert!(budget >= previous);
+            assert_eq!(config.max_check_extensions(), 2 + aggression.min(100) / 50);
+            previous = budget;
+        }
+        assert_eq!(EvaluationConfig::default().quiescence_check_budget(), 1);
     }
 
     /// The curves are what the objective score reads for the four piece

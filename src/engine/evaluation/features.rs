@@ -855,8 +855,8 @@ fn scan_pieces<const PIECE: usize, const STYLE: bool>(
         scan.piece_mobility[PIECE] += moves;
         if let Some(slot) = type_slot {
             // Moves onto squares an enemy pawn attacks, counted beside the
-            // raw count rather than removed from it, so the curve above and
-            // the profile adjustment keep reading what they read.
+            // raw count rather than removed from it, so the mobility curve
+            // and the unsafe-square penalty remain separate features.
             scan.unsafe_mobility[slot] += (attacks & context.enemy_pawn_attacks).len() as i32;
             // Distance to the enemy king, bucketed at one, two, three and
             // four or more, weighted here as the mobility curves are.

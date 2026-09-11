@@ -15,11 +15,10 @@
 //! regression, and the engine and the fitter share one extraction rather than
 //! two implementations that must be kept in agreement.
 //!
-//! What is deliberately *not* here: the profile mobility adjustment, which is
-//! scaled by a per-profile intensity and so is not a fixed part of the objective
-//! score, and the attacking-style weights, which are the personality. Both stay
-//! exactly as written. Fitting them to game results would tune the engine's
-//! character out of it, because game results do not reward interesting chess.
+//! What is deliberately *not* here: the attacking-style weights, which are the
+//! personality. They stay exactly as written. Fitting them to game results would
+//! tune the engine's character out of it, because game results do not reward
+//! interesting chess.
 //!
 //! This module is behind the `tuning` feature and is not built into the engine.
 

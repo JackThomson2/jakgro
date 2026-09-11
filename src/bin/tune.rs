@@ -4,10 +4,9 @@
 //! exposes, so fitting it is ordinary logistic regression against game results:
 //! find the weights under which the engine's own score best predicts who won.
 //! This is the method Texel's tuning popularised, and the only thing unusual
-//! here is what is *excluded* from it — the attacking-style weights and the
-//! profile mobility adjustment are never touched, because game results do not
-//! reward interesting chess and an optimiser handed them would quietly tune the
-//! engine's character out of it.
+//! here is what is *excluded* from it — the attacking-style weights are never
+//! touched, because game results do not reward interesting chess and an optimiser
+//! handed them would quietly tune the engine's character out of it.
 //!
 //! Two subcommands, so the expensive step runs once:
 //!

@@ -99,7 +99,6 @@ impl Mul<Score> for ScorePair {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct EvaluationConfig {
     aggression: u8,
-    mobility_profile: u8,
 }
 
 impl EvaluationConfig {
@@ -109,22 +108,16 @@ impl EvaluationConfig {
         } else {
             aggression
         };
-        Self {
-            aggression,
-            mobility_profile: aggression,
-        }
+        Self { aggression }
     }
 
     pub(super) const fn aggression(self) -> u8 {
         self.aggression
     }
 
-    /// Returns objective scoring while retaining the selected mobility profile.
+    /// Returns the shared fitted evaluation without attacking style terms.
     pub(super) const fn objective_scoring(self) -> Self {
-        Self {
-            aggression: MIN_AGGRESSION,
-            mobility_profile: self.mobility_profile,
-        }
+        Self::new(MIN_AGGRESSION)
     }
 
     pub(super) const fn max_check_extensions(self) -> u8 {
@@ -133,15 +126,6 @@ impl EvaluationConfig {
 
     pub(super) const fn quiescence_check_budget(self) -> u8 {
         1 + self.aggression / 50
-    }
-
-    /// Peaks at the default profile and fades to zero at both endpoint profiles.
-    pub(super) const fn mobility_profile_intensity(self) -> u8 {
-        if self.mobility_profile <= DEFAULT_AGGRESSION {
-            (self.mobility_profile as u16 * 100 / DEFAULT_AGGRESSION as u16) as u8
-        } else {
-            (MAX_AGGRESSION - self.mobility_profile) * 4
-        }
     }
 
     pub(super) const fn root_style_margin(self) -> Score {
@@ -358,7 +342,7 @@ pub(super) fn evaluate(board: &Board) -> Score {
 #[inline(always)]
 pub(super) fn evaluate_with_config(board: &Board, config: EvaluationConfig) -> Score {
     let blended = if config.aggression() == MIN_AGGRESSION {
-        objective_blended_score(board, config)
+        objective_blended_score(board)
     } else {
         evaluate_with_trace_and_config(board, config).blended
     };
@@ -377,11 +361,9 @@ pub(super) fn evaluate_with_config(board: &Board, config: EvaluationConfig) -> S
 /// Extracting those features would compute king-pressure, threat, space, and
 /// supported-threat terms only to multiply them away.
 #[inline(always)]
-fn objective_blended_score(board: &Board, config: EvaluationConfig) -> Score {
+fn objective_blended_score(board: &Board) -> Score {
     let features = features::extract_with_style(board, false);
-    let base = weights::score(&features)
-        + weights::profile_mobility_adjustment(&features)
-            .scaled(config.mobility_profile_intensity());
+    let base = weights::score(&features);
     let phase = features::phase(board);
     (base.middle_game * phase + base.end_game * (24 - phase)) / 24
 }
@@ -410,9 +392,7 @@ pub(super) fn evaluate_with_trace_and_config(
     config: EvaluationConfig,
 ) -> EvaluationTrace {
     let features = features::extract(board);
-    let base = weights::score(&features)
-        + weights::profile_mobility_adjustment(&features)
-            .scaled(config.mobility_profile_intensity());
+    let base = weights::score(&features);
     let style = weights::attacking_style(&features)
         .scaled(config.aggression())
         .soft_bounded(config.style_middle_game_cap(), config.style_end_game_cap());
@@ -476,7 +456,7 @@ mod tests {
                 let general = evaluate_with_trace_and_config(board, objective).blended;
 
                 assert_eq!(
-                    super::objective_blended_score(board, objective),
+                    super::objective_blended_score(board),
                     general,
                     "profile {profile} disagreed on {fen}",
                 );
@@ -513,10 +493,6 @@ mod tests {
         assert_eq!(plain.placement, styled.placement);
         assert_eq!(plain.tempo, styled.tempo);
         assert_eq!(weights::score(&plain), weights::score(&styled));
-        assert_eq!(
-            weights::profile_mobility_adjustment(&plain),
-            weights::profile_mobility_adjustment(&styled),
-        );
 
         for (name, value) in [
             ("king_pressure", plain.king_pressure),
@@ -681,10 +657,6 @@ mod tests {
             super::weights::score(&pieces),
             super::weights::score(&EvalFeatures::default())
         );
-        assert_ne!(
-            super::weights::profile_mobility_adjustment(&pieces),
-            super::weights::profile_mobility_adjustment(&EvalFeatures::default())
-        );
         assert_eq!(
             super::weights::attacking_style(&pieces),
             super::weights::attacking_style(&EvalFeatures::default())
@@ -700,13 +672,38 @@ mod tests {
                 + features.queen_mobility
                 + features.king_mobility
         );
-        let profiled = super::ScorePair::new(3, 2) * features.mobility
-            + super::weights::profile_mobility_adjustment(&features);
-        let explicit = super::ScorePair::new(4, 4) * features.knight_mobility
-            + super::ScorePair::new(5, 5) * features.bishop_mobility
-            + super::ScorePair::new(2, 4) * features.rook_mobility
-            + super::ScorePair::new(1, 2) * features.queen_mobility;
-        assert_eq!(profiled, explicit);
+    }
+
+    #[test]
+    fn fitted_evaluation_is_shared_without_weakening_attacking_style() {
+        for fen in [
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+            "6k1/5ppp/8/7Q/2B5/8/5PPP/6K1 w - - 0 1",
+            "8/2k5/3p4/3P4/4K3/8/8/8 w - - 0 1",
+        ] {
+            let position = Position::from_fen(fen).unwrap();
+            let board = position.board();
+            let objective = EvaluationConfig::new(MIN_AGGRESSION);
+            let reference = evaluate_with_trace_and_config(board, objective);
+            for aggression in [0, 25, 50, 75, 100] {
+                let config = EvaluationConfig::new(aggression);
+                let trace = evaluate_with_trace_and_config(board, config);
+                assert_eq!(trace.middle_game, reference.middle_game);
+                assert_eq!(trace.end_game, reference.end_game);
+                assert_eq!(
+                    evaluate_with_config(board, config.objective_scoring()),
+                    evaluate_with_config(board, objective),
+                );
+            }
+        }
+        let attacker = Position::from_fen("6k1/5ppp/8/7Q/2B5/8/5PPP/6K1 w - - 0 1").unwrap();
+        let config = EvaluationConfig::default();
+        let trace = evaluate_with_trace_and_config(attacker.board(), config);
+        assert!(trace.style_middle_game > 0);
+        assert_eq!(config.aggression(), 75);
+        assert_eq!(config.root_style_margin(), 67);
+        assert_eq!(config.max_check_extensions(), 3);
+        assert_eq!(config.quiescence_check_budget(), 2);
     }
 
     /// The curves are what the objective score reads for the four piece
@@ -1396,21 +1393,9 @@ mod tests {
             evaluate_with_trace_and_config(position.board(), EvaluationConfig::new(u8::MAX));
 
         assert_eq!(EvaluationConfig::default().aggression(), DEFAULT_AGGRESSION);
-        assert_eq!(
-            EvaluationConfig::new(MIN_AGGRESSION).mobility_profile_intensity(),
-            0
-        );
-        assert_eq!(
-            EvaluationConfig::default().mobility_profile_intensity(),
-            100
-        );
         let objective = EvaluationConfig::default().objective_scoring();
         assert_eq!(objective.aggression(), MIN_AGGRESSION);
-        assert_eq!(objective.mobility_profile_intensity(), 100);
-        assert_eq!(
-            EvaluationConfig::new(MAX_AGGRESSION).mobility_profile_intensity(),
-            0
-        );
+        assert_eq!(objective, EvaluationConfig::new(MIN_AGGRESSION));
         assert_eq!(clamped.aggression, MAX_AGGRESSION);
         assert_eq!(
             (quiet.style_middle_game_cap, quiet.style_end_game_cap),

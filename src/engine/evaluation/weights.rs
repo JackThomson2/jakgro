@@ -94,12 +94,6 @@ const QUEEN_MOBILITY: [ScorePair; 28] = [
     ScorePair::new(93, 216),
     ScorePair::new(96, 224),
 ];
-const PAWN_MOBILITY_ADJUSTMENT: ScorePair = ScorePair::new(-3, -2);
-const KNIGHT_MOBILITY_ADJUSTMENT: ScorePair = ScorePair::new(1, 2);
-const BISHOP_MOBILITY_ADJUSTMENT: ScorePair = ScorePair::new(2, 3);
-const ROOK_MOBILITY_ADJUSTMENT: ScorePair = ScorePair::new(-1, 2);
-const QUEEN_MOBILITY_ADJUSTMENT: ScorePair = ScorePair::new(-2, 0);
-const KING_MOBILITY_ADJUSTMENT: ScorePair = ScorePair::new(-3, -2);
 const BISHOP_PAIR: ScorePair = ScorePair::new(37, 55);
 const DOUBLED_PAWN: ScorePair = ScorePair::new(-10, -18);
 const ISOLATED_PAWN: ScorePair = ScorePair::new(-3, -7);
@@ -532,16 +526,6 @@ fn indexed<const N: usize>(weights: &[ScorePair; N], features: [Score; N]) -> Sc
         total = total + weights[index] * features[index];
     }
     total
-}
-
-#[inline(always)]
-pub(super) fn profile_mobility_adjustment(features: &EvalFeatures) -> ScorePair {
-    PAWN_MOBILITY_ADJUSTMENT * features.pawn_mobility
-        + KNIGHT_MOBILITY_ADJUSTMENT * features.knight_mobility
-        + BISHOP_MOBILITY_ADJUSTMENT * features.bishop_mobility
-        + ROOK_MOBILITY_ADJUSTMENT * features.rook_mobility
-        + QUEEN_MOBILITY_ADJUSTMENT * features.queen_mobility
-        + KING_MOBILITY_ADJUSTMENT * features.king_mobility
 }
 
 pub(super) fn attacking_style(features: &EvalFeatures) -> ScorePair {

@@ -6,7 +6,8 @@ pub mod tuning;
 mod weights;
 
 pub(super) use tactics::{
-    TacticalSnapshot, exchange_outcome, exchange_risk_on, style_snapshot, tactical_snapshot,
+    StyleSnapshot, TacticalSnapshot, exchange_outcome, exchange_risk_on, style_snapshot,
+    tactical_snapshot,
 };
 
 use std::ops::{Add, Mul};

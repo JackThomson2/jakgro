@@ -20,8 +20,8 @@ use super::{
 use crate::engine::Position;
 use crate::engine::evaluation::{
     EvaluationConfig, MATE_SCORE, MATE_THRESHOLD, MAX_PLY, NEG_INFINITY, POS_INFINITY, Score,
-    TacticalSnapshot, evaluate_with_config, exchange_outcome, exchange_risk_on, piece_value,
-    root_complexity_bonus, style_snapshot, tactical_snapshot,
+    StyleSnapshot, TacticalSnapshot, evaluate_with_config, exchange_outcome, exchange_risk_on,
+    piece_value, root_complexity_bonus, style_snapshot, tactical_snapshot,
 };
 use crate::engine::position::repetition_key;
 
@@ -2624,7 +2624,7 @@ fn search_root_styled(
         .score
         .saturating_sub(context.personality.root_style_margin().min(120));
     let mover = board.side_to_move();
-    let root_snapshot = tactical_snapshot(board, mover);
+    let root_snapshot = style_snapshot(board, mover);
     let mut objective_child = board.clone();
     objective_child.play_unchecked(objective_move);
     let objective_sacrifice = sacrifice_profile(board, &objective_child, mover, &objective_pv);
@@ -2676,10 +2676,14 @@ fn search_root_styled(
         child.play_unchecked(chess_move);
         let metadata = MoveMetadata::classify_with_child(board, chess_move, &child, true);
         let interest = root_interest(board, &child, metadata, context.personality);
-        let immediate = tactical_snapshot(&child, mover);
         let offered_cp = exchange_risk_on(&child, mover, chess_move.to);
-        let sacrifice_hint =
-            sacrifice_hint_score(&root_snapshot, &immediate, offered_cp, metadata.gives_check);
+        let sacrifice_hint = sacrifice_hint_score(
+            &root_snapshot,
+            &child,
+            mover,
+            offered_cp,
+            metadata.gives_check,
+        );
         seeds.push(CandidateSeed {
             chess_move,
             interest,
@@ -3119,19 +3123,21 @@ fn total_major_material(board: &Board) -> Score {
 }
 
 fn sacrifice_hint_score(
-    before: &TacticalSnapshot,
-    immediate: &TacticalSnapshot,
+    before: &StyleSnapshot,
+    child: &Board,
+    mover: Color,
     offered_cp: Score,
     gives_check: bool,
 ) -> Score {
     if offered_cp < MIN_SACRIFICE_CP {
         return 0;
     }
+    let immediate = style_snapshot(child, mover);
     offered_cp
-        + (immediate.style.attack_momentum - before.style.attack_momentum).max(0) * 4
-        + immediate.style.coordination * 20
+        + (immediate.attack_momentum - before.attack_momentum).max(0) * 4
+        + immediate.coordination * 20
         + Score::from(gives_check) * 150
-        - (immediate.style.own_king_danger - before.style.own_king_danger).max(0) * 2
+        - (immediate.own_king_danger - before.own_king_danger).max(0) * 2
 }
 
 fn select_candidate_seeds(seeds: Vec<CandidateSeed>) -> Vec<CandidateSeed> {
@@ -6977,6 +6983,59 @@ mod tests {
         assert_eq!(super::EvaluationConfig::new(0).root_style_margin(), 0);
         assert_eq!(super::EvaluationConfig::new(50).root_style_margin(), 30);
         assert_eq!(super::EvaluationConfig::new(100).root_style_margin(), 120);
+    }
+
+    #[test]
+    fn sacrifice_seed_hints_match_full_tactical_snapshots() {
+        let positions = [
+            "r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8",
+            "r1bq1rk1/ppp2ppp/2np1n2/2b1p3/2B1P3/2N2N2/PPP2PPP/R1BQ1RK1 b - - 0 8",
+            "4k3/8/p7/8/2B5/8/8/4K3 w - - 0 1",
+            "4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1",
+            "4k3/4r3/8/8/8/8/4R3/4K3 w - - 0 1",
+        ];
+        let mut offers = 0;
+        let mut non_offers = 0;
+        let mut checks = 0;
+        for fen in positions {
+            let position = Position::from_fen(fen).unwrap();
+            let board = position.board();
+            let mover = board.side_to_move();
+            let before = super::tactical_snapshot(board, mover);
+            for chess_move in generate_moves(board) {
+                let mut child = board.clone();
+                child.play_unchecked(chess_move);
+                let immediate = super::tactical_snapshot(&child, mover);
+                let offered_cp = super::exchange_risk_on(&child, mover, chess_move.to);
+                let gives_check = !child.checkers().is_empty();
+                let expected = if offered_cp < super::MIN_SACRIFICE_CP {
+                    non_offers += 1;
+                    0
+                } else {
+                    offers += 1;
+                    offered_cp
+                        + (immediate.style.attack_momentum - before.style.attack_momentum).max(0)
+                            * 4
+                        + immediate.style.coordination * 20
+                        + super::Score::from(gives_check) * 150
+                        - (immediate.style.own_king_danger - before.style.own_king_danger).max(0)
+                            * 2
+                };
+                checks += usize::from(gives_check);
+                assert_eq!(
+                    super::sacrifice_hint_score(
+                        &super::style_snapshot(board, mover),
+                        &child,
+                        mover,
+                        offered_cp,
+                        gives_check,
+                    ),
+                    expected,
+                    "{fen}: {chess_move}",
+                );
+            }
+        }
+        assert!(offers > 0 && non_offers > 0 && checks > 0);
     }
 
     #[test]

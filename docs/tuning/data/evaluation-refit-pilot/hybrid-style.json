@@ -1,0 +1,730 @@
+{
+  "categories": {
+    "anti-sacrifice": {
+      "0": {
+        "hit_rate_percent": 100.0,
+        "hits": 2,
+        "measured": 2,
+        "rated": 2
+      },
+      "100": {
+        "hit_rate_percent": 100.0,
+        "hits": 2,
+        "measured": 2,
+        "rated": 2
+      }
+    },
+    "forcing-attack": {
+      "0": {
+        "hit_rate_percent": 0.0,
+        "hits": 0,
+        "measured": 1,
+        "rated": 1
+      },
+      "100": {
+        "hit_rate_percent": 100.0,
+        "hits": 1,
+        "measured": 1,
+        "rated": 1
+      }
+    },
+    "initiative": {
+      "0": {
+        "hit_rate_percent": 50.0,
+        "hits": 1,
+        "measured": 2,
+        "rated": 2
+      },
+      "100": {
+        "hit_rate_percent": 50.0,
+        "hits": 1,
+        "measured": 2,
+        "rated": 2
+      }
+    },
+    "king-attack": {
+      "0": {
+        "hit_rate_percent": 100.0,
+        "hits": 2,
+        "measured": 2,
+        "rated": 2
+      },
+      "100": {
+        "hit_rate_percent": 100.0,
+        "hits": 2,
+        "measured": 2,
+        "rated": 2
+      }
+    },
+    "pawn-storm": {
+      "0": {
+        "hit_rate_percent": 100.0,
+        "hits": 2,
+        "measured": 2,
+        "rated": 2
+      },
+      "100": {
+        "hit_rate_percent": 100.0,
+        "hits": 2,
+        "measured": 2,
+        "rated": 2
+      }
+    },
+    "sacrifice": {
+      "0": {
+        "hit_rate_percent": 100.0,
+        "hits": 1,
+        "measured": 1,
+        "rated": 1
+      },
+      "100": {
+        "hit_rate_percent": 100.0,
+        "hits": 1,
+        "measured": 1,
+        "rated": 1
+      }
+    },
+    "safety": {
+      "0": {
+        "hit_rate_percent": 100.0,
+        "hits": 5,
+        "measured": 5,
+        "rated": 5
+      },
+      "100": {
+        "hit_rate_percent": 100.0,
+        "hits": 5,
+        "measured": 5,
+        "rated": 5
+      }
+    },
+    "simplification": {
+      "0": {
+        "hit_rate_percent": 100.0,
+        "hits": 1,
+        "measured": 1,
+        "rated": 1
+      },
+      "100": {
+        "hit_rate_percent": 0.0,
+        "hits": 0,
+        "measured": 1,
+        "rated": 1
+      }
+    }
+  },
+  "limit": {
+    "mode": "fixture-nodes"
+  },
+  "positions": [
+    {
+      "aggression": 0,
+      "bestmove": "d2d4",
+      "category": "initiative",
+      "depth": 6,
+      "elapsed_ms": 10,
+      "expected": "b1c3",
+      "id": "starting-development",
+      "nodes": 13597,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp 23",
+      "status": "FAIL"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "b1c3",
+      "category": "initiative",
+      "depth": 5,
+      "elapsed_ms": 6,
+      "expected": "b1c3",
+      "id": "starting-development",
+      "nodes": 7716,
+      "personality": {
+        "attempts": 9,
+        "completed": 7,
+        "exhausted": 2,
+        "nodes": 2585,
+        "selections": 1
+      },
+      "score": "cp 32",
+      "status": "pass"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "b1c3",
+      "category": "king-attack",
+      "depth": 6,
+      "elapsed_ms": 15,
+      "expected": "b1c3",
+      "id": "early-king-pressure",
+      "nodes": 19552,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp 24",
+      "status": "pass"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "b1c3",
+      "category": "king-attack",
+      "depth": 5,
+      "elapsed_ms": 15,
+      "expected": "b1c3",
+      "id": "early-king-pressure",
+      "nodes": 18559,
+      "personality": {
+        "attempts": 9,
+        "completed": 7,
+        "exhausted": 3,
+        "nodes": 4608,
+        "selections": 0
+      },
+      "score": "cp 37",
+      "status": "pass"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "b1c3",
+      "category": "initiative",
+      "depth": 5,
+      "elapsed_ms": 6,
+      "expected": "b1c3",
+      "id": "central-space",
+      "nodes": 7914,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp 38",
+      "status": "pass"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "b1c3",
+      "category": "initiative",
+      "depth": 4,
+      "elapsed_ms": 9,
+      "expected": "f1c4",
+      "id": "central-space",
+      "nodes": 10725,
+      "personality": {
+        "attempts": 5,
+        "completed": 2,
+        "exhausted": 3,
+        "nodes": 2248,
+        "selections": 0
+      },
+      "score": "cp 37",
+      "status": "FAIL"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "b8c6",
+      "category": "king-attack",
+      "depth": 6,
+      "elapsed_ms": 14,
+      "expected": "b8c6",
+      "id": "black-king-pressure",
+      "nodes": 18943,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp 24",
+      "status": "pass"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "b8c6",
+      "category": "king-attack",
+      "depth": 5,
+      "elapsed_ms": 15,
+      "expected": "b8c6",
+      "id": "black-king-pressure",
+      "nodes": 18825,
+      "personality": {
+        "attempts": 9,
+        "completed": 6,
+        "exhausted": 3,
+        "nodes": 4573,
+        "selections": 0
+      },
+      "score": "cp 37",
+      "status": "pass"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "e1e2",
+      "category": "safety",
+      "depth": 6,
+      "elapsed_ms": 4,
+      "expected": "e1e2",
+      "id": "tactical-safety",
+      "nodes": 13337,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp 648",
+      "status": "pass"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "e1e2",
+      "category": "safety",
+      "depth": 5,
+      "elapsed_ms": 3,
+      "expected": "e1e2",
+      "id": "tactical-safety",
+      "nodes": 9669,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 24,
+        "selections": 0
+      },
+      "score": "cp 638",
+      "status": "pass"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "a1a2",
+      "category": "safety",
+      "depth": 7,
+      "elapsed_ms": 3,
+      "expected": "a1a2",
+      "id": "defensive-safety",
+      "nodes": 10052,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp -656",
+      "status": "pass"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "a1a2",
+      "category": "safety",
+      "depth": 7,
+      "elapsed_ms": 3,
+      "expected": "a1a2",
+      "id": "defensive-safety",
+      "nodes": 11769,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp -656",
+      "status": "pass"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "c1g5",
+      "category": "forcing-attack",
+      "depth": 6,
+      "elapsed_ms": 60,
+      "expected": "c3d5",
+      "id": "open-king-gambit",
+      "nodes": 70424,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp 110",
+      "status": "FAIL"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "c1g5",
+      "category": "forcing-attack",
+      "depth": 5,
+      "elapsed_ms": 51,
+      "expected": "c1g5",
+      "id": "open-king-gambit",
+      "nodes": 56161,
+      "personality": {
+        "attempts": 7,
+        "completed": 4,
+        "exhausted": 3,
+        "nodes": 4800,
+        "selections": 0
+      },
+      "score": "cp 94",
+      "status": "pass"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "f1e1",
+      "category": "pawn-storm",
+      "depth": 5,
+      "elapsed_ms": 9,
+      "expected": "f1e1",
+      "id": "opposite-castle-storm",
+      "nodes": 13075,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp -269",
+      "status": "pass"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "b2b4",
+      "category": "pawn-storm",
+      "depth": 5,
+      "elapsed_ms": 12,
+      "expected": "b2b4",
+      "id": "opposite-castle-storm",
+      "nodes": 16026,
+      "personality": {
+        "attempts": 9,
+        "completed": 8,
+        "exhausted": 1,
+        "nodes": 3868,
+        "selections": 4
+      },
+      "score": "cp -271",
+      "status": "pass"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "d3d5",
+      "category": "safety",
+      "depth": 5,
+      "elapsed_ms": 2,
+      "expected": "d3d5",
+      "id": "hanging-queen-safety",
+      "nodes": 7382,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp 1334",
+      "status": "pass"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "d3d5",
+      "category": "safety",
+      "depth": 4,
+      "elapsed_ms": 2,
+      "expected": "d3d5",
+      "id": "hanging-queen-safety",
+      "nodes": 7167,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 2,
+        "nodes": 852,
+        "selections": 0
+      },
+      "score": "cp 1324",
+      "status": "pass"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "h5f7",
+      "category": "safety",
+      "depth": 1,
+      "elapsed_ms": 0,
+      "expected": "h5f7",
+      "id": "forcing-mate-safety",
+      "nodes": 86,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "mate 2",
+      "status": "pass"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "h5f7",
+      "category": "safety",
+      "depth": 1,
+      "elapsed_ms": 0,
+      "expected": "h5f7",
+      "id": "forcing-mate-safety",
+      "nodes": 1117,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "mate 2",
+      "status": "pass"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "f2f4",
+      "category": "pawn-storm",
+      "depth": 8,
+      "elapsed_ms": 7,
+      "expected": "f2f4",
+      "id": "kingside-pawn-storm",
+      "nodes": 14174,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp 22",
+      "status": "pass"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "f2f4",
+      "category": "pawn-storm",
+      "depth": 7,
+      "elapsed_ms": 6,
+      "expected": "f2f4",
+      "id": "kingside-pawn-storm",
+      "nodes": 11660,
+      "personality": {
+        "attempts": 14,
+        "completed": 13,
+        "exhausted": 1,
+        "nodes": 3696,
+        "selections": 0
+      },
+      "score": "cp 24",
+      "status": "pass"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "c3d5",
+      "category": "safety",
+      "depth": 7,
+      "elapsed_ms": 7,
+      "expected": "c3d5",
+      "id": "central-queen-safety",
+      "nodes": 12200,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp 1134",
+      "status": "pass"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "c3d5",
+      "category": "safety",
+      "depth": 6,
+      "elapsed_ms": 7,
+      "expected": "c3d5",
+      "id": "central-queen-safety",
+      "nodes": 11037,
+      "personality": {
+        "attempts": 6,
+        "completed": 6,
+        "exhausted": 0,
+        "nodes": 1872,
+        "selections": 0
+      },
+      "score": "cp 1129",
+      "status": "pass"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "d2d4",
+      "category": "sacrifice",
+      "depth": 6,
+      "elapsed_ms": 9,
+      "expected": "d2d4",
+      "id": "knight-c6-investment",
+      "nodes": 12301,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp -113",
+      "status": "pass"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "e5c6",
+      "category": "sacrifice",
+      "depth": 5,
+      "elapsed_ms": 10,
+      "expected": "e5c6",
+      "id": "knight-c6-investment",
+      "nodes": 12487,
+      "personality": {
+        "attempts": 8,
+        "completed": 8,
+        "exhausted": 0,
+        "nodes": 3227,
+        "selections": 1
+      },
+      "score": "cp -137",
+      "status": "pass"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "b1d2",
+      "category": "anti-sacrifice",
+      "depth": 7,
+      "elapsed_ms": 45,
+      "expected": "b1d2",
+      "id": "unsupported-greek-gift",
+      "nodes": 59994,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp 50",
+      "status": "pass"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "b1d2",
+      "category": "anti-sacrifice",
+      "depth": 6,
+      "elapsed_ms": 38,
+      "expected": "b1d2",
+      "id": "unsupported-greek-gift",
+      "nodes": 47860,
+      "personality": {
+        "attempts": 10,
+        "completed": 6,
+        "exhausted": 4,
+        "nodes": 8782,
+        "selections": 0
+      },
+      "score": "cp 46",
+      "status": "pass"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "g1h1",
+      "category": "anti-sacrifice",
+      "depth": 6,
+      "elapsed_ms": 13,
+      "expected": "g1h1",
+      "id": "unsupported-rook-f7",
+      "nodes": 19175,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp -440",
+      "status": "pass"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "g1h1",
+      "category": "anti-sacrifice",
+      "depth": 4,
+      "elapsed_ms": 9,
+      "expected": "g1h1",
+      "id": "unsupported-rook-f7",
+      "nodes": 10957,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 451,
+        "selections": 0
+      },
+      "score": "cp -449",
+      "status": "pass"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "d2d7",
+      "category": "simplification",
+      "depth": 7,
+      "elapsed_ms": 20,
+      "expected": "d2d7",
+      "id": "avoid-equal-queen-trade",
+      "nodes": 51132,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp 0",
+      "status": "pass"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "d2d7",
+      "category": "simplification",
+      "depth": 5,
+      "elapsed_ms": 26,
+      "expected": "d2e2",
+      "id": "avoid-equal-queen-trade",
+      "nodes": 66020,
+      "personality": {
+        "attempts": 6,
+        "completed": 2,
+        "exhausted": 4,
+        "nodes": 4610,
+        "selections": 0
+      },
+      "score": "cp 0",
+      "status": "FAIL"
+    }
+  ],
+  "schema_version": 1
+}

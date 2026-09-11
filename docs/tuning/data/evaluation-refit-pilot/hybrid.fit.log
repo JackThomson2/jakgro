@@ -1,0 +1,12 @@
+fit: 140541 positions (140541 training, 0 held out), K = 0.8792
+fit: lambda 0.50, 140541 of 140541 positions carrying a search score
+fit: training losses below are against the blended label and are not comparable across lambda; the held-out outcome loss is
+fit: L2 1e-6 toward the published weights, 235 of 611 features held there for fewer than 2000 observations
+fit: starting loss 0.020631 training, 0.000000 held out, 0.000000 held-out outcome
+  epoch   50: loss 0.020349
+  epoch  100: loss 0.020348
+  epoch  150: loss 0.020348
+  epoch  200: loss 0.020348
+fit: final loss    0.020348 training, 0.000000 held out, 0.000000 held-out outcome
+fit: middlegame pawn 93.4 fitted, 94 after anchoring
+fit: wrote /tmp/jakkoo-temp/session-4144808-1789126624908-0/refit-data/hybrid.fit.rs

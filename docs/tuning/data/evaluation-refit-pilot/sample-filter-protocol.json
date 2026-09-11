@@ -1,0 +1,16 @@
+{
+  "skip_plies_after_generated_opening": 16,
+  "drop_legal_en_passant_positions": true,
+  "deduplication": "first canonical occurrence after exclusions; deterministic input order",
+  "training_exclusions": [
+    "historical opening/fixture positions",
+    "development opening positions",
+    "confirmation opening positions"
+  ],
+  "development_exclusions": [
+    "historical opening/fixture positions",
+    "confirmation opening positions",
+    "retained training sample positions"
+  ],
+  "note": "Only the existing extractor plus these pre-fit filters are used; checks/promotions/ordinary captures are excluded by the extractor. Adjacent game samples are not treated as independent validation."
+}

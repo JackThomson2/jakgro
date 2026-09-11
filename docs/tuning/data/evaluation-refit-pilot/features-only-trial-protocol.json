@@ -1,0 +1,15 @@
+{
+  "name": "features-only",
+  "phase": "final additional development-only trial after the hybrid screen",
+  "reason": "Protect the well-established material and piece-square prior on this smaller corpus, instead of weakening attacking-choice checks or changing search policy.",
+  "lambda": 0.5,
+  "holdout": 0,
+  "epochs": 200,
+  "rate": 0.25,
+  "l2": 0.000001,
+  "min_observations": 2000,
+  "hold": "PAWN,KNIGHT,BISHOP,ROOK,QUEEN,KING,KNIGHT_PER_PAWN,BISHOP_PER_PAWN,ROOK_PER_PAWN,BISHOP_PAWNS_ON_COLOUR",
+  "hold_note": "The fitter can still recenter/anchor held blocks during emission; inspect the emitted values, not just optimizer holds.",
+  "confirmation_status": "unopened and unused for model selection",
+  "search_and_style_parameters": "unchanged"
+}

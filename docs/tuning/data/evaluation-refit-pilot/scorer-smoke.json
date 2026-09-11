@@ -1,0 +1,17 @@
+{
+  "positions": 2,
+  "k": 1,
+  "mse": 2.9821229449058203e-07,
+  "phase_counts_eg_mixed_mg": [
+    2,
+    0,
+    0
+  ],
+  "phase_mse": [
+    2.9821229449058203e-07,
+    null,
+    null
+  ],
+  "min_score": -1305,
+  "max_score": 1305
+}

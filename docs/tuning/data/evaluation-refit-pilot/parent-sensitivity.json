@@ -1,0 +1,238 @@
+{
+  "conservative": {
+    "checks_baseline_per_100": 11.243735,
+    "checks_candidate_per_100": 11.783273,
+    "forcing_retention_percent": 101.05537451491867,
+    "leave_one_parent_out_elo_range": [
+      3.102185878704922,
+      9.696590075674322
+    ],
+    "parents": [
+      {
+        "elo": -24.469442305550395,
+        "pairs": 64,
+        "parent": "caro-advance",
+        "score_percent": 46.484375
+      },
+      {
+        "elo": 10.86089841744591,
+        "pairs": 64,
+        "parent": "caro-classical",
+        "score_percent": 51.5625
+      },
+      {
+        "elo": 8.144513059083144,
+        "pairs": 64,
+        "parent": "french-advance",
+        "score_percent": 51.171875
+      },
+      {
+        "elo": 8.144513059083144,
+        "pairs": 64,
+        "parent": "french-exchange",
+        "score_percent": 51.171875
+      },
+      {
+        "elo": 5.429122875709566,
+        "pairs": 64,
+        "parent": "french-tarrasch",
+        "score_percent": 50.78125
+      },
+      {
+        "elo": 13.578611811075142,
+        "pairs": 64,
+        "parent": "modern",
+        "score_percent": 51.953125
+      },
+      {
+        "elo": 0.0,
+        "pairs": 64,
+        "parent": "owen",
+        "score_percent": 50.0
+      },
+      {
+        "elo": 21.74306492903707,
+        "pairs": 64,
+        "parent": "pirc",
+        "score_percent": 53.125
+      }
+    ]
+  },
+  "features-only": {
+    "checks_baseline_per_100": 11.313125,
+    "checks_candidate_per_100": 12.157833,
+    "forcing_retention_percent": 101.99376875421366,
+    "leave_one_parent_out_elo_range": [
+      3.4899837493907535,
+      10.86089841744591
+    ],
+    "parents": [
+      {
+        "elo": 19.019359271422424,
+        "pairs": 64,
+        "parent": "caro-advance",
+        "score_percent": 52.734375
+      },
+      {
+        "elo": 2.714395737316835,
+        "pairs": 64,
+        "parent": "caro-classical",
+        "score_percent": 50.390625
+      },
+      {
+        "elo": 13.578611811075142,
+        "pairs": 64,
+        "parent": "french-advance",
+        "score_percent": 51.953125
+      },
+      {
+        "elo": 8.144513059083144,
+        "pairs": 64,
+        "parent": "french-exchange",
+        "score_percent": 51.171875
+      },
+      {
+        "elo": 5.429122875709566,
+        "pairs": 64,
+        "parent": "french-tarrasch",
+        "score_percent": 50.78125
+      },
+      {
+        "elo": -5.429122875709548,
+        "pairs": 64,
+        "parent": "modern",
+        "score_percent": 49.21875
+      },
+      {
+        "elo": 32.668018580527814,
+        "pairs": 64,
+        "parent": "owen",
+        "score_percent": 54.6875
+      },
+      {
+        "elo": -19.01935927142242,
+        "pairs": 64,
+        "parent": "pirc",
+        "score_percent": 47.265625
+      }
+    ]
+  },
+  "hybrid": {
+    "checks_baseline_per_100": 12.094107,
+    "checks_candidate_per_100": 11.936561,
+    "forcing_retention_percent": 99.85596673554292,
+    "leave_one_parent_out_elo_range": [
+      5.816987424380124,
+      12.02545067187312
+    ],
+    "parents": [
+      {
+        "elo": 43.657787770027234,
+        "pairs": 64,
+        "parent": "caro-advance",
+        "score_percent": 56.25
+      },
+      {
+        "elo": 5.429122875709566,
+        "pairs": 64,
+        "parent": "caro-classical",
+        "score_percent": 50.78125
+      },
+      {
+        "elo": 0.0,
+        "pairs": 64,
+        "parent": "french-advance",
+        "score_percent": 50.0
+      },
+      {
+        "elo": 10.86089841744591,
+        "pairs": 64,
+        "parent": "french-exchange",
+        "score_percent": 51.5625
+      },
+      {
+        "elo": 5.429122875709566,
+        "pairs": 64,
+        "parent": "french-tarrasch",
+        "score_percent": 50.78125
+      },
+      {
+        "elo": 5.429122875709566,
+        "pairs": 64,
+        "parent": "modern",
+        "score_percent": 50.78125
+      },
+      {
+        "elo": 13.578611811075142,
+        "pairs": 64,
+        "parent": "owen",
+        "score_percent": 51.953125
+      },
+      {
+        "elo": 0.0,
+        "pairs": 64,
+        "parent": "pirc",
+        "score_percent": 50.0
+      }
+    ]
+  },
+  "weaker-prior": {
+    "checks_baseline_per_100": 11.079183,
+    "checks_candidate_per_100": 11.567229,
+    "forcing_retention_percent": 99.62454049415098,
+    "leave_one_parent_out_elo_range": [
+      -0.38776309127203124,
+      8.144513059083144
+    ],
+    "parents": [
+      {
+        "elo": -2.7143957373168446,
+        "pairs": 64,
+        "parent": "caro-advance",
+        "score_percent": 49.609375
+      },
+      {
+        "elo": 13.578611811075142,
+        "pairs": 64,
+        "parent": "caro-classical",
+        "score_percent": 51.953125
+      },
+      {
+        "elo": -29.931575403173376,
+        "pairs": 64,
+        "parent": "french-advance",
+        "score_percent": 45.703125
+      },
+      {
+        "elo": 29.931575403173373,
+        "pairs": 64,
+        "parent": "french-exchange",
+        "score_percent": 54.296875
+      },
+      {
+        "elo": 27.198831638044446,
+        "pairs": 64,
+        "parent": "french-tarrasch",
+        "score_percent": 53.90625
+      },
+      {
+        "elo": -13.578611811075142,
+        "pairs": 64,
+        "parent": "modern",
+        "score_percent": 48.046875
+      },
+      {
+        "elo": -13.578611811075142,
+        "pairs": 64,
+        "parent": "owen",
+        "score_percent": 48.046875
+      },
+      {
+        "elo": 16.297987076023777,
+        "pairs": 64,
+        "parent": "pirc",
+        "score_percent": 52.34375
+      }
+    ]
+  }
+}

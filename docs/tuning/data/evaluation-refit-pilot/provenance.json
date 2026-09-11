@@ -1,0 +1,52 @@
+{
+  "base_revision": "8b00cd00323b1c9088675225b7134386edf3be3a",
+  "baseline_build": "cargo build --release --locked --bin jakgro --bin selfplay; cargo build --release --locked --features tuning --bin tune",
+  "binary_sha256": {
+    "refit-base": "12820702d3341ef0c12cc32b12d5752d027d4ab07cbb7bc9a68b43b214e53c60",
+    "refit-books": "1d1d77e57a15779a84d98b4c5f6022d0d62d3be9873ee1715c78d98db770e554",
+    "refit-conservative": "38053efa552e484dcd724e8a4a0cdf7a322ef89deace7ddf82bb40503c524b63",
+    "refit-features-only": "690aad78845d5c2a8fccaaad6ec71d14aa782fc2ab87cfce13dbe7a67fa152cd",
+    "refit-hybrid": "35a3191bfb6ef832e9a3250424060df0fcc2dc5c4aa894ba6390013c970ad363",
+    "refit-score": "ee5396d423f33995a38bfdfcb681e3e71a6304f61b0b8b6bef27ff48b18ccdec",
+    "refit-tune-base": "9ad2cb97a430bb56d6edad1290d5502cb9932cc97cb37de088c3ef58cc72b3a5",
+    "refit-weaker-prior": "b05ac79a695e4e42dae1dea29a445f3bf911054151704af56f7da40b075d9628"
+  },
+  "confirmation_played": false,
+  "dependency_revision": "7e93cdea094a50c1574081ceb6e7b269ad0234ee",
+  "host": "Linux x86_64, 96 online logical CPUs",
+  "initial_variants": [
+    "conservative",
+    "weaker-prior"
+  ],
+  "limitations": [
+    "No independent confirmation match was run",
+    "Development match intervals are exploratory after model selection",
+    "The old model was trained on about 1.84M positions; this new corpus is smaller",
+    "Parent seeds are disjoint in this update, not historically unseen opening families",
+    "Quiet random prefixes are legal, not guaranteed strategically balanced",
+    "Same-engine data-generation match Elo is not a strength measurement",
+    "Existing extract uses first occurrence of a full FEN; subsequent canonical filtering retains first occurrence",
+    "Fit support counts are not independent game counts or phase-specific support",
+    "Shared-host fixed-time play is not bitwise reproducible"
+  ],
+  "original_source_sha256": {
+    "src/engine/evaluation/placement.rs": "b31d3b29e8583335f3006d2a695b4992ce32a7c628530683ed3018c20ee763c2",
+    "src/engine/evaluation/weights.rs": "73234f11c4bbf9f2009381a26031db41f949b20f626a5d4f9a42151ee499ab56"
+  },
+  "retained_engine_change": false,
+  "retained_fixture_change": false,
+  "subsequent_development_only_variants": [
+    "hybrid",
+    "features-only"
+  ],
+  "toolchain": "Rust/Cargo 1.88.0",
+  "validation": {
+    "canonicalization_smoke": "legal/pinned/ineffective en passant and counters checked",
+    "features_only_tuning_library": "243 passed",
+    "filter_smoke": "forbidden positions, canonical duplicates and legal EP checked",
+    "hybrid_tuning_library": "243 passed",
+    "python_splice_and_acceptance_measurement": "18 passed",
+    "source_and_emitted_weight_vectors": "All 611 MG/EG pairs compared equal for every applied candidate",
+    "weaker_prior_features_test": "187 passed, one cold/warm TT result test failed; 108 not run after fail-fast"
+  }
+}

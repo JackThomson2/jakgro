@@ -1,0 +1,204 @@
+{
+  "categories": {
+    "anti-sacrifice": {
+      "0": {
+        "hit_rate_percent": 100.0,
+        "hits": 2,
+        "measured": 2,
+        "rated": 2
+      },
+      "100": {
+        "hit_rate_percent": 50.0,
+        "hits": 1,
+        "measured": 2,
+        "rated": 2
+      }
+    },
+    "sacrifice": {
+      "0": {
+        "hit_rate_percent": 100.0,
+        "hits": 1,
+        "measured": 1,
+        "rated": 1
+      },
+      "100": {
+        "hit_rate_percent": 100.0,
+        "hits": 1,
+        "measured": 1,
+        "rated": 1
+      }
+    },
+    "safety": {
+      "0": {
+        "hit_rate_percent": 100.0,
+        "hits": 1,
+        "measured": 1,
+        "rated": 1
+      },
+      "100": {
+        "hit_rate_percent": 100.0,
+        "hits": 1,
+        "measured": 1,
+        "rated": 1
+      }
+    }
+  },
+  "limit": {
+    "mode": "fixture-nodes"
+  },
+  "positions": [
+    {
+      "aggression": 0,
+      "bestmove": "d2d4",
+      "category": "sacrifice",
+      "depth": 6,
+      "elapsed_ms": 18,
+      "expected": "d2d4",
+      "id": "gate-knight-c6-investment",
+      "nodes": 13801,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp -115",
+      "status": "pass"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "e5c6",
+      "category": "sacrifice",
+      "depth": 5,
+      "elapsed_ms": 20,
+      "expected": "e5c6",
+      "id": "gate-knight-c6-investment",
+      "nodes": 12532,
+      "personality": {
+        "attempts": 8,
+        "completed": 8,
+        "exhausted": 0,
+        "nodes": 3549,
+        "selections": 1
+      },
+      "score": "cp -138",
+      "status": "pass"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "b1d2",
+      "category": "anti-sacrifice",
+      "depth": 7,
+      "elapsed_ms": 84,
+      "expected": "b1d2",
+      "id": "gate-unsupported-greek-gift",
+      "nodes": 58376,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp 58",
+      "status": "pass"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "h2h3",
+      "category": "anti-sacrifice",
+      "depth": 6,
+      "elapsed_ms": 100,
+      "expected": "b1d2",
+      "id": "gate-unsupported-greek-gift",
+      "nodes": 58261,
+      "personality": {
+        "attempts": 11,
+        "completed": 7,
+        "exhausted": 5,
+        "nodes": 8909,
+        "selections": 0
+      },
+      "score": "cp 52",
+      "status": "FAIL"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "g1h1",
+      "category": "anti-sacrifice",
+      "depth": 6,
+      "elapsed_ms": 26,
+      "expected": "g1h1",
+      "id": "gate-unsupported-rook-f7",
+      "nodes": 19761,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "cp -469",
+      "status": "pass"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "g1h1",
+      "category": "anti-sacrifice",
+      "depth": 4,
+      "elapsed_ms": 18,
+      "expected": "g1h1",
+      "id": "gate-unsupported-rook-f7",
+      "nodes": 11927,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 1055,
+        "selections": 0
+      },
+      "score": "cp -457",
+      "status": "pass"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "h5f7",
+      "category": "safety",
+      "depth": 1,
+      "elapsed_ms": 0,
+      "expected": "h5f7",
+      "id": "gate-forcing-mate-safety",
+      "nodes": 84,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "mate 2",
+      "status": "pass"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "h5f7",
+      "category": "safety",
+      "depth": 1,
+      "elapsed_ms": 1,
+      "expected": "h5f7",
+      "id": "gate-forcing-mate-safety",
+      "nodes": 1164,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "score": "mate 2",
+      "status": "pass"
+    }
+  ],
+  "schema_version": 1
+}

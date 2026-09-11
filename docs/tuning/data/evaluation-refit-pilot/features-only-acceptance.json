@@ -1,0 +1,1045 @@
+{
+  "gates": {
+    "controls_preserved": {
+      "failed_positions": [
+        "standard-unsupported-greek-gift"
+      ],
+      "passed": false
+    },
+    "expected_moves": {
+      "failed_positions": [
+        "standard-central-space",
+        "standard-open-king-gambit",
+        "standard-opposite-castle-storm",
+        "standard-knight-c6-investment",
+        "standard-unsupported-greek-gift",
+        "standard-avoid-equal-queen-trade"
+      ],
+      "passed": false
+    },
+    "root_loss": {
+      "failed_positions": [
+        "standard-unsupported-greek-gift"
+      ],
+      "passed": false
+    }
+  },
+  "inputs": {
+    "engine": {
+      "path": "/tmp/jakkoo-temp/session-4144808-1789126624908-0/refit-features-only",
+      "sha256": "690aad78845d5c2a8fccaaad6ec71d14aa782fc2ab87cfce13dbe7a67fa152cd"
+    },
+    "suite": {
+      "path": "tests/data/standard-acceptance.epd",
+      "sha256": "115b066bf69e0828c5421840b77ad13b676405dfceb5ecfff24dd96c2a6059f4"
+    }
+  },
+  "passed": false,
+  "positions": [
+    {
+      "category": "initiative",
+      "expected_moves_passed": false,
+      "gate": "personality",
+      "id": "standard-central-space",
+      "maximum_loss_cp": 45,
+      "motif": "initiative",
+      "nodes": 20000,
+      "objective": {
+        "allowed_moves": [
+          "b1c3"
+        ],
+        "bestmove": "b1c3",
+        "depth": 6,
+        "nodes": 8270,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "cp 22",
+        "score_cp": 22
+      },
+      "passed": false,
+      "profiles": {
+        "0": {
+          "bestmove": "b1c3",
+          "depth": 5,
+          "expected": [
+            "b1c3"
+          ],
+          "expected_hit": true,
+          "nodes": 10955,
+          "personality": {
+            "attempts": 0,
+            "completed": 0,
+            "exhausted": 0,
+            "nodes": 0,
+            "selections": 0
+          },
+          "score": "cp 32",
+          "score_cp": 32
+        },
+        "100": {
+          "bestmove": "b1c3",
+          "depth": 4,
+          "expected": [
+            "f1c4"
+          ],
+          "expected_hit": false,
+          "nodes": 10723,
+          "personality": {
+            "attempts": 5,
+            "completed": 2,
+            "exhausted": 3,
+            "nodes": 2248,
+            "selections": 0
+          },
+          "score": "cp 34",
+          "score_cp": 34
+        },
+        "75": {
+          "bestmove": "b1c3",
+          "depth": 4,
+          "expected": [
+            "b1c3",
+            "f1c4"
+          ],
+          "expected_hit": true,
+          "nodes": 6531,
+          "personality": {
+            "attempts": 5,
+            "completed": 4,
+            "exhausted": 1,
+            "nodes": 1981,
+            "selections": 0
+          },
+          "score": "cp 22",
+          "score_cp": 22
+        }
+      },
+      "root_loss_cp": 0,
+      "root_loss_passed": true,
+      "selected_profile": 75,
+      "selected_under_objective": {
+        "bestmove": "b1c3",
+        "depth": 6,
+        "nodes": 8270,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "cp 22",
+        "score_cp": 22
+      }
+    },
+    {
+      "category": "safety",
+      "expected_moves_passed": true,
+      "gate": "control",
+      "id": "standard-tactical-safety",
+      "maximum_loss_cp": 0,
+      "motif": "safety",
+      "nodes": 20000,
+      "objective": {
+        "allowed_moves": [
+          "e1e2"
+        ],
+        "bestmove": "e1e2",
+        "depth": 6,
+        "nodes": 13817,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "cp 644",
+        "score_cp": 644
+      },
+      "passed": true,
+      "profiles": {
+        "0": {
+          "bestmove": "e1e2",
+          "depth": 6,
+          "expected": [
+            "e1e2"
+          ],
+          "expected_hit": true,
+          "nodes": 13853,
+          "personality": {
+            "attempts": 0,
+            "completed": 0,
+            "exhausted": 0,
+            "nodes": 0,
+            "selections": 0
+          },
+          "score": "cp 644",
+          "score_cp": 644
+        },
+        "100": {
+          "bestmove": "e1e2",
+          "depth": 5,
+          "expected": [
+            "e1e2"
+          ],
+          "expected_hit": true,
+          "nodes": 9422,
+          "personality": {
+            "attempts": 0,
+            "completed": 0,
+            "exhausted": 0,
+            "nodes": 24,
+            "selections": 0
+          },
+          "score": "cp 634",
+          "score_cp": 634
+        },
+        "75": {
+          "bestmove": "e1e2",
+          "depth": 6,
+          "expected": [
+            "e1e2"
+          ],
+          "expected_hit": true,
+          "nodes": 16645,
+          "personality": {
+            "attempts": 0,
+            "completed": 0,
+            "exhausted": 0,
+            "nodes": 30,
+            "selections": 0
+          },
+          "score": "cp 644",
+          "score_cp": 644
+        }
+      },
+      "root_loss_cp": 0,
+      "root_loss_passed": true,
+      "selected_profile": 75,
+      "selected_under_objective": {
+        "bestmove": "e1e2",
+        "depth": 6,
+        "nodes": 13817,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "cp 644",
+        "score_cp": 644
+      }
+    },
+    {
+      "category": "safety",
+      "expected_moves_passed": true,
+      "gate": "control",
+      "id": "standard-defensive-safety",
+      "maximum_loss_cp": 0,
+      "motif": "safety",
+      "nodes": 20000,
+      "objective": {
+        "allowed_moves": [
+          "a1a2"
+        ],
+        "bestmove": "a1a2",
+        "depth": 7,
+        "nodes": 10261,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "cp -651",
+        "score_cp": -651
+      },
+      "passed": true,
+      "profiles": {
+        "0": {
+          "bestmove": "a1a2",
+          "depth": 7,
+          "expected": [
+            "a1a2"
+          ],
+          "expected_hit": true,
+          "nodes": 10261,
+          "personality": {
+            "attempts": 0,
+            "completed": 0,
+            "exhausted": 0,
+            "nodes": 0,
+            "selections": 0
+          },
+          "score": "cp -651",
+          "score_cp": -651
+        },
+        "100": {
+          "bestmove": "a1a2",
+          "depth": 7,
+          "expected": [
+            "a1a2"
+          ],
+          "expected_hit": true,
+          "nodes": 11838,
+          "personality": {
+            "attempts": 0,
+            "completed": 0,
+            "exhausted": 0,
+            "nodes": 0,
+            "selections": 0
+          },
+          "score": "cp -651",
+          "score_cp": -651
+        },
+        "75": {
+          "bestmove": "a1a2",
+          "depth": 7,
+          "expected": [
+            "a1a2"
+          ],
+          "expected_hit": true,
+          "nodes": 10416,
+          "personality": {
+            "attempts": 0,
+            "completed": 0,
+            "exhausted": 0,
+            "nodes": 0,
+            "selections": 0
+          },
+          "score": "cp -651",
+          "score_cp": -651
+        }
+      },
+      "root_loss_cp": 0,
+      "root_loss_passed": true,
+      "selected_profile": 75,
+      "selected_under_objective": {
+        "bestmove": "a1a2",
+        "depth": 7,
+        "nodes": 10261,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "cp -651",
+        "score_cp": -651
+      }
+    },
+    {
+      "category": "forcing-attack",
+      "expected_moves_passed": false,
+      "gate": "personality",
+      "id": "standard-open-king-gambit",
+      "maximum_loss_cp": 45,
+      "motif": "forcing-attack",
+      "nodes": 100000,
+      "objective": {
+        "allowed_moves": [
+          "c3d5"
+        ],
+        "bestmove": "c3d5",
+        "depth": 8,
+        "nodes": 53866,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "cp 88",
+        "score_cp": 88
+      },
+      "passed": false,
+      "profiles": {
+        "0": {
+          "bestmove": "c3d5",
+          "depth": 6,
+          "expected": [
+            "c3d5"
+          ],
+          "expected_hit": true,
+          "nodes": 42630,
+          "personality": {
+            "attempts": 0,
+            "completed": 0,
+            "exhausted": 0,
+            "nodes": 0,
+            "selections": 0
+          },
+          "score": "cp 104",
+          "score_cp": 104
+        },
+        "100": {
+          "bestmove": "h2h3",
+          "depth": 5,
+          "expected": [
+            "c1g5"
+          ],
+          "expected_hit": false,
+          "nodes": 54228,
+          "personality": {
+            "attempts": 4,
+            "completed": 4,
+            "exhausted": 3,
+            "nodes": 4714,
+            "selections": 0
+          },
+          "score": "cp 93",
+          "score_cp": 93
+        },
+        "75": {
+          "bestmove": "h2h3",
+          "depth": 5,
+          "expected": [
+            "c1g5",
+            "c3d5"
+          ],
+          "expected_hit": false,
+          "nodes": 34494,
+          "personality": {
+            "attempts": 6,
+            "completed": 6,
+            "exhausted": 1,
+            "nodes": 4342,
+            "selections": 0
+          },
+          "score": "cp 94",
+          "score_cp": 94
+        }
+      },
+      "root_loss_cp": 0,
+      "root_loss_passed": true,
+      "selected_profile": 75,
+      "selected_under_objective": {
+        "bestmove": "h2h3",
+        "depth": 7,
+        "nodes": 48845,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "cp 91",
+        "score_cp": 91
+      }
+    },
+    {
+      "category": "pawn-storm",
+      "expected_moves_passed": false,
+      "gate": "personality",
+      "id": "standard-opposite-castle-storm",
+      "maximum_loss_cp": 45,
+      "motif": "pawn-storm",
+      "nodes": 20000,
+      "objective": {
+        "allowed_moves": [
+          "f1e1"
+        ],
+        "bestmove": "f1e1",
+        "depth": 7,
+        "nodes": 19899,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "cp -271",
+        "score_cp": -271
+      },
+      "passed": false,
+      "profiles": {
+        "0": {
+          "bestmove": "h2h3",
+          "depth": 5,
+          "expected": [
+            "f1e1"
+          ],
+          "expected_hit": false,
+          "nodes": 10407,
+          "personality": {
+            "attempts": 0,
+            "completed": 0,
+            "exhausted": 0,
+            "nodes": 0,
+            "selections": 0
+          },
+          "score": "cp -261",
+          "score_cp": -261
+        },
+        "100": {
+          "bestmove": "b2b4",
+          "depth": 5,
+          "expected": [
+            "b2b4"
+          ],
+          "expected_hit": true,
+          "nodes": 15404,
+          "personality": {
+            "attempts": 9,
+            "completed": 8,
+            "exhausted": 1,
+            "nodes": 4003,
+            "selections": 4
+          },
+          "score": "cp -262",
+          "score_cp": -262
+        },
+        "75": {
+          "bestmove": "d2b3",
+          "depth": 5,
+          "expected": [
+            "b2b4",
+            "f3e5"
+          ],
+          "expected_hit": false,
+          "nodes": 17916,
+          "personality": {
+            "attempts": 9,
+            "completed": 7,
+            "exhausted": 2,
+            "nodes": 4317,
+            "selections": 0
+          },
+          "score": "cp -246",
+          "score_cp": -246
+        }
+      },
+      "root_loss_cp": 0,
+      "root_loss_passed": true,
+      "selected_profile": 75,
+      "selected_under_objective": {
+        "bestmove": "d2b3",
+        "depth": 6,
+        "nodes": 12194,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "cp -253",
+        "score_cp": -253
+      }
+    },
+    {
+      "category": "safety",
+      "expected_moves_passed": true,
+      "gate": "control",
+      "id": "standard-forcing-mate-safety",
+      "maximum_loss_cp": 0,
+      "motif": "safety",
+      "nodes": 20000,
+      "objective": {
+        "allowed_moves": [
+          "h5f7"
+        ],
+        "bestmove": "h5f7",
+        "depth": 1,
+        "nodes": 3,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "mate 2",
+        "score_cp": 99998
+      },
+      "passed": true,
+      "profiles": {
+        "0": {
+          "bestmove": "h5f7",
+          "depth": 1,
+          "expected": [
+            "h5f7"
+          ],
+          "expected_hit": true,
+          "nodes": 86,
+          "personality": {
+            "attempts": 0,
+            "completed": 0,
+            "exhausted": 0,
+            "nodes": 0,
+            "selections": 0
+          },
+          "score": "mate 2",
+          "score_cp": 99998
+        },
+        "100": {
+          "bestmove": "h5f7",
+          "depth": 1,
+          "expected": [
+            "h5f7"
+          ],
+          "expected_hit": true,
+          "nodes": 1121,
+          "personality": {
+            "attempts": 0,
+            "completed": 0,
+            "exhausted": 0,
+            "nodes": 0,
+            "selections": 0
+          },
+          "score": "mate 2",
+          "score_cp": 99998
+        },
+        "75": {
+          "bestmove": "h5f7",
+          "depth": 1,
+          "expected": [
+            "h5f7"
+          ],
+          "expected_hit": true,
+          "nodes": 86,
+          "personality": {
+            "attempts": 0,
+            "completed": 0,
+            "exhausted": 0,
+            "nodes": 0,
+            "selections": 0
+          },
+          "score": "mate 2",
+          "score_cp": 99998
+        }
+      },
+      "root_loss_cp": 0,
+      "root_loss_passed": true,
+      "selected_profile": 75,
+      "selected_under_objective": {
+        "bestmove": "h5f7",
+        "depth": 1,
+        "nodes": 3,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "mate 2",
+        "score_cp": 99998
+      }
+    },
+    {
+      "category": "sacrifice",
+      "expected_moves_passed": false,
+      "gate": "personality",
+      "id": "standard-knight-c6-investment",
+      "maximum_loss_cp": 67,
+      "motif": "sacrifice",
+      "nodes": 20000,
+      "objective": {
+        "allowed_moves": [
+          "d2d4"
+        ],
+        "bestmove": "d2d4",
+        "depth": 6,
+        "nodes": 11117,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "cp -113",
+        "score_cp": -113
+      },
+      "passed": false,
+      "profiles": {
+        "0": {
+          "bestmove": "d2d4",
+          "depth": 6,
+          "expected": [
+            "d2d4"
+          ],
+          "expected_hit": true,
+          "nodes": 16048,
+          "personality": {
+            "attempts": 0,
+            "completed": 0,
+            "exhausted": 0,
+            "nodes": 0,
+            "selections": 0
+          },
+          "score": "cp -113",
+          "score_cp": -113
+        },
+        "100": {
+          "bestmove": "d2d4",
+          "depth": 5,
+          "expected": [
+            "e5c6"
+          ],
+          "expected_hit": false,
+          "nodes": 13678,
+          "personality": {
+            "attempts": 8,
+            "completed": 7,
+            "exhausted": 1,
+            "nodes": 3608,
+            "selections": 0
+          },
+          "score": "cp -114",
+          "score_cp": -114
+        },
+        "75": {
+          "bestmove": "d2d4",
+          "depth": 5,
+          "expected": [
+            "e5c6"
+          ],
+          "expected_hit": false,
+          "nodes": 11382,
+          "personality": {
+            "attempts": 8,
+            "completed": 8,
+            "exhausted": 0,
+            "nodes": 2387,
+            "selections": 0
+          },
+          "score": "cp -114",
+          "score_cp": -114
+        }
+      },
+      "root_loss_cp": 0,
+      "root_loss_passed": true,
+      "selected_profile": 75,
+      "selected_under_objective": {
+        "bestmove": "d2d4",
+        "depth": 6,
+        "nodes": 11117,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "cp -113",
+        "score_cp": -113
+      }
+    },
+    {
+      "category": "anti-sacrifice",
+      "expected_moves_passed": false,
+      "gate": "control",
+      "id": "standard-unsupported-greek-gift",
+      "maximum_loss_cp": 1,
+      "motif": "anti-sacrifice",
+      "nodes": 100000,
+      "objective": {
+        "allowed_moves": [
+          "b1d2"
+        ],
+        "bestmove": "b1d2",
+        "depth": 9,
+        "nodes": 80226,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "cp 60",
+        "score_cp": 60
+      },
+      "passed": false,
+      "profiles": {
+        "0": {
+          "bestmove": "b1d2",
+          "depth": 7,
+          "expected": [
+            "b1d2"
+          ],
+          "expected_hit": true,
+          "nodes": 95630,
+          "personality": {
+            "attempts": 0,
+            "completed": 0,
+            "exhausted": 0,
+            "nodes": 0,
+            "selections": 0
+          },
+          "score": "cp 56",
+          "score_cp": 56
+        },
+        "100": {
+          "bestmove": "b1d2",
+          "depth": 6,
+          "expected": [
+            "b1d2"
+          ],
+          "expected_hit": true,
+          "nodes": 49523,
+          "personality": {
+            "attempts": 10,
+            "completed": 6,
+            "exhausted": 4,
+            "nodes": 8784,
+            "selections": 0
+          },
+          "score": "cp 52",
+          "score_cp": 52
+        },
+        "75": {
+          "bestmove": "c1f4",
+          "depth": 7,
+          "expected": [
+            "b1d2",
+            "f1e1"
+          ],
+          "expected_hit": false,
+          "nodes": 92152,
+          "personality": {
+            "attempts": 11,
+            "completed": 8,
+            "exhausted": 3,
+            "nodes": 10530,
+            "selections": 0
+          },
+          "score": "cp 50",
+          "score_cp": 50
+        }
+      },
+      "root_loss_cp": 3,
+      "root_loss_passed": false,
+      "selected_profile": 75,
+      "selected_under_objective": {
+        "bestmove": "c1f4",
+        "depth": 8,
+        "nodes": 44739,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "cp 57",
+        "score_cp": 57
+      }
+    },
+    {
+      "category": "anti-sacrifice",
+      "expected_moves_passed": true,
+      "gate": "control",
+      "id": "standard-unsupported-rook-f7",
+      "maximum_loss_cp": 0,
+      "motif": "anti-sacrifice",
+      "nodes": 20000,
+      "objective": {
+        "allowed_moves": [
+          "g1h1"
+        ],
+        "bestmove": "g1h1",
+        "depth": 6,
+        "nodes": 18688,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "cp -431",
+        "score_cp": -431
+      },
+      "passed": true,
+      "profiles": {
+        "0": {
+          "bestmove": "g1h1",
+          "depth": 6,
+          "expected": [
+            "g1h1"
+          ],
+          "expected_hit": true,
+          "nodes": 19846,
+          "personality": {
+            "attempts": 0,
+            "completed": 0,
+            "exhausted": 0,
+            "nodes": 0,
+            "selections": 0
+          },
+          "score": "cp -431",
+          "score_cp": -431
+        },
+        "100": {
+          "bestmove": "g1h1",
+          "depth": 5,
+          "expected": [
+            "g1h1"
+          ],
+          "expected_hit": true,
+          "nodes": 20000,
+          "personality": {
+            "attempts": 0,
+            "completed": 0,
+            "exhausted": 0,
+            "nodes": 793,
+            "selections": 0
+          },
+          "score": "cp -455",
+          "score_cp": -455
+        },
+        "75": {
+          "bestmove": "g1h1",
+          "depth": 5,
+          "expected": [
+            "g1h1"
+          ],
+          "expected_hit": true,
+          "nodes": 11635,
+          "personality": {
+            "attempts": 0,
+            "completed": 0,
+            "exhausted": 0,
+            "nodes": 193,
+            "selections": 0
+          },
+          "score": "cp -455",
+          "score_cp": -455
+        }
+      },
+      "root_loss_cp": 0,
+      "root_loss_passed": true,
+      "selected_profile": 75,
+      "selected_under_objective": {
+        "bestmove": "g1h1",
+        "depth": 6,
+        "nodes": 18688,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "cp -431",
+        "score_cp": -431
+      }
+    },
+    {
+      "category": "simplification",
+      "expected_moves_passed": false,
+      "gate": "personality",
+      "id": "standard-avoid-equal-queen-trade",
+      "maximum_loss_cp": 45,
+      "motif": "simplification",
+      "nodes": 100000,
+      "objective": {
+        "allowed_moves": [
+          "d2d7"
+        ],
+        "bestmove": "d2d7",
+        "depth": 30,
+        "nodes": 79296,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "cp 0",
+        "score_cp": 0
+      },
+      "passed": false,
+      "profiles": {
+        "0": {
+          "bestmove": "d2d7",
+          "depth": 7,
+          "expected": [
+            "d2d7"
+          ],
+          "expected_hit": true,
+          "nodes": 46043,
+          "personality": {
+            "attempts": 0,
+            "completed": 0,
+            "exhausted": 0,
+            "nodes": 0,
+            "selections": 0
+          },
+          "score": "cp 0",
+          "score_cp": 0
+        },
+        "100": {
+          "bestmove": "d2d7",
+          "depth": 5,
+          "expected": [
+            "d2e2"
+          ],
+          "expected_hit": false,
+          "nodes": 58638,
+          "personality": {
+            "attempts": 6,
+            "completed": 2,
+            "exhausted": 4,
+            "nodes": 4610,
+            "selections": 0
+          },
+          "score": "cp 0",
+          "score_cp": 0
+        },
+        "75": {
+          "bestmove": "d2e2",
+          "depth": 7,
+          "expected": [
+            "d2e2"
+          ],
+          "expected_hit": true,
+          "nodes": 94100,
+          "personality": {
+            "attempts": 12,
+            "completed": 12,
+            "exhausted": 0,
+            "nodes": 7087,
+            "selections": 1
+          },
+          "score": "cp 0",
+          "score_cp": 0
+        }
+      },
+      "root_loss_cp": 0,
+      "root_loss_passed": true,
+      "selected_profile": 75,
+      "selected_under_objective": {
+        "bestmove": "d2e2",
+        "depth": 9,
+        "nodes": 70864,
+        "personality": {
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "nodes": 0,
+          "selections": 0
+        },
+        "score": "cp 0",
+        "score_cp": 0
+      }
+    }
+  ],
+  "schema_version": 1
+}

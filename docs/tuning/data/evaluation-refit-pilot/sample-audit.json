@@ -1,0 +1,24 @@
+{
+  "development": {
+    "dropped": {
+      "duplicate_position": 926,
+      "forbidden_position": 12,
+      "legal_en_passant": 20
+    },
+    "raw_samples": 18335,
+    "raw_sha256": "281eb1f41724a0f18d6faacae9f44282f87738c345a62f7239a5db49e6e51626",
+    "retained_samples": 17377,
+    "retained_sha256": "82d56b6f45fffffc26819f1a9557997ed29b6cc053640c6d808f6e610d433c07"
+  },
+  "training": {
+    "dropped": {
+      "duplicate_position": 7623,
+      "forbidden_position": 0,
+      "legal_en_passant": 204
+    },
+    "raw_samples": 148368,
+    "raw_sha256": "fbd6f28219840900c40dc072c66f38ea64169a1ba72eb16f9633fc1a8b1a7728",
+    "retained_samples": 140541,
+    "retained_sha256": "9db11ac0ea2122bead5d906234d9fcee08d9b0a3398cac5dfdf3bd48d8cfb675"
+  }
+}

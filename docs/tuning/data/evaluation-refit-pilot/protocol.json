@@ -1,0 +1,59 @@
+{
+  "base_revision": "8b00cd00323b1c9088675225b7134386edf3be3a",
+  "collision_rule": "Preserve frozen validation books; remove colliding training samples. Canonically deduplicate within each sample corpus; remove development samples whose canonical board occurs in training.",
+  "confirmation": {
+    "aggression0_50ms_games": 1024,
+    "aggression75_200ms_games": 1536,
+    "aggression75_clocked_games": 2000,
+    "elo0": 0,
+    "elo1": 10,
+    "forcing_retention_floor_percent": 90,
+    "time_control": "1.0+0.01"
+  },
+  "development_loss": {
+    "aggression": 0,
+    "concurrency": 8,
+    "games": 512,
+    "movetime_ms": 200,
+    "skip_plies_after_opening": 16
+  },
+  "files_sha256": {
+    "confirmation.epd": "834f346c87f90317cf71ef7d0a610665bc585c69f4da4a5a7ac1ee4144447367",
+    "development.epd": "9fccb65f421bd10aeaf037021b6ca7eae4039186093521f87a2a12d2156b3ec3",
+    "historical.keys": "010722468f089ad74e9eb2ab74cbac77c61e304b8ea3e1c46259a0886ca5c60b",
+    "lineage.tsv": "fd9c321f0c757d3c3f5424ff0e81385027b0706c09811cb60e038d4d0fb1cfbf",
+    "refit-base": "12820702d3341ef0c12cc32b12d5752d027d4ab07cbb7bc9a68b43b214e53c60",
+    "refit-books.rs": "eb656c10bee4cdd6b088c69e772691ca2fa8e0ec8428cdc2a02b2151ad0a63e4",
+    "refit-tune-base": "9ad2cb97a430bb56d6edad1290d5502cb9932cc97cb37de088c3ef58cc72b3a5",
+    "training.epd": "7ce8723a56d466f8c26e73045d2b2a5471d6360313b88634e2e8ded88077c64f"
+  },
+  "fit_variants": [
+    {
+      "epochs": 200,
+      "holdout": 0,
+      "l2": 1e-05,
+      "lambda": 1.0,
+      "min_observations": 2000,
+      "name": "conservative",
+      "rate": 0.25
+    },
+    {
+      "epochs": 200,
+      "holdout": 0,
+      "l2": 1e-06,
+      "lambda": 1.0,
+      "min_observations": 2000,
+      "name": "weaker-prior",
+      "rate": 0.25
+    }
+  ],
+  "internal_holdout_note": "Disabled; any zero reported held-out loss is not a validation result.",
+  "selection": "Use emitted integer-model development loss and 1024-game development matches at Aggression75, 50ms; choose at most one candidate. No confirmation results inform a reroll.",
+  "training": {
+    "aggression": 0,
+    "concurrency": 40,
+    "games": 4096,
+    "movetime_ms": 200,
+    "skip_plies_after_opening": 16
+  }
+}

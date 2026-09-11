@@ -1,0 +1,125 @@
+{
+  "command": [
+    "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-4144808-1789133420496233181-0/workspace/target/release/selfplay",
+    "--engine",
+    "/tmp/jakkoo-temp/session-4144808-1789126624908-0/refit-base",
+    "--baseline-engine",
+    "/tmp/jakkoo-temp/session-4144808-1789126624908-0/refit-base",
+    "--candidate-aggression",
+    "0",
+    "--baseline-aggression",
+    "0",
+    "--candidate-name",
+    "Training-A",
+    "--baseline-name",
+    "Training-B",
+    "--games",
+    "4096",
+    "--openings",
+    "/tmp/jakkoo-temp/session-4144808-1789126624908-0/refit-data/training.epd",
+    "--hash",
+    "16",
+    "--concurrency",
+    "40",
+    "--pgn",
+    "/tmp/jakkoo-temp/session-4144808-1789126624908-0/refit-data/training.pgn",
+    "--results-json",
+    "/tmp/jakkoo-temp/session-4144808-1789126624908-0/refit-data/training.arbiter.json",
+    "--movetime-ms",
+    "200"
+  ],
+  "comparison": {
+    "distinct_binaries_required": false,
+    "distinct_binary_hashes": false,
+    "identical_binaries_allowed": true,
+    "mode": "same-profile-binaries"
+  },
+  "created_utc": "2026-09-11T13:40:28.657720+00:00",
+  "execution": {
+    "changed_inputs": [],
+    "completed_games": 4096,
+    "duration_seconds": 1016.581995,
+    "error": null,
+    "expected_games": 4096,
+    "faults": [],
+    "finished_utc": "2026-09-11T13:57:25.242566+00:00",
+    "inputs_unchanged": true,
+    "pgn_sha256": "fe939ed49766a91b8eaf261e46128ead39b14a43f9f42992df8b6117fe011ea1",
+    "return_code": 0,
+    "started_utc": "2026-09-11T13:40:28.660571+00:00",
+    "status": "complete"
+  },
+  "host": {
+    "platform": "Linux-7.0.0-1010-aws-x86_64-with-glibc2.39",
+    "python": "3.12.3"
+  },
+  "inputs": {
+    "baseline": {
+      "aggression": 0,
+      "name": "Training-B",
+      "path": "/tmp/jakkoo-temp/session-4144808-1789126624908-0/refit-base",
+      "revision": "8b00cd00323b1c9088675225b7134386edf3be3a",
+      "sha256": "12820702d3341ef0c12cc32b12d5752d027d4ab07cbb7bc9a68b43b214e53c60"
+    },
+    "candidate": {
+      "aggression": 0,
+      "name": "Training-A",
+      "path": "/tmp/jakkoo-temp/session-4144808-1789126624908-0/refit-base",
+      "revision": "8b00cd00323b1c9088675225b7134386edf3be3a",
+      "sha256": "12820702d3341ef0c12cc32b12d5752d027d4ab07cbb7bc9a68b43b214e53c60"
+    },
+    "harness": {
+      "path": "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-4144808-1789133420496233181-0/workspace/tools/run_sprt.py",
+      "sha256": "a471d092cc9f6a48088f5c61bbd041a192f1dc6b872541abba4a4b8c9eed7e96"
+    },
+    "openings": {
+      "count": 2048,
+      "path": "/tmp/jakkoo-temp/session-4144808-1789126624908-0/refit-data/training.epd",
+      "sha256": "7ce8723a56d466f8c26e73045d2b2a5471d6360313b88634e2e8ded88077c64f"
+    },
+    "runner": {
+      "path": "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-4144808-1789133420496233181-0/workspace/target/release/selfplay",
+      "sha256": "f606920ce7b9242f3cb023d8bf24323cb7ce9a40d506061dc93105a85d878f80"
+    }
+  },
+  "outputs": {
+    "manifest": "/tmp/jakkoo-temp/session-4144808-1789126624908-0/refit-data/training.manifest.json",
+    "pgn": "/tmp/jakkoo-temp/session-4144808-1789126624908-0/refit-data/training.pgn"
+  },
+  "provenance": {
+    "build_profile": "release",
+    "dependency_revision": "7e93cdea094a50c1574081ceb6e7b269ad0234ee"
+  },
+  "schema_version": 2,
+  "settings": {
+    "concurrency": 40,
+    "draw": {
+      "movecount": 10,
+      "movenumber": 80,
+      "score": 10
+    },
+    "games": 4096,
+    "hash_mib": 16,
+    "limit": {
+      "mode": "fixed-movetime",
+      "movetime_ms": 200,
+      "nodes_per_move": null,
+      "time_control": null
+    },
+    "maxmoves": 200,
+    "nodes_per_move": null,
+    "resign": {
+      "movecount": 4,
+      "score": 800,
+      "twosided": true
+    },
+    "rounds": 2048,
+    "sprt": {
+      "alpha": 0.05,
+      "beta": 0.05,
+      "elo0": 0.0,
+      "elo1": 10.0
+    },
+    "time_control": null
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "games": 512,
+  "unique_starts": 256,
+  "raw_positions": 18335,
+  "score_coverage": 18335,
+  "game_move_count": 34315,
+  "mean_completed_depth": 8.302724755937637,
+  "phase_counts_eg_mixed_mg": [
+    7514,
+    5409,
+    5412
+  ],
+  "position_outcomes": {
+    "1": 6650,
+    "0.5": 6554,
+    "0": 5131
+  }
+}

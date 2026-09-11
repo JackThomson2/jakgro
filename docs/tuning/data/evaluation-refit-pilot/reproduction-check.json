@@ -1,0 +1,10 @@
+{
+  "refit-base": {
+    "original_sha256": "12820702d3341ef0c12cc32b12d5752d027d4ab07cbb7bc9a68b43b214e53c60",
+    "rebuilt_sha256": "12820702d3341ef0c12cc32b12d5752d027d4ab07cbb7bc9a68b43b214e53c60"
+  },
+  "refit-tune-base": {
+    "original_sha256": "9ad2cb97a430bb56d6edad1290d5502cb9932cc97cb37de088c3ef58cc72b3a5",
+    "rebuilt_sha256": "9ad2cb97a430bb56d6edad1290d5502cb9932cc97cb37de088c3ef58cc72b3a5"
+  }
+}

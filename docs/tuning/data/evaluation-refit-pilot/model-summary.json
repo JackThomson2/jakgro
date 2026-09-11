@@ -1,0 +1,270 @@
+{
+  "conservative": {
+    "changed_weight_pairs": 84,
+    "development_match": {
+      "elo": 5.429123,
+      "elo_ci95": [
+        -5.660464,
+        16.529786
+      ],
+      "elo_margin_95": 11.095125,
+      "games": 1024,
+      "los_percent": 83.13571,
+      "pair_distribution": {
+        "0.0": 12,
+        "0.5": 82,
+        "1.0": 309,
+        "1.5": 96,
+        "2.0": 13
+      },
+      "pairs": 512,
+      "score_percent": 50.78125,
+      "score_percent_ci95": [
+        49.185466,
+        52.377034
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "continue",
+        "elo0": 0.0,
+        "elo1": 10.0,
+        "llr": 0.134323,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "failed_acceptance_positions": [
+      "standard-open-king-gambit",
+      "standard-opposite-castle-storm",
+      "standard-avoid-equal-queen-trade"
+    ],
+    "integer_development_mse": 0.0644536662026484,
+    "materials": [
+      [
+        94,
+        151
+      ],
+      [
+        343,
+        301
+      ],
+      [
+        365,
+        347
+      ],
+      [
+        527,
+        579
+      ],
+      [
+        1000,
+        1003
+      ]
+    ],
+    "max_coordinate_change": 7
+  },
+  "features-only": {
+    "changed_weight_pairs": 93,
+    "development_match": {
+      "elo": 7.126143,
+      "elo_ci95": [
+        -4.710622,
+        18.979478
+      ],
+      "elo_margin_95": 11.84505,
+      "games": 1024,
+      "los_percent": 88.098581,
+      "pair_distribution": {
+        "0.0": 21,
+        "0.5": 61,
+        "1.0": 330,
+        "1.5": 76,
+        "2.0": 24
+      },
+      "pairs": 512,
+      "score_percent": 51.025391,
+      "score_percent_ci95": [
+        49.322129,
+        52.728653
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "continue",
+        "elo0": 0.0,
+        "elo1": 10.0,
+        "llr": 0.583009,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "failed_acceptance_positions": [
+      "standard-central-space",
+      "standard-open-king-gambit",
+      "standard-opposite-castle-storm",
+      "standard-knight-c6-investment",
+      "standard-unsupported-greek-gift",
+      "standard-avoid-equal-queen-trade"
+    ],
+    "held_material_and_placement_equal_base": true,
+    "integer_development_mse": 0.06445805422866648,
+    "materials": [
+      [
+        94,
+        151
+      ],
+      [
+        341,
+        299
+      ],
+      [
+        363,
+        345
+      ],
+      [
+        524,
+        575
+      ],
+      [
+        993,
+        996
+      ]
+    ],
+    "max_coordinate_change": 4
+  },
+  "hybrid": {
+    "changed_weight_pairs": 213,
+    "development_match": {
+      "elo": 10.521284,
+      "elo_ci95": [
+        -1.335826,
+        22.402956
+      ],
+      "elo_margin_95": 11.869391,
+      "games": 1024,
+      "los_percent": 95.899096,
+      "pair_distribution": {
+        "0.0": 18,
+        "0.5": 70,
+        "1.0": 307,
+        "1.5": 97,
+        "2.0": 20
+      },
+      "pairs": 512,
+      "score_percent": 51.513672,
+      "score_percent_ci95": [
+        49.80776,
+        53.219584
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "continue",
+        "elo0": 0.0,
+        "elo1": 10.0,
+        "llr": 1.508517,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "failed_acceptance_positions": [
+      "standard-central-space",
+      "standard-open-king-gambit",
+      "standard-opposite-castle-storm",
+      "standard-knight-c6-investment",
+      "standard-avoid-equal-queen-trade"
+    ],
+    "integer_development_mse": 0.0641144384615715,
+    "materials": [
+      [
+        94,
+        150
+      ],
+      [
+        343,
+        302
+      ],
+      [
+        365,
+        347
+      ],
+      [
+        527,
+        579
+      ],
+      [
+        1000,
+        1003
+      ]
+    ],
+    "max_coordinate_change": 7
+  },
+  "weaker-prior": {
+    "changed_weight_pairs": 460,
+    "development_match": {
+      "elo": 3.393034,
+      "elo_ci95": [
+        -8.697473,
+        15.491767
+      ],
+      "elo_margin_95": 12.09462,
+      "games": 1024,
+      "los_percent": 70.887696,
+      "pair_distribution": {
+        "0.0": 21,
+        "0.5": 76,
+        "1.0": 308,
+        "1.5": 86,
+        "2.0": 21
+      },
+      "pairs": 512,
+      "score_percent": 50.488281,
+      "score_percent_ci95": [
+        48.748594,
+        52.227968
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "continue",
+        "elo0": 0.0,
+        "elo1": 10.0,
+        "llr": -0.421977,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "failed_acceptance_positions": [
+      "standard-central-space",
+      "standard-open-king-gambit",
+      "standard-opposite-castle-storm",
+      "standard-knight-c6-investment",
+      "standard-unsupported-greek-gift"
+    ],
+    "integer_development_mse": 0.0640882225219369,
+    "materials": [
+      [
+        94,
+        149
+      ],
+      [
+        350,
+        308
+      ],
+      [
+        371,
+        353
+      ],
+      [
+        537,
+        589
+      ],
+      [
+        1019,
+        1022
+      ]
+    ],
+    "max_coordinate_change": 26
+  }
+}

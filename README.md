@@ -21,6 +21,8 @@ The latest [Aggression 75 follow-up](docs/tuning/aggression75-quiet-checks.md) m
 
 The [follow-up screens and 200 ms check](docs/tuning/aggression75-followup-screens.md) record two rejected candidates and additional evidence for the already accepted quiet-check change. That round retained no playing-code changes.
 
+The [evaluation-refit pilot](docs/tuning/evaluation-refit-pilot.md) records a new parent-seed-disjoint training/development split, four tested fits, and an unused confirmation book. No new weights were promoted; the corpus and reproduction tools are retained for further work.
+
 ## Requirements
 
 - Rust 1.85 or newer

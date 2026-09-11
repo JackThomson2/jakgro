@@ -1,0 +1,155 @@
+{
+  "inputs": [
+    {
+      "path": "docs/tuning/data/aggression75-fitted-mobility/a75-clock.pgn.gz",
+      "sha256": "abfac97ddb59a5cca881d7250640d56b81cb214f725a543545db654af48eb304",
+      "positions": 2000
+    },
+    {
+      "path": "docs/tuning/data/aggression75-fitted-mobility/a75-confirm.pgn.gz",
+      "sha256": "82ffcf3b34fb325fc183c521365385e8df4c29fe95095caf256b2de5e161ce34",
+      "positions": 3072
+    },
+    {
+      "path": "docs/tuning/data/aggression75-fitted-mobility/a75-heldout.epd",
+      "sha256": "5e11312942869d196476eac6e4f493596f1b2e81f11271cfc4152a163e99a9ec",
+      "positions": 1536
+    },
+    {
+      "path": "docs/tuning/data/aggression75-fitted-mobility/fitted-mobility-screen.pgn.gz",
+      "sha256": "03f7f527846663e02f0fb00f771cbd859416a3664368176e17c58ee26c3afce8",
+      "positions": 1024
+    },
+    {
+      "path": "docs/tuning/data/aggression75-fitted-mobility/lean-seeds-screen.pgn.gz",
+      "sha256": "aef2b152b294d897cf21bd7c940d7cd1c813aae9926ff38e015520b44c817131",
+      "positions": 1024
+    },
+    {
+      "path": "docs/tuning/data/aggression75-fitted-mobility/qhash-screen.pgn.gz",
+      "sha256": "8ba0972273015d51f2e817f4c4aa15234fdc940bcdd7d489229cb82bcb6e1f3d",
+      "positions": 1024
+    },
+    {
+      "path": "docs/tuning/data/aggression75-followup-screens/quiet-check-200ms.pgn.gz",
+      "sha256": "ddf9c2c3d5b8274f24eac573dd8f92805ddefe86124df0100fcdaaf8cc015331",
+      "positions": 1536
+    },
+    {
+      "path": "docs/tuning/data/aggression75-followup-screens/root-analysis-screen.pgn.gz",
+      "sha256": "bcfb36469fecf40cda70b89abb640e165ad77281329e467265ed79af6697f561",
+      "positions": 1024
+    },
+    {
+      "path": "docs/tuning/data/aggression75-followup-screens/root-policy-screen.pgn.gz",
+      "sha256": "5c1c4544c008c5f46b09773cd5b0194cf50aa945b97efde6dc1e0c030934bfd7",
+      "positions": 1024
+    },
+    {
+      "path": "docs/tuning/data/aggression75-quiet-checks/followup-q1-clock.pgn.gz",
+      "sha256": "7a332e40e832372e3ef87170cc4c4a6f53f285645faad53ac2279ae7b933c7fe",
+      "positions": 2000
+    },
+    {
+      "path": "docs/tuning/data/aggression75-quiet-checks/followup-q1-confirm.pgn.gz",
+      "sha256": "c0a928f9bb7e4218ab6ecefe97493b205f8e7dd67525d231fe372999db1932b1",
+      "positions": 3072
+    },
+    {
+      "path": "docs/tuning/data/aggression75-quiet-checks/followup-q1-screen.pgn.gz",
+      "sha256": "cd383b6afb29110199740e5cf9fbd4e7a7101255d12bfeec58c56b916c054b2c",
+      "positions": 1024
+    },
+    {
+      "path": "docs/tuning/data/aggression75-quiet-checks/standard-acceptance-after.epd",
+      "sha256": "115b066bf69e0828c5421840b77ad13b676405dfceb5ecfff24dd96c2a6059f4",
+      "positions": 10
+    },
+    {
+      "path": "docs/tuning/data/aggression75-quiet-checks/standard-acceptance-before.epd",
+      "sha256": "40f29fc01c5cc39ca8b7edcceac6afad095b350e7d66a7a2154714927dd70291",
+      "positions": 10
+    },
+    {
+      "path": "docs/tuning/data/selective-search-confirmation.epd",
+      "sha256": "9f44058d953324751ed1db1a3325f8bfa8ccf31ee6f6cffa3e1e98a391a9de37",
+      "positions": 2048
+    },
+    {
+      "path": "docs/tuning/data/standard-attacks/ranking-screen.pgn",
+      "sha256": "537e0e845da875728285e5badd146d4f540c9890834174f477053d212c64f6f4",
+      "positions": 512
+    },
+    {
+      "path": "docs/tuning/data/standard-attacks/reuse-screen.pgn",
+      "sha256": "04c2b9733d0128ef5a99a280fd5a093da67c1be60a5a058511d0595e5be6060b",
+      "positions": 512
+    },
+    {
+      "path": "tests/data/defense.epd",
+      "sha256": "6ef4d63eb6422d40d5de522a6b0b2872a2f295a0e37d1490d5cf97ac6e608c85",
+      "positions": 1
+    },
+    {
+      "path": "tests/data/null-move-contract.epd",
+      "sha256": "ddbe8d72b5ab8748f86b597b4924b4a439eb398b949ad612b57ad84720b85559",
+      "positions": 8
+    },
+    {
+      "path": "tests/data/objective-personality-contract.epd",
+      "sha256": "5f876edf46e2c63d6927edbc88b9b1c5b8bd5b079d4d55648e933a2757dd573b",
+      "positions": 16
+    },
+    {
+      "path": "tests/data/personality.epd",
+      "sha256": "d48fc3a459cd375add620e81ec518ed00a68e98dd31b6390b5a640131ff00327",
+      "positions": 16
+    },
+    {
+      "path": "tests/data/sacrifice-acceptance-contract.epd",
+      "sha256": "0b33c5d9d37c28e711f13549426f5bf0f0a796d10784157ecf36ad1a91a0b3e7",
+      "positions": 4
+    },
+    {
+      "path": "tests/data/sacrifice-gates.epd",
+      "sha256": "d3472cd41c0bb4b85be6345df4b212954dba2dd9fefe9548b85f1a2ae72e4226",
+      "positions": 4
+    },
+    {
+      "path": "tests/data/search-performance.epd",
+      "sha256": "666a7a23d97b9e2ce39de1eabdd0f4faa467a43edf3d2d938d0f8e40fa2baa29",
+      "positions": 10
+    },
+    {
+      "path": "tests/data/standard-acceptance.epd",
+      "sha256": "115b066bf69e0828c5421840b77ad13b676405dfceb5ecfff24dd96c2a6059f4",
+      "positions": 10
+    },
+    {
+      "path": "tests/data/standard-attacks.epd",
+      "sha256": "2be6305f9c46a2232c4229f1e0c902d169450adaa5847fb126b03a72c5586f90",
+      "positions": 10
+    },
+    {
+      "path": "tests/data/style.epd",
+      "sha256": "a5ddca02d2d5eccb3f6b5918c0f0ac96b2523d3f587a91810c84e8591de87feb",
+      "positions": 2
+    },
+    {
+      "path": "tests/data/tactics.epd",
+      "sha256": "abf9a0a77dc44c7fbb39f806b9fafbc6c3310b26364cebef99a81137f1b46b90",
+      "positions": 3
+    },
+    {
+      "path": "tests/data/transpositions.epd",
+      "sha256": "1f4e9759860135637527e42036444b696d24df35a0c8a728e68b0fc19cf183e0",
+      "positions": 1
+    },
+    {
+      "path": "tools/data/openings.epd",
+      "sha256": "8f67f7bdb3c659140516e9f692694ca8513633ee0d9302374dccef927eaa0cde",
+      "positions": 48
+    }
+  ],
+  "raw_distinct_positions": 2121
+}

@@ -1,0 +1,14 @@
+{
+  "name": "hybrid",
+  "phase": "additional development-only trial, declared after the two outcome-only screens",
+  "reason": "Outcome-only development matches were inconclusive and changed reviewed style choices; test whether deeper search-score labels reduce game-outcome noise.",
+  "lambda": 0.5,
+  "holdout": 0,
+  "epochs": 200,
+  "rate": 0.25,
+  "l2": 0.000001,
+  "min_observations": 2000,
+  "prior": "same immutable baseline fitter and training corpus",
+  "confirmation_status": "unopened and unused for model selection",
+  "search_and_style_parameters": "unchanged"
+}

@@ -180,6 +180,7 @@ pub const BLOCKS: &[FeatureBlock] = &[
     scalar("THREAT_BY_PAWN_PUSH", PAWN_PUSH_OFFSET),
     scalar("CASTLING_RIGHTS", PAWN_PUSH_OFFSET + 1),
     array("TROPISM_BY_PIECE_DISTANCE", TROPISM_OFFSET, 16),
+    scalar("PAWN_RACE", PAWN_RACE_OFFSET),
 ];
 
 /// Scalar features before the tables, in the order [`super::weights::score`]
@@ -217,7 +218,8 @@ pub const TRAILING_FEATURES: usize = MOBILITY_CURVE_ENTRIES
     + 6
     + 1
     + 2
-    + 16;
+    + 16
+    + 1;
 /// Length of the feature vector.
 pub const FEATURE_COUNT: usize = SCALAR_FEATURES + PLACEMENT_FEATURES + TRAILING_FEATURES;
 /// Index of the first piece-square feature.
@@ -262,6 +264,8 @@ const PAWN_PUSH_OFFSET: usize = PASSER_PATH_OFFSET + 13;
 /// Index of the tropism block: four distance buckets for each of the
 /// knight, bishop, rook and queen.
 const TROPISM_OFFSET: usize = PAWN_PUSH_OFFSET + 2;
+/// Pawn races append after the existing feature indices.
+const PAWN_RACE_OFFSET: usize = TROPISM_OFFSET + 16;
 /// The mobility curves as piece, offset within the trailing region and length.
 const MOBILITY_CURVES: [(Piece, usize, usize); 4] = [
     (Piece::Knight, 0, KNIGHT_MOBILITY_ENTRIES),
@@ -500,6 +504,7 @@ pub fn tuning_features(board: &Board) -> TuningPosition {
         (PASSER_PATH_OFFSET + 12, extracted.rook_behind_passer),
         (PAWN_PUSH_OFFSET, extracted.threat_by_pawn_push),
         (PAWN_PUSH_OFFSET + 1, extracted.castling_rights),
+        (PAWN_RACE_OFFSET, extracted.pawn_race),
     ] {
         if value != 0 {
             entries.push((offset as u16, value as i16));
@@ -667,7 +672,7 @@ mod tests {
     /// Positions the round trip is checked on. Each block added after the
     /// tables should be non-zero in at least one of them, or two blocks
     /// swapped in the layout would pass unnoticed.
-    const POSITIONS: [&str; 10] = [
+    const POSITIONS: [&str; 14] = [
         "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
         "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
         "r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8",
@@ -683,6 +688,10 @@ mod tests {
         "1k6/8/8/8/4P3/8/8/K3R3 w - - 0 1",
         // Two castling rights against one.
         "r3k2r/8/8/8/8/8/8/R3K2R w KQk - 0 1",
+        "8/8/8/P3k3/8/8/8/7K w - - 0 1",
+        "8/8/8/P3k3/8/8/8/7K b - - 0 1",
+        "8/6k1/8/8/8/8/P7/7K w - - 0 1",
+        "7k/p7/8/8/8/8/6K1/8 b - - 0 1",
     ];
 
     /// The vector and the engine must agree exactly, or a fit optimizes a model
@@ -711,6 +720,31 @@ mod tests {
                 (expected.middle_game(), expected.end_game()),
                 "feature vector disagreed on {fen}",
             );
+        }
+    }
+
+    #[test]
+    fn pawn_races_append_one_nonzero_feature_without_moving_existing_blocks() {
+        let block = BLOCKS.last().unwrap();
+        assert_eq!(block.name, "PAWN_RACE");
+        assert_eq!(block.offset, 611);
+        assert_eq!(block.len, 1);
+        assert_eq!(FEATURE_COUNT, 612);
+        for (fen, count) in [
+            ("8/8/8/P3k3/8/8/8/7K w - - 0 1", 1),
+            ("8/8/8/P3k3/8/8/8/7K b - - 0 1", 0),
+            ("7k/p7/8/8/8/8/6K1/8 b - - 0 1", -1),
+        ] {
+            let position = Position::from_fen(fen).unwrap();
+            let features = tuning_features(position.board());
+            let value: i32 = features
+                .entries
+                .iter()
+                .filter(|(index, _)| usize::from(*index) == block.offset)
+                .map(|(_, count)| i32::from(*count))
+                .sum();
+            assert_eq!(value, count, "{fen}");
+            assert_eq!(features.phase, 0);
         }
     }
 

@@ -472,6 +472,142 @@ fn king_distance(from: Square, to: Square) -> usize {
     files.max(ranks) as usize
 }
 
+/// A conservative pawn-only race advantage, not a forced-conversion score.
+/// Tempo and en passant make this unsuitable for the structure cache.
+fn pawn_race(board: &Board) -> i32 {
+    let pawns = board.pieces(Piece::Pawn);
+    if pawns.is_empty()
+        || board.occupied() != (pawns | board.pieces(Piece::King))
+        || !board.checkers().is_empty()
+        || board.en_passant().is_some()
+    {
+        return 0;
+    }
+    let mut advantage = 0;
+    for color in [Color::White, Color::Black] {
+        let enemy_pawns = board.colored_pieces(!color, Piece::Pawn);
+        let earliest_enemy = enemy_pawns
+            .into_iter()
+            .map(|pawn| optimistic_promotion_ply(pawn, !color, board.side_to_move()))
+            .min();
+        let ahead = board
+            .colored_pieces(color, Piece::Pawn)
+            .into_iter()
+            .any(|pawn| {
+                let promotion_ply = optimistic_promotion_ply(pawn, color, board.side_to_move());
+                // Even blocked or catchable enemy pawns veto a close race. Checks
+                // on promotion and adjacent-ply races belong to the search.
+                if earliest_enemy.is_some_and(|ply| ply <= promotion_ply + 2) {
+                    return false;
+                }
+                clear_pawn_run(board, pawn, color, promotion_ply)
+            });
+        advantage += if color == Color::White {
+            i32::from(ahead)
+        } else {
+            -i32::from(ahead)
+        };
+    }
+    advantage
+}
+
+fn optimistic_promotion_ply(pawn: Square, color: Color, side_to_move: Color) -> u8 {
+    let rank = if color == Color::White {
+        pawn.rank() as u8
+    } else {
+        7 - pawn.rank() as u8
+    };
+    let pushes = 7 - rank - u8::from(rank == 1);
+    2 * pushes - u8::from(color == side_to_move)
+}
+
+/// Overestimate enemy pawn reach by ignoring blockers and allowing hypothetical
+/// captures. Suppressing a bonus is preferable to inventing a safe running plan.
+fn optimistic_pawn_reach(pawns: BitBoard, color: Color) -> BitBoard {
+    let (single, double) = if color == Color::White {
+        (
+            BitBoard(pawns.0 << 8),
+            BitBoard((pawns & Rank::Second.bitboard()).0 << 16),
+        )
+    } else {
+        (
+            BitBoard(pawns.0 >> 8),
+            BitBoard((pawns & Rank::Seventh.bitboard()).0 >> 16),
+        )
+    };
+    (pawns | single | double | pawn_attack_set(pawns, color))
+        & !(Rank::First.bitboard() | Rank::Eighth.bitboard())
+}
+
+fn clear_pawn_run(board: &Board, pawn: Square, color: Color, promotion_ply: u8) -> bool {
+    let enemy = !color;
+    let enemy_pawns = board.colored_pieces(enemy, Piece::Pawn);
+    let (spans, forward, start, promotion) = if color == Color::White {
+        (&WHITE_PASSER_SPANS, 1, Rank::Second, Rank::Eighth)
+    } else {
+        (&BLACK_PASSER_SPANS, -1, Rank::Seventh, Rank::First)
+    };
+    if !(enemy_pawns & spans[pawn as usize]).is_empty() {
+        return false;
+    }
+    let path = spans[pawn as usize] & pawn.file().bitboard();
+    if !(path & board.occupied()).is_empty() {
+        return false;
+    }
+    let enemy_king = board.king(enemy);
+    let own_king = board.king(color);
+    let defender_first = u8::from(board.side_to_move() == enemy);
+    if defender_first != 0 && king_distance(enemy_king, pawn) <= 1 {
+        return false;
+    }
+    let mut enemy_reach = enemy_pawns;
+    if defender_first != 0 {
+        enemy_reach = optimistic_pawn_reach(enemy_reach, enemy);
+        if pawn_attack_set(enemy_reach, enemy).has(own_king) {
+            return false;
+        }
+    }
+    let mut square = pawn;
+    let mut pushes = 0_u8;
+    while square.rank() != promotion {
+        let Some(next) = square.try_offset(0, forward) else {
+            return false;
+        };
+        if enemy_reach.has(next) {
+            return false;
+        }
+        let landing = if square == pawn && square.rank() == start {
+            if defender_first != 0 && king_distance(enemy_king, next) <= 1 {
+                return false;
+            }
+            let Some(double) = next.try_offset(0, forward) else {
+                return false;
+            };
+            double
+        } else {
+            next
+        };
+        pushes += 1;
+        // Give the defending king an unobstructed route and ignore friendly
+        // protection. Include its reply after promotion, not just the push.
+        if king_distance(enemy_king, landing) <= usize::from(pushes + defender_first)
+            || enemy_reach.has(landing)
+        {
+            return false;
+        }
+        enemy_reach = optimistic_pawn_reach(enemy_reach, enemy);
+        let attacks = pawn_attack_set(enemy_reach, enemy);
+        if attacks.has(landing) {
+            return false;
+        }
+        if 2 * pushes - 1 + defender_first < promotion_ply && attacks.has(own_king) {
+            return false;
+        }
+        square = landing;
+    }
+    true
+}
+
 pub(super) fn extract(board: &Board) -> EvalFeatures {
     extract_with_style(board, true)
 }
@@ -604,6 +740,7 @@ pub(super) fn extract_with_style(board: &Board, style: bool) -> EvalFeatures {
     features.king_shelter = structure.shelter;
     features.open_king_files = structure.open_files;
     features.structure_indexed = structure.indexed;
+    features.pawn_race = pawn_race(board);
 
     features.tempo = if board.side_to_move() == Color::White {
         1
@@ -2734,6 +2871,196 @@ mod tests {
                 } else {
                     board.play_unchecked(moves[(turn * seed + 11) % moves.len()]);
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn pawn_races_account_for_tempo_and_initial_double_pushes() {
+        for (fen, expected) in [
+            ("8/8/8/P3k3/8/8/8/7K w - - 0 1", 1),
+            ("8/8/8/P3k3/8/8/8/7K b - - 0 1", 0),
+            ("8/6k1/8/8/8/8/P7/7K w - - 0 1", 1),
+            ("8/6k1/8/8/8/8/P7/7K b - - 0 1", 0),
+            ("7K/8/8/8/8/8/P7/1k6 b - - 0 1", 0),
+            ("8/2kPK3/8/8/8/8/8/8 w - - 0 1", 0),
+        ] {
+            let board: Board = fen.parse().unwrap();
+            let mirrored = mirror_safe_check_position(&board);
+            for style in [false, true] {
+                assert_eq!(
+                    super::extract_with_style(&board, style).pawn_race,
+                    expected,
+                    "{fen}"
+                );
+                assert_eq!(
+                    super::extract_with_style(&mirrored, style).pawn_race,
+                    -expected,
+                    "{mirrored}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn pawn_race_tempo_does_not_leak_through_the_structure_cache() {
+        let first: Board = "8/8/8/P3k3/8/8/8/7K w - - 0 1".parse().unwrap();
+        let second: Board = "8/8/8/P3k3/8/8/8/7K b - - 0 1".parse().unwrap();
+        assert_eq!(
+            super::StructureKey::new(&first),
+            super::StructureKey::new(&second)
+        );
+        for _ in 0..8 {
+            assert_eq!(super::extract(&first).pawn_race, 1);
+            assert_eq!(super::extract(&second).pawn_race, 0);
+        }
+    }
+
+    #[test]
+    fn pawn_races_require_a_clear_path_and_no_interrupting_threat() {
+        for fen in [
+            "4K3/8/4P3/8/8/8/8/k7 w - - 0 1",
+            "5k2/8/7p/P7/6K1/8/8/8 w - - 0 1",
+            "5k2/P7/8/7p/6K1/8/8/8 w - - 0 1",
+            "8/8/8/P3k3/8/8/8/5N1K w - - 0 1",
+            "8/8/8/4k3/8/8/8/7K w - - 0 1",
+            "5k2/P7/8/8/8/8/2K3p1/8 w - - 0 1",
+            "7k/8/8/P7/8/8/5p2/6K1 w - - 0 1",
+        ] {
+            let board: Board = fen.parse().unwrap();
+            assert_eq!(super::pawn_race(&board), 0, "{fen}");
+            assert_eq!(
+                super::pawn_race(&mirror_safe_check_position(&board)),
+                0,
+                "mirror of {fen}"
+            );
+        }
+        let ep: Board = "7k/8/8/P2pP3/8/8/8/7K w - d6 0 1".parse().unwrap();
+        assert!(ep.en_passant().is_some());
+        assert_eq!(super::pawn_race(&ep), 0);
+
+        let blocked: Board = "7k/8/P7/P7/8/8/8/7K w - - 0 1".parse().unwrap();
+        assert!(!super::clear_pawn_run(
+            &blocked,
+            super::Square::A5,
+            Color::White,
+            5
+        ));
+        let double_blocked: Board = "7k/8/8/8/P7/8/P7/7K w - - 0 1".parse().unwrap();
+        assert!(!super::clear_pawn_run(
+            &double_blocked,
+            super::Square::A2,
+            Color::White,
+            9
+        ));
+    }
+
+    #[test]
+    fn pawn_races_reward_at_most_one_runner_without_changing_style() {
+        let board: Board = "7k/8/8/PP6/8/8/8/7K w - - 0 1".parse().unwrap();
+        let mut features = super::extract(&board);
+        assert_eq!(features.pawn_race, 1);
+        let score = super::weights::score(&features);
+        let style = super::weights::attacking_style(&features);
+        features.pawn_race = 0;
+        assert_eq!(
+            score,
+            super::weights::score(&features) + super::ScorePair::new(0, 80)
+        );
+        assert_eq!(style, super::weights::attacking_style(&features));
+    }
+
+    fn pawn_run_survives_legal_king_replies(
+        board: &Board,
+        color: Color,
+        memo: &mut std::collections::HashMap<(super::Square, super::Square, Color), bool>,
+    ) -> bool {
+        use cozy_chess::{Piece, Rank};
+        let Some(pawn) = board.colored_pieces(color, Piece::Pawn).into_iter().next() else {
+            return false;
+        };
+        let key = (pawn, board.king(!color), board.side_to_move());
+        if let Some(&result) = memo.get(&key) {
+            return result;
+        }
+        let result = if board.side_to_move() == color {
+            let (forward, start, promotion) = if color == Color::White {
+                (1, Rank::Second, Rank::Eighth)
+            } else {
+                (-1, Rank::Seventh, Rank::First)
+            };
+            let to = pawn
+                .try_offset(
+                    0,
+                    if pawn.rank() == start {
+                        2 * forward
+                    } else {
+                        forward
+                    },
+                )
+                .unwrap();
+            let chess_move = Move {
+                from: pawn,
+                to,
+                promotion: (to.rank() == promotion).then_some(Piece::Queen),
+            };
+            if !board.is_legal(chess_move) {
+                false
+            } else {
+                let mut child = board.clone();
+                child.play_unchecked(chess_move);
+                if chess_move.promotion.is_some() {
+                    let mut captured = false;
+                    child.generate_moves(|replies| {
+                        captured |= replies.to.has(to);
+                        captured
+                    });
+                    !captured
+                } else {
+                    pawn_run_survives_legal_king_replies(&child, color, memo)
+                }
+            }
+        } else {
+            let mut has_reply = false;
+            let mut survives = true;
+            board.generate_moves(|replies| {
+                for reply in replies {
+                    has_reply = true;
+                    let mut child = board.clone();
+                    child.play_unchecked(reply);
+                    if !pawn_run_survives_legal_king_replies(&child, color, memo) {
+                        survives = false;
+                        return true;
+                    }
+                }
+                false
+            });
+            has_reply && survives
+        };
+        memo.insert(key, result);
+        result
+    }
+
+    #[test]
+    fn credited_pawn_runs_survive_every_legal_king_reply() {
+        for fen in [
+            "8/8/8/P3k3/8/8/8/7K w - - 0 1",
+            "8/6k1/8/8/8/8/P7/7K w - - 0 1",
+            "8/8/8/P5k1/8/8/8/7K b - - 0 1",
+        ] {
+            let board: Board = fen.parse().unwrap();
+            for position in [&board, &mirror_safe_check_position(&board)] {
+                let advantage = super::pawn_race(position);
+                assert_ne!(advantage, 0, "{position}");
+                let color = if advantage > 0 {
+                    Color::White
+                } else {
+                    Color::Black
+                };
+                assert!(
+                    pawn_run_survives_legal_king_replies(position, color, &mut Default::default()),
+                    "{position}"
+                );
             }
         }
     }

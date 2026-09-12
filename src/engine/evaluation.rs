@@ -319,6 +319,8 @@ pub(super) struct EvalFeatures {
     pub(super) pawn_breaks: Score,
     pub(super) white_attack: AttackProfile,
     pub(super) black_attack: AttackProfile,
+    /// A clear pawn-only promotion race, White-positive and bounded to one runner.
+    pub(super) pawn_race: Score,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

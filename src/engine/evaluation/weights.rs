@@ -336,6 +336,8 @@ const COORDINATION: ScorePair = ScorePair::new(16, 2);
 const SUPPORTED_THREAT: ScorePair = ScorePair::new(18, 5);
 const OPEN_LINE: ScorePair = ScorePair::new(14, 1);
 const PAWN_BREAK: ScorePair = ScorePair::new(12, 1);
+/// A clear, tempo-sensitive race in a pawn-only ending.
+const PAWN_RACE: ScorePair = ScorePair::new(0, 80);
 
 #[inline(always)]
 pub(super) fn score(features: &EvalFeatures) -> ScorePair {
@@ -375,6 +377,7 @@ pub(super) fn score(features: &EvalFeatures) -> ScorePair {
         + ROOK_BEHIND_PASSER * features.rook_behind_passer
         + THREAT_BY_PAWN_PUSH * features.threat_by_pawn_push
         + CASTLING_RIGHTS * features.castling_rights
+        + PAWN_RACE * features.pawn_race
 }
 
 /// Weights every rank- or distance-indexed structure block at once.
@@ -612,6 +615,7 @@ pub(super) fn trailing_tuning_weights() -> [ScorePair; super::tuning::TRAILING_F
         &[ROOK_BEHIND_PASSER][..],
         &[THREAT_BY_PAWN_PUSH, CASTLING_RIGHTS][..],
         &TROPISM_BY_PIECE_DISTANCE[..],
+        &[PAWN_RACE][..],
     ] {
         weights[next..next + block.len()].copy_from_slice(block);
         next += block.len();

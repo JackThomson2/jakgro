@@ -1,0 +1,23 @@
+diff --git a/src/engine/search/algorithm.rs b/src/engine/search/algorithm.rs
+index 44663ea..d768259 100644
+--- a/src/engine/search/algorithm.rs
++++ b/src/engine/search/algorithm.rs
+@@ -1090,7 +1090,6 @@ fn late_move_reduction(
+         || metadata.king_zone_move
+         || protected
+         || in_check
+-        || pv_node
+     {
+         return 0;
+     }
+@@ -1098,6 +1097,9 @@ fn late_move_reduction(
+     let depth_row = (child_depth as usize).min(LMR_DEPTH_ENTRIES - 1);
+     let index_column = move_index.min(LMR_INDEX_ENTRIES - 1);
+     let mut reduction = u32::from(LMR_TABLE[depth_row][index_column]).max(1);
++    if pv_node {
++        reduction = reduction.saturating_sub(1);
++    }
+     if history_score >= LMR_HISTORY_THRESHOLD {
+         reduction = reduction.saturating_sub(1);
+     } else if history_score <= -LMR_HISTORY_THRESHOLD {
+

@@ -1,0 +1,32 @@
+{
+  "acceptance": {
+    "forcing_rate_retention_percent": 90,
+    "null_forbidden_attempts": 0,
+    "personality_cost_elo_floor": -75,
+    "personality_required_hits": 16,
+    "root_loss_cap_cp": 120,
+    "sacrifice_required_control_hits": 3,
+    "sacrifice_required_positive_hits": 1,
+    "same_profile_elo_floor": -35
+  },
+  "baseline_commit": "bc51beaa7e13ea47a9090168589e788984a90da7",
+  "suites": {
+    "legacy-personality": 16,
+    "null-move": 8,
+    "objective-personality": 16,
+    "openings": 48,
+    "sacrifice": 4
+  }
+}
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.2, pluggy-1.6.0
+rootdir: /home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789169680901130384-0/workspace
+plugins: libtmux-0.30.2
+collected 50 items
+
+tools/tests/test_acceptance_contract.py ...                              [  6%]
+tools/tests/test_acceptance_measurement.py .........                     [ 24%]
+tools/tests/test_run_sprt.py ...............................             [ 86%]
+tools/tests/test_analyze_match.py .......                                [100%]
+
+============================== 50 passed in 0.15s ==============================

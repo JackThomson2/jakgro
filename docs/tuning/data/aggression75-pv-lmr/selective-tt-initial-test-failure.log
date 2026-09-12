@@ -1,0 +1,71 @@
+bash-12: succeeded (exit status 0); workspace=active; generation=1; elapsed=125178 ms; timeout=1800000 ms; captured=0 bytes
+  directory: /home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789169680901130384-0/workspace
+  queue=14 ms; execution=125163 ms; result_collected_at_snapshot=false
+bash-13: running; workspace=active; generation=1; elapsed=96307 ms; timeout=1800000 ms; captured=0 bytes
+  directory: /home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789169680901130384-0/workspace
+  queue=15 ms; execution=96292 ms; result_collected_at_snapshot=false
+bash-16: running; workspace=active; generation=1; elapsed=30520 ms; timeout=1800000 ms; captured=0 bytes
+  directory: /home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789169680901130384-0/workspace
+  queue=21 ms; execution=30498 ms; result_collected_at_snapshot=false
+bash-17: failed (exit status 100); workspace=active; generation=1; elapsed=2571 ms; timeout=600000 ms; captured=22468 bytes
+  directory: /home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789169680901130384-0/workspace
+  queue=26 ms; execution=2545 ms; result_collected_at_snapshot=false
+  output:
+[earlier output omitted]
+  PASS [   0.004s] (148/280) jakgro engine::search::see::tests::losing_captures_report_the_full_loss
+        PASS [   0.004s] (149/280) jakgro engine::search::see::tests::swap_list_matches_settled_material_for_common_exchange_shapes
+        PASS [   0.004s] (150/280) jakgro engine::search::see::tests::the_swap_list_does_not_model_pinned_defenders
+        PASS [   0.006s] (151/280) jakgro engine::search::see::tests::the_swap_list_agrees_with_exact_settlement_on_almost_every_capture
+        PASS [   0.004s] (152/280) jakgro engine::search::see::tests::x_ray_attackers_join_the_exchange_behind_a_moved_piece
+        PASS [   0.131s] (153/280) jakgro engine::search::algorithm::tests::check_masks_never_reject_a_real_check
+        PASS [   0.009s] (154/280) jakgro engine::search::tests::a_reached_soft_deadline_stops_after_a_stable_iteration
+        PASS [   0.041s] (155/280) jakgro engine::search::tests::a_parallel_search_joins_every_helper_before_returning
+        PASS [   0.008s] (156/280) jakgro engine::search::tests::a_zero_node_budget_searches_nothing
+        PASS [   0.080s] (157/280) jakgro engine::search::tests::aggression_changes_clear_policy_specific_hash_entries
+        PASS [   0.139s] (158/280) jakgro engine::search::tests::a_parallel_node_limit_bounds_the_whole_search
+        PASS [   0.008s] (159/280) jakgro engine::search::tests::checkmate_has_no_best_move
+        PASS [   0.006s] (160/280) jakgro engine::search::tests::computes_nodes_per_second_without_dividing_by_zero
+        PASS [   0.004s] (161/280) jakgro engine::search::tests::converts_internal_mate_distance_to_uci_moves
+        PASS [   0.011s] (162/280) jakgro engine::search::tests::completed_iterations_respect_the_node_limit
+        PASS [   0.007s] (163/280) jakgro engine::search::tests::dead_material_is_scored_as_a_draw
+        PASS [   0.012s] (164/280) jakgro engine::search::tests::depth_and_mate_limits_use_the_stricter_bound
+        PASS [   0.008s] (165/280) jakgro engine::search::tests::depth_one_counts_pvs_researches_as_nodes
+        PASS [   0.009s] (166/280) jakgro engine::search::tests::illegal_search_moves_produce_no_result
+        PASS [   0.009s] (167/280) jakgro engine::search::tests::infinite_search_waits_for_an_explicit_stop
+        PASS [   0.062s] (168/280) jakgro engine::search::tests::iterative_search_is_deterministic
+        FAIL [   0.229s] (169/280) jakgro engine::search::tests::a_warm_transposition_table_reduces_nodes_without_changing_the_result
+  stdout ───
+
+    running 1 test
+    test engine::search::tests::a_warm_transposition_table_reduces_nodes_without_changing_the_result ... FAILED
+
+    failures:
+
+    failures:
+        engine::search::tests::a_warm_transposition_table_reduces_nodes_without_changing_the_result
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 234 filtered out; finished in 0.22s
+
+  stderr ───
+
+    thread 'engine::search::tests::a_warm_transposition_table_reduces_nodes_without_changing_the_result' panicked at src/engine/search.rs:768:9:
+    assertion `left == right` failed
+      left: Some("f1c4")
+     right: Some("b1c3")
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: 3 tests still running
+        PASS [   0.036s] (170/280) jakgro engine::search::tests::missing_side_to_move_clock_uses_the_default_depth
+        PASS [   0.440s] (171/280) jakgro engine::search::tests::a_parallel_search_returns_a_legal_result_and_playable_pv
+        PASS [   0.652s] (172/280) jakgro engine::search::tests::helpers_contribute_nodes_to_the_search_total
+────────────
+     Summary [   1.006s] 172/280 tests run: 171 passed, 1 failed, 0 skipped
+        FAIL [   0.229s] (169/280) jakgro engine::search::tests::a_warm_transposition_table_reduces_nodes_without_changing_the_result
+warning: 108/280 tests were not run due to test failure (run with --no-fail-fast to run all tests, or run with --max-fail)
+error: test run failed
+bash-18: failed (exit status 1); workspace=active; generation=1; elapsed=1713 ms; timeout=300000 ms; captured=0 bytes
+  directory: /home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789169680901130384-0/workspace
+  queue=30 ms; execution=1683 ms; result_collected_at_snapshot=false
+bash-19: running; workspace=active; generation=1; elapsed=15469 ms; timeout=600000 ms; captured=0 bytes
+  directory: /home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789169680901130384-0/workspace
+  queue=27 ms; execution=15442 ms; result_collected_at_snapshot=false

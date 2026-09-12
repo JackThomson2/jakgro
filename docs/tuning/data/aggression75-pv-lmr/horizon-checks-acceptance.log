@@ -1,0 +1,10 @@
+standard-central-space: pass bestmove=b1c3 loss=0/45 cp
+standard-tactical-safety: pass bestmove=e1e2 loss=0/0 cp
+standard-defensive-safety: pass bestmove=a1a2 loss=0/0 cp
+standard-open-king-gambit: pass bestmove=c1g5 loss=0/45 cp
+standard-opposite-castle-storm: pass bestmove=b2b4 loss=1/45 cp
+standard-forcing-mate-safety: pass bestmove=h5f7 loss=0/0 cp
+standard-knight-c6-investment: pass bestmove=e5c6 loss=0/67 cp
+standard-unsupported-greek-gift: FAIL bestmove=f1e1 loss=8/1 cp
+standard-unsupported-rook-f7: pass bestmove=g1h1 loss=0/0 cp
+standard-avoid-equal-queen-trade: pass bestmove=d2e2 loss=0/45 cp

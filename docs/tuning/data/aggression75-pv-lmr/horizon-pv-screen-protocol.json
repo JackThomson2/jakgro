@@ -1,0 +1,16 @@
+{
+  "phase": "Additional patch-1 search screens; no documentation patch started.",
+  "candidates": [
+    "For aggression below 80, optional quiet checks only at the main-search horizon, not after deeper tactical continuations. Legal evasions, captures and main-search checks remain unchanged.",
+    "Allow reduced searches of late quiet moves at PV nodes with one ply less reduction; every alpha-raising reduced search is still verified at full depth."
+  ],
+  "settings": {
+    "games": 1024,
+    "movetime_ms": 50,
+    "aggression": 75,
+    "concurrency": 20,
+    "hash_mib": 16,
+    "book": "docs/tuning/data/evaluation-refit-pilot/development.epd"
+  },
+  "selection": "Exploratory screens only; independently confirm a selected candidate before claiming improvement."
+}

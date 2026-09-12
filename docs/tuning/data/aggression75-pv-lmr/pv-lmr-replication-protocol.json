@@ -1,0 +1,13 @@
+{
+  "candidate": "Original all-profile pv-lmr, unchanged playing code from its first development and confirmation matches.",
+  "reason": "The restricted Aggression-75-only build preserved sampled search trees but did not repeat the original gain under time. Reject that restriction; validate the original measured binary on a different existing opening book while reviewing its non-forced fixture changes explicitly.",
+  "games": 4096,
+  "movetime_ms": 50,
+  "concurrency": 24,
+  "aggression": 75,
+  "hash_mib": 16,
+  "book": "docs/tuning/data/selective-search-confirmation.epd",
+  "candidate_sha256": "85201a3ee2d2ad990a11de9c811bb12dcc8c4e4af1b41041ba87eb7fefabde6c",
+  "base_sha256": "272e3c056554956d84f32560299ccc8b86da17e6a47bdb2d9ec2a8706f55db2d",
+  "limits": "An existing historical book, not an external or unseen opening-family test. Fixed cap, no early stopping, no parameter tuning from this run. Record all results including the rejected scope trial."
+}

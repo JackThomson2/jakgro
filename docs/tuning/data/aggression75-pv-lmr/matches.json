@@ -1,0 +1,769 @@
+[
+  {
+    "baseline_sha256": "272e3c056554956d84f32560299ccc8b86da17e6a47bdb2d9ec2a8706f55db2d",
+    "candidate_sha256": "43baa50ae43419ad2c8181808f172041d61733cd943c7dcd18070e3d9e2a2132",
+    "check_retention_percent": 101.668418,
+    "forcing_retention_percent": 100.06678,
+    "games": 1024,
+    "hoeffding_elo_ci95": [
+      -46.045502,
+      37.78302
+    ],
+    "limit": {
+      "mode": "fixed-movetime",
+      "movetime_ms": 50,
+      "nodes_per_move": null,
+      "time_control": null
+    },
+    "paired_result": {
+      "elo": -4.071697,
+      "elo_ci95": [
+        -15.174166,
+        7.022459
+      ],
+      "elo_margin_95": 11.098313,
+      "games": 1024,
+      "los_percent": 23.595557,
+      "pair_distribution": {
+        "0.0": 15,
+        "0.5": 82,
+        "1.0": 333,
+        "1.5": 64,
+        "2.0": 18
+      },
+      "pairs": 512,
+      "score_percent": 49.414062,
+      "score_percent_ci95": [
+        47.817649,
+        51.010476
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "continue",
+        "elo0": 0.0,
+        "elo1": 10.0,
+        "llr": -2.830679,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "purpose": "development screen",
+    "stem": "ext2-screen",
+    "wdl": {
+      "decisive_percent": 75.195312,
+      "draws": 254,
+      "losses": 391,
+      "score_percent": 49.414062,
+      "wins": 379
+    }
+  },
+  {
+    "baseline_sha256": "272e3c056554956d84f32560299ccc8b86da17e6a47bdb2d9ec2a8706f55db2d",
+    "candidate_sha256": "14b40c4491d55d1955e4d46ff7f1291556a0e284eba3e5e0edd4826c94f02f64",
+    "check_retention_percent": 93.406052,
+    "forcing_retention_percent": 97.869179,
+    "games": 1024,
+    "hoeffding_elo_ci95": [
+      -43.630668,
+      40.188107
+    ],
+    "limit": {
+      "mode": "fixed-movetime",
+      "movetime_ms": 50,
+      "nodes_per_move": null,
+      "time_control": null
+    },
+    "paired_result": {
+      "elo": -1.696476,
+      "elo_ci95": [
+        -12.119433,
+        8.723427
+      ],
+      "elo_margin_95": 10.42143,
+      "games": 1024,
+      "los_percent": 37.480336,
+      "pair_distribution": {
+        "0.0": 13,
+        "0.5": 74,
+        "1.0": 342,
+        "1.5": 71,
+        "2.0": 12
+      },
+      "pairs": 512,
+      "score_percent": 49.755859,
+      "score_percent_ci95": [
+        48.25658,
+        51.255138
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "continue",
+        "elo0": 0.0,
+        "elo1": 10.0,
+        "llr": -2.368966,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "purpose": "development screen",
+    "stem": "history-screen",
+    "wdl": {
+      "decisive_percent": 72.753906,
+      "draws": 279,
+      "losses": 375,
+      "score_percent": 49.755859,
+      "wins": 370
+    }
+  },
+  {
+    "baseline_sha256": "272e3c056554956d84f32560299ccc8b86da17e6a47bdb2d9ec2a8706f55db2d",
+    "candidate_sha256": "a5f465c0bee3d91d9a2fc7d1df7671857577eb5f4779ff9fc629df8e6131666e",
+    "check_retention_percent": 83.641851,
+    "forcing_retention_percent": 94.997978,
+    "games": 1024,
+    "hoeffding_elo_ci95": [
+      -37.096524,
+      46.736257
+    ],
+    "limit": {
+      "mode": "fixed-movetime",
+      "movetime_ms": 50,
+      "nodes_per_move": null,
+      "time_control": null
+    },
+    "paired_result": {
+      "elo": 4.750392,
+      "elo_ci95": [
+        -6.695628,
+        16.206735
+      ],
+      "elo_margin_95": 11.451181,
+      "games": 1024,
+      "los_percent": 79.202414,
+      "pair_distribution": {
+        "0.0": 17,
+        "0.5": 76,
+        "1.0": 309,
+        "1.5": 96,
+        "2.0": 14
+      },
+      "pairs": 512,
+      "score_percent": 50.683594,
+      "score_percent_ci95": [
+        49.036541,
+        52.330647
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "continue",
+        "elo0": 0.0,
+        "elo1": 10.0,
+        "llr": -0.072865,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "purpose": "development screen",
+    "stem": "q0-screen",
+    "wdl": {
+      "decisive_percent": 74.414062,
+      "draws": 262,
+      "losses": 374,
+      "score_percent": 50.683594,
+      "wins": 388
+    }
+  },
+  {
+    "baseline_sha256": "272e3c056554956d84f32560299ccc8b86da17e6a47bdb2d9ec2a8706f55db2d",
+    "candidate_sha256": "59a937e38b92ddb6baa2bcdefc54de788f05cf8e465822a8f2a4a41542d309b1",
+    "check_retention_percent": 95.165367,
+    "forcing_retention_percent": 97.662614,
+    "games": 1024,
+    "hoeffding_elo_ci95": [
+      -44.320183,
+      39.500558
+    ],
+    "limit": {
+      "mode": "fixed-movetime",
+      "movetime_ms": 50,
+      "nodes_per_move": null,
+      "time_control": null
+    },
+    "paired_result": {
+      "elo": -2.375085,
+      "elo_ci95": [
+        -12.882735,
+        8.128221
+      ],
+      "elo_margin_95": 10.505478,
+      "games": 1024,
+      "los_percent": 32.87893,
+      "pair_distribution": {
+        "0.0": 12,
+        "0.5": 82,
+        "1.0": 329,
+        "1.5": 79,
+        "2.0": 10
+      },
+      "pairs": 512,
+      "score_percent": 49.658203,
+      "score_percent_ci95": [
+        48.146875,
+        51.169532
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "continue",
+        "elo0": 0.0,
+        "elo1": 10.0,
+        "llr": -2.567636,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "purpose": "development screen",
+    "stem": "qleaf-screen",
+    "wdl": {
+      "decisive_percent": 72.558594,
+      "draws": 281,
+      "losses": 375,
+      "score_percent": 49.658203,
+      "wins": 368
+    }
+  },
+  {
+    "baseline_sha256": "272e3c056554956d84f32560299ccc8b86da17e6a47bdb2d9ec2a8706f55db2d",
+    "candidate_sha256": "3dc4b40e94bfa518dfc52e1988d419aaa091ea282985b8952bcc6955a0bc8ef6",
+    "check_retention_percent": 96.175654,
+    "forcing_retention_percent": 97.779479,
+    "games": 1024,
+    "hoeffding_elo_ci95": [
+      -49.503012,
+      34.35337
+    ],
+    "limit": {
+      "mode": "fixed-movetime",
+      "movetime_ms": 50,
+      "nodes_per_move": null,
+      "time_control": null
+    },
+    "paired_result": {
+      "elo": -7.465585,
+      "elo_ci95": [
+        -19.071541,
+        4.12373
+      ],
+      "elo_margin_95": 11.597636,
+      "games": 1024,
+      "los_percent": 10.338119,
+      "pair_distribution": {
+        "0.0": 19,
+        "0.5": 87,
+        "1.0": 322,
+        "1.5": 65,
+        "2.0": 19
+      },
+      "pairs": 512,
+      "score_percent": 48.925781,
+      "score_percent_ci95": [
+        47.258138,
+        50.593425
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "accept_h0",
+        "elo0": 0.0,
+        "elo1": 10.0,
+        "llr": -3.564396,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "purpose": "development screen",
+    "stem": "qhistory-screen",
+    "wdl": {
+      "decisive_percent": 75.585938,
+      "draws": 250,
+      "losses": 398,
+      "score_percent": 48.925781,
+      "wins": 376
+    }
+  },
+  {
+    "baseline_sha256": "272e3c056554956d84f32560299ccc8b86da17e6a47bdb2d9ec2a8706f55db2d",
+    "candidate_sha256": "458ec1619259a490924f6ecea9aa451625b21c09a274af2cfb3c8c5ad75772d8",
+    "check_retention_percent": 98.37862,
+    "forcing_retention_percent": 99.646735,
+    "games": 1024,
+    "hoeffding_elo_ci95": [
+      -37.78302,
+      46.045502
+    ],
+    "limit": {
+      "mode": "fixed-movetime",
+      "movetime_ms": 50,
+      "nodes_per_move": null,
+      "time_control": null
+    },
+    "paired_result": {
+      "elo": 4.071697,
+      "elo_ci95": [
+        -7.141699,
+        15.293585
+      ],
+      "elo_margin_95": 11.217642,
+      "games": 1024,
+      "los_percent": 76.16827,
+      "pair_distribution": {
+        "0.0": 15,
+        "0.5": 74,
+        "1.0": 324,
+        "1.5": 82,
+        "2.0": 17
+      },
+      "pairs": 512,
+      "score_percent": 50.585938,
+      "score_percent_ci95": [
+        48.972372,
+        52.199503
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "continue",
+        "elo0": 0.0,
+        "elo1": 10.0,
+        "llr": -0.283221,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "purpose": "development screen",
+    "stem": "selective-tt-screen",
+    "wdl": {
+      "decisive_percent": 74.023438,
+      "draws": 266,
+      "losses": 373,
+      "score_percent": 50.585938,
+      "wins": 385
+    }
+  },
+  {
+    "baseline_sha256": "272e3c056554956d84f32560299ccc8b86da17e6a47bdb2d9ec2a8706f55db2d",
+    "candidate_sha256": "d670214505ed543b8d9c24aa978ac832c73d9a173406031bbabf54efba2e1f3f",
+    "check_retention_percent": 93.884594,
+    "forcing_retention_percent": 98.391114,
+    "games": 1024,
+    "hoeffding_elo_ci95": [
+      -29.90468,
+      54.012487
+    ],
+    "limit": {
+      "mode": "fixed-movetime",
+      "movetime_ms": 50,
+      "nodes_per_move": null,
+      "time_control": null
+    },
+    "paired_result": {
+      "elo": 11.879867,
+      "elo_ci95": [
+        -0.043594,
+        23.831378
+      ],
+      "elo_margin_95": 11.937486,
+      "games": 1024,
+      "los_percent": 97.457807,
+      "pair_distribution": {
+        "0.0": 18,
+        "0.5": 68,
+        "1.0": 309,
+        "1.5": 95,
+        "2.0": 22
+      },
+      "pairs": 512,
+      "score_percent": 51.708984,
+      "score_percent_ci95": [
+        49.993726,
+        53.424242
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "continue",
+        "elo0": 0.0,
+        "elo1": 10.0,
+        "llr": 1.859019,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "purpose": "development screen",
+    "stem": "horizon-checks-screen",
+    "wdl": {
+      "decisive_percent": 74.121094,
+      "draws": 265,
+      "losses": 362,
+      "score_percent": 51.708984,
+      "wins": 397
+    }
+  },
+  {
+    "baseline_sha256": "272e3c056554956d84f32560299ccc8b86da17e6a47bdb2d9ec2a8706f55db2d",
+    "candidate_sha256": "85201a3ee2d2ad990a11de9c811bb12dcc8c4e4af1b41041ba87eb7fefabde6c",
+    "check_retention_percent": 108.844863,
+    "forcing_retention_percent": 103.138818,
+    "games": 1024,
+    "hoeffding_elo_ci95": [
+      -29.562897,
+      54.360099
+    ],
+    "limit": {
+      "mode": "fixed-movetime",
+      "movetime_ms": 50,
+      "nodes_per_move": null,
+      "time_control": null
+    },
+    "paired_result": {
+      "elo": 12.219568,
+      "elo_ci95": [
+        0.580498,
+        23.886129
+      ],
+      "elo_margin_95": 11.652815,
+      "games": 1024,
+      "los_percent": 98.019338,
+      "pair_distribution": {
+        "0.0": 16,
+        "0.5": 62,
+        "1.0": 330,
+        "1.5": 78,
+        "2.0": 26
+      },
+      "pairs": 512,
+      "score_percent": 51.757812,
+      "score_percent_ci95": [
+        50.08354,
+        53.432085
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "continue",
+        "elo0": 0.0,
+        "elo1": 10.0,
+        "llr": 2.047419,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "purpose": "development screen",
+    "stem": "pv-lmr-screen",
+    "wdl": {
+      "decisive_percent": 75.976562,
+      "draws": 246,
+      "losses": 371,
+      "score_percent": 51.757812,
+      "wins": 407
+    }
+  },
+  {
+    "baseline_sha256": "272e3c056554956d84f32560299ccc8b86da17e6a47bdb2d9ec2a8706f55db2d",
+    "candidate_sha256": "85201a3ee2d2ad990a11de9c811bb12dcc8c4e4af1b41041ba87eb7fefabde6c",
+    "check_retention_percent": 96.645136,
+    "forcing_retention_percent": 99.467982,
+    "games": 3072,
+    "hoeffding_elo_ci95": [
+      -10.850253,
+      37.455984
+    ],
+    "limit": {
+      "mode": "fixed-movetime",
+      "movetime_ms": 50,
+      "nodes_per_move": null,
+      "time_control": null
+    },
+    "paired_result": {
+      "elo": 13.238814,
+      "elo_ci95": [
+        5.938852,
+        20.550479
+      ],
+      "elo_margin_95": 7.305813,
+      "games": 3072,
+      "los_percent": 99.981144,
+      "pair_distribution": {
+        "0.0": 57,
+        "0.5": 227,
+        "1.0": 883,
+        "1.5": 280,
+        "2.0": 89
+      },
+      "pairs": 1536,
+      "score_percent": 51.904297,
+      "score_percent_ci95": [
+        50.854586,
+        52.954007
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "accept_h1",
+        "elo0": 0.0,
+        "elo1": 10.0,
+        "llr": 5.94331,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "purpose": "confirmation",
+    "stem": "pv-lmr-confirm",
+    "wdl": {
+      "decisive_percent": 75.227865,
+      "draws": 761,
+      "losses": 1097,
+      "score_percent": 51.904297,
+      "wins": 1214
+    }
+  },
+  {
+    "baseline_sha256": "272e3c056554956d84f32560299ccc8b86da17e6a47bdb2d9ec2a8706f55db2d",
+    "candidate_sha256": "85201a3ee2d2ad990a11de9c811bb12dcc8c4e4af1b41041ba87eb7fefabde6c",
+    "check_retention_percent": 103.834314,
+    "forcing_retention_percent": 101.680118,
+    "games": 2000,
+    "hoeffding_elo_ci95": [
+      -20.136912,
+      39.743233
+    ],
+    "limit": {
+      "mode": "fixed-time",
+      "movetime_ms": null,
+      "nodes_per_move": null,
+      "time_control": "1.0+0.01"
+    },
+    "paired_result": {
+      "elo": 9.73074,
+      "elo_ci95": [
+        0.506277,
+        18.968942
+      ],
+      "elo_margin_95": 9.231332,
+      "games": 2000,
+      "los_percent": 98.065951,
+      "pair_distribution": {
+        "0.0": 50,
+        "0.5": 132,
+        "1.0": 588,
+        "1.5": 172,
+        "2.0": 58
+      },
+      "pairs": 1000,
+      "score_percent": 51.4,
+      "score_percent_ci95": [
+        50.072859,
+        52.727141
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "continue",
+        "elo0": 0.0,
+        "elo1": 10.0,
+        "llr": 2.135777,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "purpose": "confirmation",
+    "stem": "pv-lmr-clock",
+    "wdl": {
+      "decisive_percent": 76.7,
+      "draws": 466,
+      "losses": 739,
+      "score_percent": 51.4,
+      "wins": 795
+    }
+  },
+  {
+    "baseline_sha256": "272e3c056554956d84f32560299ccc8b86da17e6a47bdb2d9ec2a8706f55db2d",
+    "candidate_sha256": "fa2fd6586cccc597473d2ddf4117c9b4d31c3445c05d3b90058ebf906177e325",
+    "check_retention_percent": 101.278547,
+    "forcing_retention_percent": 100.442656,
+    "games": 3072,
+    "hoeffding_elo_ci95": [
+      -22.86803,
+      25.368195
+    ],
+    "limit": {
+      "mode": "fixed-movetime",
+      "movetime_ms": 50,
+      "nodes_per_move": null,
+      "time_control": null
+    },
+    "paired_result": {
+      "elo": 1.244078,
+      "elo_ci95": [
+        -5.882988,
+        8.372191
+      ],
+      "elo_margin_95": 7.12759,
+      "games": 3072,
+      "los_percent": 63.388133,
+      "pair_distribution": {
+        "0.0": 71,
+        "0.5": 235,
+        "1.0": 905,
+        "1.5": 262,
+        "2.0": 63
+      },
+      "pairs": 1536,
+      "score_percent": 50.179036,
+      "score_percent_ci95": [
+        49.153451,
+        51.204622
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "continue",
+        "elo0": 0.0,
+        "elo1": 10.0,
+        "llr": -2.839105,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "purpose": "rejected scope trial",
+    "stem": "pv75-confirm",
+    "wdl": {
+      "decisive_percent": 74.83724,
+      "draws": 773,
+      "losses": 1144,
+      "score_percent": 50.179036,
+      "wins": 1155
+    }
+  },
+  {
+    "baseline_sha256": "272e3c056554956d84f32560299ccc8b86da17e6a47bdb2d9ec2a8706f55db2d",
+    "candidate_sha256": "fa2fd6586cccc597473d2ddf4117c9b4d31c3445c05d3b90058ebf906177e325",
+    "check_retention_percent": 106.652712,
+    "forcing_retention_percent": 102.482943,
+    "games": 2000,
+    "hoeffding_elo_ci95": [
+      -22.752631,
+      37.105453
+    ],
+    "limit": {
+      "mode": "fixed-time",
+      "movetime_ms": null,
+      "nodes_per_move": null,
+      "time_control": "1.0+0.01"
+    },
+    "paired_result": {
+      "elo": 7.123427,
+      "elo_ci95": [
+        -1.885982,
+        16.142428
+      ],
+      "elo_margin_95": 9.014205,
+      "games": 2000,
+      "los_percent": 93.938522,
+      "pair_distribution": {
+        "0.0": 47,
+        "0.5": 142,
+        "1.0": 581,
+        "1.5": 183,
+        "2.0": 47
+      },
+      "pairs": 1000,
+      "score_percent": 51.025,
+      "score_percent_ci95": [
+        49.728588,
+        52.321412
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "continue",
+        "elo0": 0.0,
+        "elo1": 10.0,
+        "llr": 1.005072,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "purpose": "rejected scope trial",
+    "stem": "pv75-clock",
+    "wdl": {
+      "decisive_percent": 77.05,
+      "draws": 459,
+      "losses": 750,
+      "score_percent": 51.025,
+      "wins": 791
+    }
+  },
+  {
+    "baseline_sha256": "272e3c056554956d84f32560299ccc8b86da17e6a47bdb2d9ec2a8706f55db2d",
+    "candidate_sha256": "85201a3ee2d2ad990a11de9c811bb12dcc8c4e4af1b41041ba87eb7fefabde6c",
+    "check_retention_percent": 101.014089,
+    "forcing_retention_percent": 101.142116,
+    "games": 4096,
+    "hoeffding_elo_ci95": [
+      -5.161243,
+      36.681109
+    ],
+    "limit": {
+      "mode": "fixed-movetime",
+      "movetime_ms": 50,
+      "nodes_per_move": null,
+      "time_control": null
+    },
+    "paired_result": {
+      "elo": 15.702965,
+      "elo_ci95": [
+        9.168071,
+        22.248982
+      ],
+      "elo_margin_95": 6.540456,
+      "games": 4096,
+      "los_percent": 99.999878,
+      "pair_distribution": {
+        "0.0": 87,
+        "0.5": 318,
+        "1.0": 1073,
+        "1.5": 463,
+        "2.0": 107
+      },
+      "pairs": 2048,
+      "score_percent": 52.258301,
+      "score_percent_ci95": [
+        51.319085,
+        53.197516
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "accept_h1",
+        "elo0": 0.0,
+        "elo1": 10.0,
+        "llr": 9.641922,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "purpose": "replication on a second existing book",
+    "stem": "pv-lmr-replication",
+    "wdl": {
+      "decisive_percent": 69.360352,
+      "draws": 1255,
+      "losses": 1328,
+      "score_percent": 52.258301,
+      "wins": 1513
+    }
+  }
+]

@@ -1,0 +1,11 @@
+--- a/src/engine/evaluation.rs
++++ b/src/engine/evaluation.rs
+@@ -121,7 +121,7 @@
+     }
+ 
+     pub(super) const fn max_check_extensions(self) -> u8 {
+-        2 + self.aggression / 50
++        2 + (self.aggression >= 80) as u8 + (self.aggression == MAX_AGGRESSION) as u8
+     }
+ 
+     pub(super) const fn quiescence_check_budget(self) -> u8 {

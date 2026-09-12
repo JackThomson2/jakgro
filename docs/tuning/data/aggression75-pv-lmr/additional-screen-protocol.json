@@ -1,0 +1,11 @@
+{
+  "additional_candidates": [
+    "Store settled, nonterminal quiescence leaves when the tactical move picker is empty; leave all existing TT cutoff and scoring rules unchanged.",
+    "Weight quiescence capture-history updates as shallow search evidence instead of using the 16-ply emergency depth cap."
+  ],
+  "base": "7c362767b518091e20a934aca79cdf97eaaec7a8",
+  "screen_games": 1024,
+  "movetime_ms": 50,
+  "book": "docs/tuning/data/evaluation-refit-pilot/development.epd",
+  "rationale": "First three screens found no demonstrated gain. Continue exploratory development on the same book. Confirmation remains unused this round."
+}

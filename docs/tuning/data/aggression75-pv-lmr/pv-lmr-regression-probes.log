@@ -1,0 +1,32 @@
+base mate-in-one unchanged f7g7 mate 1 depth 1
+base win-hanging-queen unchanged e1e2 cp 641 depth 6
+base punish-central-queen unchanged d1d5 cp 1446 depth 6
+base contain-lone-rook unchanged a1a2 cp -647 depth 7
+base starting-style unchanged b1c3 cp 23 depth 6
+base open-game-style unchanged b1c3 cp 29 depth 5
+base developed-open-game unchanged b1c3 cp 52 depth 5
+base standard-open-king-gambit 100000 free {'0': ('c3d5', 'cp 101', 6), '75': ('c1g5', 'cp 101', 6), '100': ('c1g5', 'cp 99', 5)} restricted {'c3d5': ('cp 91', 8), 'c1g5': ('cp 109', 7)}
+base standard-open-king-gambit 400000 free {'0': ('c1g5', 'cp 111', 8), '75': ('c1g5', 'cp 111', 8), '100': ('c1g5', 'cp 109', 7)} restricted {'c3d5': ('cp 87', 10), 'c1g5': ('cp 109', 9)}
+base standard-open-king-gambit 2000000 free {'0': ('c1g5', 'cp 114', 9), '75': ('c1g5', 'cp 118', 10), '100': ('c1g5', 'cp 110', 9)} restricted {'c3d5': ('cp 112', 11), 'c1g5': ('cp 111', 11)}
+base standard-opposite-castle-storm 100000 free {'0': ('b2b4', 'cp -243', 7), '75': ('b2b4', 'cp -246', 7), '100': ('b2b4', 'cp -249', 7)} restricted {'f1e1': ('cp -260', 8), 'b2b4': ('cp -243', 8), 'f3e5': ('cp -268', 9), 'd2b3': ('cp -275', 9)}
+base standard-opposite-castle-storm 400000 free {'0': ('b2b4', 'cp -247', 9), '75': ('b2b4', 'cp -247', 9), '100': ('b2b4', 'cp -243', 8)} restricted {'f1e1': ('cp -248', 10), 'b2b4': ('cp -243', 10), 'f3e5': ('cp -255', 10), 'd2b3': ('cp -265', 10)}
+base standard-opposite-castle-storm 2000000 free {'0': ('b2b4', 'cp -254', 11), '75': ('b2b4', 'cp -248', 11), '100': ('b2b4', 'cp -250', 11)} restricted {'f1e1': ('cp -259', 12), 'b2b4': ('cp -240', 12), 'f3e5': ('cp -252', 12), 'd2b3': ('cp -265', 12)}
+base starting-development 100000 free {'0': ('c2c4', 'cp 23', 8), '75': ('b1c3', 'cp 22', 7), '100': ('b1c3', 'cp 22', 7)} restricted {'b1c3': ('cp 19', 9), 'd2d4': ('cp 24', 9)}
+base starting-development 400000 free {'0': ('e2e4', 'cp 32', 9), '75': ('d2d4', 'cp 24', 9), '100': ('g1f3', 'cp 24', 9)} restricted {'b1c3': ('cp 7', 10), 'd2d4': ('cp 22', 10)}
+base starting-development 2000000 free {'0': ('e2e4', 'cp 30', 11), '75': ('e2e4', 'cp 30', 11), '100': ('g1f3', 'cp 22', 10)} restricted {'b1c3': ('cp -4', 12), 'd2d4': ('cp 22', 12)}
+pv-lmr mate-in-one unchanged f7g7 mate 1 depth 1
+pv-lmr win-hanging-queen changed e1e2 cp 642 depth 6
+pv-lmr punish-central-queen changed d1d5 cp 1455 depth 7
+pv-lmr contain-lone-rook changed a1a2 cp -653 depth 8
+pv-lmr starting-style changed d2d4 cp 23 depth 6
+pv-lmr open-game-style unchanged b1c3 cp 29 depth 5
+pv-lmr developed-open-game unchanged b1c3 cp 52 depth 5
+pv-lmr standard-open-king-gambit 100000 free {'0': ('c1g5', 'cp 111', 6), '75': ('c1g5', 'cp 101', 6), '100': ('c1g5', 'cp 111', 6)} restricted {'c3d5': ('cp 91', 8), 'c1g5': ('cp 111', 8)}
+pv-lmr standard-open-king-gambit 400000 free {'0': ('c1g5', 'cp 118', 9), '75': ('c1g5', 'cp 111', 8), '100': ('c1g5', 'cp 109', 7)} restricted {'c3d5': ('cp 98', 11), 'c1g5': ('cp 114', 9)}
+pv-lmr standard-open-king-gambit 2000000 free {'0': ('c1g5', 'cp 111', 11), '75': ('c1g5', 'cp 118', 10), '100': ('c1g5', 'cp 118', 10)} restricted {'c3d5': ('cp 112', 13), 'c1g5': ('cp 120', 12)}
+pv-lmr standard-opposite-castle-storm 100000 free {'0': ('d1e2', 'cp -249', 6), '75': ('b2b4', 'cp -246', 7), '100': ('b2b4', 'cp -243', 7)} restricted {'f1e1': ('cp -267', 9), 'b2b4': ('cp -247', 9), 'f3e5': ('cp -244', 10), 'd2b3': ('cp -268', 9)}
+pv-lmr standard-opposite-castle-storm 400000 free {'0': ('b2b4', 'cp -240', 10), '75': ('b2b4', 'cp -247', 9), '100': ('b2b4', 'cp -247', 9)} restricted {'f1e1': ('cp -258', 11), 'b2b4': ('cp -250', 11), 'f3e5': ('cp -264', 11), 'd2b3': ('cp -267', 10)}
+pv-lmr standard-opposite-castle-storm 2000000 free {'0': ('b2b4', 'cp -240', 12), '75': ('b2b4', 'cp -251', 11), '100': ('b2b4', 'cp -246', 11)} restricted {'f1e1': ('cp -263', 13), 'b2b4': ('cp -255', 13), 'f3e5': ('cp -256', 13), 'd2b3': ('cp -270', 13)}
+pv-lmr starting-development 100000 free {'0': ('c2c4', 'cp 23', 8), '75': ('d2d4', 'cp 22', 8), '100': ('d2d4', 'cp 22', 8)} restricted {'b1c3': ('cp 17', 9), 'd2d4': ('cp 24', 9)}
+pv-lmr starting-development 400000 free {'0': ('c2c4', 'cp 32', 9), '75': ('d2d4', 'cp 24', 9), '100': ('d2d4', 'cp 24', 9)} restricted {'b1c3': ('cp 12', 11), 'd2d4': ('cp 25', 11)}
+pv-lmr starting-development 2000000 free {'0': ('e2e4', 'cp 35', 12), '75': ('e2e4', 'cp 30', 11), '100': ('e2e4', 'cp 30', 11)} restricted {'b1c3': ('cp 5', 13), 'd2d4': ('cp 15', 13)}

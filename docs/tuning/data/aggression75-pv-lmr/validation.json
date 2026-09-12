@@ -1,0 +1,45 @@
+[
+  {
+    "command": "NEXTEST_TEST_THREADS=4 cargo nextest run --no-tests=pass",
+    "exit_status": 0,
+    "log": "pv-final-rust-validation.log",
+    "passed": 283
+  },
+  {
+    "command": "NEXTEST_TEST_THREADS=4 cargo nextest run --no-tests=pass --features tuning",
+    "exit_status": 0,
+    "log": "pv-final-rust-validation.log",
+    "passed": 299
+  },
+  {
+    "command": "cargo fmt --check",
+    "exit_status": 0,
+    "log": "pv-final-build-validation.log"
+  },
+  {
+    "command": "cargo clippy --all-targets --features tuning -- -D warnings",
+    "exit_status": 0,
+    "log": "pv-final-build-validation.log"
+  },
+  {
+    "command": "cargo build --release --locked --bin jakgro --bin selfplay",
+    "exit_status": 0,
+    "log": "pv-final-build-validation.log"
+  },
+  {
+    "command": "cmp target/release/jakgro \"$JAKKOO_TEMP/strength-pv-lmr\"",
+    "exit_status": 0,
+    "log": "pv-final-build-validation.log"
+  },
+  {
+    "command": "python3 tools/validate_acceptance_contract.py",
+    "exit_status": 0,
+    "log": "pv-final-python-validation.log"
+  },
+  {
+    "command": "python3 -m pytest tools/tests/test_acceptance_contract.py tools/tests/test_acceptance_measurement.py tools/tests/test_run_sprt.py tools/tests/test_analyze_match.py",
+    "exit_status": 0,
+    "log": "pv-final-python-validation.log",
+    "passed": 50
+  }
+]

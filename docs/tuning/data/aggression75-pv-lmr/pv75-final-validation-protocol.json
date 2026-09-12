@@ -1,0 +1,24 @@
+{
+  "stage": "Final scoped candidate validation; patch 1 only",
+  "candidate": "strength-pv75",
+  "candidate_sha256": "fa2fd6586cccc597473d2ddf4117c9b4d31c3445c05d3b90058ebf906177e325",
+  "base_sha256": "272e3c056554956d84f32560299ccc8b86da17e6a47bdb2d9ec2a8706f55db2d",
+  "change_from_prior_candidate": "PV reductions only at exactly Aggression 75; other profiles restore the original PV exemption. No other playing change.",
+  "fixed_time": {
+    "games": 3072,
+    "movetime_ms": 50,
+    "concurrency": 24
+  },
+  "clock": {
+    "games": 2000,
+    "time_control": "1.0+0.01",
+    "concurrency": 24
+  },
+  "profiles": {
+    "candidate": 75,
+    "baseline": 75
+  },
+  "hash_mib": 16,
+  "book": "docs/tuning/data/evaluation-refit-pilot/confirmation.epd",
+  "caveat": "This book was already played by the all-profile PV candidate; this run validates the final scoped binary, not another independent opening holdout. No parameters are selected using it."
+}

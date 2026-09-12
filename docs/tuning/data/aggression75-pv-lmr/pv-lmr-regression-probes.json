@@ -1,0 +1,2286 @@
+[
+  {
+    "binary": "base",
+    "kind": "regression",
+    "id": "mate-in-one",
+    "expected": {
+      "bestmove": "f7g7",
+      "score": "mate 1"
+    },
+    "observations": [
+      {
+        "bestmove": "f7g7",
+        "score": "mate 1",
+        "depth": 1,
+        "nodes": 34,
+        "elapsed_ms": 0,
+        "nps": 49089,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      {
+        "bestmove": "f7g7",
+        "score": "mate 1",
+        "depth": 1,
+        "nodes": 34,
+        "elapsed_ms": 0,
+        "nps": 238432,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    ]
+  },
+  {
+    "binary": "base",
+    "kind": "regression",
+    "id": "win-hanging-queen",
+    "expected": {
+      "bestmove": "e1e2",
+      "score": "cp 641"
+    },
+    "observations": [
+      {
+        "bestmove": "e1e2",
+        "score": "cp 641",
+        "depth": 6,
+        "nodes": 15160,
+        "elapsed_ms": 4,
+        "nps": 3102362,
+        "personality": {
+          "nodes": 30,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      {
+        "bestmove": "e1e2",
+        "score": "cp 641",
+        "depth": 6,
+        "nodes": 15160,
+        "elapsed_ms": 9,
+        "nps": 1660777,
+        "personality": {
+          "nodes": 30,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    ]
+  },
+  {
+    "binary": "base",
+    "kind": "regression",
+    "id": "punish-central-queen",
+    "expected": {
+      "bestmove": "d1d5",
+      "score": "cp 1446"
+    },
+    "observations": [
+      {
+        "bestmove": "d1d5",
+        "score": "cp 1446",
+        "depth": 6,
+        "nodes": 10982,
+        "elapsed_ms": 7,
+        "nps": 1393511,
+        "personality": {
+          "nodes": 31,
+          "attempts": 1,
+          "completed": 1,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      {
+        "bestmove": "d1d5",
+        "score": "cp 1446",
+        "depth": 6,
+        "nodes": 10982,
+        "elapsed_ms": 7,
+        "nps": 1395364,
+        "personality": {
+          "nodes": 31,
+          "attempts": 1,
+          "completed": 1,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    ]
+  },
+  {
+    "binary": "base",
+    "kind": "regression",
+    "id": "contain-lone-rook",
+    "expected": {
+      "bestmove": "a1a2",
+      "score": "cp -647"
+    },
+    "observations": [
+      {
+        "bestmove": "a1a2",
+        "score": "cp -647",
+        "depth": 7,
+        "nodes": 12862,
+        "elapsed_ms": 3,
+        "nps": 3425219,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      {
+        "bestmove": "a1a2",
+        "score": "cp -647",
+        "depth": 7,
+        "nodes": 12862,
+        "elapsed_ms": 3,
+        "nps": 3467487,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    ]
+  },
+  {
+    "binary": "base",
+    "kind": "regression",
+    "id": "starting-style",
+    "expected": {
+      "bestmove": "b1c3",
+      "score": "cp 23"
+    },
+    "observations": [
+      {
+        "bestmove": "b1c3",
+        "score": "cp 23",
+        "depth": 6,
+        "nodes": 17174,
+        "elapsed_ms": 11,
+        "nps": 1472011,
+        "personality": {
+          "nodes": 4614,
+          "attempts": 11,
+          "completed": 8,
+          "exhausted": 3,
+          "selections": 1
+        }
+      },
+      {
+        "bestmove": "b1c3",
+        "score": "cp 23",
+        "depth": 6,
+        "nodes": 17174,
+        "elapsed_ms": 11,
+        "nps": 1508612,
+        "personality": {
+          "nodes": 4614,
+          "attempts": 11,
+          "completed": 8,
+          "exhausted": 3,
+          "selections": 1
+        }
+      }
+    ]
+  },
+  {
+    "binary": "base",
+    "kind": "regression",
+    "id": "open-game-style",
+    "expected": {
+      "bestmove": "b1c3",
+      "score": "cp 29"
+    },
+    "observations": [
+      {
+        "bestmove": "b1c3",
+        "score": "cp 29",
+        "depth": 5,
+        "nodes": 13727,
+        "elapsed_ms": 10,
+        "nps": 1279398,
+        "personality": {
+          "nodes": 4368,
+          "attempts": 8,
+          "completed": 6,
+          "exhausted": 2,
+          "selections": 0
+        }
+      },
+      {
+        "bestmove": "b1c3",
+        "score": "cp 29",
+        "depth": 5,
+        "nodes": 13727,
+        "elapsed_ms": 10,
+        "nps": 1356925,
+        "personality": {
+          "nodes": 4368,
+          "attempts": 8,
+          "completed": 6,
+          "exhausted": 2,
+          "selections": 0
+        }
+      }
+    ]
+  },
+  {
+    "binary": "base",
+    "kind": "regression",
+    "id": "developed-open-game",
+    "expected": {
+      "bestmove": "b1c3",
+      "score": "cp 52"
+    },
+    "observations": [
+      {
+        "bestmove": "b1c3",
+        "score": "cp 52",
+        "depth": 5,
+        "nodes": 12430,
+        "elapsed_ms": 10,
+        "nps": 1237685,
+        "personality": {
+          "nodes": 4275,
+          "attempts": 7,
+          "completed": 6,
+          "exhausted": 1,
+          "selections": 0
+        }
+      },
+      {
+        "bestmove": "b1c3",
+        "score": "cp 52",
+        "depth": 5,
+        "nodes": 12430,
+        "elapsed_ms": 9,
+        "nps": 1249942,
+        "personality": {
+          "nodes": 4275,
+          "attempts": 7,
+          "completed": 6,
+          "exhausted": 1,
+          "selections": 0
+        }
+      }
+    ]
+  },
+  {
+    "binary": "base",
+    "kind": "deeper-choice",
+    "id": "standard-open-king-gambit",
+    "nodes": 100000,
+    "free": {
+      "0": {
+        "bestmove": "c3d5",
+        "score": "cp 101",
+        "depth": 6,
+        "nodes": 59216,
+        "elapsed_ms": 48,
+        "nps": 1223251,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "75": {
+        "bestmove": "c1g5",
+        "score": "cp 101",
+        "depth": 6,
+        "nodes": 88215,
+        "elapsed_ms": 92,
+        "nps": 951150,
+        "personality": {
+          "nodes": 8531,
+          "attempts": 6,
+          "completed": 5,
+          "exhausted": 3,
+          "selections": 0
+        }
+      },
+      "100": {
+        "bestmove": "c1g5",
+        "score": "cp 99",
+        "depth": 5,
+        "nodes": 65859,
+        "elapsed_ms": 66,
+        "nps": 996421,
+        "personality": {
+          "nodes": 4676,
+          "attempts": 7,
+          "completed": 4,
+          "exhausted": 3,
+          "selections": 0
+        }
+      }
+    },
+    "restricted": {
+      "c3d5": {
+        "bestmove": "c3d5",
+        "score": "cp 91",
+        "depth": 8,
+        "nodes": 76719,
+        "elapsed_ms": 62,
+        "nps": 1221843,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "c1g5": {
+        "bestmove": "c1g5",
+        "score": "cp 109",
+        "depth": 7,
+        "nodes": 48913,
+        "elapsed_ms": 42,
+        "nps": 1137945,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  },
+  {
+    "binary": "base",
+    "kind": "deeper-choice",
+    "id": "standard-open-king-gambit",
+    "nodes": 400000,
+    "free": {
+      "0": {
+        "bestmove": "c1g5",
+        "score": "cp 111",
+        "depth": 8,
+        "nodes": 260938,
+        "elapsed_ms": 225,
+        "nps": 1156251,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "75": {
+        "bestmove": "c1g5",
+        "score": "cp 111",
+        "depth": 8,
+        "nodes": 364908,
+        "elapsed_ms": 320,
+        "nps": 1138711,
+        "personality": {
+          "nodes": 16723,
+          "attempts": 7,
+          "completed": 5,
+          "exhausted": 5,
+          "selections": 0
+        }
+      },
+      "100": {
+        "bestmove": "c1g5",
+        "score": "cp 109",
+        "depth": 7,
+        "nodes": 234752,
+        "elapsed_ms": 217,
+        "nps": 1080372,
+        "personality": {
+          "nodes": 12868,
+          "attempts": 8,
+          "completed": 4,
+          "exhausted": 5,
+          "selections": 0
+        }
+      }
+    },
+    "restricted": {
+      "c3d5": {
+        "bestmove": "c3d5",
+        "score": "cp 87",
+        "depth": 10,
+        "nodes": 326258,
+        "elapsed_ms": 260,
+        "nps": 1252202,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "c1g5": {
+        "bestmove": "c1g5",
+        "score": "cp 109",
+        "depth": 9,
+        "nodes": 390188,
+        "elapsed_ms": 334,
+        "nps": 1166481,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  },
+  {
+    "binary": "base",
+    "kind": "deeper-choice",
+    "id": "standard-open-king-gambit",
+    "nodes": 2000000,
+    "free": {
+      "0": {
+        "bestmove": "c1g5",
+        "score": "cp 114",
+        "depth": 9,
+        "nodes": 645449,
+        "elapsed_ms": 550,
+        "nps": 1171825,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "75": {
+        "bestmove": "c1g5",
+        "score": "cp 118",
+        "depth": 10,
+        "nodes": 1464425,
+        "elapsed_ms": 1301,
+        "nps": 1125162,
+        "personality": {
+          "nodes": 24915,
+          "attempts": 7,
+          "completed": 5,
+          "exhausted": 7,
+          "selections": 0
+        }
+      },
+      "100": {
+        "bestmove": "c1g5",
+        "score": "cp 110",
+        "depth": 9,
+        "nodes": 1254435,
+        "elapsed_ms": 1109,
+        "nps": 1130685,
+        "personality": {
+          "nodes": 21060,
+          "attempts": 8,
+          "completed": 4,
+          "exhausted": 7,
+          "selections": 0
+        }
+      }
+    },
+    "restricted": {
+      "c3d5": {
+        "bestmove": "c3d5",
+        "score": "cp 112",
+        "depth": 11,
+        "nodes": 1025603,
+        "elapsed_ms": 836,
+        "nps": 1225684,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "c1g5": {
+        "bestmove": "c1g5",
+        "score": "cp 111",
+        "depth": 11,
+        "nodes": 1699643,
+        "elapsed_ms": 1364,
+        "nps": 1245444,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  },
+  {
+    "binary": "base",
+    "kind": "deeper-choice",
+    "id": "standard-opposite-castle-storm",
+    "nodes": 100000,
+    "free": {
+      "0": {
+        "bestmove": "b2b4",
+        "score": "cp -243",
+        "depth": 7,
+        "nodes": 79267,
+        "elapsed_ms": 60,
+        "nps": 1310319,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "75": {
+        "bestmove": "b2b4",
+        "score": "cp -246",
+        "depth": 7,
+        "nodes": 70043,
+        "elapsed_ms": 54,
+        "nps": 1280640,
+        "personality": {
+          "nodes": 12552,
+          "attempts": 10,
+          "completed": 7,
+          "exhausted": 4,
+          "selections": 0
+        }
+      },
+      "100": {
+        "bestmove": "b2b4",
+        "score": "cp -249",
+        "depth": 7,
+        "nodes": 100000,
+        "elapsed_ms": 79,
+        "nps": 1259799,
+        "personality": {
+          "nodes": 9865,
+          "attempts": 12,
+          "completed": 9,
+          "exhausted": 2,
+          "selections": 5
+        }
+      }
+    },
+    "restricted": {
+      "f1e1": {
+        "bestmove": "f1e1",
+        "score": "cp -260",
+        "depth": 8,
+        "nodes": 67669,
+        "elapsed_ms": 69,
+        "nps": 968602,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "b2b4": {
+        "bestmove": "b2b4",
+        "score": "cp -243",
+        "depth": 8,
+        "nodes": 43760,
+        "elapsed_ms": 35,
+        "nps": 1231889,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "f3e5": {
+        "bestmove": "f3e5",
+        "score": "cp -268",
+        "depth": 9,
+        "nodes": 54999,
+        "elapsed_ms": 49,
+        "nps": 1112977,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "d2b3": {
+        "bestmove": "d2b3",
+        "score": "cp -275",
+        "depth": 9,
+        "nodes": 81783,
+        "elapsed_ms": 73,
+        "nps": 1120071,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  },
+  {
+    "binary": "base",
+    "kind": "deeper-choice",
+    "id": "standard-opposite-castle-storm",
+    "nodes": 400000,
+    "free": {
+      "0": {
+        "bestmove": "b2b4",
+        "score": "cp -247",
+        "depth": 9,
+        "nodes": 233748,
+        "elapsed_ms": 178,
+        "nps": 1311579,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "75": {
+        "bestmove": "b2b4",
+        "score": "cp -247",
+        "depth": 9,
+        "nodes": 329303,
+        "elapsed_ms": 253,
+        "nps": 1296808,
+        "personality": {
+          "nodes": 20744,
+          "attempts": 10,
+          "completed": 7,
+          "exhausted": 6,
+          "selections": 0
+        }
+      },
+      "100": {
+        "bestmove": "b2b4",
+        "score": "cp -243",
+        "depth": 8,
+        "nodes": 220125,
+        "elapsed_ms": 180,
+        "nps": 1218915,
+        "personality": {
+          "nodes": 16221,
+          "attempts": 12,
+          "completed": 9,
+          "exhausted": 4,
+          "selections": 5
+        }
+      }
+    },
+    "restricted": {
+      "f1e1": {
+        "bestmove": "f1e1",
+        "score": "cp -248",
+        "depth": 10,
+        "nodes": 299855,
+        "elapsed_ms": 248,
+        "nps": 1205429,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "b2b4": {
+        "bestmove": "b2b4",
+        "score": "cp -243",
+        "depth": 10,
+        "nodes": 224450,
+        "elapsed_ms": 165,
+        "nps": 1356829,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "f3e5": {
+        "bestmove": "f3e5",
+        "score": "cp -255",
+        "depth": 10,
+        "nodes": 199834,
+        "elapsed_ms": 145,
+        "nps": 1377212,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "d2b3": {
+        "bestmove": "d2b3",
+        "score": "cp -265",
+        "depth": 10,
+        "nodes": 377616,
+        "elapsed_ms": 285,
+        "nps": 1323278,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  },
+  {
+    "binary": "base",
+    "kind": "deeper-choice",
+    "id": "standard-opposite-castle-storm",
+    "nodes": 2000000,
+    "free": {
+      "0": {
+        "bestmove": "b2b4",
+        "score": "cp -254",
+        "depth": 11,
+        "nodes": 1072403,
+        "elapsed_ms": 787,
+        "nps": 1362020,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "75": {
+        "bestmove": "b2b4",
+        "score": "cp -248",
+        "depth": 11,
+        "nodes": 1285035,
+        "elapsed_ms": 941,
+        "nps": 1364741,
+        "personality": {
+          "nodes": 28936,
+          "attempts": 10,
+          "completed": 7,
+          "exhausted": 8,
+          "selections": 0
+        }
+      },
+      "100": {
+        "bestmove": "b2b4",
+        "score": "cp -250",
+        "depth": 11,
+        "nodes": 1802395,
+        "elapsed_ms": 1357,
+        "nps": 1328191,
+        "personality": {
+          "nodes": 28509,
+          "attempts": 12,
+          "completed": 9,
+          "exhausted": 7,
+          "selections": 5
+        }
+      }
+    },
+    "restricted": {
+      "f1e1": {
+        "bestmove": "f1e1",
+        "score": "cp -259",
+        "depth": 12,
+        "nodes": 1646505,
+        "elapsed_ms": 1237,
+        "nps": 1330976,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "b2b4": {
+        "bestmove": "b2b4",
+        "score": "cp -240",
+        "depth": 12,
+        "nodes": 1430515,
+        "elapsed_ms": 1035,
+        "nps": 1382019,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "f3e5": {
+        "bestmove": "f3e5",
+        "score": "cp -252",
+        "depth": 12,
+        "nodes": 1233295,
+        "elapsed_ms": 934,
+        "nps": 1319521,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "d2b3": {
+        "bestmove": "d2b3",
+        "score": "cp -265",
+        "depth": 12,
+        "nodes": 1777316,
+        "elapsed_ms": 1324,
+        "nps": 1342070,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  },
+  {
+    "binary": "base",
+    "kind": "deeper-choice",
+    "id": "starting-development",
+    "nodes": 100000,
+    "free": {
+      "0": {
+        "bestmove": "c2c4",
+        "score": "cp 23",
+        "depth": 8,
+        "nodes": 72925,
+        "elapsed_ms": 53,
+        "nps": 1374275,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "75": {
+        "bestmove": "b1c3",
+        "score": "cp 22",
+        "depth": 7,
+        "nodes": 40393,
+        "elapsed_ms": 29,
+        "nps": 1366222,
+        "personality": {
+          "nodes": 6662,
+          "attempts": 12,
+          "completed": 8,
+          "exhausted": 4,
+          "selections": 1
+        }
+      },
+      "100": {
+        "bestmove": "b1c3",
+        "score": "cp 22",
+        "depth": 7,
+        "nodes": 44030,
+        "elapsed_ms": 33,
+        "nps": 1329197,
+        "personality": {
+          "nodes": 6712,
+          "attempts": 12,
+          "completed": 8,
+          "exhausted": 4,
+          "selections": 1
+        }
+      }
+    },
+    "restricted": {
+      "b1c3": {
+        "bestmove": "b1c3",
+        "score": "cp 19",
+        "depth": 9,
+        "nodes": 78624,
+        "elapsed_ms": 62,
+        "nps": 1259003,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "d2d4": {
+        "bestmove": "d2d4",
+        "score": "cp 24",
+        "depth": 9,
+        "nodes": 99869,
+        "elapsed_ms": 78,
+        "nps": 1272417,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  },
+  {
+    "binary": "base",
+    "kind": "deeper-choice",
+    "id": "starting-development",
+    "nodes": 400000,
+    "free": {
+      "0": {
+        "bestmove": "e2e4",
+        "score": "cp 32",
+        "depth": 9,
+        "nodes": 397289,
+        "elapsed_ms": 319,
+        "nps": 1244847,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "75": {
+        "bestmove": "d2d4",
+        "score": "cp 24",
+        "depth": 9,
+        "nodes": 329589,
+        "elapsed_ms": 285,
+        "nps": 1155952,
+        "personality": {
+          "nodes": 10758,
+          "attempts": 12,
+          "completed": 8,
+          "exhausted": 6,
+          "selections": 1
+        }
+      },
+      "100": {
+        "bestmove": "g1f3",
+        "score": "cp 24",
+        "depth": 9,
+        "nodes": 389133,
+        "elapsed_ms": 346,
+        "nps": 1121821,
+        "personality": {
+          "nodes": 10808,
+          "attempts": 13,
+          "completed": 8,
+          "exhausted": 6,
+          "selections": 1
+        }
+      }
+    },
+    "restricted": {
+      "b1c3": {
+        "bestmove": "b1c3",
+        "score": "cp 7",
+        "depth": 10,
+        "nodes": 200340,
+        "elapsed_ms": 163,
+        "nps": 1226518,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "d2d4": {
+        "bestmove": "d2d4",
+        "score": "cp 22",
+        "depth": 10,
+        "nodes": 214767,
+        "elapsed_ms": 173,
+        "nps": 1239643,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  },
+  {
+    "binary": "base",
+    "kind": "deeper-choice",
+    "id": "starting-development",
+    "nodes": 2000000,
+    "free": {
+      "0": {
+        "bestmove": "e2e4",
+        "score": "cp 30",
+        "depth": 11,
+        "nodes": 1416295,
+        "elapsed_ms": 1133,
+        "nps": 1249101,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "75": {
+        "bestmove": "e2e4",
+        "score": "cp 30",
+        "depth": 11,
+        "nodes": 1962925,
+        "elapsed_ms": 1686,
+        "nps": 1164068,
+        "personality": {
+          "nodes": 14854,
+          "attempts": 12,
+          "completed": 8,
+          "exhausted": 8,
+          "selections": 1
+        }
+      },
+      "100": {
+        "bestmove": "g1f3",
+        "score": "cp 22",
+        "depth": 10,
+        "nodes": 845966,
+        "elapsed_ms": 751,
+        "nps": 1125622,
+        "personality": {
+          "nodes": 12856,
+          "attempts": 13,
+          "completed": 8,
+          "exhausted": 7,
+          "selections": 1
+        }
+      }
+    },
+    "restricted": {
+      "b1c3": {
+        "bestmove": "b1c3",
+        "score": "cp -4",
+        "depth": 12,
+        "nodes": 977192,
+        "elapsed_ms": 1138,
+        "nps": 858151,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "d2d4": {
+        "bestmove": "d2d4",
+        "score": "cp 22",
+        "depth": 12,
+        "nodes": 935464,
+        "elapsed_ms": 758,
+        "nps": 1234018,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  },
+  {
+    "binary": "pv-lmr",
+    "kind": "regression",
+    "id": "mate-in-one",
+    "expected": {
+      "bestmove": "f7g7",
+      "score": "mate 1"
+    },
+    "observations": [
+      {
+        "bestmove": "f7g7",
+        "score": "mate 1",
+        "depth": 1,
+        "nodes": 34,
+        "elapsed_ms": 0,
+        "nps": 45589,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      {
+        "bestmove": "f7g7",
+        "score": "mate 1",
+        "depth": 1,
+        "nodes": 34,
+        "elapsed_ms": 0,
+        "nps": 231879,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    ]
+  },
+  {
+    "binary": "pv-lmr",
+    "kind": "regression",
+    "id": "win-hanging-queen",
+    "expected": {
+      "bestmove": "e1e2",
+      "score": "cp 641"
+    },
+    "observations": [
+      {
+        "bestmove": "e1e2",
+        "score": "cp 642",
+        "depth": 6,
+        "nodes": 12194,
+        "elapsed_ms": 4,
+        "nps": 2941065,
+        "personality": {
+          "nodes": 30,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      {
+        "bestmove": "e1e2",
+        "score": "cp 642",
+        "depth": 6,
+        "nodes": 12194,
+        "elapsed_ms": 4,
+        "nps": 2872691,
+        "personality": {
+          "nodes": 30,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    ]
+  },
+  {
+    "binary": "pv-lmr",
+    "kind": "regression",
+    "id": "punish-central-queen",
+    "expected": {
+      "bestmove": "d1d5",
+      "score": "cp 1446"
+    },
+    "observations": [
+      {
+        "bestmove": "d1d5",
+        "score": "cp 1455",
+        "depth": 7,
+        "nodes": 15421,
+        "elapsed_ms": 18,
+        "nps": 828537,
+        "personality": {
+          "nodes": 37,
+          "attempts": 1,
+          "completed": 1,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      {
+        "bestmove": "d1d5",
+        "score": "cp 1455",
+        "depth": 7,
+        "nodes": 15421,
+        "elapsed_ms": 10,
+        "nps": 1422179,
+        "personality": {
+          "nodes": 37,
+          "attempts": 1,
+          "completed": 1,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    ]
+  },
+  {
+    "binary": "pv-lmr",
+    "kind": "regression",
+    "id": "contain-lone-rook",
+    "expected": {
+      "bestmove": "a1a2",
+      "score": "cp -647"
+    },
+    "observations": [
+      {
+        "bestmove": "a1a2",
+        "score": "cp -653",
+        "depth": 8,
+        "nodes": 19983,
+        "elapsed_ms": 5,
+        "nps": 3425819,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      {
+        "bestmove": "a1a2",
+        "score": "cp -653",
+        "depth": 8,
+        "nodes": 19983,
+        "elapsed_ms": 5,
+        "nps": 3497832,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    ]
+  },
+  {
+    "binary": "pv-lmr",
+    "kind": "regression",
+    "id": "starting-style",
+    "expected": {
+      "bestmove": "b1c3",
+      "score": "cp 23"
+    },
+    "observations": [
+      {
+        "bestmove": "d2d4",
+        "score": "cp 23",
+        "depth": 6,
+        "nodes": 16948,
+        "elapsed_ms": 11,
+        "nps": 1458206,
+        "personality": {
+          "nodes": 4534,
+          "attempts": 11,
+          "completed": 9,
+          "exhausted": 2,
+          "selections": 1
+        }
+      },
+      {
+        "bestmove": "d2d4",
+        "score": "cp 23",
+        "depth": 6,
+        "nodes": 16948,
+        "elapsed_ms": 12,
+        "nps": 1406162,
+        "personality": {
+          "nodes": 4534,
+          "attempts": 11,
+          "completed": 9,
+          "exhausted": 2,
+          "selections": 1
+        }
+      }
+    ]
+  },
+  {
+    "binary": "pv-lmr",
+    "kind": "regression",
+    "id": "open-game-style",
+    "expected": {
+      "bestmove": "b1c3",
+      "score": "cp 29"
+    },
+    "observations": [
+      {
+        "bestmove": "b1c3",
+        "score": "cp 29",
+        "depth": 5,
+        "nodes": 12613,
+        "elapsed_ms": 10,
+        "nps": 1202265,
+        "personality": {
+          "nodes": 4368,
+          "attempts": 8,
+          "completed": 6,
+          "exhausted": 2,
+          "selections": 0
+        }
+      },
+      {
+        "bestmove": "b1c3",
+        "score": "cp 29",
+        "depth": 5,
+        "nodes": 12613,
+        "elapsed_ms": 9,
+        "nps": 1319592,
+        "personality": {
+          "nodes": 4368,
+          "attempts": 8,
+          "completed": 6,
+          "exhausted": 2,
+          "selections": 0
+        }
+      }
+    ]
+  },
+  {
+    "binary": "pv-lmr",
+    "kind": "regression",
+    "id": "developed-open-game",
+    "expected": {
+      "bestmove": "b1c3",
+      "score": "cp 52"
+    },
+    "observations": [
+      {
+        "bestmove": "b1c3",
+        "score": "cp 52",
+        "depth": 5,
+        "nodes": 11474,
+        "elapsed_ms": 9,
+        "nps": 1223096,
+        "personality": {
+          "nodes": 4275,
+          "attempts": 7,
+          "completed": 6,
+          "exhausted": 1,
+          "selections": 0
+        }
+      },
+      {
+        "bestmove": "b1c3",
+        "score": "cp 52",
+        "depth": 5,
+        "nodes": 11474,
+        "elapsed_ms": 13,
+        "nps": 843668,
+        "personality": {
+          "nodes": 4275,
+          "attempts": 7,
+          "completed": 6,
+          "exhausted": 1,
+          "selections": 0
+        }
+      }
+    ]
+  },
+  {
+    "binary": "pv-lmr",
+    "kind": "deeper-choice",
+    "id": "standard-open-king-gambit",
+    "nodes": 100000,
+    "free": {
+      "0": {
+        "bestmove": "c1g5",
+        "score": "cp 111",
+        "depth": 6,
+        "nodes": 48766,
+        "elapsed_ms": 40,
+        "nps": 1211198,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "75": {
+        "bestmove": "c1g5",
+        "score": "cp 101",
+        "depth": 6,
+        "nodes": 76433,
+        "elapsed_ms": 65,
+        "nps": 1172268,
+        "personality": {
+          "nodes": 8531,
+          "attempts": 6,
+          "completed": 5,
+          "exhausted": 3,
+          "selections": 0
+        }
+      },
+      "100": {
+        "bestmove": "c1g5",
+        "score": "cp 111",
+        "depth": 6,
+        "nodes": 100000,
+        "elapsed_ms": 87,
+        "nps": 1138330,
+        "personality": {
+          "nodes": 8753,
+          "attempts": 8,
+          "completed": 4,
+          "exhausted": 3,
+          "selections": 0
+        }
+      }
+    },
+    "restricted": {
+      "c3d5": {
+        "bestmove": "c3d5",
+        "score": "cp 91",
+        "depth": 8,
+        "nodes": 36225,
+        "elapsed_ms": 29,
+        "nps": 1212765,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "c1g5": {
+        "bestmove": "c1g5",
+        "score": "cp 111",
+        "depth": 8,
+        "nodes": 56753,
+        "elapsed_ms": 52,
+        "nps": 1088799,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  },
+  {
+    "binary": "pv-lmr",
+    "kind": "deeper-choice",
+    "id": "standard-open-king-gambit",
+    "nodes": 400000,
+    "free": {
+      "0": {
+        "bestmove": "c1g5",
+        "score": "cp 118",
+        "depth": 9,
+        "nodes": 367924,
+        "elapsed_ms": 309,
+        "nps": 1187859,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "75": {
+        "bestmove": "c1g5",
+        "score": "cp 111",
+        "depth": 8,
+        "nodes": 287810,
+        "elapsed_ms": 250,
+        "nps": 1148969,
+        "personality": {
+          "nodes": 16723,
+          "attempts": 7,
+          "completed": 5,
+          "exhausted": 5,
+          "selections": 0
+        }
+      },
+      "100": {
+        "bestmove": "c1g5",
+        "score": "cp 109",
+        "depth": 7,
+        "nodes": 229543,
+        "elapsed_ms": 214,
+        "nps": 1069257,
+        "personality": {
+          "nodes": 12868,
+          "attempts": 8,
+          "completed": 4,
+          "exhausted": 5,
+          "selections": 0
+        }
+      }
+    },
+    "restricted": {
+      "c3d5": {
+        "bestmove": "c3d5",
+        "score": "cp 98",
+        "depth": 11,
+        "nodes": 317839,
+        "elapsed_ms": 274,
+        "nps": 1158715,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "c1g5": {
+        "bestmove": "c1g5",
+        "score": "cp 114",
+        "depth": 9,
+        "nodes": 165889,
+        "elapsed_ms": 148,
+        "nps": 1114198,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  },
+  {
+    "binary": "pv-lmr",
+    "kind": "deeper-choice",
+    "id": "standard-open-king-gambit",
+    "nodes": 2000000,
+    "free": {
+      "0": {
+        "bestmove": "c1g5",
+        "score": "cp 111",
+        "depth": 11,
+        "nodes": 1976713,
+        "elapsed_ms": 1632,
+        "nps": 1210645,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "75": {
+        "bestmove": "c1g5",
+        "score": "cp 118",
+        "depth": 10,
+        "nodes": 1022800,
+        "elapsed_ms": 860,
+        "nps": 1188387,
+        "personality": {
+          "nodes": 24915,
+          "attempts": 7,
+          "completed": 5,
+          "exhausted": 7,
+          "selections": 0
+        }
+      },
+      "100": {
+        "bestmove": "c1g5",
+        "score": "cp 118",
+        "depth": 10,
+        "nodes": 1837416,
+        "elapsed_ms": 1577,
+        "nps": 1164664,
+        "personality": {
+          "nodes": 25156,
+          "attempts": 8,
+          "completed": 4,
+          "exhausted": 8,
+          "selections": 0
+        }
+      }
+    },
+    "restricted": {
+      "c3d5": {
+        "bestmove": "c3d5",
+        "score": "cp 112",
+        "depth": 13,
+        "nodes": 1823349,
+        "elapsed_ms": 1426,
+        "nps": 1277921,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "c1g5": {
+        "bestmove": "c1g5",
+        "score": "cp 120",
+        "depth": 12,
+        "nodes": 1290422,
+        "elapsed_ms": 1042,
+        "nps": 1238106,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  },
+  {
+    "binary": "pv-lmr",
+    "kind": "deeper-choice",
+    "id": "standard-opposite-castle-storm",
+    "nodes": 100000,
+    "free": {
+      "0": {
+        "bestmove": "d1e2",
+        "score": "cp -249",
+        "depth": 6,
+        "nodes": 26388,
+        "elapsed_ms": 19,
+        "nps": 1350479,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "75": {
+        "bestmove": "b2b4",
+        "score": "cp -246",
+        "depth": 7,
+        "nodes": 79446,
+        "elapsed_ms": 57,
+        "nps": 1376702,
+        "personality": {
+          "nodes": 12552,
+          "attempts": 11,
+          "completed": 8,
+          "exhausted": 4,
+          "selections": 0
+        }
+      },
+      "100": {
+        "bestmove": "b2b4",
+        "score": "cp -243",
+        "depth": 7,
+        "nodes": 62751,
+        "elapsed_ms": 46,
+        "nps": 1341695,
+        "personality": {
+          "nodes": 12125,
+          "attempts": 11,
+          "completed": 8,
+          "exhausted": 3,
+          "selections": 4
+        }
+      }
+    },
+    "restricted": {
+      "f1e1": {
+        "bestmove": "f1e1",
+        "score": "cp -267",
+        "depth": 9,
+        "nodes": 78185,
+        "elapsed_ms": 56,
+        "nps": 1378493,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "b2b4": {
+        "bestmove": "b2b4",
+        "score": "cp -247",
+        "depth": 9,
+        "nodes": 47432,
+        "elapsed_ms": 34,
+        "nps": 1393587,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "f3e5": {
+        "bestmove": "f3e5",
+        "score": "cp -244",
+        "depth": 10,
+        "nodes": 84345,
+        "elapsed_ms": 58,
+        "nps": 1453560,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "d2b3": {
+        "bestmove": "d2b3",
+        "score": "cp -268",
+        "depth": 9,
+        "nodes": 54093,
+        "elapsed_ms": 37,
+        "nps": 1425739,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  },
+  {
+    "binary": "pv-lmr",
+    "kind": "deeper-choice",
+    "id": "standard-opposite-castle-storm",
+    "nodes": 400000,
+    "free": {
+      "0": {
+        "bestmove": "b2b4",
+        "score": "cp -240",
+        "depth": 10,
+        "nodes": 386388,
+        "elapsed_ms": 272,
+        "nps": 1418012,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "75": {
+        "bestmove": "b2b4",
+        "score": "cp -247",
+        "depth": 9,
+        "nodes": 292945,
+        "elapsed_ms": 215,
+        "nps": 1357065,
+        "personality": {
+          "nodes": 20744,
+          "attempts": 11,
+          "completed": 8,
+          "exhausted": 6,
+          "selections": 0
+        }
+      },
+      "100": {
+        "bestmove": "b2b4",
+        "score": "cp -247",
+        "depth": 9,
+        "nodes": 265375,
+        "elapsed_ms": 198,
+        "nps": 1336072,
+        "personality": {
+          "nodes": 20317,
+          "attempts": 11,
+          "completed": 8,
+          "exhausted": 5,
+          "selections": 4
+        }
+      }
+    },
+    "restricted": {
+      "f1e1": {
+        "bestmove": "f1e1",
+        "score": "cp -258",
+        "depth": 11,
+        "nodes": 311953,
+        "elapsed_ms": 231,
+        "nps": 1345034,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "b2b4": {
+        "bestmove": "b2b4",
+        "score": "cp -250",
+        "depth": 11,
+        "nodes": 245614,
+        "elapsed_ms": 176,
+        "nps": 1395087,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "f3e5": {
+        "bestmove": "f3e5",
+        "score": "cp -264",
+        "depth": 11,
+        "nodes": 248181,
+        "elapsed_ms": 173,
+        "nps": 1432679,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "d2b3": {
+        "bestmove": "d2b3",
+        "score": "cp -267",
+        "depth": 10,
+        "nodes": 102001,
+        "elapsed_ms": 70,
+        "nps": 1450764,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  },
+  {
+    "binary": "pv-lmr",
+    "kind": "deeper-choice",
+    "id": "standard-opposite-castle-storm",
+    "nodes": 2000000,
+    "free": {
+      "0": {
+        "bestmove": "b2b4",
+        "score": "cp -240",
+        "depth": 12,
+        "nodes": 1641393,
+        "elapsed_ms": 1089,
+        "nps": 1506178,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "75": {
+        "bestmove": "b2b4",
+        "score": "cp -251",
+        "depth": 11,
+        "nodes": 1096631,
+        "elapsed_ms": 794,
+        "nps": 1380183,
+        "personality": {
+          "nodes": 28936,
+          "attempts": 11,
+          "completed": 8,
+          "exhausted": 8,
+          "selections": 0
+        }
+      },
+      "100": {
+        "bestmove": "b2b4",
+        "score": "cp -246",
+        "depth": 11,
+        "nodes": 1442326,
+        "elapsed_ms": 1023,
+        "nps": 1409882,
+        "personality": {
+          "nodes": 28509,
+          "attempts": 11,
+          "completed": 8,
+          "exhausted": 7,
+          "selections": 4
+        }
+      }
+    },
+    "restricted": {
+      "f1e1": {
+        "bestmove": "f1e1",
+        "score": "cp -263",
+        "depth": 13,
+        "nodes": 1862518,
+        "elapsed_ms": 1328,
+        "nps": 1401520,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "b2b4": {
+        "bestmove": "b2b4",
+        "score": "cp -255",
+        "depth": 13,
+        "nodes": 1342453,
+        "elapsed_ms": 947,
+        "nps": 1417208,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "f3e5": {
+        "bestmove": "f3e5",
+        "score": "cp -256",
+        "depth": 13,
+        "nodes": 1111461,
+        "elapsed_ms": 784,
+        "nps": 1417594,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "d2b3": {
+        "bestmove": "d2b3",
+        "score": "cp -270",
+        "depth": 13,
+        "nodes": 1528422,
+        "elapsed_ms": 1116,
+        "nps": 1368865,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  },
+  {
+    "binary": "pv-lmr",
+    "kind": "deeper-choice",
+    "id": "starting-development",
+    "nodes": 100000,
+    "free": {
+      "0": {
+        "bestmove": "c2c4",
+        "score": "cp 23",
+        "depth": 8,
+        "nodes": 67504,
+        "elapsed_ms": 48,
+        "nps": 1389517,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "75": {
+        "bestmove": "d2d4",
+        "score": "cp 22",
+        "depth": 8,
+        "nodes": 85810,
+        "elapsed_ms": 65,
+        "nps": 1315148,
+        "personality": {
+          "nodes": 8630,
+          "attempts": 11,
+          "completed": 9,
+          "exhausted": 4,
+          "selections": 1
+        }
+      },
+      "100": {
+        "bestmove": "d2d4",
+        "score": "cp 22",
+        "depth": 8,
+        "nodes": 99324,
+        "elapsed_ms": 76,
+        "nps": 1300935,
+        "personality": {
+          "nodes": 8760,
+          "attempts": 13,
+          "completed": 8,
+          "exhausted": 5,
+          "selections": 1
+        }
+      }
+    },
+    "restricted": {
+      "b1c3": {
+        "bestmove": "b1c3",
+        "score": "cp 17",
+        "depth": 9,
+        "nodes": 70435,
+        "elapsed_ms": 50,
+        "nps": 1389107,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "d2d4": {
+        "bestmove": "d2d4",
+        "score": "cp 24",
+        "depth": 9,
+        "nodes": 56507,
+        "elapsed_ms": 41,
+        "nps": 1368131,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  },
+  {
+    "binary": "pv-lmr",
+    "kind": "deeper-choice",
+    "id": "starting-development",
+    "nodes": 400000,
+    "free": {
+      "0": {
+        "bestmove": "c2c4",
+        "score": "cp 32",
+        "depth": 9,
+        "nodes": 122316,
+        "elapsed_ms": 88,
+        "nps": 1381150,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "75": {
+        "bestmove": "d2d4",
+        "score": "cp 24",
+        "depth": 9,
+        "nodes": 224395,
+        "elapsed_ms": 177,
+        "nps": 1267157,
+        "personality": {
+          "nodes": 10678,
+          "attempts": 11,
+          "completed": 9,
+          "exhausted": 5,
+          "selections": 1
+        }
+      },
+      "100": {
+        "bestmove": "d2d4",
+        "score": "cp 24",
+        "depth": 9,
+        "nodes": 256609,
+        "elapsed_ms": 207,
+        "nps": 1236166,
+        "personality": {
+          "nodes": 10808,
+          "attempts": 13,
+          "completed": 8,
+          "exhausted": 6,
+          "selections": 1
+        }
+      }
+    },
+    "restricted": {
+      "b1c3": {
+        "bestmove": "b1c3",
+        "score": "cp 12",
+        "depth": 11,
+        "nodes": 284619,
+        "elapsed_ms": 215,
+        "nps": 1317958,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "d2d4": {
+        "bestmove": "d2d4",
+        "score": "cp 25",
+        "depth": 11,
+        "nodes": 228904,
+        "elapsed_ms": 175,
+        "nps": 1307810,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  },
+  {
+    "binary": "pv-lmr",
+    "kind": "deeper-choice",
+    "id": "starting-development",
+    "nodes": 2000000,
+    "free": {
+      "0": {
+        "bestmove": "e2e4",
+        "score": "cp 35",
+        "depth": 12,
+        "nodes": 1777352,
+        "elapsed_ms": 1339,
+        "nps": 1327034,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "75": {
+        "bestmove": "e2e4",
+        "score": "cp 30",
+        "depth": 11,
+        "nodes": 1316462,
+        "elapsed_ms": 1059,
+        "nps": 1242405,
+        "personality": {
+          "nodes": 14774,
+          "attempts": 11,
+          "completed": 9,
+          "exhausted": 7,
+          "selections": 1
+        }
+      },
+      "100": {
+        "bestmove": "e2e4",
+        "score": "cp 30",
+        "depth": 11,
+        "nodes": 1660566,
+        "elapsed_ms": 1394,
+        "nps": 1190530,
+        "personality": {
+          "nodes": 14904,
+          "attempts": 13,
+          "completed": 8,
+          "exhausted": 8,
+          "selections": 1
+        }
+      }
+    },
+    "restricted": {
+      "b1c3": {
+        "bestmove": "b1c3",
+        "score": "cp 5",
+        "depth": 13,
+        "nodes": 1370960,
+        "elapsed_ms": 1041,
+        "nps": 1316737,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "d2d4": {
+        "bestmove": "d2d4",
+        "score": "cp 15",
+        "depth": 13,
+        "nodes": 1184568,
+        "elapsed_ms": 924,
+        "nps": 1281841,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  }
+]

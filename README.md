@@ -17,11 +17,13 @@ Jakgro will favor initiative and practical winning chances without replacing che
 
 Legality, tactical soundness, and reproducible testing remain hard constraints. The engine and UCI APIs bound `Aggression` from 0 to 100 and default to the accepted attacking profile at 75; profile 100 remains available as the wilder endpoint. Fixed-node fixtures gate the objective, default, and maximum profiles so style changes remain deliberate and reviewable.
 
-The latest [Aggression 75 follow-up](docs/tuning/aggression75-quiet-checks.md) measures a further +44.9 Elo at 50 ms/move and +39.6 at `1.0+0.01` against the [fitted-mobility series](docs/tuning/aggression75-fitted-mobility.md), retaining 100.1% and 101.8% of its forcing-move rate. Both confirmation channels accept H1. It reduces optional quiescence checks without changing the attacking root policy, and explicitly documents a one-centipawn tolerance change for one alternative development move. These are short-control relative results, not an absolute rating or a tournament-strength claim.
+The earlier [Aggression 75 follow-up](docs/tuning/aggression75-quiet-checks.md) measures a further +44.9 Elo at 50 ms/move and +39.6 at `1.0+0.01` against the [fitted-mobility series](docs/tuning/aggression75-fitted-mobility.md), retaining 100.1% and 101.8% of its forcing-move rate. Both confirmation channels accept H1. It reduces optional quiescence checks without changing the attacking root policy, and explicitly documents a one-centipawn tolerance change for one alternative development move. These are short-control relative results, not an absolute rating or a tournament-strength claim.
 
 The [follow-up screens and 200 ms check](docs/tuning/aggression75-followup-screens.md) record two rejected candidates and additional evidence for the already accepted quiet-check change. That round retained no playing-code changes.
 
-The [evaluation-refit pilot](docs/tuning/evaluation-refit-pilot.md) records a new parent-seed-disjoint training/development split, four tested fits, and an unused confirmation book. No new weights were promoted; the corpus and reproduction tools are retained for further work.
+The [evaluation-refit pilot](docs/tuning/evaluation-refit-pilot.md) records a new parent-seed-disjoint training/development split, four tested fits, and a confirmation book that was unplayed during that pilot. No new weights were promoted; the corpus and reproduction tools are retained for further work.
+
+The [PV-search follow-up](docs/tuning/aggression75-pv-lmr.md) measures +13.2 Elo in confirmation and +15.7 in a second-book replication at the default 75 and 50 ms/move, against the same unchanged base. It reduces late quiet alternatives while preserving the attacking root policy; replication retains 101.1% of forcing moves. The clocked estimate is +9.7 but its sequential test remains undecided. The report records the reviewed move-choice/test changes, all rejected experiments, and the limits of these short-control results.
 
 ## Requirements
 

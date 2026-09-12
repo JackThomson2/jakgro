@@ -1,0 +1,22 @@
+diff --git a/src/engine/search/algorithm.rs b/src/engine/search/algorithm.rs
+index 44663ea..95b63e2 100644
+--- a/src/engine/search/algorithm.rs
++++ b/src/engine/search/algorithm.rs
+@@ -4134,6 +4134,16 @@ fn quiescence(
+                 context.mode,
+             ));
+         }
++        store_quiescence_result(
++            board,
++            history,
++            ply,
++            &best,
++            alpha_original,
++            beta,
++            stand_pat,
++            context,
++        );
+         return Ok(best);
+     };
+     let mut prefetched_move = Some(first_move);
+

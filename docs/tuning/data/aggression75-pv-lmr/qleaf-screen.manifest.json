@@ -1,0 +1,125 @@
+{
+  "command": [
+    "/tmp/jakkoo-temp/session-1135455-1789169345191-0/selfplay",
+    "--engine",
+    "/tmp/jakkoo-temp/session-1135455-1789169345191-0/strength-qleaf",
+    "--baseline-engine",
+    "/tmp/jakkoo-temp/session-1135455-1789169345191-0/strength-base",
+    "--candidate-aggression",
+    "75",
+    "--baseline-aggression",
+    "75",
+    "--candidate-name",
+    "Candidate-Aggression-75",
+    "--baseline-name",
+    "Baseline-Aggression-75",
+    "--games",
+    "1024",
+    "--openings",
+    "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789169680901130384-0/workspace/docs/tuning/data/evaluation-refit-pilot/development.epd",
+    "--hash",
+    "16",
+    "--concurrency",
+    "20",
+    "--pgn",
+    "/tmp/jakkoo-temp/session-1135455-1789169345191-0/qleaf-screen.pgn",
+    "--results-json",
+    "/tmp/jakkoo-temp/session-1135455-1789169345191-0/qleaf-screen.arbiter.json",
+    "--movetime-ms",
+    "50"
+  ],
+  "comparison": {
+    "distinct_binaries_required": true,
+    "distinct_binary_hashes": true,
+    "identical_binaries_allowed": false,
+    "mode": "same-profile-binaries"
+  },
+  "created_utc": "2026-09-11T23:42:24.726869+00:00",
+  "execution": {
+    "changed_inputs": [],
+    "completed_games": 1024,
+    "duration_seconds": 124.755453,
+    "error": null,
+    "expected_games": 1024,
+    "faults": [],
+    "finished_utc": "2026-09-11T23:44:29.485062+00:00",
+    "inputs_unchanged": true,
+    "pgn_sha256": "f68f8e17d2a0cbad2d06adb534e546ab5c57f95a72f6c8dcdc262a7c46b0ed4f",
+    "return_code": 0,
+    "started_utc": "2026-09-11T23:42:24.729609+00:00",
+    "status": "complete"
+  },
+  "host": {
+    "platform": "Linux-7.0.0-1010-aws-x86_64-with-glibc2.39",
+    "python": "3.12.3"
+  },
+  "inputs": {
+    "baseline": {
+      "aggression": 75,
+      "name": "Baseline-Aggression-75",
+      "path": "/tmp/jakkoo-temp/session-1135455-1789169345191-0/strength-base",
+      "revision": "7c362767b518091e20a934aca79cdf97eaaec7a8",
+      "sha256": "272e3c056554956d84f32560299ccc8b86da17e6a47bdb2d9ec2a8706f55db2d"
+    },
+    "candidate": {
+      "aggression": 75,
+      "name": "Candidate-Aggression-75",
+      "path": "/tmp/jakkoo-temp/session-1135455-1789169345191-0/strength-qleaf",
+      "revision": "qleaf-screen",
+      "sha256": "59a937e38b92ddb6baa2bcdefc54de788f05cf8e465822a8f2a4a41542d309b1"
+    },
+    "harness": {
+      "path": "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789169680901130384-0/workspace/tools/run_sprt.py",
+      "sha256": "a471d092cc9f6a48088f5c61bbd041a192f1dc6b872541abba4a4b8c9eed7e96"
+    },
+    "openings": {
+      "count": 512,
+      "path": "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789169680901130384-0/workspace/docs/tuning/data/evaluation-refit-pilot/development.epd",
+      "sha256": "9fccb65f421bd10aeaf037021b6ca7eae4039186093521f87a2a12d2156b3ec3"
+    },
+    "runner": {
+      "path": "/tmp/jakkoo-temp/session-1135455-1789169345191-0/selfplay",
+      "sha256": "c6495fb492a8b63e57fe944f4c67d62ec7bfb9cc0b84b16b1bf5864cd8130ca9"
+    }
+  },
+  "outputs": {
+    "manifest": "/tmp/jakkoo-temp/session-1135455-1789169345191-0/qleaf-screen.manifest.json",
+    "pgn": "/tmp/jakkoo-temp/session-1135455-1789169345191-0/qleaf-screen.pgn"
+  },
+  "provenance": {
+    "build_profile": "release-locked",
+    "dependency_revision": "5851b224ca58ef3330b9d41813fa76f391bb60cf"
+  },
+  "schema_version": 2,
+  "settings": {
+    "concurrency": 20,
+    "draw": {
+      "movecount": 10,
+      "movenumber": 80,
+      "score": 10
+    },
+    "games": 1024,
+    "hash_mib": 16,
+    "limit": {
+      "mode": "fixed-movetime",
+      "movetime_ms": 50,
+      "nodes_per_move": null,
+      "time_control": null
+    },
+    "maxmoves": 200,
+    "nodes_per_move": null,
+    "resign": {
+      "movecount": 4,
+      "score": 800,
+      "twosided": true
+    },
+    "rounds": 512,
+    "sprt": {
+      "alpha": 0.05,
+      "beta": 0.05,
+      "elo0": 0.0,
+      "elo1": 10.0
+    },
+    "time_control": null
+  }
+}

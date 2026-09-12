@@ -1,0 +1,15 @@
+diff --git a/src/engine/search/algorithm.rs b/src/engine/search/algorithm.rs
+index 44663ea..0362bbd 100644
+--- a/src/engine/search/algorithm.rs
++++ b/src/engine/search/algorithm.rs
+@@ -4121,7 +4121,8 @@ fn quiescence(
+         context.personality,
+         MovePickerMode::Quiescence {
+             in_check,
+-            include_quiet_checks: check_budget > 0,
++            include_quiet_checks: check_budget > 0
++                && (horizon || context.personality.aggression() >= 80),
+         },
+     );
+     let Some(first_move) = picker.next(&context.ordering) else {
+

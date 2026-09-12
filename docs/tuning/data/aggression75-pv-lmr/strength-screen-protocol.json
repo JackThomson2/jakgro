@@ -1,0 +1,27 @@
+{
+  "base": "7c362767b518091e20a934aca79cdf97eaaec7a8",
+  "base_binary_sha256": "272e3c056554956d84f32560299ccc8b86da17e6a47bdb2d9ec2a8706f55db2d",
+  "default_aggression": 75,
+  "initial_candidates": [
+    "Reduce main-search check extensions to two at profiles 50-79; preserve 0 and 100 schedules and root attack policy.",
+    "Do not train quiet-history maluses on unsearched futility/move-count-pruned moves.",
+    "If needed, test zero optional quiet checks at the default profile; retain all legal evasions and main-search checks."
+  ],
+  "screen": {
+    "games_per_candidate": 1024,
+    "movetime_ms": 50,
+    "concurrency": 20,
+    "hash_mib": 16,
+    "threads": 1,
+    "book": "docs/tuning/data/evaluation-refit-pilot/development.epd",
+    "selection": "Exploratory paired-match evidence, not fixture exactness or a depth-only proxy. Screen all independent variants before selecting. Require a positive held-out confirmation and no safety or personality regression to promote."
+  },
+  "confirmation": {
+    "book": "docs/tuning/data/evaluation-refit-pilot/confirmation.epd",
+    "fixed_time_games": 3072,
+    "movetime_ms": 50,
+    "clock_games": 2000,
+    "time_control": "1.0+0.01",
+    "policy": "Do not tune using confirmation. Report intervals, faults, selection caveats and forcing/check-rate retention."
+  }
+}

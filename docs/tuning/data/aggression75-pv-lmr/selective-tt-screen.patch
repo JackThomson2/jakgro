@@ -1,0 +1,67 @@
+diff --git a/src/engine/search/algorithm.rs b/src/engine/search/algorithm.rs
+index 44663ea..e941232 100644
+--- a/src/engine/search/algorithm.rs
++++ b/src/engine/search/algorithm.rs
+@@ -3773,7 +3773,6 @@ fn negamax(
+         score: NEG_INFINITY,
+         path_dependent: false,
+     };
+-    let mut selective_fail_low = false;
+ 
+     while let Some((index, metadata)) = prefetched_move
+         .take()
+@@ -3811,7 +3810,6 @@ fn negamax(
+             )
+         }) {
+             context.telemetry.futility_pruned_moves += 1;
+-            selective_fail_low = true;
+             picker.record_failed_quiet(metadata);
+             continue;
+         }
+@@ -3830,7 +3828,6 @@ fn negamax(
+             )
+         {
+             context.telemetry.late_move_pruned_moves += 1;
+-            selective_fail_low = true;
+             picker.record_failed_quiet(metadata);
+             continue;
+         }
+@@ -3897,8 +3894,6 @@ fn negamax(
+             if score >= beta {
+                 context.telemetry.lmr_research_fail_highs += 1;
+             }
+-        } else if reduction > 0 {
+-            selective_fail_low = true;
+         }
+ 
+         if index != 0 && score > alpha && score < beta {
+@@ -3978,18 +3973,16 @@ fn negamax(
+         } else {
+             Bound::Exact
+         };
+-        if !selective_fail_low || bound == Bound::Lower {
+-            context.table.store_key(
+-                history.current_key(),
+-                board.halfmove_clock(),
+-                depth,
+-                ply,
+-                best.score,
+-                bound,
+-                context.pv(ply).first().copied(),
+-                static_evaluation,
+-            );
+-        }
++        context.table.store_key(
++            history.current_key(),
++            board.halfmove_clock(),
++            depth,
++            ply,
++            best.score,
++            bound,
++            context.pv(ply).first().copied(),
++            static_evaluation,
++        );
+     }
+ 
+     context.recycle_picker_storage(ply, picker.into_storage());
+

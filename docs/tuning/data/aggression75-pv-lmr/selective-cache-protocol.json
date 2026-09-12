@@ -1,0 +1,11 @@
+{
+  "candidate": "Cache selective main-search bounds at the searched nominal depth, as heuristic search results, instead of discarding them whenever a quiet was pruned or an LMR probe failed low.",
+  "rationale": "All child results are already selective; dropping only the current node's bounds forfeits transposition reuse and hash-move ordering. This is a strength experiment, not a proof of exact minimax equivalence.",
+  "settings": {
+    "games": 1024,
+    "movetime_ms": 50,
+    "aggression": 75,
+    "book": "docs/tuning/data/evaluation-refit-pilot/development.epd"
+  },
+  "independent_of": "qleaf and qhistory"
+}

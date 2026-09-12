@@ -1,0 +1,14 @@
+diff --git a/src/engine/search/algorithm.rs b/src/engine/search/algorithm.rs
+index 44663ea..b53b040 100644
+--- a/src/engine/search/algorithm.rs
++++ b/src/engine/search/algorithm.rs
+@@ -4205,7 +4205,7 @@ fn quiescence(
+                         board,
+                         metadata,
+                         picker.failed_captures(),
+-                        remaining.max(1),
++                        1,
+                     );
+                     context.telemetry.capture_history_updates += 1;
+                 }
+

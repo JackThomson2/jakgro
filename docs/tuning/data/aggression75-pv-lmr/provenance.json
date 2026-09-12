@@ -1,0 +1,68 @@
+{
+  "accepted_binary": "strength-pv-lmr",
+  "base_revision": "7c362767b518091e20a934aca79cdf97eaaec7a8",
+  "binary_sha256": {
+    "selfplay": "c6495fb492a8b63e57fe944f4c67d62ec7bfb9cc0b84b16b1bf5864cd8130ca9",
+    "strength-base": "272e3c056554956d84f32560299ccc8b86da17e6a47bdb2d9ec2a8706f55db2d",
+    "strength-ext2": "43baa50ae43419ad2c8181808f172041d61733cd943c7dcd18070e3d9e2a2132",
+    "strength-history": "14b40c4491d55d1955e4d46ff7f1291556a0e284eba3e5e0edd4826c94f02f64",
+    "strength-horizon-checks": "d670214505ed543b8d9c24aa978ac832c73d9a173406031bbabf54efba2e1f3f",
+    "strength-pv-lmr": "85201a3ee2d2ad990a11de9c811bb12dcc8c4e4af1b41041ba87eb7fefabde6c",
+    "strength-pv75": "fa2fd6586cccc597473d2ddf4117c9b4d31c3445c05d3b90058ebf906177e325",
+    "strength-q0": "a5f465c0bee3d91d9a2fc7d1df7671857577eb5f4779ff9fc629df8e6131666e",
+    "strength-qhistory": "3dc4b40e94bfa518dfc52e1988d419aaa091ea282985b8952bcc6955a0bc8ef6",
+    "strength-qleaf": "59a937e38b92ddb6baa2bcdefc54de788f05cf8e465822a8f2a4a41542d309b1",
+    "strength-selective-tt": "458ec1619259a490924f6ecea9aa451625b21c09a274af2cfb3c8c5ad75772d8"
+  },
+  "books": {
+    "docs/tuning/data/evaluation-refit-pilot/confirmation.epd": {
+      "positions": 1536,
+      "sha256": "834f346c87f90317cf71ef7d0a610665bc585c69f4da4a5a7ac1ee4144447367"
+    },
+    "docs/tuning/data/evaluation-refit-pilot/development.epd": {
+      "positions": 512,
+      "sha256": "9fccb65f421bd10aeaf037021b6ca7eae4039186093521f87a2a12d2156b3ec3"
+    },
+    "docs/tuning/data/selective-search-confirmation.epd": {
+      "positions": 2048,
+      "sha256": "9f44058d953324751ed1db1a3325f8bfa8ccf31ee6f6cffa3e1e98a391a9de37"
+    }
+  },
+  "build_command": "cargo build --release --locked --bin jakgro --bin selfplay",
+  "confirmation_concurrency": 24,
+  "dependency_revision": "5851b224ca58ef3330b9d41813fa76f391bb60cf",
+  "engine_revision": "0cd9e0a91ad284e0e71364595272e0f157cec3ad",
+  "games_archived": 22432,
+  "hash_mib": 16,
+  "host": "Linux x86_64, 96 online logical CPUs",
+  "manifest_labels": "pv-lmr-screen, pv-lmr-confirmation and pv-lmr-replication all identify the accepted immutable binary; original manifests are unmodified.",
+  "matches_archived": 13,
+  "patch_bases": "The eight *-screen.patch files independently apply to the series base. pv75-scope.patch applies to the accepted engine revision.",
+  "scope_trial": "strength-pv75 is rejected. Its sampled A75 trees match the accepted binary, but its timed comparisons are inconclusive. No causal attribution to code layout or scheduling is established.",
+  "screen_concurrency": 20,
+  "shared_host_and_overlapping_jobs": true,
+  "source_inputs": {
+    "Cargo.lock": "371534a5fdbe1d0505d9630b44cebacd529693368667501ec5fe227512ffa6ee",
+    "Cargo.toml": "4db8ae01629b45cc7e626e6530da98c19e5cf3f77be1b9862e2103c5bddec83a",
+    "src/bin/selfplay.rs": "047daf9c8f227d0d8deedb722e6c03eca9801db21c7e7f91decbef26bc9809f8",
+    "src/engine/evaluation.rs": "09e4c29c59aa5ba633c57aedd3137e62a838a4617ef78469e68999aa5be19560",
+    "src/engine/evaluation/placement.rs": "b31d3b29e8583335f3006d2a695b4992ce32a7c628530683ed3018c20ee763c2",
+    "src/engine/evaluation/weights.rs": "73234f11c4bbf9f2009381a26031db41f949b20f626a5d4f9a42151ee499ab56",
+    "src/engine/search.rs": "8d7cbd6d5beb69c218427c0417e2599be4cf8bf5c0ad2aec081d4eea0301c58a",
+    "src/engine/search/algorithm.rs": "789d5ca4ac1a5b03d1cb3a4e11aabd5936d477584fc9dcad7d451eda47f91899",
+    "tests/aggression_profile.rs": "b18d30785a46abb4fff996ba3c48ac0cfedd7806a58f25e3bb31dd33e6472418",
+    "tests/data/null-move-contract.epd": "ddbe8d72b5ab8748f86b597b4924b4a439eb398b949ad612b57ad84720b85559",
+    "tests/data/sacrifice-acceptance-contract.epd": "0b33c5d9d37c28e711f13549426f5bf0f0a796d10784157ecf36ad1a91a0b3e7",
+    "tests/data/sacrifice-gates.epd": "d3472cd41c0bb4b85be6345df4b212954dba2dd9fefe9548b85f1a2ae72e4226",
+    "tests/data/standard-attacks.epd": "2be6305f9c46a2232c4229f1e0c902d169450adaa5847fb126b03a72c5586f90",
+    "tests/null_move_regression.rs": "9f9425bfa71b2def43dc1c39ba8ca4d53c06c7997a58eb2cd3ce0e2199877d8b",
+    "tools/analyze_match.py": "03a9e97172f516e6be020194ecad6914233f2582107650e940766f21f46db739",
+    "tools/run_sprt.py": "a471d092cc9f6a48088f5c61bbd041a192f1dc6b872541abba4a4b8c9eed7e96"
+  },
+  "threads_per_engine": 1,
+  "toolchain": {
+    "cargo": "1.88.0 (873a06493 2025-05-10)",
+    "python": "3.12.3",
+    "rustc": "1.88.0 (6b00bc388 2025-06-23)"
+  }
+}

@@ -1,0 +1,58 @@
+bash-26: running; workspace=active; generation=1; elapsed=141017 ms; timeout=1800000 ms; captured=0 bytes
+  directory: /home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789169680901130384-0/workspace
+  queue=20 ms; execution=140996 ms; result_collected_at_snapshot=false
+bash-27: running; workspace=active; generation=1; elapsed=141017 ms; timeout=1800000 ms; captured=0 bytes
+  directory: /home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789169680901130384-0/workspace
+  queue=23 ms; execution=140994 ms; result_collected_at_snapshot=false
+bash-34: running; workspace=active; generation=1; elapsed=21346 ms; timeout=600000 ms; captured=0 bytes
+  directory: /home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789169680901130384-0/workspace
+  queue=33 ms; execution=21312 ms; result_collected_at_snapshot=false
+bash-35: failed (exit status 100); workspace=active; generation=1; elapsed=2049 ms; timeout=600000 ms; captured=2734 bytes
+  directory: /home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789169680901130384-0/workspace
+  queue=59 ms; execution=1990 ms; result_collected_at_snapshot=false
+  output:
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+────────────
+ Nextest run ID 10e83cca-bcae-4ea2-a379-209264454d68 with nextest profile: default
+    Starting 16 tests across 2 binaries
+        PASS [   0.059s] ( 1/16) jakgro::uci end_of_input_cancels_search_without_a_bestmove
+        PASS [   0.081s] ( 2/16) jakgro::uci clock_search_honors_persistent_move_overhead_and_hard_limit
+        PASS [   0.025s] ( 3/16) jakgro::uci executable_is_wired_to_standard_io
+        PASS [   0.056s] ( 4/16) jakgro::uci movetime_search_finishes_without_another_command
+        PASS [   0.072s] ( 5/16) jakgro::uci forced_mate_is_reported_in_uci_moves
+        PASS [   0.138s] ( 6/16) jakgro::uci ponder_result_is_withheld_until_ponderhit
+        PASS [   0.023s] ( 7/16) jakgro::uci public_runner_handles_a_protocol_transcript
+        PASS [   0.057s] ( 8/16) jakgro::uci quit_cancels_active_search_without_a_bestmove
+        PASS [   0.057s] ( 9/16) jakgro::uci rejected_position_does_not_replace_engine_state
+        PASS [   0.318s] (10/16) jakgro::uci personality_telemetry_is_only_reported_in_debug_mode
+        PASS [   0.059s] (11/16) jakgro::uci replacement_search_suppresses_the_stale_result
+        PASS [   0.057s] (12/16) jakgro::uci terminal_position_returns_the_null_move
+        PASS [   0.092s] (13/16) jakgro::uci stop_interrupts_infinite_search_and_isready_stays_responsive
+        PASS [   0.312s] (14/16) jakgro::uci threads_option_drives_a_parallel_search_and_survives_clamping
+        PASS [   1.146s] (15/16) jakgro::uci aggression_option_is_snapshotted_clamped_and_persistent
+        FAIL [   1.849s] (16/16) jakgro::null_move_regression verified_null_move_matches_disabled_search_on_contract_positions
+  stdout ───
+
+    running 1 test
+    test verified_null_move_matches_disabled_search_on_contract_positions ... FAILED
+
+    failures:
+
+    failures:
+        verified_null_move_matches_disabled_search_on_contract_positions
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.84s
+
+  stderr ───
+
+    thread 'verified_null_move_matches_disabled_search_on_contract_positions' panicked at tests/null_move_regression.rs:79:9:
+    assertion `left == right` failed: null-in-check changed best move
+      left: Some("d1e2")
+     right: Some("e1e2")
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: 
+────────────
+     Summary [   1.850s] 16 tests run: 15 passed, 1 failed, 0 skipped
+        FAIL [   1.849s] (16/16) jakgro::null_move_regression verified_null_move_matches_disabled_search_on_contract_positions
+error: test run failed

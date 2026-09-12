@@ -1,0 +1,14 @@
+diff --git a/src/engine/evaluation.rs b/src/engine/evaluation.rs
+index 23ca83d..5c5acc2 100644
+--- a/src/engine/evaluation.rs
++++ b/src/engine/evaluation.rs
+@@ -125,7 +125,7 @@ impl EvaluationConfig {
+     }
+ 
+     pub(super) const fn quiescence_check_budget(self) -> u8 {
+-        1 + (self.aggression >= 80) as u8 + (self.aggression == MAX_AGGRESSION) as u8
++        2 * (self.aggression >= 80) as u8 + (self.aggression == MAX_AGGRESSION) as u8
+     }
+ 
+     pub(super) const fn root_style_margin(self) -> Score {
+

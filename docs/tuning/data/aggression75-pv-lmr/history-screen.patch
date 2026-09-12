@@ -1,0 +1,21 @@
+diff --git a/src/engine/search/algorithm.rs b/src/engine/search/algorithm.rs
+index 44663ea..1c29329 100644
+--- a/src/engine/search/algorithm.rs
++++ b/src/engine/search/algorithm.rs
+@@ -3812,7 +3812,6 @@ fn negamax(
+         }) {
+             context.telemetry.futility_pruned_moves += 1;
+             selective_fail_low = true;
+-            picker.record_failed_quiet(metadata);
+             continue;
+         }
+         if pruning_evaluation.is_some()
+@@ -3831,7 +3830,6 @@ fn negamax(
+         {
+             context.telemetry.late_move_pruned_moves += 1;
+             selective_fail_low = true;
+-            picker.record_failed_quiet(metadata);
+             continue;
+         }
+         context.telemetry.lmr_attempts += 1;
+

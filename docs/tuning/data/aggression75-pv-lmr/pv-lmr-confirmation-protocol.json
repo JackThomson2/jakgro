@@ -1,0 +1,20 @@
+{
+  "chosen_candidate": "pv-lmr",
+  "candidate_sha256": "85201a3ee2d2ad990a11de9c811bb12dcc8c4e4af1b41041ba87eb7fefabde6c",
+  "selection": "Largest positive development point estimate (+12.219568), positive paired normal development interval, plus 17.17% fewer nodes and +0.5 ply on the diagnostic suite. Eight exploratory candidates were tried; do not treat the selected development interval as a corrected significance claim.",
+  "comparison": "Both sides Aggression 75, one thread, 16 MiB hash, immutable binaries.",
+  "fixed_time": {
+    "games": 3072,
+    "movetime_ms": 50,
+    "concurrency": 24,
+    "book": "docs/tuning/data/evaluation-refit-pilot/confirmation.epd"
+  },
+  "clock": {
+    "games": 2000,
+    "time_control": "1.0+0.01",
+    "concurrency": 24,
+    "book": "docs/tuning/data/evaluation-refit-pilot/confirmation.epd"
+  },
+  "policy": "Run to declared caps; no candidate or parameter changes using confirmation results. Require no engine faults and inspect forcing/check retention plus mandatory tactical safety. Preserve exact failed gates alongside any explicitly justified fixture changes.",
+  "base_sha256": "272e3c056554956d84f32560299ccc8b86da17e6a47bdb2d9ec2a8706f55db2d"
+}

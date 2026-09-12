@@ -1,0 +1,11 @@
+--- a/src/engine/search/algorithm.rs
++++ b/src/engine/search/algorithm.rs
+@@ -3841,7 +3841,7 @@
+             child_depth,
+             index,
+             metadata,
+-            protected,
++            protected || (pv_node && context.personality.aggression() != 75),
+             in_check,
+             pv_node,
+             history_score,

@@ -48,11 +48,17 @@ fn contracts() -> Vec<ContractPosition> {
 }
 
 fn observe(fixture: &ContractPosition, null_move: bool) -> Observation {
+    let board = fixture.fen.parse::<cozy_chess::Board>().unwrap();
+    let depth = if board.checkers().is_empty() { 7 } else { 9 };
+    observe_at_depth(fixture, null_move, depth)
+}
+
+fn observe_at_depth(fixture: &ContractPosition, null_move: bool, depth: u32) -> Observation {
     let mut engine = Engine::new();
     engine.set_aggression(0);
     engine.set_position(Position::from_fen(&fixture.fen).unwrap());
     let result = engine.search(&SearchLimits {
-        depth: Some(7),
+        depth: Some(depth),
         null_move: Some(null_move),
         ..SearchLimits::default()
     });
@@ -63,6 +69,32 @@ fn observe(fixture: &ContractPosition, null_move: bool) -> Observation {
         nodes: info.map_or(0, |info| info.nodes()),
         pv: info.map_or_else(Vec::new, |info| info.pv().to_vec()),
         telemetry: result.telemetry(),
+    }
+}
+
+#[test]
+fn shallow_check_evasions_keep_the_winning_capture_with_or_without_null() {
+    let fixture = contracts()
+        .into_iter()
+        .find(|fixture| fixture.id == "null-in-check")
+        .unwrap();
+    for enabled in [false, true] {
+        let result = observe_at_depth(&fixture, enabled, 7);
+        assert!(matches!(result.best_move.as_deref(), Some("d1e2" | "e1e2")));
+        assert!(matches!(result.score, Some(SearchScore::Centipawns(score)) if score >= 1300));
+        let mut board = fixture.fen.parse::<cozy_chess::Board>().unwrap();
+        for uci in &result.pv {
+            let chess_move = cozy_chess::util::parse_uci_move(&board, uci).unwrap();
+            assert!(board.is_legal(chess_move));
+            board.play_unchecked(chess_move);
+        }
+        assert_eq!(board.colors(cozy_chess::Color::Black).len(), 1);
+        assert_eq!(
+            board
+                .colored_pieces(cozy_chess::Color::White, cozy_chess::Piece::Queen)
+                .len(),
+            1,
+        );
     }
 }
 

@@ -752,7 +752,7 @@ mod tests {
             &position,
             &limits,
             &control,
-            SearchSettings::for_test(EvaluationConfig::default()),
+            SearchSettings::for_test(EvaluationConfig::new(0)),
             &table,
             |_| {},
         );
@@ -760,7 +760,7 @@ mod tests {
             &position,
             &limits,
             &control,
-            SearchSettings::for_test(EvaluationConfig::default()),
+            SearchSettings::for_test(EvaluationConfig::new(0)),
             &table,
             |_| {},
         );
@@ -769,6 +769,49 @@ mod tests {
         assert_eq!(warm.info().unwrap().score(), cold.info().unwrap().score());
         assert!(warm.info().unwrap().nodes() < cold.info().unwrap().nodes());
     }
+
+    #[test]
+    fn a_warm_styled_search_preserves_equal_score_transpositions() {
+        let position =
+            Position::from_fen("r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3")
+                .unwrap();
+        let limits = SearchLimits {
+            depth: Some(5),
+            ..SearchLimits::default()
+        };
+        let control = SearchControl::new();
+        let table = TranspositionTable::new(1).unwrap();
+        let search_once = || {
+            search_with_table(
+                &position,
+                &limits,
+                &control,
+                SearchSettings::for_test(EvaluationConfig::default()),
+                &table,
+                |_| {},
+            )
+        };
+        let cold = search_once();
+        let warm = search_once();
+        let cold_info = cold.info().unwrap();
+        let warm_info = warm.info().unwrap();
+        assert_eq!(cold_info.score(), SearchScore::Centipawns(52));
+        assert_eq!(warm_info.score(), cold_info.score());
+        assert!(warm_info.nodes() < cold_info.nodes());
+
+        let mut leaves = Vec::new();
+        for result in [&cold, &warm] {
+            assert!(matches!(result.best_move(), Some("b1c3" | "f1c4")));
+            let info = result.info().unwrap();
+            assert_eq!(info.pv().first().map(String::as_str), result.best_move());
+            assert_eq!(info.pv().len(), 5);
+            let mut leaf = position.clone();
+            leaf.apply_uci_moves(info.pv()).unwrap();
+            leaves.push(leaf);
+        }
+        assert_eq!(leaves[0].board(), leaves[1].board());
+    }
+
     #[test]
     fn aggression_changes_clear_policy_specific_hash_entries() {
         let position =

@@ -126,7 +126,7 @@ fn search_fixture(fixture: &PersonalityFixture, aggression: u8) -> (String, Sear
 fn tuned_aggression_profile_is_reproducible_and_distinct() {
     let fixtures = parse_suite();
     assert!(!fixtures.is_empty());
-    let mut changed = 0;
+    let mut distinct_motifs = HashSet::new();
     let mut safety_controls = 0;
     let mut sacrifice_controls = 0;
     let mut anti_sacrifice_controls = 0;
@@ -148,7 +148,9 @@ fn tuned_aggression_profile_is_reproducible_and_distinct() {
             fixture.id,
             fixture.tuned_moves,
         );
-        changed += usize::from(base_move != tuned_move);
+        if base_move != tuned_move {
+            distinct_motifs.insert(fixture.category.as_str());
+        }
         match fixture.category.as_str() {
             "safety" => {
                 safety_controls += 1;
@@ -178,7 +180,12 @@ fn tuned_aggression_profile_is_reproducible_and_distinct() {
         }
     }
 
-    assert!(changed * 100 >= fixtures.len() * 30);
+    for motif in ["initiative", "pawn-storm", "sacrifice", "simplification"] {
+        assert!(
+            distinct_motifs.contains(motif),
+            "no profile distinction for {motif}"
+        );
+    }
     assert!(safety_controls >= 5);
     assert!(sacrifice_controls >= 1);
     assert!(anti_sacrifice_controls >= 2);

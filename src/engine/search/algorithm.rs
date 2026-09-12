@@ -1090,7 +1090,6 @@ fn late_move_reduction(
         || metadata.king_zone_move
         || protected
         || in_check
-        || pv_node
     {
         return 0;
     }
@@ -1098,6 +1097,9 @@ fn late_move_reduction(
     let depth_row = (child_depth as usize).min(LMR_DEPTH_ENTRIES - 1);
     let index_column = move_index.min(LMR_INDEX_ENTRIES - 1);
     let mut reduction = u32::from(LMR_TABLE[depth_row][index_column]).max(1);
+    if pv_node {
+        reduction = reduction.saturating_sub(1);
+    }
     if history_score >= LMR_HISTORY_THRESHOLD {
         reduction = reduction.saturating_sub(1);
     } else if history_score <= -LMR_HISTORY_THRESHOLD {
@@ -6620,7 +6622,7 @@ mod tests {
         );
         assert_eq!(
             super::late_move_reduction(6, 7, metadata, false, false, true, 0),
-            0,
+            1,
         );
 
         for forcing in [
@@ -6736,6 +6738,65 @@ mod tests {
                     false,
                     true,
                     0,
+                ),
+                0,
+            );
+        }
+    }
+
+    #[test]
+    fn pv_late_move_reductions_keep_an_extra_ply_within_depth_bounds() {
+        let position = Position::default();
+        let quiet_move = find_move(&position, "a2a3");
+        let metadata = super::MoveMetadata::classify(position.board(), quiet_move);
+        for depth in [0, 1, 2, 3, 6, 8, 16, 32, 64, u32::MAX] {
+            for index in [0, 2, 3, 5, 6, 7, 12, 32, 63, usize::MAX] {
+                for history in [
+                    -super::HISTORY_MAX,
+                    -super::LMR_HISTORY_THRESHOLD,
+                    0,
+                    super::LMR_HISTORY_THRESHOLD,
+                    super::HISTORY_MAX,
+                ] {
+                    let scout = super::late_move_reduction(
+                        depth, index, metadata, false, false, false, history,
+                    );
+                    let pv = super::late_move_reduction(
+                        depth, index, metadata, false, false, true, history,
+                    );
+                    assert!(pv <= scout);
+                    assert!(scout - pv <= 1);
+                    let retained_depth = if depth == 2 { 1 } else { 2 };
+                    assert!(pv <= depth.saturating_sub(retained_depth));
+                }
+            }
+        }
+        assert_eq!(
+            super::late_move_reduction(6, 7, metadata, false, false, true, 0),
+            1,
+        );
+        assert_eq!(
+            super::late_move_reduction(
+                6,
+                7,
+                metadata,
+                false,
+                false,
+                true,
+                super::LMR_HISTORY_THRESHOLD,
+            ),
+            0,
+        );
+        for (protected, in_check) in [(true, false), (false, true)] {
+            assert_eq!(
+                super::late_move_reduction(
+                    16,
+                    32,
+                    metadata,
+                    protected,
+                    in_check,
+                    true,
+                    -super::HISTORY_MAX,
                 ),
                 0,
             );

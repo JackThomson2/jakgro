@@ -1,0 +1,61 @@
+{
+  "engines": {
+    "baseline": "Baseline-Aggression-75",
+    "candidate": "Candidate-Aggression-75"
+  },
+  "faults": [],
+  "inputs": {
+    "baseline_sha256": "2de6c272f330105767aa418c30c589e51a6d4f5c8ad29bab8cba4b7bbe81194d",
+    "candidate_sha256": "82d0563efbc2f73e0616a58ee401545114f444c9604825c01773ddfc370b2fa3",
+    "manifest": "round2-pgo-screen.manifest.json",
+    "manifest_sha256": "83aa28b9a94e149caa5776970484006bbeccfc2829c386567065232fbfad5978",
+    "openings_sha256": "9fccb65f421bd10aeaf037021b6ca7eae4039186093521f87a2a12d2156b3ec3",
+    "pgn": "round2-pgo-screen.pgn",
+    "pgn_sha256": "ad4fe5a618d6e85ff3e475dca5a6fd8f90e7f677bb0bc0354b9be8833d5b9144"
+  },
+  "limit": {
+    "mode": "fixed-movetime",
+    "movetime_ms": 50,
+    "nodes_per_move": null,
+    "time_control": null
+  },
+  "profiles": {
+    "baseline": 75,
+    "candidate": 75
+  },
+  "result": {
+    "elo": 8.144513,
+    "elo_ci95": [
+      -3.13146,
+      19.437673
+    ],
+    "elo_margin_95": 11.284566,
+    "games": 1024,
+    "los_percent": 92.155358,
+    "pair_distribution": {
+      "0.0": 18,
+      "0.5": 61,
+      "1.0": 329,
+      "1.5": 87,
+      "2.0": 17
+    },
+    "pairs": 512,
+    "score_percent": 51.171875,
+    "score_percent_ci95": [
+      49.549359,
+      52.794391
+    ],
+    "sprt": {
+      "alpha": 0.05,
+      "beta": 0.05,
+      "decision": "continue",
+      "elo0": 0.0,
+      "elo1": 10.0,
+      "llr": 0.950009,
+      "lower_bound": -2.944439,
+      "upper_bound": 2.944439
+    }
+  },
+  "schema_version": 1,
+  "status": "complete"
+}

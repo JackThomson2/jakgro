@@ -1,0 +1,481 @@
+diff --git a/src/engine/search/algorithm.rs b/src/engine/search/algorithm.rs
+index 9f4f526..0167d2d 100644
+--- a/src/engine/search/algorithm.rs
++++ b/src/engine/search/algorithm.rs
+@@ -303,6 +303,8 @@ enum RootLineOutcome {
+ struct RootCandidate {
+     chess_move: Move,
+     score: Score,
++    /// Score at the conventional root depth, before any investment extension.
++    same_depth_score: Score,
+     path_dependent: bool,
+     interest: i64,
+     pv: Vec<Move>,
+@@ -2638,6 +2640,7 @@ fn search_root_styled(
+     let mut candidates = vec![RootCandidate {
+         chess_move: objective_move,
+         score: objective.score,
++        same_depth_score: objective.score,
+         path_dependent: objective.path_dependent,
+         interest: root_interest(
+             board,
+@@ -2827,7 +2830,8 @@ fn search_root_styled(
+             break;
+         };
+         context.telemetry.personality_completed_verifications += 1;
+-        let mut score = -child_result.score;
++        let same_depth_score = -child_result.score;
++        let mut score = same_depth_score;
+         let provisional_margin = if seed.sacrifice_hint >= MIN_SACRIFICE_CP {
+             context.personality.root_style_margin().min(120)
+         } else {
+@@ -2909,6 +2913,7 @@ fn search_root_styled(
+         candidates.push(RootCandidate {
+             chess_move: seed.chess_move,
+             score,
++            same_depth_score,
+             path_dependent,
+             interest: seed.interest,
+             pv,
+@@ -2944,13 +2949,40 @@ fn search_root_styled(
+     })
+ }
+ 
++fn candidate_reference_score(candidate: &RootCandidate) -> Score {
++    // A later mate conclusion supersedes the earlier one, in either direction.
++    if candidate.score.abs() >= MATE_THRESHOLD || candidate.same_depth_score.abs() >= MATE_THRESHOLD
++    {
++        return candidate.score;
++    }
++    // An extra ply can refute an investment, but a centipawn improvement at
++    // that depth must not inflate the price of unextended alternatives.
++    let reference = candidate.same_depth_score.min(candidate.score);
++    if candidate.score >= 0 {
++        reference.max(0)
++    } else {
++        reference
++    }
++}
++
+ fn choose_styled_candidate(
+     candidates: &[RootCandidate],
+     conventional: usize,
+     evaluation: EvaluationConfig,
+ ) -> usize {
+-    let best = candidates[conventional].score;
+-    let mut selected = conventional;
++    let mut best = candidate_reference_score(&candidates[conventional]);
++    let mut strongest = conventional;
++    for (index, candidate) in candidates.iter().enumerate() {
++        let reference = candidate_reference_score(candidate);
++        if reference > best {
++            best = reference;
++            strongest = index;
++        }
++    }
++
++    // Its final score is at least its reference, so this fallback is eligible
++    // even when the original conventional move is outside the revised guard.
++    let mut selected = strongest;
+     for (index, candidate) in candidates.iter().enumerate() {
+         let margin = candidate_risk_margin(evaluation, best, &candidate.sacrifice);
+         if !candidate_within_score_guard(candidate.score, best, margin) {
+@@ -7191,29 +7223,9 @@ mod tests {
+     #[test]
+     fn styled_root_choice_stays_inside_the_margin_and_preserves_mates() {
+         let position = Position::default();
+-        let conventional_move = find_move(&position, "e2e4");
+-        let exciting_move = find_move(&position, "g1f3");
+         let mut candidates = vec![
+-            super::RootCandidate {
+-                chess_move: conventional_move,
+-                score: 50,
+-                path_dependent: false,
+-                interest: 10,
+-                pv: vec![conventional_move],
+-                sacrifice: super::SacrificeProfile::default(),
+-                outcome: super::RootLineOutcome::Live,
+-                sterile_simplification: false,
+-            },
+-            super::RootCandidate {
+-                chess_move: exciting_move,
+-                score: 24,
+-                path_dependent: false,
+-                interest: 100,
+-                pv: vec![exciting_move],
+-                sacrifice: super::SacrificeProfile::default(),
+-                outcome: super::RootLineOutcome::Live,
+-                sterile_simplification: false,
+-            },
++            root_choice_candidate(&position, "e2e4", 50, 10),
++            root_choice_candidate(&position, "g1f3", 24, 100),
+         ];
+ 
+         assert_eq!(
+@@ -7221,18 +7233,252 @@ mod tests {
+             1
+         );
+         candidates[1].score = 23;
++        candidates[1].same_depth_score = 23;
+         assert_eq!(
+             super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
+             0
+         );
+         candidates[0].score = super::MATE_SCORE - 1;
++        candidates[0].same_depth_score = super::MATE_SCORE - 1;
+         candidates[1].score = super::MATE_SCORE - 2;
++        candidates[1].same_depth_score = super::MATE_SCORE - 2;
+         assert_eq!(
+             super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
+             0
+         );
+     }
+ 
++    fn root_choice_candidate(
++        position: &Position,
++        uci: &str,
++        score: super::Score,
++        interest: i64,
++    ) -> super::RootCandidate {
++        let chess_move = find_move(position, uci);
++        super::RootCandidate {
++            chess_move,
++            score,
++            same_depth_score: score,
++            path_dependent: false,
++            interest,
++            pv: vec![chess_move],
++            sacrifice: super::SacrificeProfile::default(),
++            outcome: super::RootLineOutcome::Live,
++            sterile_simplification: false,
++        }
++    }
++
++    #[test]
++    fn verified_root_improvement_displaces_an_ineligible_conventional_move() {
++        let position = Position::default();
++        let candidates = [
++            root_choice_candidate(&position, "e2e4", 50, 10_000),
++            root_choice_candidate(&position, "d2d4", 100, 0),
++            root_choice_candidate(&position, "g1f3", 60, 20_000),
++        ];
++        for aggression in [75, 100] {
++            assert_eq!(
++                super::choose_styled_candidate(
++                    &candidates,
++                    0,
++                    super::EvaluationConfig::new(aggression)
++                ),
++                1,
++            );
++        }
++    }
++
++    #[test]
++    fn verified_root_mate_cannot_be_ignored_for_personality() {
++        let position = Position::default();
++        let candidates = [
++            root_choice_candidate(&position, "e2e4", 50, 10_000),
++            root_choice_candidate(&position, "d2d4", super::MATE_SCORE - 5, 0),
++        ];
++        for aggression in [75, 100] {
++            assert_eq!(
++                super::choose_styled_candidate(
++                    &candidates,
++                    0,
++                    super::EvaluationConfig::new(aggression)
++                ),
++                1,
++            );
++        }
++    }
++
++    #[test]
++    fn root_reference_respects_search_depth_and_latest_mate_evidence() {
++        let position = Position::default();
++        let mate = super::MATE_SCORE - 5;
++        for (same_depth, final_score, expected) in [
++            (50, 50, 50),
++            (50, 160, 50),
++            (160, 40, 40),
++            (-40, -5, -40),
++            (-40, 0, 0),
++            (-40, 20, 0),
++            (50, mate, mate),
++            (mate, 50, 50),
++            (-mate, -50, -50),
++            (50, -mate, -mate),
++            (mate, -mate, -mate),
++            (-mate, mate, mate),
++        ] {
++            let mut candidate = root_choice_candidate(&position, "e2e4", same_depth, 0);
++            candidate.score = final_score;
++            let reference = super::candidate_reference_score(&candidate);
++            assert_eq!(
++                reference, expected,
++                "same={same_depth}, final={final_score}"
++            );
++            assert!(candidate.score >= reference);
++            assert!(super::candidate_within_score_guard(
++                candidate.score,
++                reference,
++                0
++            ));
++        }
++    }
++
++    #[test]
++    fn verified_root_reference_reprices_the_conventional_move() {
++        let position = Position::default();
++        let candidates = [
++            root_choice_candidate(&position, "e2e4", 50, 60),
++            root_choice_candidate(&position, "d2d4", 60, 20),
++        ];
++        let evaluation = super::EvaluationConfig::new(75);
++        assert!(super::candidate_within_score_guard(50, 60, 16));
++        assert_eq!(
++            super::choose_styled_candidate(&candidates, 0, evaluation),
++            1
++        );
++    }
++
++    #[test]
++    fn verified_root_reference_still_allows_bounded_attacking_choices() {
++        let position = Position::default();
++        let candidates = [
++            root_choice_candidate(&position, "e2e4", 50, 0),
++            root_choice_candidate(&position, "d2d4", 100, 10),
++            root_choice_candidate(&position, "g1f3", 90, 100),
++        ];
++        for aggression in [75, 100] {
++            assert_eq!(
++                super::choose_styled_candidate(
++                    &candidates,
++                    0,
++                    super::EvaluationConfig::new(aggression)
++                ),
++                2,
++            );
++        }
++    }
++
++    #[test]
++    fn extended_investment_does_not_overprice_unextended_moves() {
++        let position = Position::default();
++        let mut candidates = [
++            root_choice_candidate(&position, "e2e4", 50, 100),
++            root_choice_candidate(&position, "d2d4", 45, 0),
++        ];
++        candidates[1].score = 150;
++        let evaluation = super::EvaluationConfig::new(75);
++        assert_eq!(
++            super::choose_styled_candidate(&candidates, 0, evaluation),
++            0
++        );
++
++        candidates[1].same_depth_score = 150;
++        candidates[1].score = 40;
++        assert_eq!(
++            super::choose_styled_candidate(&candidates, 0, evaluation),
++            0
++        );
++
++        candidates[0].score = -5;
++        candidates[0].same_depth_score = -5;
++        candidates[1].same_depth_score = -40;
++        candidates[1].score = 0;
++        assert_eq!(
++            super::choose_styled_candidate(&candidates, 0, evaluation),
++            1
++        );
++    }
++
++    #[test]
++    fn verified_root_selection_orders_mates_by_sign_and_distance() {
++        let position = Position::default();
++        let mate = super::MATE_SCORE;
++        for (scores, expected) in [
++            ([50, mate - 7, mate - 3], 2),
++            ([-mate + 3, -mate + 7, -mate + 5], 1),
++            ([-mate + 9, -100, -mate + 12], 1),
++            ([0, -1, -mate + 5], 0),
++        ] {
++            let candidates = [
++                root_choice_candidate(&position, "e2e4", scores[0], 30_000),
++                root_choice_candidate(&position, "d2d4", scores[1], 20_000),
++                root_choice_candidate(&position, "g1f3", scores[2], 10_000),
++            ];
++            for aggression in [75, 100] {
++                assert_eq!(
++                    super::choose_styled_candidate(
++                        &candidates,
++                        0,
++                        super::EvaluationConfig::new(aggression)
++                    ),
++                    expected,
++                );
++            }
++        }
++    }
++
++    #[test]
++    fn verified_root_selection_is_independent_of_candidate_order() {
++        let position = Position::default();
++        let moves = ["e2e4", "d2d4", "g1f3"];
++        for (scores, interests) in [
++            ([50, 100, 90], [10_000, 10, 100]),
++            ([100, 100, 100], [10, 10, 10]),
++            (
++                [50, super::MATE_SCORE - 7, super::MATE_SCORE - 3],
++                [30_000, 20_000, 10_000],
++            ),
++        ] {
++            for aggression in [75, 100] {
++                let evaluation = super::EvaluationConfig::new(aggression);
++                let original = std::array::from_fn::<_, 3, _>(|index| {
++                    root_choice_candidate(&position, moves[index], scores[index], interests[index])
++                });
++                let expected =
++                    original[super::choose_styled_candidate(&original, 0, evaluation)].chess_move;
++                for order in [
++                    [0, 1, 2],
++                    [0, 2, 1],
++                    [1, 0, 2],
++                    [1, 2, 0],
++                    [2, 0, 1],
++                    [2, 1, 0],
++                ] {
++                    let candidates = order.map(|index| {
++                        root_choice_candidate(
++                            &position,
++                            moves[index],
++                            scores[index],
++                            interests[index],
++                        )
++                    });
++                    let conventional = order.iter().position(|&index| index == 0).unwrap();
++                    let selected =
++                        super::choose_styled_candidate(&candidates, conventional, evaluation);
++                    assert_eq!(candidates[selected].chess_move, expected);
++                }
++            }
++        }
++    }
++
+     #[test]
+     fn objective_guard_compares_mate_sign_and_distance() {
+         assert!(super::candidate_within_score_guard(
+@@ -7349,9 +7595,11 @@ mod tests {
+     #[test]
+     fn verified_sacrifice_cannot_cross_the_hard_root_margin() {
+         let position = Position::default();
+-        let conventional_move = find_move(&position, "e2e4");
+-        let sacrifice_move = find_move(&position, "g1f3");
+-        let sacrifice = super::SacrificeProfile {
++        let mut candidates = vec![
++            root_choice_candidate(&position, "e2e4", 50, 10),
++            root_choice_candidate(&position, "g1f3", -300, 0),
++        ];
++        candidates[1].sacrifice = super::SacrificeProfile {
+             state: super::SacrificeState::Accepted,
+             settled_exchange: true,
+             offered_cp: 330,
+@@ -7363,44 +7611,25 @@ mod tests {
+             verified_reply: true,
+             ..super::SacrificeProfile::default()
+         };
+-        let mut candidates = vec![
+-            super::RootCandidate {
+-                chess_move: conventional_move,
+-                score: 50,
+-                path_dependent: false,
+-                interest: 10,
+-                pv: vec![conventional_move],
+-                sacrifice: super::SacrificeProfile::default(),
+-                outcome: super::RootLineOutcome::Live,
+-                sterile_simplification: false,
+-            },
+-            super::RootCandidate {
+-                chess_move: sacrifice_move,
+-                score: -300,
+-                path_dependent: false,
+-                interest: 0,
+-                pv: vec![sacrifice_move],
+-                sacrifice,
+-                outcome: super::RootLineOutcome::Live,
+-                sterile_simplification: false,
+-            },
+-        ];
+ 
+         assert_eq!(
+             super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
+             0,
+         );
+         candidates[1].score = 0;
++        candidates[1].same_depth_score = 0;
+         assert_eq!(
+             super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
+             1,
+         );
+         candidates[1].score = -1;
++        candidates[1].same_depth_score = -1;
+         assert_eq!(
+             super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
+             0,
+         );
+         candidates[1].score = 0;
++        candidates[1].same_depth_score = 0;
+         candidates[1].sacrifice.king_danger_delta = 21;
+         assert_eq!(
+             super::choose_styled_candidate(&candidates, 0, super::EvaluationConfig::new(100)),
+@@ -7510,44 +7739,25 @@ mod tests {
+     #[test]
+     fn high_aggression_does_not_trade_a_draw_for_a_negative_score() {
+         let position = Position::default();
+-        let draw_move = find_move(&position, "e2e4");
+-        let live_move = find_move(&position, "g1f3");
+         let mut candidates = vec![
+-            super::RootCandidate {
+-                chess_move: draw_move,
+-                score: 0,
+-                path_dependent: false,
+-                interest: 1_000,
+-                pv: vec![draw_move],
+-                sacrifice: super::SacrificeProfile::default(),
+-                outcome: super::RootLineOutcome::ImmediateDraw,
+-                sterile_simplification: false,
+-            },
+-            super::RootCandidate {
+-                chess_move: live_move,
+-                score: -30,
+-                path_dependent: false,
+-                interest: 2_000,
+-                pv: vec![live_move],
+-                sacrifice: super::SacrificeProfile::default(),
+-                outcome: super::RootLineOutcome::Live,
+-                sterile_simplification: false,
+-            },
++            root_choice_candidate(&position, "e2e4", 0, 1_000),
++            root_choice_candidate(&position, "g1f3", -30, 2_000),
+         ];
+-
++        candidates[0].outcome = super::RootLineOutcome::ImmediateDraw;
+         let evaluation = super::EvaluationConfig::new(100);
+         assert_eq!(
+             super::choose_styled_candidate(&candidates, 0, evaluation),
+             0
+         );
+         candidates[1].score = 0;
++        candidates[1].same_depth_score = 0;
+         assert_eq!(
+             super::choose_styled_candidate(&candidates, 0, evaluation),
+             1
+         );
+         assert_eq!(
+             super::selection_interest(&candidates[0], evaluation, 0),
+-            1_000,
++            1_000
+         );
+         assert!(super::selection_interest(&candidates[0], evaluation, 200) < 1_000);
+     }
+

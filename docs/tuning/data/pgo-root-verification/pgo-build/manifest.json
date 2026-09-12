@@ -1,0 +1,162 @@
+{
+  "binaries": {
+    "baseline": {
+      "path": "/tmp/jakkoo-temp/session-1135455-1789169345191-0/round2-pgo-tooling/build/baseline/x86_64-unknown-linux-gnu/release/jakgro",
+      "sha256": "2de6c272f330105767aa418c30c589e51a6d4f5c8ad29bab8cba4b7bbe81194d"
+    },
+    "instrumented": {
+      "path": "/tmp/jakkoo-temp/session-1135455-1789169345191-0/round2-pgo-tooling/build/instrumented/x86_64-unknown-linux-gnu/release/jakgro",
+      "sha256": "76957c9a3636f1858663733da6b4c8d5574bca3893a141a02230d061eea78243"
+    },
+    "optimized": {
+      "path": "/tmp/jakkoo-temp/session-1135455-1789169345191-0/round2-pgo-tooling/build/optimized/x86_64-unknown-linux-gnu/release/jakgro",
+      "sha256": "82d0563efbc2f73e0616a58ee401545114f444c9604825c01773ddfc370b2fa3"
+    }
+  },
+  "build_environment": {},
+  "commands": [
+    {
+      "argv": [
+        "/home/ubuntu/.cargo/bin/cargo",
+        "build",
+        "--release",
+        "--locked",
+        "--target",
+        "x86_64-unknown-linux-gnu",
+        "--target-dir",
+        "/tmp/jakkoo-temp/session-1135455-1789169345191-0/round2-pgo-tooling/build/baseline",
+        "--bin",
+        "jakgro"
+      ],
+      "log": "baseline.log",
+      "rustflags": [],
+      "stage": "baseline"
+    },
+    {
+      "argv": [
+        "/home/ubuntu/.cargo/bin/cargo",
+        "build",
+        "--release",
+        "--locked",
+        "--target",
+        "x86_64-unknown-linux-gnu",
+        "--target-dir",
+        "/tmp/jakkoo-temp/session-1135455-1789169345191-0/round2-pgo-tooling/build/instrumented",
+        "--bin",
+        "jakgro"
+      ],
+      "log": "instrumented.log",
+      "rustflags": [
+        "-Cprofile-generate=/tmp/jakkoo-temp/session-1135455-1789169345191-0/round2-pgo-tooling/profiles"
+      ],
+      "stage": "instrumented"
+    },
+    {
+      "argv": [
+        "/tmp/jakkoo-temp/session-1135455-1789169345191-0/llvm-tools-1.88.0/llvm-tools-1.88.0-x86_64-unknown-linux-gnu/llvm-tools-preview/lib/rustlib/x86_64-unknown-linux-gnu/bin/llvm-profdata",
+        "merge",
+        "-o",
+        "/tmp/jakkoo-temp/session-1135455-1789169345191-0/round2-pgo-tooling/merged.profdata",
+        "/tmp/jakkoo-temp/session-1135455-1789169345191-0/round2-pgo-tooling/profiles/default_12961111909014026481_0.profraw"
+      ],
+      "log": "merge.log",
+      "stage": "merge"
+    },
+    {
+      "argv": [
+        "/home/ubuntu/.cargo/bin/cargo",
+        "build",
+        "--release",
+        "--locked",
+        "--target",
+        "x86_64-unknown-linux-gnu",
+        "--target-dir",
+        "/tmp/jakkoo-temp/session-1135455-1789169345191-0/round2-pgo-tooling/build/optimized",
+        "--bin",
+        "jakgro"
+      ],
+      "log": "optimized.log",
+      "rustflags": [
+        "-Cprofile-use=/tmp/jakkoo-temp/session-1135455-1789169345191-0/round2-pgo-tooling/merged.profdata"
+      ],
+      "stage": "optimized"
+    }
+  ],
+  "output": {
+    "path": "/tmp/jakkoo-temp/session-1135455-1789169345191-0/round2-pgo-tooling/jakgro-pgo",
+    "sha256": "82d0563efbc2f73e0616a58ee401545114f444c9604825c01773ddfc370b2fa3"
+  },
+  "profile_sha256": "68d7efcbbb3738dd0fe2b3d6cc0a4f3bf3c251ce8faeea92423d6cf39a2ab8d6",
+  "raw_profiles": {
+    "default_12961111909014026481_0.profraw": "97810c9468e43b160dceb1e34710856ba1fd9d706d3b7ad982df8ccec18108db"
+  },
+  "revision_label": "20485cffbb55e8d0ee1249eedc8db5dea3ff302b",
+  "schema_version": 1,
+  "settings": {
+    "hash_mib": 16,
+    "profiles": [
+      0,
+      75,
+      100
+    ],
+    "target_cpu": null,
+    "threads": 1,
+    "training_nodes": 250000,
+    "training_positions": 56,
+    "training_suites": [
+      "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789204492577019134-0/workspace/tools/data/openings.epd",
+      "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789204492577019134-0/workspace/tools/data/pgo-training.epd"
+    ],
+    "validation_nodes": 100000,
+    "validation_positions": 10,
+    "validation_suite": "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789204492577019134-0/workspace/tests/data/search-performance.epd"
+  },
+  "source_inputs": {
+    "Cargo.lock": "371534a5fdbe1d0505d9630b44cebacd529693368667501ec5fe227512ffa6ee",
+    "Cargo.toml": "4db8ae01629b45cc7e626e6530da98c19e5cf3f77be1b9862e2103c5bddec83a",
+    "src/bin/selfplay.rs": "047daf9c8f227d0d8deedb722e6c03eca9801db21c7e7f91decbef26bc9809f8",
+    "src/bin/tune.rs": "a0d4fc2e26f18ee983f5a3f9b29b91b77ca0c712be9c86b5491bcb0893c17049",
+    "src/engine/evaluation.rs": "09e4c29c59aa5ba633c57aedd3137e62a838a4617ef78469e68999aa5be19560",
+    "src/engine/evaluation/features.rs": "228732ce5760ecc18b5e0e101dbeac605a704f85139287ecf8d09b13d6a5de75",
+    "src/engine/evaluation/placement.rs": "b31d3b29e8583335f3006d2a695b4992ce32a7c628530683ed3018c20ee763c2",
+    "src/engine/evaluation/tactics.rs": "aa4ed9513582428da4356092a07d1f9e5f0a9bbaea0147e549c05411f99bf857",
+    "src/engine/evaluation/tuning.rs": "c5dcfa97fdb96f3f06cebda1067bd58f20772759d414838e8d4c50b6db00a979",
+    "src/engine/evaluation/weights.rs": "73234f11c4bbf9f2009381a26031db41f949b20f626a5d4f9a42151ee499ab56",
+    "src/engine/mod.rs": "78d8822607a42b3b2daaf2ccae7aef2896929b926188f1ca0dff6c9b6ea0eed1",
+    "src/engine/position.rs": "c2feb9f44aa857f6ba2fbe77d22f521c9e75838747a1c2181c2d3273980ffc30",
+    "src/engine/search.rs": "8d7cbd6d5beb69c218427c0417e2599be4cf8bf5c0ad2aec081d4eea0301c58a",
+    "src/engine/search/algorithm.rs": "789d5ca4ac1a5b03d1cb3a4e11aabd5936d477584fc9dcad7d451eda47f91899",
+    "src/engine/search/control.rs": "348eb2247076c03406c73990086ff9856a04cebc10f4abb4ccdee19329d98a1e",
+    "src/engine/search/see.rs": "6e2120461b2d6cbfa78c85fe99fdf100c341d302b4ad9b096e7a3dbc6bacaecb",
+    "src/engine/search/time.rs": "7c8528eb554d733d71b7d1502dbccbd4828653cd144e29576207070318ef70c4",
+    "src/engine/search/transposition.rs": "21a1519201da1b70266d00bf61e48da2f35ec187f7e473c6429ab66f38ec26ee",
+    "src/lib.rs": "f0b8485e04103586db05052a9f4d73420c0bb43c3ee1d5a6ff496cefd94ca89f",
+    "src/main.rs": "1e1bccab40de9af7427ba051fd551dceb26f61315b47287ee6e8cb8f2cf79d74",
+    "src/uci/command.rs": "4e587aa35e27f8ffcb948c57f9a79f6e5152e1977af327afdf2d641c07c1529b",
+    "src/uci/event.rs": "4307f479b082c75c5f391638a97a25bfa348ed1de615de4673d324dbcd1a5f1d",
+    "src/uci/mod.rs": "b48bf052ffecf90ed218fb6a798eedab6de57fe7028fc9688e1db271eeb82bd7",
+    "src/uci/search_worker.rs": "a343c9a8e6845bfc5152781804a6358cb50d7d2199e4aac6da2d681d32b984f0",
+    "src/uci/session.rs": "557c54cab5b94487ee3fb50e30554aec75fcddd76e5970dbb0a49af94e739941",
+    "tools/build_pgo.py": "3f65cc84cbea37614c70c03231c1d9eccb73522fc10295b517f7a225d13cfd2a",
+    "tools/measure_style.py": "30598281dea89141c9fd5763a62ef3e079e84e6e19ca2c3a68d9e1a45896c761"
+  },
+  "source_root": "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789204492577019134-0/workspace",
+  "status": "complete",
+  "suite_sha256": {
+    "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789204492577019134-0/workspace/tests/data/search-performance.epd": "666a7a23d97b9e2ce39de1eabdd0f4faa467a43edf3d2d938d0f8e40fa2baa29",
+    "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789204492577019134-0/workspace/tools/data/openings.epd": "8f67f7bdb3c659140516e9f692694ca8513633ee0d9302374dccef927eaa0cde",
+    "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789204492577019134-0/workspace/tools/data/pgo-training.epd": "452b4da2df27bbcce4890faab74f90556bd641b6bfde95f165a4851e81db77d5"
+  },
+  "toolchain": {
+    "cargo": "/home/ubuntu/.cargo/bin/cargo",
+    "cargo_version": "cargo 1.88.0 (873a06493 2025-05-10)",
+    "host": "x86_64-unknown-linux-gnu",
+    "llvm_profdata": "/tmp/jakkoo-temp/session-1135455-1789169345191-0/llvm-tools-1.88.0/llvm-tools-1.88.0-x86_64-unknown-linux-gnu/llvm-tools-preview/lib/rustlib/x86_64-unknown-linux-gnu/bin/llvm-profdata",
+    "llvm_profdata_sha256": "b2c9808d6d53440c24cc1dfe143efc90fd708cef961b6bbad205878c335004b1",
+    "llvm_profdata_version": "LLVM (http://llvm.org/):\n  LLVM version 20.1.5-rust-1.88.0-stable\n  Optimized build.",
+    "rustc": "/home/ubuntu/.cargo/bin/rustc",
+    "rustc_version": "rustc 1.88.0 (6b00bc388 2025-06-23)\nbinary: rustc\ncommit-hash: 6b00bc3880198600130e1cf62b8f8a93494488cc\ncommit-date: 2025-06-23\nhost: x86_64-unknown-linux-gnu\nrelease: 1.88.0\nLLVM version: 20.1.5"
+  },
+  "training_sha256": "96a3755297054d680d98a037998574c62fd85e503140ef6b4299e31918e87118",
+  "validation_sha256": "53ee22c15d4859244a375697d2b594ac689f5ba5685abd3b52843adab817b701"
+}

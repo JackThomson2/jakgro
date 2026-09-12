@@ -1,0 +1,16 @@
+contract-starting-development: pass bestmove=d2d4 loss=0/30 cp
+contract-early-king-pressure: pass bestmove=b1c3 loss=0/30 cp
+contract-central-space: pass bestmove=f1c4 loss=20/30 cp
+contract-black-king-pressure: pass bestmove=b8c6 loss=0/30 cp
+contract-tactical-safety: pass bestmove=e1e2 loss=0/0 cp
+contract-defensive-safety: pass bestmove=a1a2 loss=0/0 cp
+contract-open-king-gambit: pass bestmove=c1g5 loss=0/120 cp
+contract-opposite-castle-storm: pass bestmove=b2b4 loss=0/120 cp
+contract-hanging-queen-safety: pass bestmove=d3d5 loss=0/0 cp
+contract-forcing-mate-safety: pass bestmove=h5f7 loss=0/0 cp
+contract-kingside-pawn-storm: pass bestmove=f2f4 loss=0/120 cp
+contract-central-queen-safety: pass bestmove=c3d5 loss=0/0 cp
+contract-knight-c6-investment: pass bestmove=e5c6 loss=0/120 cp
+contract-unsupported-greek-gift: pass bestmove=b1d2 loss=0/0 cp
+contract-unsupported-rook-f7: pass bestmove=g1h1 loss=0/0 cp
+contract-avoid-equal-queen-trade: pass bestmove=d2e2 loss=0/120 cp

@@ -25,6 +25,8 @@ The [evaluation-refit pilot](docs/tuning/evaluation-refit-pilot.md) records a ne
 
 The [PV-search follow-up](docs/tuning/aggression75-pv-lmr.md) measures +13.2 Elo in confirmation and +15.7 in a second-book replication at the default 75 and 50 ms/move, against the same unchanged base. It reduces late quiet alternatives while preserving the attacking root policy; replication retains 101.1% of forcing moves. The clocked estimate is +9.7 but its sequential test remains undecided. The report records the reviewed move-choice/test changes, all rejected experiments, and the limits of these short-control results.
 
+The [PGO and root-verification experiments](docs/tuning/pgo-root-verification.md) report 10.7% higher throughput and +11.1 Elo in a 3,072-game 50 ms confirmation for an **optional PGO build**, with 99.8% forcing-rate retention. The clocked PGO result is inconclusive. A separate root-selection soundness fix prevents verified improvements or mates being ignored, but establishes no Elo gain. The comparisons use distinct binary pairs; a combined PGO/root gain has not been measured.
+
 ## Requirements
 
 - Rust 1.85 or newer
@@ -42,6 +44,8 @@ cargo clippy --all-targets -- -D warnings
 ```
 
 The release executable is written to `target/release/jakgro`. Release builds use fat link-time optimization and a single codegen unit, which roughly doubles link time in exchange for a measurably faster search. The benchmark profile inherits those optimization settings, and Cargo always builds benchmarks with unwinding so their assertions still report failures.
+
+Optional [profile-guided builds](docs/pgo-builds.md) use `python3 tools/build_pgo.py --output-dir artifacts/pgo-run-1` with matching LLVM tools. They keep normal release builds unchanged and publish a separate validated executable and provenance manifest.
 
 Jakgro resolves `cozy-chess` from the [`board-state-save-restore` branch](https://github.com/JackThomson2/cozy-chess/tree/board-state-save-restore). `Cargo.lock` pins the exact Git revision for reproducible builds. The UCI executable and standalone search benchmark select mimalloc globally; the reusable library does not force an allocator on downstream binaries.
 

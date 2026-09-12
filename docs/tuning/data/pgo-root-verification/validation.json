@@ -1,0 +1,31 @@
+[
+  {
+    "command": "python3 -m pytest tools/tests/test_build_pgo.py tools/tests/test_style_measurement.py tools/tests/test_acceptance_contract.py tools/tests/test_acceptance_measurement.py tools/tests/test_run_sprt.py tools/tests/test_analyze_match.py -q",
+    "exit_status": 0,
+    "log": "round2-python-validation.log",
+    "passed": 86,
+    "subtests": 29
+  },
+  {
+    "command": "python3 tools/validate_acceptance_contract.py",
+    "exit_status": 0,
+    "log": "round2-python-validation.log"
+  },
+  {
+    "command": "NEXTEST_TEST_THREADS=4 cargo nextest run --no-tests=pass",
+    "exit_status": 0,
+    "log": "round2-root-tests.log",
+    "passed": 291
+  },
+  {
+    "command": "NEXTEST_TEST_THREADS=4 cargo nextest run --no-tests=pass --features tuning",
+    "exit_status": 0,
+    "log": "round2-root-tuning-tests.log",
+    "passed": 307
+  },
+  {
+    "command": "cargo fmt --check && cargo clippy --all-targets --features tuning -- -D warnings && cargo build --release --locked --bin jakgro && cmp target/release/jakgro \"$JAKKOO_TEMP/round2-root\"",
+    "exit_status": 0,
+    "log": "round2-root-build-validation.log"
+  }
+]

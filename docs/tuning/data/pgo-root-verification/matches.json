@@ -1,0 +1,287 @@
+[
+  {
+    "check_retention_percent": 96.222026,
+    "forcing_retention_percent": 99.136485,
+    "games": 1024,
+    "group": "root",
+    "hoeffding_elo_ci95": [
+      -37.439736,
+      46.390834
+    ],
+    "limit": {
+      "mode": "fixed-movetime",
+      "movetime_ms": 50,
+      "nodes_per_move": null,
+      "time_control": null
+    },
+    "paired_result": {
+      "elo": 4.41104,
+      "elo_ci95": [
+        -6.001868,
+        14.831881
+      ],
+      "elo_margin_95": 10.416874,
+      "games": 1024,
+      "los_percent": 79.681189,
+      "pair_distribution": {
+        "0.0": 14,
+        "0.5": 60,
+        "1.0": 351,
+        "1.5": 73,
+        "2.0": 14
+      },
+      "pairs": 512,
+      "score_percent": 50.634766,
+      "score_percent_ci95": [
+        49.136348,
+        52.133184
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "continue",
+        "elo0": 0.0,
+        "elo1": 10.0,
+        "llr": -0.20823,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "stem": "round2-root-screen",
+    "wdl": {
+      "decisive_percent": 79.199219,
+      "draws": 213,
+      "losses": 399,
+      "score_percent": 50.634766,
+      "wins": 412
+    }
+  },
+  {
+    "check_retention_percent": 98.87802,
+    "forcing_retention_percent": 99.271009,
+    "games": 2000,
+    "group": "root",
+    "hoeffding_elo_ci95": [
+      -30.441404,
+      29.391349
+    ],
+    "limit": {
+      "mode": "fixed-time",
+      "movetime_ms": null,
+      "nodes_per_move": null,
+      "time_control": "1.0+0.01"
+    },
+    "paired_result": {
+      "elo": -0.521154,
+      "elo_ci95": [
+        -8.327976,
+        7.285142
+      ],
+      "elo_margin_95": 7.806559,
+      "games": 2000,
+      "los_percent": 44.794051,
+      "pair_distribution": {
+        "0.0": 44,
+        "0.5": 99,
+        "1.0": 706,
+        "1.5": 118,
+        "2.0": 33
+      },
+      "pairs": 1000,
+      "score_percent": 49.925,
+      "score_percent_ci95": [
+        48.801737,
+        51.048263
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "accept_h0",
+        "elo0": 0.0,
+        "elo1": 10.0,
+        "llr": -3.479576,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "stem": "round2-root-clock",
+    "wdl": {
+      "decisive_percent": 78.95,
+      "draws": 421,
+      "losses": 791,
+      "score_percent": 49.925,
+      "wins": 788
+    }
+  },
+  {
+    "check_retention_percent": 105.060245,
+    "forcing_retention_percent": 102.15445,
+    "games": 1024,
+    "group": "pgo",
+    "hoeffding_elo_ci95": [
+      -33.668261,
+      50.195663
+    ],
+    "limit": {
+      "mode": "fixed-movetime",
+      "movetime_ms": 50,
+      "nodes_per_move": null,
+      "time_control": null
+    },
+    "paired_result": {
+      "elo": 8.144513,
+      "elo_ci95": [
+        -3.13146,
+        19.437673
+      ],
+      "elo_margin_95": 11.284566,
+      "games": 1024,
+      "los_percent": 92.155358,
+      "pair_distribution": {
+        "0.0": 18,
+        "0.5": 61,
+        "1.0": 329,
+        "1.5": 87,
+        "2.0": 17
+      },
+      "pairs": 512,
+      "score_percent": 51.171875,
+      "score_percent_ci95": [
+        49.549359,
+        52.794391
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "continue",
+        "elo0": 0.0,
+        "elo1": 10.0,
+        "llr": 0.950009,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "stem": "round2-pgo-screen",
+    "wdl": {
+      "decisive_percent": 78.515625,
+      "draws": 220,
+      "losses": 390,
+      "score_percent": 51.171875,
+      "wins": 414
+    }
+  },
+  {
+    "check_retention_percent": 98.243371,
+    "forcing_retention_percent": 99.792798,
+    "games": 3072,
+    "group": "pgo",
+    "hoeffding_elo_ci95": [
+      -13.001646,
+      35.283491
+    ],
+    "limit": {
+      "mode": "fixed-movetime",
+      "movetime_ms": 50,
+      "nodes_per_move": null,
+      "time_control": null
+    },
+    "paired_result": {
+      "elo": 11.087319,
+      "elo_ci95": [
+        4.065608,
+        18.118098
+      ],
+      "elo_margin_95": 7.026245,
+      "games": 3072,
+      "los_percent": 99.9017,
+      "pair_distribution": {
+        "0.0": 60,
+        "0.5": 197,
+        "1.0": 942,
+        "1.5": 259,
+        "2.0": 78
+      },
+      "pairs": 1536,
+      "score_percent": 51.595052,
+      "score_percent_ci95": [
+        50.585061,
+        52.605043
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "accept_h1",
+        "elo0": 0.0,
+        "elo1": 10.0,
+        "llr": 4.744484,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "stem": "round2-pgo-confirm",
+    "wdl": {
+      "decisive_percent": 75.455729,
+      "draws": 754,
+      "losses": 1110,
+      "score_percent": 51.595052,
+      "wins": 1208
+    }
+  },
+  {
+    "check_retention_percent": 100.443712,
+    "forcing_retention_percent": 100.105023,
+    "games": 2000,
+    "group": "pgo",
+    "hoeffding_elo_ci95": [
+      -27.292826,
+      32.543198
+    ],
+    "limit": {
+      "mode": "fixed-time",
+      "movetime_ms": null,
+      "nodes_per_move": null,
+      "time_control": "1.0+0.01"
+    },
+    "paired_result": {
+      "elo": 2.605816,
+      "elo_ci95": [
+        -5.868549,
+        11.083282
+      ],
+      "elo_margin_95": 8.475915,
+      "games": 2000,
+      "los_percent": 72.664883,
+      "pair_distribution": {
+        "0.0": 46,
+        "0.5": 122,
+        "1.0": 645,
+        "1.5": 145,
+        "2.0": 42
+      },
+      "pairs": 1000,
+      "score_percent": 50.375,
+      "score_percent_ci95": [
+        49.155528,
+        51.594472
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "continue",
+        "elo0": 0.0,
+        "elo1": 10.0,
+        "llr": -1.279794,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "stem": "round2-pgo-clock",
+    "wdl": {
+      "decisive_percent": 77.95,
+      "draws": 441,
+      "losses": 772,
+      "score_percent": 50.375,
+      "wins": 787
+    }
+  }
+]

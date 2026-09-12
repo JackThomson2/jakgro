@@ -1,0 +1,46 @@
+{
+  "base_revision": "20485cffbb55e8d0ee1249eedc8db5dea3ff302b",
+  "build_tool_revision": "437283cb40615984809e4d69d090542ad5c94e4b",
+  "comparison": "PGO-only: instrumented/trained/optimized pre-root-fix engine versus the uninstrumented explicit-host-target baseline from the same build run. Neither side includes the root re-anchoring patch; do not add these results to root-only estimates.",
+  "candidate_sha256": "82d0563efbc2f73e0616a58ee401545114f444c9604825c01773ddfc370b2fa3",
+  "baseline_sha256": "2de6c272f330105767aa418c30c589e51a6d4f5c8ad29bab8cba4b7bbe81194d",
+  "profiles": {
+    "candidate": 75,
+    "baseline": 75
+  },
+  "threads": 1,
+  "hash_mib": 16,
+  "concurrency": 20,
+  "elo0": 0,
+  "elo1": 10,
+  "alpha": 0.05,
+  "beta": 0.05,
+  "efficiency": {
+    "depth": 8,
+    "samples": 7,
+    "movetime_ms": 500,
+    "suite": "tests/data/search-performance.epd",
+    "policy": "Measure alternating binary samples before match jobs; verify fixed-depth trees are identical. This suite was used to validate PGO tree equivalence, not to train its counters. Performance metrics do not establish Elo."
+  },
+  "matches": [
+    {
+      "name": "round2-pgo-screen",
+      "games": 1024,
+      "movetime_ms": 50,
+      "book": "docs/tuning/data/evaluation-refit-pilot/development.epd"
+    },
+    {
+      "name": "round2-pgo-confirm",
+      "games": 3072,
+      "movetime_ms": 50,
+      "book": "docs/tuning/data/evaluation-refit-pilot/confirmation.epd"
+    },
+    {
+      "name": "round2-pgo-clock",
+      "games": 2000,
+      "time_control": "1.0+0.01",
+      "book": "docs/tuning/data/evaluation-refit-pilot/confirmation.epd"
+    }
+  ],
+  "policy": "Fixed caps declared before any match result. No early stopping, no PGO parameter retuning from match results. Archive every result. Historical books already used in previous series and root-only tests, not fresh external opening families. No CPU-native or combined PGO/root strength claim."
+}

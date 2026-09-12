@@ -1,0 +1,129 @@
+{
+  "base_revision": "20485cffbb55e8d0ee1249eedc8db5dea3ff302b",
+  "binary_sha256": {
+    "pgo_base": "2de6c272f330105767aa418c30c589e51a6d4f5c8ad29bab8cba4b7bbe81194d",
+    "pgo_candidate": "82d0563efbc2f73e0616a58ee401545114f444c9604825c01773ddfc370b2fa3",
+    "root_base": "7328a3b15ca7cdd3214c1c614a933bff760d5d34f296d4c0fca95a7c67cdd471",
+    "root_candidate": "f21ade04a57d98101adc1166e3b6dec04a577c34036d7c60f8ca5e629706a39a",
+    "selfplay": "c6495fb492a8b63e57fe944f4c67d62ec7bfb9cc0b84b16b1bf5864cd8130ca9"
+  },
+  "books": {
+    "docs/tuning/data/evaluation-refit-pilot/confirmation.epd": {
+      "positions": 1536,
+      "sha256": "834f346c87f90317cf71ef7d0a610665bc585c69f4da4a5a7ac1ee4144447367"
+    },
+    "docs/tuning/data/evaluation-refit-pilot/development.epd": {
+      "positions": 512,
+      "sha256": "9fccb65f421bd10aeaf037021b6ca7eae4039186093521f87a2a12d2156b3ec3"
+    }
+  },
+  "comparison_isolation": {
+    "combined": "Not measured. Neither archived PGO binary includes the root-selection fix.",
+    "pgo": "Pre-root-fix playing sources on both sides, with identical explicit host target and portable CPU defaults; only optimized side uses the trained profile.",
+    "root": "Plain locked release root fix versus plain release base; no PGO on either side."
+  },
+  "dependency_revision": "5851b224ca58ef3330b9d41813fa76f391bb60cf",
+  "expected_game_count": 9120,
+  "expected_match_count": 5,
+  "fixture_hashes": {
+    "tests/data/dual-channel-null-contract.json": "4c93643ba0a87c282b5ed588da91f4d07fa130657af10eb24e72e3a60146c129",
+    "tests/data/null-move-contract.epd": "ddbe8d72b5ab8748f86b597b4924b4a439eb398b949ad612b57ad84720b85559",
+    "tests/data/objective-personality-contract.epd": "598eb5a3d0a4b71c1d058de4b486814fd77c98df3cbf3a2f97b8584f1668042a",
+    "tests/data/personality.epd": "af316c5433b5da951c200bb2b5a8beed936be2026e74e4648d97565abf25608a",
+    "tests/data/sacrifice-acceptance-contract.epd": "0b33c5d9d37c28e711f13549426f5bf0f0a796d10784157ecf36ad1a91a0b3e7",
+    "tests/data/sacrifice-gates.epd": "d3472cd41c0bb4b85be6345df4b212954dba2dd9fefe9548b85f1a2ae72e4226",
+    "tests/data/search-performance.epd": "666a7a23d97b9e2ce39de1eabdd0f4faa467a43edf3d2d938d0f8e40fa2baa29",
+    "tests/data/standard-acceptance.epd": "57e552b73735f35ccd4a01b0e99e0ddc91aed1a19cf61c3725ea25a91a5394b0",
+    "tools/data/openings.epd": "8f67f7bdb3c659140516e9f692694ca8513633ee0d9302374dccef927eaa0cde",
+    "tools/data/pgo-training.epd": "452b4da2df27bbcce4890faab74f90556bd641b6bfde95f165a4851e81db77d5"
+  },
+  "host": "Linux x86_64, 96 online logical CPUs",
+  "match_settings": {
+    "concurrency_per_match": 20,
+    "hash_mib": 16,
+    "threads_per_engine": 1
+  },
+  "measurement_tool_hashes": {
+    "tools/analyze_match.py": "03a9e97172f516e6be020194ecad6914233f2582107650e940766f21f46db739",
+    "tools/build_pgo.py": "3f65cc84cbea37614c70c03231c1d9eccb73522fc10295b517f7a225d13cfd2a",
+    "tools/measure_acceptance.py": "decb2c77ef828657ec3bf5ac7b7ca59f42586417f9e2d6467bd4deab2283dc58",
+    "tools/measure_search_efficiency.py": "9333ab1b6729bb4f49172aaab607d7e2bedef833223b230a128266bf36dd610f",
+    "tools/measure_style.py": "30598281dea89141c9fd5763a62ef3e079e84e6e19ca2c3a68d9e1a45896c761",
+    "tools/run_sprt.py": "a471d092cc9f6a48088f5c61bbd041a192f1dc6b872541abba4a4b8c9eed7e96"
+  },
+  "pgo_source_differences": {
+    "src/engine/search/algorithm.rs": {
+      "current": "3ed17a80d7adbcd3757f0b2f6600f495cd181114fca12eb998ea154e156450d7",
+      "pgo_build": "789d5ca4ac1a5b03d1cb3a4e11aabd5936d477584fc9dcad7d451eda47f91899"
+    }
+  },
+  "pgo_tooling_revision": "437283cb40615984809e4d69d090542ad5c94e4b",
+  "pgo_training": {
+    "nodes_per_position": 250000,
+    "positions": 56,
+    "profiles": [
+      0,
+      75,
+      100
+    ],
+    "searches": 168
+  },
+  "pgo_validation": {
+    "completed_iterations": 238,
+    "nodes_per_position": 100000,
+    "pairs": 30,
+    "positions": 10,
+    "profiles": [
+      0,
+      75,
+      100
+    ]
+  },
+  "profile_compression": "Gzip archives preserve the original raw and merged bytes; no executables or Cargo build products are archived.",
+  "rejected_claims": [
+    "Root re-anchoring is a demonstrated selector soundness fix, not a demonstrated Elo improvement.",
+    "PGO throughput does not establish Elo; match reports must be read separately.",
+    "No combined PGO/root, CPU-native, multithreaded, external-opponent or long-control gain was measured."
+  ],
+  "root_revision": "fa9b8c78ab9e17e45ab8d02a429ac00071dcf1d5",
+  "source_inputs": {
+    "Cargo.lock": "371534a5fdbe1d0505d9630b44cebacd529693368667501ec5fe227512ffa6ee",
+    "Cargo.toml": "4db8ae01629b45cc7e626e6530da98c19e5cf3f77be1b9862e2103c5bddec83a",
+    "src/bin/selfplay.rs": "047daf9c8f227d0d8deedb722e6c03eca9801db21c7e7f91decbef26bc9809f8",
+    "src/bin/tune.rs": "a0d4fc2e26f18ee983f5a3f9b29b91b77ca0c712be9c86b5491bcb0893c17049",
+    "src/engine/evaluation.rs": "09e4c29c59aa5ba633c57aedd3137e62a838a4617ef78469e68999aa5be19560",
+    "src/engine/evaluation/features.rs": "228732ce5760ecc18b5e0e101dbeac605a704f85139287ecf8d09b13d6a5de75",
+    "src/engine/evaluation/placement.rs": "b31d3b29e8583335f3006d2a695b4992ce32a7c628530683ed3018c20ee763c2",
+    "src/engine/evaluation/tactics.rs": "aa4ed9513582428da4356092a07d1f9e5f0a9bbaea0147e549c05411f99bf857",
+    "src/engine/evaluation/tuning.rs": "c5dcfa97fdb96f3f06cebda1067bd58f20772759d414838e8d4c50b6db00a979",
+    "src/engine/evaluation/weights.rs": "73234f11c4bbf9f2009381a26031db41f949b20f626a5d4f9a42151ee499ab56",
+    "src/engine/mod.rs": "78d8822607a42b3b2daaf2ccae7aef2896929b926188f1ca0dff6c9b6ea0eed1",
+    "src/engine/position.rs": "c2feb9f44aa857f6ba2fbe77d22f521c9e75838747a1c2181c2d3273980ffc30",
+    "src/engine/search.rs": "8d7cbd6d5beb69c218427c0417e2599be4cf8bf5c0ad2aec081d4eea0301c58a",
+    "src/engine/search/algorithm.rs": "3ed17a80d7adbcd3757f0b2f6600f495cd181114fca12eb998ea154e156450d7",
+    "src/engine/search/control.rs": "348eb2247076c03406c73990086ff9856a04cebc10f4abb4ccdee19329d98a1e",
+    "src/engine/search/see.rs": "6e2120461b2d6cbfa78c85fe99fdf100c341d302b4ad9b096e7a3dbc6bacaecb",
+    "src/engine/search/time.rs": "7c8528eb554d733d71b7d1502dbccbd4828653cd144e29576207070318ef70c4",
+    "src/engine/search/transposition.rs": "21a1519201da1b70266d00bf61e48da2f35ec187f7e473c6429ab66f38ec26ee",
+    "src/lib.rs": "f0b8485e04103586db05052a9f4d73420c0bb43c3ee1d5a6ff496cefd94ca89f",
+    "src/main.rs": "1e1bccab40de9af7427ba051fd551dceb26f61315b47287ee6e8cb8f2cf79d74",
+    "src/uci/command.rs": "4e587aa35e27f8ffcb948c57f9a79f6e5152e1977af327afdf2d641c07c1529b",
+    "src/uci/event.rs": "4307f479b082c75c5f391638a97a25bfa348ed1de615de4673d324dbcd1a5f1d",
+    "src/uci/mod.rs": "b48bf052ffecf90ed218fb6a798eedab6de57fe7028fc9688e1db271eeb82bd7",
+    "src/uci/search_worker.rs": "a343c9a8e6845bfc5152781804a6358cb50d7d2199e4aac6da2d681d32b984f0",
+    "src/uci/session.rs": "557c54cab5b94487ee3fb50e30554aec75fcddd76e5970dbb0a49af94e739941",
+    "tools/build_pgo.py": "3f65cc84cbea37614c70c03231c1d9eccb73522fc10295b517f7a225d13cfd2a",
+    "tools/measure_style.py": "30598281dea89141c9fd5763a62ef3e079e84e6e19ca2c3a68d9e1a45896c761"
+  },
+  "timing_limitations": "Shared host. PGO throughput measured before PGO matches; its safety check overlapped briefly. The three PGO match channels overlap. Root matches overlapped their validation jobs. No clock result is a hardware-independent strength guarantee.",
+  "toolchain": {
+    "cargo": "/home/ubuntu/.cargo/bin/cargo",
+    "cargo_version": "cargo 1.88.0 (873a06493 2025-05-10)",
+    "host": "x86_64-unknown-linux-gnu",
+    "llvm_profdata": "/tmp/jakkoo-temp/session-1135455-1789169345191-0/llvm-tools-1.88.0/llvm-tools-1.88.0-x86_64-unknown-linux-gnu/llvm-tools-preview/lib/rustlib/x86_64-unknown-linux-gnu/bin/llvm-profdata",
+    "llvm_profdata_sha256": "b2c9808d6d53440c24cc1dfe143efc90fd708cef961b6bbad205878c335004b1",
+    "llvm_profdata_version": "LLVM (http://llvm.org/):\n  LLVM version 20.1.5-rust-1.88.0-stable\n  Optimized build.",
+    "rustc": "/home/ubuntu/.cargo/bin/rustc",
+    "rustc_version": "rustc 1.88.0 (6b00bc388 2025-06-23)\nbinary: rustc\ncommit-hash: 6b00bc3880198600130e1cf62b8f8a93494488cc\ncommit-date: 2025-06-23\nhost: x86_64-unknown-linux-gnu\nrelease: 1.88.0\nLLVM version: 20.1.5"
+  }
+}

@@ -1,0 +1,7008 @@
+{
+  "baseline": [
+    {
+      "aggression": 0,
+      "bestmove": "c2c4",
+      "depth": 8,
+      "elapsed_ms": 39,
+      "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "id": "starting-development",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 22,
+          "pv": [
+            "g1f3"
+          ],
+          "score": "cp 52"
+        },
+        {
+          "depth": 2,
+          "nodes": 91,
+          "pv": [
+            "g1f3",
+            "g8f6"
+          ],
+          "score": "cp 22"
+        },
+        {
+          "depth": 3,
+          "nodes": 494,
+          "pv": [
+            "g1f3",
+            "e7e6",
+            "b1c3"
+          ],
+          "score": "cp 44"
+        },
+        {
+          "depth": 4,
+          "nodes": 1735,
+          "pv": [
+            "b1c3",
+            "e7e6",
+            "e2e3",
+            "b8c6"
+          ],
+          "score": "cp 22"
+        },
+        {
+          "depth": 5,
+          "nodes": 3719,
+          "pv": [
+            "b1c3",
+            "e7e6",
+            "e2e3",
+            "b8c6",
+            "g1f3"
+          ],
+          "score": "cp 32"
+        },
+        {
+          "depth": 6,
+          "nodes": 10361,
+          "pv": [
+            "d2d4",
+            "e7e6",
+            "b1c3",
+            "g8f6",
+            "e2e4",
+            "b8c6"
+          ],
+          "score": "cp 23"
+        },
+        {
+          "depth": 7,
+          "nodes": 27834,
+          "pv": [
+            "d2d4",
+            "g8f6",
+            "b1c3",
+            "d7d5",
+            "g1f3",
+            "b8c6",
+            "e2e3"
+          ],
+          "score": "cp 22"
+        },
+        {
+          "depth": 8,
+          "nodes": 67504,
+          "pv": [
+            "c2c4",
+            "e7e6",
+            "b1c3",
+            "b8c6",
+            "g1f3",
+            "g8f6",
+            "d2d4",
+            "h7h6"
+          ],
+          "score": "cp 23"
+        }
+      ],
+      "nodes": 67504,
+      "nps": 1694551,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 23"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "f1c4",
+      "depth": 7,
+      "elapsed_ms": 31,
+      "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
+      "id": "central-space",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 34,
+          "pv": [
+            "b1c3"
+          ],
+          "score": "cp 25"
+        },
+        {
+          "depth": 2,
+          "nodes": 160,
+          "pv": [
+            "b1c3",
+            "g8f6"
+          ],
+          "score": "cp 22"
+        },
+        {
+          "depth": 3,
+          "nodes": 788,
+          "pv": [
+            "b1c3",
+            "g8f6",
+            "d2d4",
+            "e5d4",
+            "f3d4"
+          ],
+          "score": "cp 29"
+        },
+        {
+          "depth": 4,
+          "nodes": 2858,
+          "pv": [
+            "b1c3",
+            "g8f6",
+            "d2d4",
+            "e5d4"
+          ],
+          "score": "cp 29"
+        },
+        {
+          "depth": 5,
+          "nodes": 7344,
+          "pv": [
+            "b1c3",
+            "f8c5",
+            "f1c4",
+            "d7d6",
+            "e1g1"
+          ],
+          "score": "cp 46"
+        },
+        {
+          "depth": 6,
+          "nodes": 27008,
+          "pv": [
+            "f1c4",
+            "g8f6",
+            "d2d4",
+            "e5d4",
+            "e1g1",
+            "f6e4",
+            "f3d4"
+          ],
+          "score": "cp 33"
+        },
+        {
+          "depth": 7,
+          "nodes": 48357,
+          "pv": [
+            "f1c4",
+            "g8f6",
+            "b1c3",
+            "f8c5",
+            "e1g1",
+            "e8g8",
+            "d2d3"
+          ],
+          "score": "cp 53"
+        }
+      ],
+      "nodes": 48357,
+      "nps": 1518787,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 53"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "c1g5",
+      "depth": 6,
+      "elapsed_ms": 32,
+      "fen": "r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8",
+      "id": "open-king-gambit",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 121,
+          "pv": [
+            "a2a3"
+          ],
+          "score": "cp 103"
+        },
+        {
+          "depth": 2,
+          "nodes": 371,
+          "pv": [
+            "a2a3",
+            "a7a6"
+          ],
+          "score": "cp 111"
+        },
+        {
+          "depth": 3,
+          "nodes": 1897,
+          "pv": [
+            "a2a3",
+            "a7a5",
+            "f1e1"
+          ],
+          "score": "cp 97"
+        },
+        {
+          "depth": 4,
+          "nodes": 8205,
+          "pv": [
+            "a2a3",
+            "a7a6",
+            "f1e1",
+            "f8e8"
+          ],
+          "score": "cp 104"
+        },
+        {
+          "depth": 5,
+          "nodes": 24880,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "c4d5",
+            "f8e8",
+            "c2c3"
+          ],
+          "score": "cp 104"
+        },
+        {
+          "depth": 6,
+          "nodes": 48766,
+          "pv": [
+            "c1g5",
+            "h7h6",
+            "g5f6",
+            "d8f6",
+            "c3d5",
+            "f6d8"
+          ],
+          "score": "cp 111"
+        }
+      ],
+      "nodes": 48766,
+      "nps": 1501122,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 111"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "d1e2",
+      "depth": 6,
+      "elapsed_ms": 15,
+      "fen": "2kr3r/pppq1ppp/2n1bn2/3p4/3P4/2P1PN2/PP1N1PPP/R2Q1RK1 w - - 0 10",
+      "id": "opposite-castle-storm",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 33,
+          "pv": [
+            "d1c2"
+          ],
+          "score": "cp -236"
+        },
+        {
+          "depth": 2,
+          "nodes": 404,
+          "pv": [
+            "d1b3",
+            "h7h6"
+          ],
+          "score": "cp -237"
+        },
+        {
+          "depth": 3,
+          "nodes": 1115,
+          "pv": [
+            "h2h3",
+            "h7h6",
+            "d1c2"
+          ],
+          "score": "cp -247"
+        },
+        {
+          "depth": 4,
+          "nodes": 3170,
+          "pv": [
+            "h2h3",
+            "h7h6",
+            "d1b3",
+            "c8b8"
+          ],
+          "score": "cp -247"
+        },
+        {
+          "depth": 5,
+          "nodes": 8976,
+          "pv": [
+            "f1e1",
+            "e6f5",
+            "h2h3",
+            "f5d3",
+            "d2b3"
+          ],
+          "score": "cp -256"
+        },
+        {
+          "depth": 6,
+          "nodes": 26388,
+          "pv": [
+            "d1e2",
+            "h8e8",
+            "f3e5",
+            "d7d6",
+            "d2f3",
+            "c8b8"
+          ],
+          "score": "cp -249"
+        }
+      ],
+      "nodes": 26388,
+      "nps": 1757603,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp -249"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "e1e2",
+      "depth": 9,
+      "elapsed_ms": 15,
+      "fen": "4k3/8/8/8/8/8/4q3/4R1K1 w - - 0 1",
+      "id": "tactical-safety",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 21,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "e2d2",
+            "d7e6"
+          ],
+          "score": "cp 574"
+        },
+        {
+          "depth": 2,
+          "nodes": 75,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "e2g2"
+          ],
+          "score": "cp 610"
+        },
+        {
+          "depth": 3,
+          "nodes": 325,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "e2g2",
+            "d7e6"
+          ],
+          "score": "cp 611"
+        },
+        {
+          "depth": 4,
+          "nodes": 1001,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "g1f1",
+            "d7d6",
+            "e2f2"
+          ],
+          "score": "cp 633"
+        },
+        {
+          "depth": 5,
+          "nodes": 5094,
+          "pv": [
+            "e1e2",
+            "e8f7",
+            "g1f1",
+            "f7f6",
+            "e2a2",
+            "f6e6"
+          ],
+          "score": "cp 628"
+        },
+        {
+          "depth": 6,
+          "nodes": 12289,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "g1f1",
+            "d7d6",
+            "e2e8",
+            "d6d7",
+            "e8a8"
+          ],
+          "score": "cp 642"
+        },
+        {
+          "depth": 7,
+          "nodes": 22454,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "g1f1",
+            "d7d6",
+            "e2e8",
+            "d6d7",
+            "e8a8",
+            "d7e7"
+          ],
+          "score": "cp 649"
+        },
+        {
+          "depth": 8,
+          "nodes": 42564,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "g1f2",
+            "d7d6",
+            "e2e8",
+            "d6d7",
+            "e8a8",
+            "d7e7",
+            "f2e3"
+          ],
+          "score": "cp 656"
+        },
+        {
+          "depth": 9,
+          "nodes": 70289,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "g1f2",
+            "d7d6",
+            "e2e8",
+            "d6c5",
+            "f2e3",
+            "c5b4",
+            "e8a8",
+            "b4b3"
+          ],
+          "score": "cp 657"
+        }
+      ],
+      "nodes": 70289,
+      "nps": 4434513,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 657"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "a1a2",
+      "depth": 11,
+      "elapsed_ms": 18,
+      "fen": "7k/8/8/8/8/1r6/8/K7 w - - 0 1",
+      "id": "defensive-safety",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 9,
+          "pv": [
+            "a1a2"
+          ],
+          "score": "cp -586"
+        },
+        {
+          "depth": 2,
+          "nodes": 30,
+          "pv": [
+            "a1a2",
+            "b3h3"
+          ],
+          "score": "cp -623"
+        },
+        {
+          "depth": 3,
+          "nodes": 139,
+          "pv": [
+            "a1a2",
+            "b3h3",
+            "a2b2"
+          ],
+          "score": "cp -627"
+        },
+        {
+          "depth": 4,
+          "nodes": 397,
+          "pv": [
+            "a1a2",
+            "b3g3",
+            "a2b2",
+            "g3g8"
+          ],
+          "score": "cp -648"
+        },
+        {
+          "depth": 5,
+          "nodes": 1447,
+          "pv": [
+            "a1a2",
+            "b3b8",
+            "a2a3",
+            "b8g8",
+            "a3b3"
+          ],
+          "score": "cp -644"
+        },
+        {
+          "depth": 6,
+          "nodes": 2729,
+          "pv": [
+            "a1a2",
+            "b3b8",
+            "a2a3",
+            "h8h7",
+            "a3a4",
+            "b8g8"
+          ],
+          "score": "cp -645"
+        },
+        {
+          "depth": 7,
+          "nodes": 8885,
+          "pv": [
+            "a1a2",
+            "b3g3",
+            "a2b2",
+            "h8g7",
+            "b2c2",
+            "g3g2",
+            "c2d1",
+            "g7f6"
+          ],
+          "score": "cp -647"
+        },
+        {
+          "depth": 8,
+          "nodes": 15568,
+          "pv": [
+            "a1a2",
+            "b3g3",
+            "a2b2",
+            "h8g7",
+            "b2c2",
+            "g7f7",
+            "c2d2",
+            "g3g8"
+          ],
+          "score": "cp -641"
+        },
+        {
+          "depth": 9,
+          "nodes": 35938,
+          "pv": [
+            "a1a2",
+            "b3b5",
+            "a2a3",
+            "h8g7",
+            "a3a4",
+            "b5g5",
+            "a4b4",
+            "g5g1",
+            "b4c5"
+          ],
+          "score": "cp -648"
+        },
+        {
+          "depth": 10,
+          "nodes": 57180,
+          "pv": [
+            "a1a2",
+            "b3b5",
+            "a2a3",
+            "h8g7",
+            "a3a4",
+            "b5g5",
+            "a4b4",
+            "g7f6",
+            "b4c4",
+            "g5g1"
+          ],
+          "score": "cp -649"
+        },
+        {
+          "depth": 11,
+          "nodes": 95793,
+          "pv": [
+            "a1a2",
+            "b3b5",
+            "a2a3",
+            "h8g7",
+            "a3a4",
+            "b5b1",
+            "a4a5",
+            "g7f8",
+            "a5a6",
+            "b1f1",
+            "a6b5"
+          ],
+          "score": "cp -665"
+        }
+      ],
+      "nodes": 95793,
+      "nps": 5138619,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp -665"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "c3d5",
+      "depth": 9,
+      "elapsed_ms": 33,
+      "fen": "r3r1k1/ppp2ppp/2n2n2/3q4/8/2N2N2/PPPQ1PPP/R3R1K1 w - - 0 15",
+      "id": "central-queen-safety",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 65,
+          "pv": [
+            "c3d5"
+          ],
+          "score": "cp 1072"
+        },
+        {
+          "depth": 2,
+          "nodes": 205,
+          "pv": [
+            "c3d5",
+            "f6e4"
+          ],
+          "score": "cp 1064"
+        },
+        {
+          "depth": 3,
+          "nodes": 788,
+          "pv": [
+            "c3d5",
+            "f6e4",
+            "d2e3"
+          ],
+          "score": "cp 1084"
+        },
+        {
+          "depth": 4,
+          "nodes": 1714,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "e1e8",
+            "a8e8",
+            "d2d5"
+          ],
+          "score": "cp 1069"
+        },
+        {
+          "depth": 5,
+          "nodes": 2286,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "e1e8",
+            "a8e8",
+            "d2d5",
+            "c6b4"
+          ],
+          "score": "cp 1055"
+        },
+        {
+          "depth": 6,
+          "nodes": 6832,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "d2d5",
+            "a8d8",
+            "e1e8",
+            "d8e8",
+            "d5d7"
+          ],
+          "score": "cp 1116"
+        },
+        {
+          "depth": 7,
+          "nodes": 11466,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "d2d5",
+            "e8d8",
+            "d5b5",
+            "a8b8",
+            "a1d1"
+          ],
+          "score": "cp 1119"
+        },
+        {
+          "depth": 8,
+          "nodes": 21149,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "d2d5",
+            "e8d8",
+            "d5e4",
+            "a7a6",
+            "a1d1",
+            "h7h6"
+          ],
+          "score": "cp 1131"
+        },
+        {
+          "depth": 9,
+          "nodes": 74294,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "d2d5",
+            "e8d8",
+            "d5e4",
+            "h7h6",
+            "a1d1",
+            "a7a5",
+            "c2c3"
+          ],
+          "score": "cp 1137"
+        }
+      ],
+      "nodes": 74294,
+      "nps": 2232419,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 1137"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "g5f7",
+      "depth": 7,
+      "elapsed_ms": 26,
+      "fen": "r1bq1rk1/ppp2ppp/2n2n2/2b1p1NQ/2B1P3/2NP4/PPP2PPP/R4RK1 w - - 0 10",
+      "id": "bishop-f7-sacrifice",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 114,
+          "pv": [
+            "c4f7",
+            "g8h8"
+          ],
+          "score": "cp -136"
+        },
+        {
+          "depth": 2,
+          "nodes": 1046,
+          "pv": [
+            "c4f7",
+            "g8h8",
+            "h5e2"
+          ],
+          "score": "cp -136"
+        },
+        {
+          "depth": 3,
+          "nodes": 1813,
+          "pv": [
+            "c4f7",
+            "g8h8",
+            "h5h4",
+            "c6d4"
+          ],
+          "score": "cp -161"
+        },
+        {
+          "depth": 4,
+          "nodes": 6586,
+          "pv": [
+            "g5f7",
+            "d8d4",
+            "f7h6",
+            "g8h8",
+            "h6f7",
+            "h8g8"
+          ],
+          "score": "cp -141"
+        },
+        {
+          "depth": 5,
+          "nodes": 11094,
+          "pv": [
+            "g5f7",
+            "d8d4",
+            "f7h6",
+            "g8h8",
+            "h6f7",
+            "h8g8",
+            "f7h6"
+          ],
+          "score": "cp -141"
+        },
+        {
+          "depth": 6,
+          "nodes": 17374,
+          "pv": [
+            "g5f7",
+            "d8d4",
+            "f7h6",
+            "g8h8",
+            "h6f7",
+            "h8g8",
+            "f7h6",
+            "g8h8"
+          ],
+          "score": "cp -141"
+        },
+        {
+          "depth": 7,
+          "nodes": 48015,
+          "pv": [
+            "g5f7",
+            "d8d4",
+            "f7h6",
+            "g8h8",
+            "h6f7",
+            "h8g8",
+            "f7h6",
+            "g8h8",
+            "h6f7"
+          ],
+          "score": "cp -141"
+        }
+      ],
+      "nodes": 48015,
+      "nps": 1837609,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp -141"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "b1d2",
+      "depth": 7,
+      "elapsed_ms": 37,
+      "fen": "r1bq1rk1/ppp2ppp/2n2n2/3p4/3P4/2PB4/PP3PPP/RNBQ1RK1 w - - 0 8",
+      "id": "unsupported-greek-gift",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 42,
+          "pv": [
+            "f1e1"
+          ],
+          "score": "cp 70"
+        },
+        {
+          "depth": 2,
+          "nodes": 270,
+          "pv": [
+            "f1e1",
+            "f8e8"
+          ],
+          "score": "cp 52"
+        },
+        {
+          "depth": 3,
+          "nodes": 1194,
+          "pv": [
+            "f1e1",
+            "c8e6",
+            "c1e3"
+          ],
+          "score": "cp 48"
+        },
+        {
+          "depth": 4,
+          "nodes": 3424,
+          "pv": [
+            "f1e1",
+            "c8e6",
+            "d1b3",
+            "d8d6",
+            "b3b7"
+          ],
+          "score": "cp 43"
+        },
+        {
+          "depth": 5,
+          "nodes": 8926,
+          "pv": [
+            "f1e1",
+            "c8e6",
+            "d1b3",
+            "d8d6",
+            "b3b7"
+          ],
+          "score": "cp 43"
+        },
+        {
+          "depth": 6,
+          "nodes": 38510,
+          "pv": [
+            "b1d2",
+            "f8e8",
+            "d2f3",
+            "d8d6",
+            "c1e3",
+            "c8e6"
+          ],
+          "score": "cp 43"
+        },
+        {
+          "depth": 7,
+          "nodes": 64169,
+          "pv": [
+            "b1d2",
+            "f8e8",
+            "d2f3",
+            "d8d6",
+            "c1d2",
+            "c8e6",
+            "f1e1"
+          ],
+          "score": "cp 41"
+        }
+      ],
+      "nodes": 64169,
+      "nps": 1715558,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 41"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "f2f4",
+      "depth": 10,
+      "elapsed_ms": 20,
+      "fen": "6k1/5ppp/8/8/6P1/8/5P1P/6K1 w - - 0 1",
+      "id": "kingside-pawn-storm",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 9,
+          "pv": [
+            "g1g2"
+          ],
+          "score": "cp 65"
+        },
+        {
+          "depth": 2,
+          "nodes": 42,
+          "pv": [
+            "g1g2",
+            "g8f8"
+          ],
+          "score": "cp 27"
+        },
+        {
+          "depth": 3,
+          "nodes": 173,
+          "pv": [
+            "g1f1",
+            "g8f8",
+            "f1e2"
+          ],
+          "score": "cp 44"
+        },
+        {
+          "depth": 4,
+          "nodes": 373,
+          "pv": [
+            "g1f1",
+            "g8f8",
+            "f1e2",
+            "f8e7"
+          ],
+          "score": "cp 15"
+        },
+        {
+          "depth": 5,
+          "nodes": 1109,
+          "pv": [
+            "g1f1",
+            "g8f8",
+            "f1e2",
+            "f8e7",
+            "e2e3"
+          ],
+          "score": "cp 24"
+        },
+        {
+          "depth": 6,
+          "nodes": 2556,
+          "pv": [
+            "g1f1",
+            "g8f8",
+            "f1e2",
+            "f8e7",
+            "f2f4",
+            "e7e6",
+            "f4f5",
+            "e6f6"
+          ],
+          "score": "cp 12"
+        },
+        {
+          "depth": 7,
+          "nodes": 8051,
+          "pv": [
+            "f2f4",
+            "g8f8",
+            "g1f2",
+            "f8e7",
+            "f2e3",
+            "e7e6",
+            "e3e4",
+            "f7f5",
+            "g4f5",
+            "e6f6"
+          ],
+          "score": "cp 20"
+        },
+        {
+          "depth": 8,
+          "nodes": 12943,
+          "pv": [
+            "f2f4",
+            "g8f8",
+            "g1f2",
+            "f8e7",
+            "f2e3",
+            "e7e6",
+            "e3e4",
+            "f7f5"
+          ],
+          "score": "cp 20"
+        },
+        {
+          "depth": 9,
+          "nodes": 29226,
+          "pv": [
+            "f2f4",
+            "g8f8",
+            "g1f2",
+            "f8e7",
+            "f2e3",
+            "e7e6",
+            "e3d4",
+            "g7g6",
+            "g4g5"
+          ],
+          "score": "cp 13"
+        },
+        {
+          "depth": 10,
+          "nodes": 48361,
+          "pv": [
+            "f2f4",
+            "g8f8",
+            "g1f2",
+            "f8e7",
+            "f2e3",
+            "e7e6",
+            "e3d4",
+            "g7g6",
+            "h2h4",
+            "e6f6"
+          ],
+          "score": "cp 18"
+        }
+      ],
+      "nodes": 48361,
+      "nps": 2307635,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 18"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "d2d4",
+      "depth": 8,
+      "elapsed_ms": 52,
+      "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "id": "starting-development",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 28,
+          "pv": [
+            "g1f3"
+          ],
+          "score": "cp 52"
+        },
+        {
+          "depth": 2,
+          "nodes": 172,
+          "pv": [
+            "g1f3",
+            "g8f6"
+          ],
+          "score": "cp 22"
+        },
+        {
+          "depth": 3,
+          "nodes": 763,
+          "pv": [
+            "b1c3",
+            "e7e6",
+            "g1f3"
+          ],
+          "score": "cp 44"
+        },
+        {
+          "depth": 4,
+          "nodes": 2708,
+          "pv": [
+            "b1c3",
+            "e7e6",
+            "e2e3",
+            "b8c6"
+          ],
+          "score": "cp 22"
+        },
+        {
+          "depth": 5,
+          "nodes": 6497,
+          "pv": [
+            "b1c3",
+            "e7e6",
+            "e2e3",
+            "b8c6",
+            "g1f3"
+          ],
+          "score": "cp 32"
+        },
+        {
+          "depth": 6,
+          "nodes": 16948,
+          "pv": [
+            "d2d4",
+            "e7e6",
+            "b1c3",
+            "g8f6",
+            "e2e4",
+            "b8c6"
+          ],
+          "score": "cp 23"
+        },
+        {
+          "depth": 7,
+          "nodes": 37546,
+          "pv": [
+            "d2d4",
+            "g8f6",
+            "b1c3",
+            "d7d5",
+            "g1f3",
+            "b8c6",
+            "e2e3"
+          ],
+          "score": "cp 22"
+        },
+        {
+          "depth": 8,
+          "nodes": 85810,
+          "pv": [
+            "d2d4",
+            "g8f6",
+            "b1c3",
+            "d7d5",
+            "g1f3",
+            "b8c6",
+            "e2e3",
+            "e7e6"
+          ],
+          "score": "cp 22"
+        }
+      ],
+      "nodes": 85810,
+      "nps": 1636261,
+      "personality": {
+        "attempts": 11,
+        "completed": 9,
+        "exhausted": 4,
+        "nodes": 8630,
+        "selections": 1
+      },
+      "requested_nodes": 100000,
+      "score": "cp 22"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "f1c4",
+      "depth": 7,
+      "elapsed_ms": 45,
+      "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
+      "id": "central-space",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 41,
+          "pv": [
+            "b1c3"
+          ],
+          "score": "cp 25"
+        },
+        {
+          "depth": 2,
+          "nodes": 313,
+          "pv": [
+            "b1c3",
+            "g8f6"
+          ],
+          "score": "cp 22"
+        },
+        {
+          "depth": 3,
+          "nodes": 1347,
+          "pv": [
+            "b1c3",
+            "g8f6",
+            "d2d4",
+            "e5d4",
+            "f3d4"
+          ],
+          "score": "cp 29"
+        },
+        {
+          "depth": 4,
+          "nodes": 5502,
+          "pv": [
+            "b1c3",
+            "g8f6",
+            "d2d4",
+            "e5d4"
+          ],
+          "score": "cp 29"
+        },
+        {
+          "depth": 5,
+          "nodes": 11474,
+          "pv": [
+            "b1c3",
+            "g8f6",
+            "f1c4",
+            "f8d6",
+            "e1g1"
+          ],
+          "score": "cp 52"
+        },
+        {
+          "depth": 6,
+          "nodes": 35883,
+          "pv": [
+            "f1c4",
+            "g8f6",
+            "d2d4",
+            "e5d4",
+            "e1g1",
+            "f6e4",
+            "f3d4"
+          ],
+          "score": "cp 33"
+        },
+        {
+          "depth": 7,
+          "nodes": 67827,
+          "pv": [
+            "f1c4",
+            "g8f6",
+            "d2d4",
+            "e5d4",
+            "e1g1",
+            "f8c5",
+            "c2c3"
+          ],
+          "score": "cp 45"
+        }
+      ],
+      "nodes": 67827,
+      "nps": 1497928,
+      "personality": {
+        "attempts": 9,
+        "completed": 7,
+        "exhausted": 2,
+        "nodes": 10657,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 45"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "c1g5",
+      "depth": 6,
+      "elapsed_ms": 50,
+      "fen": "r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8",
+      "id": "open-king-gambit",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 199,
+          "pv": [
+            "a2a3"
+          ],
+          "score": "cp 103"
+        },
+        {
+          "depth": 2,
+          "nodes": 707,
+          "pv": [
+            "a2a3",
+            "a7a6"
+          ],
+          "score": "cp 111"
+        },
+        {
+          "depth": 3,
+          "nodes": 2416,
+          "pv": [
+            "a2a3",
+            "a7a5",
+            "f1e1"
+          ],
+          "score": "cp 97"
+        },
+        {
+          "depth": 4,
+          "nodes": 13135,
+          "pv": [
+            "a2a3",
+            "a7a6",
+            "f1e1",
+            "f8e8"
+          ],
+          "score": "cp 104"
+        },
+        {
+          "depth": 5,
+          "nodes": 34648,
+          "pv": [
+            "c1g5",
+            "h7h6",
+            "g5f6",
+            "d8f6",
+            "c3d5"
+          ],
+          "score": "cp 99"
+        },
+        {
+          "depth": 6,
+          "nodes": 76433,
+          "pv": [
+            "c1g5",
+            "c8g4",
+            "c3d5",
+            "c6d4",
+            "g5f6",
+            "g7f6"
+          ],
+          "score": "cp 101"
+        }
+      ],
+      "nodes": 76433,
+      "nps": 1527730,
+      "personality": {
+        "attempts": 6,
+        "completed": 5,
+        "exhausted": 3,
+        "nodes": 8531,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 101"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "b2b4",
+      "depth": 7,
+      "elapsed_ms": 45,
+      "fen": "2kr3r/pppq1ppp/2n1bn2/3p4/3P4/2P1PN2/PP1N1PPP/R2Q1RK1 w - - 0 10",
+      "id": "opposite-castle-storm",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 44,
+          "pv": [
+            "d1c2"
+          ],
+          "score": "cp -236"
+        },
+        {
+          "depth": 2,
+          "nodes": 353,
+          "pv": [
+            "d1b3",
+            "h7h6"
+          ],
+          "score": "cp -237"
+        },
+        {
+          "depth": 3,
+          "nodes": 1592,
+          "pv": [
+            "h2h3",
+            "h7h6",
+            "d1c2"
+          ],
+          "score": "cp -247"
+        },
+        {
+          "depth": 4,
+          "nodes": 5467,
+          "pv": [
+            "h2h3",
+            "h7h6",
+            "d1b3",
+            "c8b8"
+          ],
+          "score": "cp -247"
+        },
+        {
+          "depth": 5,
+          "nodes": 17991,
+          "pv": [
+            "d2b3",
+            "f6e4",
+            "d1e2",
+            "c8b8",
+            "h2h3"
+          ],
+          "score": "cp -245"
+        },
+        {
+          "depth": 6,
+          "nodes": 39981,
+          "pv": [
+            "d2b3",
+            "d7d6",
+            "h2h3",
+            "c8b8",
+            "d1d3",
+            "h8e8"
+          ],
+          "score": "cp -255"
+        },
+        {
+          "depth": 7,
+          "nodes": 79446,
+          "pv": [
+            "b2b4",
+            "h7h6",
+            "b4b5",
+            "c6e7",
+            "a2a4",
+            "f6e4",
+            "d1b3"
+          ],
+          "score": "cp -246"
+        }
+      ],
+      "nodes": 79446,
+      "nps": 1740068,
+      "personality": {
+        "attempts": 11,
+        "completed": 8,
+        "exhausted": 4,
+        "nodes": 12552,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp -246"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "e1e2",
+      "depth": 8,
+      "elapsed_ms": 12,
+      "fen": "4k3/8/8/8/8/8/4q3/4R1K1 w - - 0 1",
+      "id": "tactical-safety",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 21,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "e2d2",
+            "d7e6"
+          ],
+          "score": "cp 574"
+        },
+        {
+          "depth": 2,
+          "nodes": 87,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "e2g2"
+          ],
+          "score": "cp 610"
+        },
+        {
+          "depth": 3,
+          "nodes": 379,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "e2g2",
+            "d7e6"
+          ],
+          "score": "cp 611"
+        },
+        {
+          "depth": 4,
+          "nodes": 1145,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "g1f1",
+            "d7d6",
+            "e2f2"
+          ],
+          "score": "cp 633"
+        },
+        {
+          "depth": 5,
+          "nodes": 5389,
+          "pv": [
+            "e1e2",
+            "e8f7",
+            "g1f1",
+            "f7f6",
+            "e2a2",
+            "f6e6"
+          ],
+          "score": "cp 628"
+        },
+        {
+          "depth": 6,
+          "nodes": 12194,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "g1f1",
+            "d7d6",
+            "e2e8",
+            "d6d7",
+            "e8a8"
+          ],
+          "score": "cp 642"
+        },
+        {
+          "depth": 7,
+          "nodes": 21387,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "g1f1",
+            "d7d6",
+            "e2e8",
+            "d6d7",
+            "e8a8",
+            "d7e7"
+          ],
+          "score": "cp 649"
+        },
+        {
+          "depth": 8,
+          "nodes": 54222,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "e2a2",
+            "d7d6",
+            "a2a8",
+            "d6e5",
+            "g1f1",
+            "e5f4",
+            "f1e2"
+          ],
+          "score": "cp 652"
+        }
+      ],
+      "nodes": 54222,
+      "nps": 4252264,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 42,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 652"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "a1a2",
+      "depth": 11,
+      "elapsed_ms": 18,
+      "fen": "7k/8/8/8/8/1r6/8/K7 w - - 0 1",
+      "id": "defensive-safety",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 9,
+          "pv": [
+            "a1a2"
+          ],
+          "score": "cp -586"
+        },
+        {
+          "depth": 2,
+          "nodes": 30,
+          "pv": [
+            "a1a2",
+            "b3h3"
+          ],
+          "score": "cp -623"
+        },
+        {
+          "depth": 3,
+          "nodes": 139,
+          "pv": [
+            "a1a2",
+            "b3h3",
+            "a2b2"
+          ],
+          "score": "cp -627"
+        },
+        {
+          "depth": 4,
+          "nodes": 437,
+          "pv": [
+            "a1a2",
+            "b3g3",
+            "a2b2",
+            "g3g8"
+          ],
+          "score": "cp -648"
+        },
+        {
+          "depth": 5,
+          "nodes": 1428,
+          "pv": [
+            "a1a2",
+            "b3b8",
+            "a2a3",
+            "b8g8",
+            "a3b3"
+          ],
+          "score": "cp -644"
+        },
+        {
+          "depth": 6,
+          "nodes": 2730,
+          "pv": [
+            "a1a2",
+            "b3b8",
+            "a2a3",
+            "h8h7",
+            "a3a4",
+            "b8g8"
+          ],
+          "score": "cp -645"
+        },
+        {
+          "depth": 7,
+          "nodes": 8796,
+          "pv": [
+            "a1a2",
+            "b3g3",
+            "a2b2",
+            "h8g7",
+            "b2c2",
+            "g3g2",
+            "c2d1",
+            "g7f6"
+          ],
+          "score": "cp -647"
+        },
+        {
+          "depth": 8,
+          "nodes": 19983,
+          "pv": [
+            "a1a2",
+            "b3b8",
+            "a2a3",
+            "h8g8",
+            "a3a4",
+            "b8b1",
+            "a4a5",
+            "b1g1"
+          ],
+          "score": "cp -653"
+        },
+        {
+          "depth": 9,
+          "nodes": 32651,
+          "pv": [
+            "a1a2",
+            "b3b8",
+            "a2a3",
+            "h8g7",
+            "a3a4",
+            "b8b1",
+            "a4a5",
+            "b1g1",
+            "a5a6"
+          ],
+          "score": "cp -648"
+        },
+        {
+          "depth": 10,
+          "nodes": 52606,
+          "pv": [
+            "a1a2",
+            "b3b8",
+            "a2a3",
+            "h8g7",
+            "a3a4",
+            "b8b1",
+            "a4a5",
+            "g7f8",
+            "a5a6",
+            "b1f1"
+          ],
+          "score": "cp -652"
+        },
+        {
+          "depth": 11,
+          "nodes": 97080,
+          "pv": [
+            "a1a2",
+            "b3b7",
+            "a2a3",
+            "h8g7",
+            "a3a2",
+            "g7f7",
+            "a2a1",
+            "b7b5",
+            "a1a2",
+            "b5b8",
+            "a2a1"
+          ],
+          "score": "cp -670"
+        }
+      ],
+      "nodes": 97080,
+      "nps": 5213335,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp -670"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "c3d5",
+      "depth": 9,
+      "elapsed_ms": 43,
+      "fen": "r3r1k1/ppp2ppp/2n2n2/3q4/8/2N2N2/PPPQ1PPP/R3R1K1 w - - 0 15",
+      "id": "central-queen-safety",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 89,
+          "pv": [
+            "c3d5"
+          ],
+          "score": "cp 1072"
+        },
+        {
+          "depth": 2,
+          "nodes": 276,
+          "pv": [
+            "c3d5",
+            "f6e4"
+          ],
+          "score": "cp 1064"
+        },
+        {
+          "depth": 3,
+          "nodes": 1057,
+          "pv": [
+            "c3d5",
+            "f6e4",
+            "d2e3"
+          ],
+          "score": "cp 1084"
+        },
+        {
+          "depth": 4,
+          "nodes": 2839,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "e1e8",
+            "a8e8",
+            "d2d5"
+          ],
+          "score": "cp 1069"
+        },
+        {
+          "depth": 5,
+          "nodes": 4861,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "d2d5",
+            "a8d8",
+            "e1e8",
+            "d8e8"
+          ],
+          "score": "cp 1091"
+        },
+        {
+          "depth": 6,
+          "nodes": 8387,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "d2d5",
+            "a8d8",
+            "e1e8",
+            "d8e8",
+            "d5d7"
+          ],
+          "score": "cp 1116"
+        },
+        {
+          "depth": 7,
+          "nodes": 20253,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "d2d5",
+            "e8d8",
+            "d5c4",
+            "a7a6",
+            "a1d1"
+          ],
+          "score": "cp 1120"
+        },
+        {
+          "depth": 8,
+          "nodes": 34227,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "d2d5",
+            "e8d8",
+            "d5c4",
+            "a7a6",
+            "a1d1",
+            "d8d1",
+            "e1d1"
+          ],
+          "score": "cp 1127"
+        },
+        {
+          "depth": 9,
+          "nodes": 94542,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "d2d5",
+            "e8d8",
+            "d5c4",
+            "h7h6",
+            "a1d1",
+            "d8d1",
+            "e1d1"
+          ],
+          "score": "cp 1136"
+        }
+      ],
+      "nodes": 94542,
+      "nps": 2161674,
+      "personality": {
+        "attempts": 9,
+        "completed": 7,
+        "exhausted": 2,
+        "nodes": 13063,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 1136"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "g5f7",
+      "depth": 7,
+      "elapsed_ms": 32,
+      "fen": "r1bq1rk1/ppp2ppp/2n2n2/2b1p1NQ/2B1P3/2NP4/PPP2PPP/R4RK1 w - - 0 10",
+      "id": "bishop-f7-sacrifice",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 115,
+          "pv": [
+            "c4f7",
+            "g8h8"
+          ],
+          "score": "cp -136"
+        },
+        {
+          "depth": 2,
+          "nodes": 1115,
+          "pv": [
+            "c4f7",
+            "g8h8",
+            "h5e2"
+          ],
+          "score": "cp -136"
+        },
+        {
+          "depth": 3,
+          "nodes": 2095,
+          "pv": [
+            "c4f7",
+            "g8h8",
+            "h5h4",
+            "c6d4"
+          ],
+          "score": "cp -161"
+        },
+        {
+          "depth": 4,
+          "nodes": 10048,
+          "pv": [
+            "g5f7",
+            "d8d4",
+            "f7h6",
+            "g8h8",
+            "h6f7",
+            "h8g8"
+          ],
+          "score": "cp -141"
+        },
+        {
+          "depth": 5,
+          "nodes": 15626,
+          "pv": [
+            "g5f7",
+            "d8d4",
+            "f7h6",
+            "g8h8",
+            "h6f7",
+            "h8g8",
+            "f7h6"
+          ],
+          "score": "cp -141"
+        },
+        {
+          "depth": 6,
+          "nodes": 26938,
+          "pv": [
+            "g5f7",
+            "d8d4",
+            "f7h6",
+            "g8h8",
+            "h6f7",
+            "h8g8",
+            "f7h6",
+            "g8h8"
+          ],
+          "score": "cp -141"
+        },
+        {
+          "depth": 7,
+          "nodes": 58275,
+          "pv": [
+            "g5f7",
+            "d8d4",
+            "f7h6",
+            "g8h8",
+            "h6f7",
+            "h8g8",
+            "f7h6",
+            "g8h8",
+            "h6f7"
+          ],
+          "score": "cp -141"
+        }
+      ],
+      "nodes": 58275,
+      "nps": 1766895,
+      "personality": {
+        "attempts": 4,
+        "completed": 3,
+        "exhausted": 2,
+        "nodes": 10629,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp -141"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "b1d2",
+      "depth": 7,
+      "elapsed_ms": 49,
+      "fen": "r1bq1rk1/ppp2ppp/2n2n2/3p4/3P4/2PB4/PP3PPP/RNBQ1RK1 w - - 0 8",
+      "id": "unsupported-greek-gift",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 58,
+          "pv": [
+            "f1e1"
+          ],
+          "score": "cp 70"
+        },
+        {
+          "depth": 2,
+          "nodes": 500,
+          "pv": [
+            "f1e1",
+            "f8e8"
+          ],
+          "score": "cp 52"
+        },
+        {
+          "depth": 3,
+          "nodes": 1828,
+          "pv": [
+            "f1e1",
+            "c8e6",
+            "c1e3"
+          ],
+          "score": "cp 48"
+        },
+        {
+          "depth": 4,
+          "nodes": 7421,
+          "pv": [
+            "f1e1",
+            "c8e6",
+            "d1b3",
+            "d8d6",
+            "b3b7"
+          ],
+          "score": "cp 43"
+        },
+        {
+          "depth": 5,
+          "nodes": 18965,
+          "pv": [
+            "b1d2",
+            "f8e8",
+            "d2f3",
+            "c8g4",
+            "c1e3"
+          ],
+          "score": "cp 35"
+        },
+        {
+          "depth": 6,
+          "nodes": 38934,
+          "pv": [
+            "b1d2",
+            "f8e8",
+            "d2f3",
+            "d8d6",
+            "c1e3",
+            "c8e6"
+          ],
+          "score": "cp 43"
+        },
+        {
+          "depth": 7,
+          "nodes": 83188,
+          "pv": [
+            "b1d2",
+            "f8e8",
+            "d2f3",
+            "h7h6",
+            "f1e1",
+            "e8e1",
+            "d1e1",
+            "c8e6"
+          ],
+          "score": "cp 35"
+        }
+      ],
+      "nodes": 83188,
+      "nps": 1664291,
+      "personality": {
+        "attempts": 11,
+        "completed": 7,
+        "exhausted": 4,
+        "nodes": 12605,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 35"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "f2f4",
+      "depth": 10,
+      "elapsed_ms": 29,
+      "fen": "6k1/5ppp/8/8/6P1/8/5P1P/6K1 w - - 0 1",
+      "id": "kingside-pawn-storm",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 13,
+          "pv": [
+            "g1g2"
+          ],
+          "score": "cp 65"
+        },
+        {
+          "depth": 2,
+          "nodes": 84,
+          "pv": [
+            "g1g2",
+            "g8f8"
+          ],
+          "score": "cp 27"
+        },
+        {
+          "depth": 3,
+          "nodes": 321,
+          "pv": [
+            "g1f1",
+            "g8f8",
+            "f1e2"
+          ],
+          "score": "cp 44"
+        },
+        {
+          "depth": 4,
+          "nodes": 838,
+          "pv": [
+            "g1f1",
+            "g8f8",
+            "f1e2",
+            "f8e7"
+          ],
+          "score": "cp 15"
+        },
+        {
+          "depth": 5,
+          "nodes": 2239,
+          "pv": [
+            "g1f1",
+            "g8f8",
+            "f1e2",
+            "f8e7",
+            "e2e3"
+          ],
+          "score": "cp 24"
+        },
+        {
+          "depth": 6,
+          "nodes": 5476,
+          "pv": [
+            "g1f1",
+            "g8f8",
+            "f1e2",
+            "f8e7",
+            "f2f4",
+            "e7e6",
+            "f4f5",
+            "e6f6"
+          ],
+          "score": "cp 12"
+        },
+        {
+          "depth": 7,
+          "nodes": 11885,
+          "pv": [
+            "f2f4",
+            "g8f8",
+            "g1f2",
+            "f8e7",
+            "f2e3",
+            "e7e6",
+            "e3e4",
+            "f7f5",
+            "g4f5",
+            "e6f6"
+          ],
+          "score": "cp 20"
+        },
+        {
+          "depth": 8,
+          "nodes": 19328,
+          "pv": [
+            "f2f4",
+            "g8f8",
+            "g1f2",
+            "f8e7",
+            "f2e3",
+            "e7e6",
+            "e3e4",
+            "f7f5"
+          ],
+          "score": "cp 20"
+        },
+        {
+          "depth": 9,
+          "nodes": 41751,
+          "pv": [
+            "f2f4",
+            "g8f8",
+            "g1f2",
+            "f8e7",
+            "f2e3",
+            "e7e6",
+            "e3d4",
+            "g7g6",
+            "g4g5"
+          ],
+          "score": "cp 13"
+        },
+        {
+          "depth": 10,
+          "nodes": 68378,
+          "pv": [
+            "f2f4",
+            "g8f8",
+            "g1f2",
+            "f8e7",
+            "f2e3",
+            "e7e6",
+            "e3d4",
+            "g7g6",
+            "h2h4",
+            "e6f6"
+          ],
+          "score": "cp 18"
+        }
+      ],
+      "nodes": 68378,
+      "nps": 2286095,
+      "personality": {
+        "attempts": 16,
+        "completed": 14,
+        "exhausted": 3,
+        "nodes": 10565,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 18"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "d2d4",
+      "depth": 8,
+      "elapsed_ms": 61,
+      "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "id": "starting-development",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 28,
+          "pv": [
+            "g1f3"
+          ],
+          "score": "cp 52"
+        },
+        {
+          "depth": 2,
+          "nodes": 172,
+          "pv": [
+            "g1f3",
+            "g8f6"
+          ],
+          "score": "cp 22"
+        },
+        {
+          "depth": 3,
+          "nodes": 813,
+          "pv": [
+            "b1c3",
+            "e7e6",
+            "g1f3"
+          ],
+          "score": "cp 44"
+        },
+        {
+          "depth": 4,
+          "nodes": 2773,
+          "pv": [
+            "b1c3",
+            "e7e6",
+            "e2e3",
+            "b8c6"
+          ],
+          "score": "cp 22"
+        },
+        {
+          "depth": 5,
+          "nodes": 6729,
+          "pv": [
+            "b1c3",
+            "e7e6",
+            "e2e3",
+            "b8c6",
+            "g1f3"
+          ],
+          "score": "cp 32"
+        },
+        {
+          "depth": 6,
+          "nodes": 17781,
+          "pv": [
+            "d2d4",
+            "e7e6",
+            "b1c3",
+            "g8f6",
+            "e2e4",
+            "b8c6"
+          ],
+          "score": "cp 23"
+        },
+        {
+          "depth": 7,
+          "nodes": 41323,
+          "pv": [
+            "d2d4",
+            "g8f6",
+            "b1c3",
+            "d7d5",
+            "g1f3",
+            "b8c6",
+            "e2e3"
+          ],
+          "score": "cp 22"
+        },
+        {
+          "depth": 8,
+          "nodes": 99324,
+          "pv": [
+            "d2d4",
+            "g8f6",
+            "b1c3",
+            "d7d5",
+            "g1f3",
+            "b8c6",
+            "e2e3",
+            "e7e6"
+          ],
+          "score": "cp 22"
+        }
+      ],
+      "nodes": 99324,
+      "nps": 1602154,
+      "personality": {
+        "attempts": 13,
+        "completed": 8,
+        "exhausted": 5,
+        "nodes": 8760,
+        "selections": 1
+      },
+      "requested_nodes": 100000,
+      "score": "cp 22"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "f1c4",
+      "depth": 6,
+      "elapsed_ms": 63,
+      "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
+      "id": "central-space",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 40,
+          "pv": [
+            "b1c3"
+          ],
+          "score": "cp 25"
+        },
+        {
+          "depth": 2,
+          "nodes": 599,
+          "pv": [
+            "b1c3",
+            "g8f6"
+          ],
+          "score": "cp 22"
+        },
+        {
+          "depth": 3,
+          "nodes": 2208,
+          "pv": [
+            "f1c4",
+            "g8f6",
+            "b1c3"
+          ],
+          "score": "cp 17"
+        },
+        {
+          "depth": 4,
+          "nodes": 13223,
+          "pv": [
+            "f1c4",
+            "g8f6",
+            "b1c3",
+            "f8d6"
+          ],
+          "score": "cp 20"
+        },
+        {
+          "depth": 5,
+          "nodes": 32247,
+          "pv": [
+            "f1c4",
+            "g8f6",
+            "b1c3",
+            "f8d6",
+            "e1g1"
+          ],
+          "score": "cp 52"
+        },
+        {
+          "depth": 6,
+          "nodes": 99380,
+          "pv": [
+            "f1c4",
+            "g8f6",
+            "b1c3",
+            "f8c5",
+            "e1g1",
+            "e8g8"
+          ],
+          "score": "cp 22"
+        }
+      ],
+      "nodes": 99380,
+      "nps": 1557765,
+      "personality": {
+        "attempts": 9,
+        "completed": 5,
+        "exhausted": 4,
+        "nodes": 6203,
+        "selections": 3
+      },
+      "requested_nodes": 100000,
+      "score": "cp 22"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "c1g5",
+      "depth": 6,
+      "elapsed_ms": 66,
+      "fen": "r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8",
+      "id": "open-king-gambit",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 262,
+          "pv": [
+            "a2a3"
+          ],
+          "score": "cp 103"
+        },
+        {
+          "depth": 2,
+          "nodes": 806,
+          "pv": [
+            "a2a3",
+            "a7a6"
+          ],
+          "score": "cp 111"
+        },
+        {
+          "depth": 3,
+          "nodes": 3143,
+          "pv": [
+            "a2a3",
+            "a7a5",
+            "f1e1"
+          ],
+          "score": "cp 97"
+        },
+        {
+          "depth": 4,
+          "nodes": 23287,
+          "pv": [
+            "a2a3",
+            "a7a6",
+            "f1e1",
+            "f8e8"
+          ],
+          "score": "cp 104"
+        },
+        {
+          "depth": 5,
+          "nodes": 53799,
+          "pv": [
+            "c1g5",
+            "h7h6",
+            "g5f6",
+            "d8f6",
+            "c3d5"
+          ],
+          "score": "cp 99"
+        },
+        {
+          "depth": 6,
+          "nodes": 100000,
+          "pv": [
+            "c1g5",
+            "h7h6",
+            "g5f6",
+            "d8f6",
+            "c3d5",
+            "f6d8"
+          ],
+          "score": "cp 111"
+        }
+      ],
+      "nodes": 100000,
+      "nps": 1503460,
+      "personality": {
+        "attempts": 8,
+        "completed": 4,
+        "exhausted": 3,
+        "nodes": 8753,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 111"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "b2b4",
+      "depth": 7,
+      "elapsed_ms": 37,
+      "fen": "2kr3r/pppq1ppp/2n1bn2/3p4/3P4/2P1PN2/PP1N1PPP/R2Q1RK1 w - - 0 10",
+      "id": "opposite-castle-storm",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 44,
+          "pv": [
+            "b2b4"
+          ],
+          "score": "cp -261"
+        },
+        {
+          "depth": 2,
+          "nodes": 304,
+          "pv": [
+            "b2b4",
+            "h7h6"
+          ],
+          "score": "cp -259"
+        },
+        {
+          "depth": 3,
+          "nodes": 1595,
+          "pv": [
+            "b2b4",
+            "c8b8",
+            "d1c2"
+          ],
+          "score": "cp -258"
+        },
+        {
+          "depth": 4,
+          "nodes": 6382,
+          "pv": [
+            "b2b4",
+            "c8b8",
+            "a2a4",
+            "h7h6"
+          ],
+          "score": "cp -258"
+        },
+        {
+          "depth": 5,
+          "nodes": 12736,
+          "pv": [
+            "b2b4",
+            "c8b8",
+            "a2a4",
+            "h7h6",
+            "b4b5"
+          ],
+          "score": "cp -255"
+        },
+        {
+          "depth": 6,
+          "nodes": 28948,
+          "pv": [
+            "b2b4",
+            "c8b8",
+            "a2a4",
+            "h7h6",
+            "a4a5",
+            "c6e7"
+          ],
+          "score": "cp -257"
+        },
+        {
+          "depth": 7,
+          "nodes": 62751,
+          "pv": [
+            "b2b4",
+            "c8b8",
+            "a2a4",
+            "c6e7",
+            "a4a5",
+            "e7g6",
+            "d1c2"
+          ],
+          "score": "cp -243"
+        }
+      ],
+      "nodes": 62751,
+      "nps": 1673156,
+      "personality": {
+        "attempts": 11,
+        "completed": 8,
+        "exhausted": 3,
+        "nodes": 12125,
+        "selections": 4
+      },
+      "requested_nodes": 100000,
+      "score": "cp -243"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "e1e2",
+      "depth": 8,
+      "elapsed_ms": 15,
+      "fen": "4k3/8/8/8/8/8/4q3/4R1K1 w - - 0 1",
+      "id": "tactical-safety",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 111,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "e2d2",
+            "d7e6"
+          ],
+          "score": "cp 574"
+        },
+        {
+          "depth": 2,
+          "nodes": 207,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "e2g2"
+          ],
+          "score": "cp 610"
+        },
+        {
+          "depth": 3,
+          "nodes": 747,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "e2g2",
+            "d7e6"
+          ],
+          "score": "cp 611"
+        },
+        {
+          "depth": 4,
+          "nodes": 1778,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "g1f1",
+            "d7d6",
+            "e2f2"
+          ],
+          "score": "cp 633"
+        },
+        {
+          "depth": 5,
+          "nodes": 7603,
+          "pv": [
+            "e1e2",
+            "e8f7",
+            "g1f1",
+            "f7f6",
+            "e2a2",
+            "f6e6"
+          ],
+          "score": "cp 628"
+        },
+        {
+          "depth": 6,
+          "nodes": 16242,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "g1f1",
+            "d7d6",
+            "e2e8",
+            "d6d7",
+            "e8a8"
+          ],
+          "score": "cp 642"
+        },
+        {
+          "depth": 7,
+          "nodes": 29019,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "g1f1",
+            "d7d6",
+            "e2e8",
+            "d6d7",
+            "e8a8",
+            "d7e7"
+          ],
+          "score": "cp 649"
+        },
+        {
+          "depth": 8,
+          "nodes": 64912,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "e2a2",
+            "d7d6",
+            "a2a8",
+            "d6e5",
+            "g1f1",
+            "e5f4",
+            "f1e2"
+          ],
+          "score": "cp 652"
+        }
+      ],
+      "nodes": 64912,
+      "nps": 4304080,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 42,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 652"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "a1a2",
+      "depth": 11,
+      "elapsed_ms": 18,
+      "fen": "7k/8/8/8/8/1r6/8/K7 w - - 0 1",
+      "id": "defensive-safety",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 35,
+          "pv": [
+            "a1a2"
+          ],
+          "score": "cp -586"
+        },
+        {
+          "depth": 2,
+          "nodes": 56,
+          "pv": [
+            "a1a2",
+            "b3h3"
+          ],
+          "score": "cp -623"
+        },
+        {
+          "depth": 3,
+          "nodes": 302,
+          "pv": [
+            "a1a2",
+            "b3h3",
+            "a2b2"
+          ],
+          "score": "cp -627"
+        },
+        {
+          "depth": 4,
+          "nodes": 624,
+          "pv": [
+            "a1a2",
+            "b3g3",
+            "a2b2",
+            "g3g8"
+          ],
+          "score": "cp -648"
+        },
+        {
+          "depth": 5,
+          "nodes": 1977,
+          "pv": [
+            "a1a2",
+            "b3b8",
+            "a2a3",
+            "b8g8",
+            "a3b3"
+          ],
+          "score": "cp -644"
+        },
+        {
+          "depth": 6,
+          "nodes": 3416,
+          "pv": [
+            "a1a2",
+            "b3b8",
+            "a2a3",
+            "h8h7",
+            "a3a4",
+            "b8g8"
+          ],
+          "score": "cp -645"
+        },
+        {
+          "depth": 7,
+          "nodes": 10165,
+          "pv": [
+            "a1a2",
+            "b3g3",
+            "a2b2",
+            "h8g7",
+            "b2c2",
+            "g3g2",
+            "c2d1",
+            "g7f6"
+          ],
+          "score": "cp -647"
+        },
+        {
+          "depth": 8,
+          "nodes": 17856,
+          "pv": [
+            "a1a2",
+            "b3g3",
+            "a2b2",
+            "h8g7",
+            "b2c2",
+            "g7f7",
+            "c2d2",
+            "g3g8"
+          ],
+          "score": "cp -641"
+        },
+        {
+          "depth": 9,
+          "nodes": 38557,
+          "pv": [
+            "a1a2",
+            "b3b6",
+            "a2a3",
+            "h8g7",
+            "a3a4",
+            "b6b1",
+            "a4a5",
+            "b1g1",
+            "a5a6"
+          ],
+          "score": "cp -648"
+        },
+        {
+          "depth": 10,
+          "nodes": 54609,
+          "pv": [
+            "a1a2",
+            "b3b6",
+            "a2a3",
+            "h8g7",
+            "a3a4",
+            "b6b1",
+            "a4a5",
+            "g7f8",
+            "a5a6",
+            "b1f1"
+          ],
+          "score": "cp -652"
+        },
+        {
+          "depth": 11,
+          "nodes": 95190,
+          "pv": [
+            "a1a2",
+            "b3b7",
+            "a2a3",
+            "h8g7",
+            "a3a2",
+            "g7f7",
+            "a2a1",
+            "f7e6",
+            "a1a2",
+            "b7a7",
+            "a2b2",
+            "a7d7"
+          ],
+          "score": "cp -668"
+        }
+      ],
+      "nodes": 95190,
+      "nps": 5100828,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp -668"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "c3d5",
+      "depth": 8,
+      "elapsed_ms": 26,
+      "fen": "r3r1k1/ppp2ppp/2n2n2/3q4/8/2N2N2/PPPQ1PPP/R3R1K1 w - - 0 15",
+      "id": "central-queen-safety",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 90,
+          "pv": [
+            "c3d5"
+          ],
+          "score": "cp 1072"
+        },
+        {
+          "depth": 2,
+          "nodes": 289,
+          "pv": [
+            "c3d5",
+            "f6e4"
+          ],
+          "score": "cp 1064"
+        },
+        {
+          "depth": 3,
+          "nodes": 1187,
+          "pv": [
+            "c3d5",
+            "f6e4",
+            "d2e3"
+          ],
+          "score": "cp 1084"
+        },
+        {
+          "depth": 4,
+          "nodes": 4100,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "e1e8",
+            "a8e8",
+            "d2d5"
+          ],
+          "score": "cp 1069"
+        },
+        {
+          "depth": 5,
+          "nodes": 6251,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "d2d5",
+            "a8d8",
+            "e1e8",
+            "d8e8"
+          ],
+          "score": "cp 1091"
+        },
+        {
+          "depth": 6,
+          "nodes": 10895,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "d2d5",
+            "a8d8",
+            "e1e8",
+            "d8e8",
+            "d5d7"
+          ],
+          "score": "cp 1116"
+        },
+        {
+          "depth": 7,
+          "nodes": 35713,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "d2d5",
+            "e8d8",
+            "d5b5",
+            "a8b8",
+            "a1d1"
+          ],
+          "score": "cp 1119"
+        },
+        {
+          "depth": 8,
+          "nodes": 52984,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "d2d5",
+            "e8d8",
+            "d5b5",
+            "a8b8",
+            "a1d1",
+            "d8d1",
+            "e1d1"
+          ],
+          "score": "cp 1126"
+        }
+      ],
+      "nodes": 52984,
+      "nps": 1968662,
+      "personality": {
+        "attempts": 8,
+        "completed": 7,
+        "exhausted": 1,
+        "nodes": 9793,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 1126"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "g5f7",
+      "depth": 7,
+      "elapsed_ms": 50,
+      "fen": "r1bq1rk1/ppp2ppp/2n2n2/2b1p1NQ/2B1P3/2NP4/PPP2PPP/R4RK1 w - - 0 10",
+      "id": "bishop-f7-sacrifice",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 125,
+          "pv": [
+            "c4f7",
+            "g8h8"
+          ],
+          "score": "cp -136"
+        },
+        {
+          "depth": 2,
+          "nodes": 1311,
+          "pv": [
+            "c4f7",
+            "g8h8",
+            "h5e2"
+          ],
+          "score": "cp -136"
+        },
+        {
+          "depth": 3,
+          "nodes": 2486,
+          "pv": [
+            "c4f7",
+            "g8h8",
+            "h5h4",
+            "c6d4"
+          ],
+          "score": "cp -161"
+        },
+        {
+          "depth": 4,
+          "nodes": 7449,
+          "pv": [
+            "g5f7",
+            "d8d3",
+            "f7h6",
+            "g8h8",
+            "h6f7"
+          ],
+          "score": "cp -32"
+        },
+        {
+          "depth": 5,
+          "nodes": 11754,
+          "pv": [
+            "g5f7",
+            "d8d3",
+            "f7h6",
+            "g8h8",
+            "h6f7",
+            "h8g8",
+            "f7h6"
+          ],
+          "score": "cp -32"
+        },
+        {
+          "depth": 6,
+          "nodes": 19482,
+          "pv": [
+            "g5f7",
+            "d8d3",
+            "f7h6",
+            "g8h8",
+            "h6f7",
+            "h8g8",
+            "f7h6",
+            "g8h8"
+          ],
+          "score": "cp -32"
+        },
+        {
+          "depth": 7,
+          "nodes": 96229,
+          "pv": [
+            "g5f7",
+            "d8d3",
+            "f7h6",
+            "g8h8",
+            "h6f7",
+            "h8g8",
+            "f7h6",
+            "g8h8",
+            "h6f7"
+          ],
+          "score": "cp -32"
+        }
+      ],
+      "nodes": 96229,
+      "nps": 1913208,
+      "personality": {
+        "attempts": 1,
+        "completed": 1,
+        "exhausted": 1,
+        "nodes": 7766,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp -32"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "b1d2",
+      "depth": 7,
+      "elapsed_ms": 45,
+      "fen": "r1bq1rk1/ppp2ppp/2n2n2/3p4/3P4/2PB4/PP3PPP/RNBQ1RK1 w - - 0 8",
+      "id": "unsupported-greek-gift",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 65,
+          "pv": [
+            "f1e1"
+          ],
+          "score": "cp 70"
+        },
+        {
+          "depth": 2,
+          "nodes": 569,
+          "pv": [
+            "f1e1",
+            "f8e8"
+          ],
+          "score": "cp 52"
+        },
+        {
+          "depth": 3,
+          "nodes": 2128,
+          "pv": [
+            "f1e1",
+            "c8e6",
+            "c1e3"
+          ],
+          "score": "cp 48"
+        },
+        {
+          "depth": 4,
+          "nodes": 8579,
+          "pv": [
+            "f1e1",
+            "c8e6",
+            "d1b3",
+            "d8d6",
+            "b3b7"
+          ],
+          "score": "cp 43"
+        },
+        {
+          "depth": 5,
+          "nodes": 22610,
+          "pv": [
+            "b1d2",
+            "f8e8",
+            "d2f3",
+            "c8g4",
+            "c1e3"
+          ],
+          "score": "cp 35"
+        },
+        {
+          "depth": 6,
+          "nodes": 44036,
+          "pv": [
+            "b1d2",
+            "f8e8",
+            "d2f3",
+            "a7a5",
+            "f1e1",
+            "e8e1",
+            "d1e1"
+          ],
+          "score": "cp 48"
+        },
+        {
+          "depth": 7,
+          "nodes": 77923,
+          "pv": [
+            "b1d2",
+            "f8e8",
+            "d2f3",
+            "c8e6",
+            "f1e1",
+            "h7h6",
+            "f3e5",
+            "c6e5",
+            "d4e5"
+          ],
+          "score": "cp 50"
+        }
+      ],
+      "nodes": 77923,
+      "nps": 1710834,
+      "personality": {
+        "attempts": 11,
+        "completed": 7,
+        "exhausted": 4,
+        "nodes": 12820,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 50"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "f2f4",
+      "depth": 10,
+      "elapsed_ms": 33,
+      "fen": "6k1/5ppp/8/8/6P1/8/5P1P/6K1 w - - 0 1",
+      "id": "kingside-pawn-storm",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 13,
+          "pv": [
+            "g1g2"
+          ],
+          "score": "cp 65"
+        },
+        {
+          "depth": 2,
+          "nodes": 84,
+          "pv": [
+            "g1g2",
+            "g8f8"
+          ],
+          "score": "cp 27"
+        },
+        {
+          "depth": 3,
+          "nodes": 321,
+          "pv": [
+            "g1f1",
+            "g8f8",
+            "f1e2"
+          ],
+          "score": "cp 44"
+        },
+        {
+          "depth": 4,
+          "nodes": 838,
+          "pv": [
+            "g1f1",
+            "g8f8",
+            "f1e2",
+            "f8e7"
+          ],
+          "score": "cp 15"
+        },
+        {
+          "depth": 5,
+          "nodes": 2239,
+          "pv": [
+            "g1f1",
+            "g8f8",
+            "f1e2",
+            "f8e7",
+            "e2e3"
+          ],
+          "score": "cp 24"
+        },
+        {
+          "depth": 6,
+          "nodes": 5508,
+          "pv": [
+            "g1f1",
+            "g8f8",
+            "f1e2",
+            "f8e7",
+            "f2f4",
+            "e7e6",
+            "f4f5",
+            "e6f6"
+          ],
+          "score": "cp 12"
+        },
+        {
+          "depth": 7,
+          "nodes": 12260,
+          "pv": [
+            "f2f4",
+            "g8f8",
+            "g1f2",
+            "f8e7",
+            "f2e3",
+            "e7e6",
+            "e3e4",
+            "f7f5",
+            "g4f5",
+            "e6f6"
+          ],
+          "score": "cp 20"
+        },
+        {
+          "depth": 8,
+          "nodes": 19800,
+          "pv": [
+            "f2f4",
+            "g8f8",
+            "g1f2",
+            "f8e7",
+            "f2e3",
+            "e7e6",
+            "e3e4",
+            "f7f5"
+          ],
+          "score": "cp 20"
+        },
+        {
+          "depth": 9,
+          "nodes": 48526,
+          "pv": [
+            "f2f4",
+            "g8f8",
+            "g1f2",
+            "f8e7",
+            "f2e3",
+            "e7e6",
+            "e3d4",
+            "g7g6",
+            "g4g5"
+          ],
+          "score": "cp 13"
+        },
+        {
+          "depth": 10,
+          "nodes": 74871,
+          "pv": [
+            "f2f4",
+            "g8f8",
+            "g1f2",
+            "f8e7",
+            "f2e3",
+            "e7e6",
+            "e3d4",
+            "g7g6",
+            "h2h4",
+            "e6f6"
+          ],
+          "score": "cp 18"
+        }
+      ],
+      "nodes": 74871,
+      "nps": 2249763,
+      "personality": {
+        "attempts": 16,
+        "completed": 13,
+        "exhausted": 4,
+        "nodes": 10887,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 18"
+    }
+  ],
+  "optimized": [
+    {
+      "aggression": 0,
+      "bestmove": "c2c4",
+      "depth": 8,
+      "elapsed_ms": 37,
+      "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "id": "starting-development",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 22,
+          "pv": [
+            "g1f3"
+          ],
+          "score": "cp 52"
+        },
+        {
+          "depth": 2,
+          "nodes": 91,
+          "pv": [
+            "g1f3",
+            "g8f6"
+          ],
+          "score": "cp 22"
+        },
+        {
+          "depth": 3,
+          "nodes": 494,
+          "pv": [
+            "g1f3",
+            "e7e6",
+            "b1c3"
+          ],
+          "score": "cp 44"
+        },
+        {
+          "depth": 4,
+          "nodes": 1735,
+          "pv": [
+            "b1c3",
+            "e7e6",
+            "e2e3",
+            "b8c6"
+          ],
+          "score": "cp 22"
+        },
+        {
+          "depth": 5,
+          "nodes": 3719,
+          "pv": [
+            "b1c3",
+            "e7e6",
+            "e2e3",
+            "b8c6",
+            "g1f3"
+          ],
+          "score": "cp 32"
+        },
+        {
+          "depth": 6,
+          "nodes": 10361,
+          "pv": [
+            "d2d4",
+            "e7e6",
+            "b1c3",
+            "g8f6",
+            "e2e4",
+            "b8c6"
+          ],
+          "score": "cp 23"
+        },
+        {
+          "depth": 7,
+          "nodes": 27834,
+          "pv": [
+            "d2d4",
+            "g8f6",
+            "b1c3",
+            "d7d5",
+            "g1f3",
+            "b8c6",
+            "e2e3"
+          ],
+          "score": "cp 22"
+        },
+        {
+          "depth": 8,
+          "nodes": 67504,
+          "pv": [
+            "c2c4",
+            "e7e6",
+            "b1c3",
+            "b8c6",
+            "g1f3",
+            "g8f6",
+            "d2d4",
+            "h7h6"
+          ],
+          "score": "cp 23"
+        }
+      ],
+      "nodes": 67504,
+      "nps": 1816457,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 23"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "f1c4",
+      "depth": 7,
+      "elapsed_ms": 29,
+      "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
+      "id": "central-space",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 34,
+          "pv": [
+            "b1c3"
+          ],
+          "score": "cp 25"
+        },
+        {
+          "depth": 2,
+          "nodes": 160,
+          "pv": [
+            "b1c3",
+            "g8f6"
+          ],
+          "score": "cp 22"
+        },
+        {
+          "depth": 3,
+          "nodes": 788,
+          "pv": [
+            "b1c3",
+            "g8f6",
+            "d2d4",
+            "e5d4",
+            "f3d4"
+          ],
+          "score": "cp 29"
+        },
+        {
+          "depth": 4,
+          "nodes": 2858,
+          "pv": [
+            "b1c3",
+            "g8f6",
+            "d2d4",
+            "e5d4"
+          ],
+          "score": "cp 29"
+        },
+        {
+          "depth": 5,
+          "nodes": 7344,
+          "pv": [
+            "b1c3",
+            "f8c5",
+            "f1c4",
+            "d7d6",
+            "e1g1"
+          ],
+          "score": "cp 46"
+        },
+        {
+          "depth": 6,
+          "nodes": 27008,
+          "pv": [
+            "f1c4",
+            "g8f6",
+            "d2d4",
+            "e5d4",
+            "e1g1",
+            "f6e4",
+            "f3d4"
+          ],
+          "score": "cp 33"
+        },
+        {
+          "depth": 7,
+          "nodes": 48357,
+          "pv": [
+            "f1c4",
+            "g8f6",
+            "b1c3",
+            "f8c5",
+            "e1g1",
+            "e8g8",
+            "d2d3"
+          ],
+          "score": "cp 53"
+        }
+      ],
+      "nodes": 48357,
+      "nps": 1628410,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 53"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "c1g5",
+      "depth": 6,
+      "elapsed_ms": 29,
+      "fen": "r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8",
+      "id": "open-king-gambit",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 121,
+          "pv": [
+            "a2a3"
+          ],
+          "score": "cp 103"
+        },
+        {
+          "depth": 2,
+          "nodes": 371,
+          "pv": [
+            "a2a3",
+            "a7a6"
+          ],
+          "score": "cp 111"
+        },
+        {
+          "depth": 3,
+          "nodes": 1897,
+          "pv": [
+            "a2a3",
+            "a7a5",
+            "f1e1"
+          ],
+          "score": "cp 97"
+        },
+        {
+          "depth": 4,
+          "nodes": 8205,
+          "pv": [
+            "a2a3",
+            "a7a6",
+            "f1e1",
+            "f8e8"
+          ],
+          "score": "cp 104"
+        },
+        {
+          "depth": 5,
+          "nodes": 24880,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "c4d5",
+            "f8e8",
+            "c2c3"
+          ],
+          "score": "cp 104"
+        },
+        {
+          "depth": 6,
+          "nodes": 48766,
+          "pv": [
+            "c1g5",
+            "h7h6",
+            "g5f6",
+            "d8f6",
+            "c3d5",
+            "f6d8"
+          ],
+          "score": "cp 111"
+        }
+      ],
+      "nodes": 48766,
+      "nps": 1633463,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 111"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "d1e2",
+      "depth": 6,
+      "elapsed_ms": 13,
+      "fen": "2kr3r/pppq1ppp/2n1bn2/3p4/3P4/2P1PN2/PP1N1PPP/R2Q1RK1 w - - 0 10",
+      "id": "opposite-castle-storm",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 33,
+          "pv": [
+            "d1c2"
+          ],
+          "score": "cp -236"
+        },
+        {
+          "depth": 2,
+          "nodes": 404,
+          "pv": [
+            "d1b3",
+            "h7h6"
+          ],
+          "score": "cp -237"
+        },
+        {
+          "depth": 3,
+          "nodes": 1115,
+          "pv": [
+            "h2h3",
+            "h7h6",
+            "d1c2"
+          ],
+          "score": "cp -247"
+        },
+        {
+          "depth": 4,
+          "nodes": 3170,
+          "pv": [
+            "h2h3",
+            "h7h6",
+            "d1b3",
+            "c8b8"
+          ],
+          "score": "cp -247"
+        },
+        {
+          "depth": 5,
+          "nodes": 8976,
+          "pv": [
+            "f1e1",
+            "e6f5",
+            "h2h3",
+            "f5d3",
+            "d2b3"
+          ],
+          "score": "cp -256"
+        },
+        {
+          "depth": 6,
+          "nodes": 26388,
+          "pv": [
+            "d1e2",
+            "h8e8",
+            "f3e5",
+            "d7d6",
+            "d2f3",
+            "c8b8"
+          ],
+          "score": "cp -249"
+        }
+      ],
+      "nodes": 26388,
+      "nps": 1937180,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp -249"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "e1e2",
+      "depth": 9,
+      "elapsed_ms": 13,
+      "fen": "4k3/8/8/8/8/8/4q3/4R1K1 w - - 0 1",
+      "id": "tactical-safety",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 21,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "e2d2",
+            "d7e6"
+          ],
+          "score": "cp 574"
+        },
+        {
+          "depth": 2,
+          "nodes": 75,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "e2g2"
+          ],
+          "score": "cp 610"
+        },
+        {
+          "depth": 3,
+          "nodes": 325,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "e2g2",
+            "d7e6"
+          ],
+          "score": "cp 611"
+        },
+        {
+          "depth": 4,
+          "nodes": 1001,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "g1f1",
+            "d7d6",
+            "e2f2"
+          ],
+          "score": "cp 633"
+        },
+        {
+          "depth": 5,
+          "nodes": 5094,
+          "pv": [
+            "e1e2",
+            "e8f7",
+            "g1f1",
+            "f7f6",
+            "e2a2",
+            "f6e6"
+          ],
+          "score": "cp 628"
+        },
+        {
+          "depth": 6,
+          "nodes": 12289,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "g1f1",
+            "d7d6",
+            "e2e8",
+            "d6d7",
+            "e8a8"
+          ],
+          "score": "cp 642"
+        },
+        {
+          "depth": 7,
+          "nodes": 22454,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "g1f1",
+            "d7d6",
+            "e2e8",
+            "d6d7",
+            "e8a8",
+            "d7e7"
+          ],
+          "score": "cp 649"
+        },
+        {
+          "depth": 8,
+          "nodes": 42564,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "g1f2",
+            "d7d6",
+            "e2e8",
+            "d6d7",
+            "e8a8",
+            "d7e7",
+            "f2e3"
+          ],
+          "score": "cp 656"
+        },
+        {
+          "depth": 9,
+          "nodes": 70289,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "g1f2",
+            "d7d6",
+            "e2e8",
+            "d6c5",
+            "f2e3",
+            "c5b4",
+            "e8a8",
+            "b4b3"
+          ],
+          "score": "cp 657"
+        }
+      ],
+      "nodes": 70289,
+      "nps": 5293121,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 657"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "a1a2",
+      "depth": 11,
+      "elapsed_ms": 15,
+      "fen": "7k/8/8/8/8/1r6/8/K7 w - - 0 1",
+      "id": "defensive-safety",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 9,
+          "pv": [
+            "a1a2"
+          ],
+          "score": "cp -586"
+        },
+        {
+          "depth": 2,
+          "nodes": 30,
+          "pv": [
+            "a1a2",
+            "b3h3"
+          ],
+          "score": "cp -623"
+        },
+        {
+          "depth": 3,
+          "nodes": 139,
+          "pv": [
+            "a1a2",
+            "b3h3",
+            "a2b2"
+          ],
+          "score": "cp -627"
+        },
+        {
+          "depth": 4,
+          "nodes": 397,
+          "pv": [
+            "a1a2",
+            "b3g3",
+            "a2b2",
+            "g3g8"
+          ],
+          "score": "cp -648"
+        },
+        {
+          "depth": 5,
+          "nodes": 1447,
+          "pv": [
+            "a1a2",
+            "b3b8",
+            "a2a3",
+            "b8g8",
+            "a3b3"
+          ],
+          "score": "cp -644"
+        },
+        {
+          "depth": 6,
+          "nodes": 2729,
+          "pv": [
+            "a1a2",
+            "b3b8",
+            "a2a3",
+            "h8h7",
+            "a3a4",
+            "b8g8"
+          ],
+          "score": "cp -645"
+        },
+        {
+          "depth": 7,
+          "nodes": 8885,
+          "pv": [
+            "a1a2",
+            "b3g3",
+            "a2b2",
+            "h8g7",
+            "b2c2",
+            "g3g2",
+            "c2d1",
+            "g7f6"
+          ],
+          "score": "cp -647"
+        },
+        {
+          "depth": 8,
+          "nodes": 15568,
+          "pv": [
+            "a1a2",
+            "b3g3",
+            "a2b2",
+            "h8g7",
+            "b2c2",
+            "g7f7",
+            "c2d2",
+            "g3g8"
+          ],
+          "score": "cp -641"
+        },
+        {
+          "depth": 9,
+          "nodes": 35938,
+          "pv": [
+            "a1a2",
+            "b3b5",
+            "a2a3",
+            "h8g7",
+            "a3a4",
+            "b5g5",
+            "a4b4",
+            "g5g1",
+            "b4c5"
+          ],
+          "score": "cp -648"
+        },
+        {
+          "depth": 10,
+          "nodes": 57180,
+          "pv": [
+            "a1a2",
+            "b3b5",
+            "a2a3",
+            "h8g7",
+            "a3a4",
+            "b5g5",
+            "a4b4",
+            "g7f6",
+            "b4c4",
+            "g5g1"
+          ],
+          "score": "cp -649"
+        },
+        {
+          "depth": 11,
+          "nodes": 95793,
+          "pv": [
+            "a1a2",
+            "b3b5",
+            "a2a3",
+            "h8g7",
+            "a3a4",
+            "b5b1",
+            "a4a5",
+            "g7f8",
+            "a5a6",
+            "b1f1",
+            "a6b5"
+          ],
+          "score": "cp -665"
+        }
+      ],
+      "nodes": 95793,
+      "nps": 6087898,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp -665"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "c3d5",
+      "depth": 9,
+      "elapsed_ms": 29,
+      "fen": "r3r1k1/ppp2ppp/2n2n2/3q4/8/2N2N2/PPPQ1PPP/R3R1K1 w - - 0 15",
+      "id": "central-queen-safety",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 65,
+          "pv": [
+            "c3d5"
+          ],
+          "score": "cp 1072"
+        },
+        {
+          "depth": 2,
+          "nodes": 205,
+          "pv": [
+            "c3d5",
+            "f6e4"
+          ],
+          "score": "cp 1064"
+        },
+        {
+          "depth": 3,
+          "nodes": 788,
+          "pv": [
+            "c3d5",
+            "f6e4",
+            "d2e3"
+          ],
+          "score": "cp 1084"
+        },
+        {
+          "depth": 4,
+          "nodes": 1714,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "e1e8",
+            "a8e8",
+            "d2d5"
+          ],
+          "score": "cp 1069"
+        },
+        {
+          "depth": 5,
+          "nodes": 2286,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "e1e8",
+            "a8e8",
+            "d2d5",
+            "c6b4"
+          ],
+          "score": "cp 1055"
+        },
+        {
+          "depth": 6,
+          "nodes": 6832,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "d2d5",
+            "a8d8",
+            "e1e8",
+            "d8e8",
+            "d5d7"
+          ],
+          "score": "cp 1116"
+        },
+        {
+          "depth": 7,
+          "nodes": 11466,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "d2d5",
+            "e8d8",
+            "d5b5",
+            "a8b8",
+            "a1d1"
+          ],
+          "score": "cp 1119"
+        },
+        {
+          "depth": 8,
+          "nodes": 21149,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "d2d5",
+            "e8d8",
+            "d5e4",
+            "a7a6",
+            "a1d1",
+            "h7h6"
+          ],
+          "score": "cp 1131"
+        },
+        {
+          "depth": 9,
+          "nodes": 74294,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "d2d5",
+            "e8d8",
+            "d5e4",
+            "h7h6",
+            "a1d1",
+            "a7a5",
+            "c2c3"
+          ],
+          "score": "cp 1137"
+        }
+      ],
+      "nodes": 74294,
+      "nps": 2509687,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 1137"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "g5f7",
+      "depth": 7,
+      "elapsed_ms": 23,
+      "fen": "r1bq1rk1/ppp2ppp/2n2n2/2b1p1NQ/2B1P3/2NP4/PPP2PPP/R4RK1 w - - 0 10",
+      "id": "bishop-f7-sacrifice",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 114,
+          "pv": [
+            "c4f7",
+            "g8h8"
+          ],
+          "score": "cp -136"
+        },
+        {
+          "depth": 2,
+          "nodes": 1046,
+          "pv": [
+            "c4f7",
+            "g8h8",
+            "h5e2"
+          ],
+          "score": "cp -136"
+        },
+        {
+          "depth": 3,
+          "nodes": 1813,
+          "pv": [
+            "c4f7",
+            "g8h8",
+            "h5h4",
+            "c6d4"
+          ],
+          "score": "cp -161"
+        },
+        {
+          "depth": 4,
+          "nodes": 6586,
+          "pv": [
+            "g5f7",
+            "d8d4",
+            "f7h6",
+            "g8h8",
+            "h6f7",
+            "h8g8"
+          ],
+          "score": "cp -141"
+        },
+        {
+          "depth": 5,
+          "nodes": 11094,
+          "pv": [
+            "g5f7",
+            "d8d4",
+            "f7h6",
+            "g8h8",
+            "h6f7",
+            "h8g8",
+            "f7h6"
+          ],
+          "score": "cp -141"
+        },
+        {
+          "depth": 6,
+          "nodes": 17374,
+          "pv": [
+            "g5f7",
+            "d8d4",
+            "f7h6",
+            "g8h8",
+            "h6f7",
+            "h8g8",
+            "f7h6",
+            "g8h8"
+          ],
+          "score": "cp -141"
+        },
+        {
+          "depth": 7,
+          "nodes": 48015,
+          "pv": [
+            "g5f7",
+            "d8d4",
+            "f7h6",
+            "g8h8",
+            "h6f7",
+            "h8g8",
+            "f7h6",
+            "g8h8",
+            "h6f7"
+          ],
+          "score": "cp -141"
+        }
+      ],
+      "nodes": 48015,
+      "nps": 2025498,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp -141"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "b1d2",
+      "depth": 7,
+      "elapsed_ms": 33,
+      "fen": "r1bq1rk1/ppp2ppp/2n2n2/3p4/3P4/2PB4/PP3PPP/RNBQ1RK1 w - - 0 8",
+      "id": "unsupported-greek-gift",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 42,
+          "pv": [
+            "f1e1"
+          ],
+          "score": "cp 70"
+        },
+        {
+          "depth": 2,
+          "nodes": 270,
+          "pv": [
+            "f1e1",
+            "f8e8"
+          ],
+          "score": "cp 52"
+        },
+        {
+          "depth": 3,
+          "nodes": 1194,
+          "pv": [
+            "f1e1",
+            "c8e6",
+            "c1e3"
+          ],
+          "score": "cp 48"
+        },
+        {
+          "depth": 4,
+          "nodes": 3424,
+          "pv": [
+            "f1e1",
+            "c8e6",
+            "d1b3",
+            "d8d6",
+            "b3b7"
+          ],
+          "score": "cp 43"
+        },
+        {
+          "depth": 5,
+          "nodes": 8926,
+          "pv": [
+            "f1e1",
+            "c8e6",
+            "d1b3",
+            "d8d6",
+            "b3b7"
+          ],
+          "score": "cp 43"
+        },
+        {
+          "depth": 6,
+          "nodes": 38510,
+          "pv": [
+            "b1d2",
+            "f8e8",
+            "d2f3",
+            "d8d6",
+            "c1e3",
+            "c8e6"
+          ],
+          "score": "cp 43"
+        },
+        {
+          "depth": 7,
+          "nodes": 64169,
+          "pv": [
+            "b1d2",
+            "f8e8",
+            "d2f3",
+            "d8d6",
+            "c1d2",
+            "c8e6",
+            "f1e1"
+          ],
+          "score": "cp 41"
+        }
+      ],
+      "nodes": 64169,
+      "nps": 1920152,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 41"
+    },
+    {
+      "aggression": 0,
+      "bestmove": "f2f4",
+      "depth": 10,
+      "elapsed_ms": 19,
+      "fen": "6k1/5ppp/8/8/6P1/8/5P1P/6K1 w - - 0 1",
+      "id": "kingside-pawn-storm",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 9,
+          "pv": [
+            "g1g2"
+          ],
+          "score": "cp 65"
+        },
+        {
+          "depth": 2,
+          "nodes": 42,
+          "pv": [
+            "g1g2",
+            "g8f8"
+          ],
+          "score": "cp 27"
+        },
+        {
+          "depth": 3,
+          "nodes": 173,
+          "pv": [
+            "g1f1",
+            "g8f8",
+            "f1e2"
+          ],
+          "score": "cp 44"
+        },
+        {
+          "depth": 4,
+          "nodes": 373,
+          "pv": [
+            "g1f1",
+            "g8f8",
+            "f1e2",
+            "f8e7"
+          ],
+          "score": "cp 15"
+        },
+        {
+          "depth": 5,
+          "nodes": 1109,
+          "pv": [
+            "g1f1",
+            "g8f8",
+            "f1e2",
+            "f8e7",
+            "e2e3"
+          ],
+          "score": "cp 24"
+        },
+        {
+          "depth": 6,
+          "nodes": 2556,
+          "pv": [
+            "g1f1",
+            "g8f8",
+            "f1e2",
+            "f8e7",
+            "f2f4",
+            "e7e6",
+            "f4f5",
+            "e6f6"
+          ],
+          "score": "cp 12"
+        },
+        {
+          "depth": 7,
+          "nodes": 8051,
+          "pv": [
+            "f2f4",
+            "g8f8",
+            "g1f2",
+            "f8e7",
+            "f2e3",
+            "e7e6",
+            "e3e4",
+            "f7f5",
+            "g4f5",
+            "e6f6"
+          ],
+          "score": "cp 20"
+        },
+        {
+          "depth": 8,
+          "nodes": 12943,
+          "pv": [
+            "f2f4",
+            "g8f8",
+            "g1f2",
+            "f8e7",
+            "f2e3",
+            "e7e6",
+            "e3e4",
+            "f7f5"
+          ],
+          "score": "cp 20"
+        },
+        {
+          "depth": 9,
+          "nodes": 29226,
+          "pv": [
+            "f2f4",
+            "g8f8",
+            "g1f2",
+            "f8e7",
+            "f2e3",
+            "e7e6",
+            "e3d4",
+            "g7g6",
+            "g4g5"
+          ],
+          "score": "cp 13"
+        },
+        {
+          "depth": 10,
+          "nodes": 48361,
+          "pv": [
+            "f2f4",
+            "g8f8",
+            "g1f2",
+            "f8e7",
+            "f2e3",
+            "e7e6",
+            "e3d4",
+            "g7g6",
+            "h2h4",
+            "e6f6"
+          ],
+          "score": "cp 18"
+        }
+      ],
+      "nodes": 48361,
+      "nps": 2503979,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 18"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "d2d4",
+      "depth": 8,
+      "elapsed_ms": 47,
+      "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "id": "starting-development",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 28,
+          "pv": [
+            "g1f3"
+          ],
+          "score": "cp 52"
+        },
+        {
+          "depth": 2,
+          "nodes": 172,
+          "pv": [
+            "g1f3",
+            "g8f6"
+          ],
+          "score": "cp 22"
+        },
+        {
+          "depth": 3,
+          "nodes": 763,
+          "pv": [
+            "b1c3",
+            "e7e6",
+            "g1f3"
+          ],
+          "score": "cp 44"
+        },
+        {
+          "depth": 4,
+          "nodes": 2708,
+          "pv": [
+            "b1c3",
+            "e7e6",
+            "e2e3",
+            "b8c6"
+          ],
+          "score": "cp 22"
+        },
+        {
+          "depth": 5,
+          "nodes": 6497,
+          "pv": [
+            "b1c3",
+            "e7e6",
+            "e2e3",
+            "b8c6",
+            "g1f3"
+          ],
+          "score": "cp 32"
+        },
+        {
+          "depth": 6,
+          "nodes": 16948,
+          "pv": [
+            "d2d4",
+            "e7e6",
+            "b1c3",
+            "g8f6",
+            "e2e4",
+            "b8c6"
+          ],
+          "score": "cp 23"
+        },
+        {
+          "depth": 7,
+          "nodes": 37546,
+          "pv": [
+            "d2d4",
+            "g8f6",
+            "b1c3",
+            "d7d5",
+            "g1f3",
+            "b8c6",
+            "e2e3"
+          ],
+          "score": "cp 22"
+        },
+        {
+          "depth": 8,
+          "nodes": 85810,
+          "pv": [
+            "d2d4",
+            "g8f6",
+            "b1c3",
+            "d7d5",
+            "g1f3",
+            "b8c6",
+            "e2e3",
+            "e7e6"
+          ],
+          "score": "cp 22"
+        }
+      ],
+      "nodes": 85810,
+      "nps": 1793932,
+      "personality": {
+        "attempts": 11,
+        "completed": 9,
+        "exhausted": 4,
+        "nodes": 8630,
+        "selections": 1
+      },
+      "requested_nodes": 100000,
+      "score": "cp 22"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "f1c4",
+      "depth": 7,
+      "elapsed_ms": 41,
+      "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
+      "id": "central-space",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 41,
+          "pv": [
+            "b1c3"
+          ],
+          "score": "cp 25"
+        },
+        {
+          "depth": 2,
+          "nodes": 313,
+          "pv": [
+            "b1c3",
+            "g8f6"
+          ],
+          "score": "cp 22"
+        },
+        {
+          "depth": 3,
+          "nodes": 1347,
+          "pv": [
+            "b1c3",
+            "g8f6",
+            "d2d4",
+            "e5d4",
+            "f3d4"
+          ],
+          "score": "cp 29"
+        },
+        {
+          "depth": 4,
+          "nodes": 5502,
+          "pv": [
+            "b1c3",
+            "g8f6",
+            "d2d4",
+            "e5d4"
+          ],
+          "score": "cp 29"
+        },
+        {
+          "depth": 5,
+          "nodes": 11474,
+          "pv": [
+            "b1c3",
+            "g8f6",
+            "f1c4",
+            "f8d6",
+            "e1g1"
+          ],
+          "score": "cp 52"
+        },
+        {
+          "depth": 6,
+          "nodes": 35883,
+          "pv": [
+            "f1c4",
+            "g8f6",
+            "d2d4",
+            "e5d4",
+            "e1g1",
+            "f6e4",
+            "f3d4"
+          ],
+          "score": "cp 33"
+        },
+        {
+          "depth": 7,
+          "nodes": 67827,
+          "pv": [
+            "f1c4",
+            "g8f6",
+            "d2d4",
+            "e5d4",
+            "e1g1",
+            "f8c5",
+            "c2c3"
+          ],
+          "score": "cp 45"
+        }
+      ],
+      "nodes": 67827,
+      "nps": 1616187,
+      "personality": {
+        "attempts": 9,
+        "completed": 7,
+        "exhausted": 2,
+        "nodes": 10657,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 45"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "c1g5",
+      "depth": 6,
+      "elapsed_ms": 45,
+      "fen": "r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8",
+      "id": "open-king-gambit",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 199,
+          "pv": [
+            "a2a3"
+          ],
+          "score": "cp 103"
+        },
+        {
+          "depth": 2,
+          "nodes": 707,
+          "pv": [
+            "a2a3",
+            "a7a6"
+          ],
+          "score": "cp 111"
+        },
+        {
+          "depth": 3,
+          "nodes": 2416,
+          "pv": [
+            "a2a3",
+            "a7a5",
+            "f1e1"
+          ],
+          "score": "cp 97"
+        },
+        {
+          "depth": 4,
+          "nodes": 13135,
+          "pv": [
+            "a2a3",
+            "a7a6",
+            "f1e1",
+            "f8e8"
+          ],
+          "score": "cp 104"
+        },
+        {
+          "depth": 5,
+          "nodes": 34648,
+          "pv": [
+            "c1g5",
+            "h7h6",
+            "g5f6",
+            "d8f6",
+            "c3d5"
+          ],
+          "score": "cp 99"
+        },
+        {
+          "depth": 6,
+          "nodes": 76433,
+          "pv": [
+            "c1g5",
+            "c8g4",
+            "c3d5",
+            "c6d4",
+            "g5f6",
+            "g7f6"
+          ],
+          "score": "cp 101"
+        }
+      ],
+      "nodes": 76433,
+      "nps": 1678237,
+      "personality": {
+        "attempts": 6,
+        "completed": 5,
+        "exhausted": 3,
+        "nodes": 8531,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 101"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "b2b4",
+      "depth": 7,
+      "elapsed_ms": 41,
+      "fen": "2kr3r/pppq1ppp/2n1bn2/3p4/3P4/2P1PN2/PP1N1PPP/R2Q1RK1 w - - 0 10",
+      "id": "opposite-castle-storm",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 44,
+          "pv": [
+            "d1c2"
+          ],
+          "score": "cp -236"
+        },
+        {
+          "depth": 2,
+          "nodes": 353,
+          "pv": [
+            "d1b3",
+            "h7h6"
+          ],
+          "score": "cp -237"
+        },
+        {
+          "depth": 3,
+          "nodes": 1592,
+          "pv": [
+            "h2h3",
+            "h7h6",
+            "d1c2"
+          ],
+          "score": "cp -247"
+        },
+        {
+          "depth": 4,
+          "nodes": 5467,
+          "pv": [
+            "h2h3",
+            "h7h6",
+            "d1b3",
+            "c8b8"
+          ],
+          "score": "cp -247"
+        },
+        {
+          "depth": 5,
+          "nodes": 17991,
+          "pv": [
+            "d2b3",
+            "f6e4",
+            "d1e2",
+            "c8b8",
+            "h2h3"
+          ],
+          "score": "cp -245"
+        },
+        {
+          "depth": 6,
+          "nodes": 39981,
+          "pv": [
+            "d2b3",
+            "d7d6",
+            "h2h3",
+            "c8b8",
+            "d1d3",
+            "h8e8"
+          ],
+          "score": "cp -255"
+        },
+        {
+          "depth": 7,
+          "nodes": 79446,
+          "pv": [
+            "b2b4",
+            "h7h6",
+            "b4b5",
+            "c6e7",
+            "a2a4",
+            "f6e4",
+            "d1b3"
+          ],
+          "score": "cp -246"
+        }
+      ],
+      "nodes": 79446,
+      "nps": 1906049,
+      "personality": {
+        "attempts": 11,
+        "completed": 8,
+        "exhausted": 4,
+        "nodes": 12552,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp -246"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "e1e2",
+      "depth": 8,
+      "elapsed_ms": 10,
+      "fen": "4k3/8/8/8/8/8/4q3/4R1K1 w - - 0 1",
+      "id": "tactical-safety",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 21,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "e2d2",
+            "d7e6"
+          ],
+          "score": "cp 574"
+        },
+        {
+          "depth": 2,
+          "nodes": 87,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "e2g2"
+          ],
+          "score": "cp 610"
+        },
+        {
+          "depth": 3,
+          "nodes": 379,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "e2g2",
+            "d7e6"
+          ],
+          "score": "cp 611"
+        },
+        {
+          "depth": 4,
+          "nodes": 1145,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "g1f1",
+            "d7d6",
+            "e2f2"
+          ],
+          "score": "cp 633"
+        },
+        {
+          "depth": 5,
+          "nodes": 5389,
+          "pv": [
+            "e1e2",
+            "e8f7",
+            "g1f1",
+            "f7f6",
+            "e2a2",
+            "f6e6"
+          ],
+          "score": "cp 628"
+        },
+        {
+          "depth": 6,
+          "nodes": 12194,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "g1f1",
+            "d7d6",
+            "e2e8",
+            "d6d7",
+            "e8a8"
+          ],
+          "score": "cp 642"
+        },
+        {
+          "depth": 7,
+          "nodes": 21387,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "g1f1",
+            "d7d6",
+            "e2e8",
+            "d6d7",
+            "e8a8",
+            "d7e7"
+          ],
+          "score": "cp 649"
+        },
+        {
+          "depth": 8,
+          "nodes": 54222,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "e2a2",
+            "d7d6",
+            "a2a8",
+            "d6e5",
+            "g1f1",
+            "e5f4",
+            "f1e2"
+          ],
+          "score": "cp 652"
+        }
+      ],
+      "nodes": 54222,
+      "nps": 5084103,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 42,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 652"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "a1a2",
+      "depth": 11,
+      "elapsed_ms": 15,
+      "fen": "7k/8/8/8/8/1r6/8/K7 w - - 0 1",
+      "id": "defensive-safety",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 9,
+          "pv": [
+            "a1a2"
+          ],
+          "score": "cp -586"
+        },
+        {
+          "depth": 2,
+          "nodes": 30,
+          "pv": [
+            "a1a2",
+            "b3h3"
+          ],
+          "score": "cp -623"
+        },
+        {
+          "depth": 3,
+          "nodes": 139,
+          "pv": [
+            "a1a2",
+            "b3h3",
+            "a2b2"
+          ],
+          "score": "cp -627"
+        },
+        {
+          "depth": 4,
+          "nodes": 437,
+          "pv": [
+            "a1a2",
+            "b3g3",
+            "a2b2",
+            "g3g8"
+          ],
+          "score": "cp -648"
+        },
+        {
+          "depth": 5,
+          "nodes": 1428,
+          "pv": [
+            "a1a2",
+            "b3b8",
+            "a2a3",
+            "b8g8",
+            "a3b3"
+          ],
+          "score": "cp -644"
+        },
+        {
+          "depth": 6,
+          "nodes": 2730,
+          "pv": [
+            "a1a2",
+            "b3b8",
+            "a2a3",
+            "h8h7",
+            "a3a4",
+            "b8g8"
+          ],
+          "score": "cp -645"
+        },
+        {
+          "depth": 7,
+          "nodes": 8796,
+          "pv": [
+            "a1a2",
+            "b3g3",
+            "a2b2",
+            "h8g7",
+            "b2c2",
+            "g3g2",
+            "c2d1",
+            "g7f6"
+          ],
+          "score": "cp -647"
+        },
+        {
+          "depth": 8,
+          "nodes": 19983,
+          "pv": [
+            "a1a2",
+            "b3b8",
+            "a2a3",
+            "h8g8",
+            "a3a4",
+            "b8b1",
+            "a4a5",
+            "b1g1"
+          ],
+          "score": "cp -653"
+        },
+        {
+          "depth": 9,
+          "nodes": 32651,
+          "pv": [
+            "a1a2",
+            "b3b8",
+            "a2a3",
+            "h8g7",
+            "a3a4",
+            "b8b1",
+            "a4a5",
+            "b1g1",
+            "a5a6"
+          ],
+          "score": "cp -648"
+        },
+        {
+          "depth": 10,
+          "nodes": 52606,
+          "pv": [
+            "a1a2",
+            "b3b8",
+            "a2a3",
+            "h8g7",
+            "a3a4",
+            "b8b1",
+            "a4a5",
+            "g7f8",
+            "a5a6",
+            "b1f1"
+          ],
+          "score": "cp -652"
+        },
+        {
+          "depth": 11,
+          "nodes": 97080,
+          "pv": [
+            "a1a2",
+            "b3b7",
+            "a2a3",
+            "h8g7",
+            "a3a2",
+            "g7f7",
+            "a2a1",
+            "b7b5",
+            "a1a2",
+            "b5b8",
+            "a2a1"
+          ],
+          "score": "cp -670"
+        }
+      ],
+      "nodes": 97080,
+      "nps": 6200568,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp -670"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "c3d5",
+      "depth": 9,
+      "elapsed_ms": 39,
+      "fen": "r3r1k1/ppp2ppp/2n2n2/3q4/8/2N2N2/PPPQ1PPP/R3R1K1 w - - 0 15",
+      "id": "central-queen-safety",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 89,
+          "pv": [
+            "c3d5"
+          ],
+          "score": "cp 1072"
+        },
+        {
+          "depth": 2,
+          "nodes": 276,
+          "pv": [
+            "c3d5",
+            "f6e4"
+          ],
+          "score": "cp 1064"
+        },
+        {
+          "depth": 3,
+          "nodes": 1057,
+          "pv": [
+            "c3d5",
+            "f6e4",
+            "d2e3"
+          ],
+          "score": "cp 1084"
+        },
+        {
+          "depth": 4,
+          "nodes": 2839,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "e1e8",
+            "a8e8",
+            "d2d5"
+          ],
+          "score": "cp 1069"
+        },
+        {
+          "depth": 5,
+          "nodes": 4861,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "d2d5",
+            "a8d8",
+            "e1e8",
+            "d8e8"
+          ],
+          "score": "cp 1091"
+        },
+        {
+          "depth": 6,
+          "nodes": 8387,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "d2d5",
+            "a8d8",
+            "e1e8",
+            "d8e8",
+            "d5d7"
+          ],
+          "score": "cp 1116"
+        },
+        {
+          "depth": 7,
+          "nodes": 20253,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "d2d5",
+            "e8d8",
+            "d5c4",
+            "a7a6",
+            "a1d1"
+          ],
+          "score": "cp 1120"
+        },
+        {
+          "depth": 8,
+          "nodes": 34227,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "d2d5",
+            "e8d8",
+            "d5c4",
+            "a7a6",
+            "a1d1",
+            "d8d1",
+            "e1d1"
+          ],
+          "score": "cp 1127"
+        },
+        {
+          "depth": 9,
+          "nodes": 94542,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "d2d5",
+            "e8d8",
+            "d5c4",
+            "h7h6",
+            "a1d1",
+            "d8d1",
+            "e1d1"
+          ],
+          "score": "cp 1136"
+        }
+      ],
+      "nodes": 94542,
+      "nps": 2406953,
+      "personality": {
+        "attempts": 9,
+        "completed": 7,
+        "exhausted": 2,
+        "nodes": 13063,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 1136"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "g5f7",
+      "depth": 7,
+      "elapsed_ms": 30,
+      "fen": "r1bq1rk1/ppp2ppp/2n2n2/2b1p1NQ/2B1P3/2NP4/PPP2PPP/R4RK1 w - - 0 10",
+      "id": "bishop-f7-sacrifice",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 115,
+          "pv": [
+            "c4f7",
+            "g8h8"
+          ],
+          "score": "cp -136"
+        },
+        {
+          "depth": 2,
+          "nodes": 1115,
+          "pv": [
+            "c4f7",
+            "g8h8",
+            "h5e2"
+          ],
+          "score": "cp -136"
+        },
+        {
+          "depth": 3,
+          "nodes": 2095,
+          "pv": [
+            "c4f7",
+            "g8h8",
+            "h5h4",
+            "c6d4"
+          ],
+          "score": "cp -161"
+        },
+        {
+          "depth": 4,
+          "nodes": 10048,
+          "pv": [
+            "g5f7",
+            "d8d4",
+            "f7h6",
+            "g8h8",
+            "h6f7",
+            "h8g8"
+          ],
+          "score": "cp -141"
+        },
+        {
+          "depth": 5,
+          "nodes": 15626,
+          "pv": [
+            "g5f7",
+            "d8d4",
+            "f7h6",
+            "g8h8",
+            "h6f7",
+            "h8g8",
+            "f7h6"
+          ],
+          "score": "cp -141"
+        },
+        {
+          "depth": 6,
+          "nodes": 26938,
+          "pv": [
+            "g5f7",
+            "d8d4",
+            "f7h6",
+            "g8h8",
+            "h6f7",
+            "h8g8",
+            "f7h6",
+            "g8h8"
+          ],
+          "score": "cp -141"
+        },
+        {
+          "depth": 7,
+          "nodes": 58275,
+          "pv": [
+            "g5f7",
+            "d8d4",
+            "f7h6",
+            "g8h8",
+            "h6f7",
+            "h8g8",
+            "f7h6",
+            "g8h8",
+            "h6f7"
+          ],
+          "score": "cp -141"
+        }
+      ],
+      "nodes": 58275,
+      "nps": 1930204,
+      "personality": {
+        "attempts": 4,
+        "completed": 3,
+        "exhausted": 2,
+        "nodes": 10629,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp -141"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "b1d2",
+      "depth": 7,
+      "elapsed_ms": 45,
+      "fen": "r1bq1rk1/ppp2ppp/2n2n2/3p4/3P4/2PB4/PP3PPP/RNBQ1RK1 w - - 0 8",
+      "id": "unsupported-greek-gift",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 58,
+          "pv": [
+            "f1e1"
+          ],
+          "score": "cp 70"
+        },
+        {
+          "depth": 2,
+          "nodes": 500,
+          "pv": [
+            "f1e1",
+            "f8e8"
+          ],
+          "score": "cp 52"
+        },
+        {
+          "depth": 3,
+          "nodes": 1828,
+          "pv": [
+            "f1e1",
+            "c8e6",
+            "c1e3"
+          ],
+          "score": "cp 48"
+        },
+        {
+          "depth": 4,
+          "nodes": 7421,
+          "pv": [
+            "f1e1",
+            "c8e6",
+            "d1b3",
+            "d8d6",
+            "b3b7"
+          ],
+          "score": "cp 43"
+        },
+        {
+          "depth": 5,
+          "nodes": 18965,
+          "pv": [
+            "b1d2",
+            "f8e8",
+            "d2f3",
+            "c8g4",
+            "c1e3"
+          ],
+          "score": "cp 35"
+        },
+        {
+          "depth": 6,
+          "nodes": 38934,
+          "pv": [
+            "b1d2",
+            "f8e8",
+            "d2f3",
+            "d8d6",
+            "c1e3",
+            "c8e6"
+          ],
+          "score": "cp 43"
+        },
+        {
+          "depth": 7,
+          "nodes": 83188,
+          "pv": [
+            "b1d2",
+            "f8e8",
+            "d2f3",
+            "h7h6",
+            "f1e1",
+            "e8e1",
+            "d1e1",
+            "c8e6"
+          ],
+          "score": "cp 35"
+        }
+      ],
+      "nodes": 83188,
+      "nps": 1822502,
+      "personality": {
+        "attempts": 11,
+        "completed": 7,
+        "exhausted": 4,
+        "nodes": 12605,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 35"
+    },
+    {
+      "aggression": 75,
+      "bestmove": "f2f4",
+      "depth": 10,
+      "elapsed_ms": 27,
+      "fen": "6k1/5ppp/8/8/6P1/8/5P1P/6K1 w - - 0 1",
+      "id": "kingside-pawn-storm",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 13,
+          "pv": [
+            "g1g2"
+          ],
+          "score": "cp 65"
+        },
+        {
+          "depth": 2,
+          "nodes": 84,
+          "pv": [
+            "g1g2",
+            "g8f8"
+          ],
+          "score": "cp 27"
+        },
+        {
+          "depth": 3,
+          "nodes": 321,
+          "pv": [
+            "g1f1",
+            "g8f8",
+            "f1e2"
+          ],
+          "score": "cp 44"
+        },
+        {
+          "depth": 4,
+          "nodes": 838,
+          "pv": [
+            "g1f1",
+            "g8f8",
+            "f1e2",
+            "f8e7"
+          ],
+          "score": "cp 15"
+        },
+        {
+          "depth": 5,
+          "nodes": 2239,
+          "pv": [
+            "g1f1",
+            "g8f8",
+            "f1e2",
+            "f8e7",
+            "e2e3"
+          ],
+          "score": "cp 24"
+        },
+        {
+          "depth": 6,
+          "nodes": 5476,
+          "pv": [
+            "g1f1",
+            "g8f8",
+            "f1e2",
+            "f8e7",
+            "f2f4",
+            "e7e6",
+            "f4f5",
+            "e6f6"
+          ],
+          "score": "cp 12"
+        },
+        {
+          "depth": 7,
+          "nodes": 11885,
+          "pv": [
+            "f2f4",
+            "g8f8",
+            "g1f2",
+            "f8e7",
+            "f2e3",
+            "e7e6",
+            "e3e4",
+            "f7f5",
+            "g4f5",
+            "e6f6"
+          ],
+          "score": "cp 20"
+        },
+        {
+          "depth": 8,
+          "nodes": 19328,
+          "pv": [
+            "f2f4",
+            "g8f8",
+            "g1f2",
+            "f8e7",
+            "f2e3",
+            "e7e6",
+            "e3e4",
+            "f7f5"
+          ],
+          "score": "cp 20"
+        },
+        {
+          "depth": 9,
+          "nodes": 41751,
+          "pv": [
+            "f2f4",
+            "g8f8",
+            "g1f2",
+            "f8e7",
+            "f2e3",
+            "e7e6",
+            "e3d4",
+            "g7g6",
+            "g4g5"
+          ],
+          "score": "cp 13"
+        },
+        {
+          "depth": 10,
+          "nodes": 68378,
+          "pv": [
+            "f2f4",
+            "g8f8",
+            "g1f2",
+            "f8e7",
+            "f2e3",
+            "e7e6",
+            "e3d4",
+            "g7g6",
+            "h2h4",
+            "e6f6"
+          ],
+          "score": "cp 18"
+        }
+      ],
+      "nodes": 68378,
+      "nps": 2481213,
+      "personality": {
+        "attempts": 16,
+        "completed": 14,
+        "exhausted": 3,
+        "nodes": 10565,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 18"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "d2d4",
+      "depth": 8,
+      "elapsed_ms": 56,
+      "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "id": "starting-development",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 28,
+          "pv": [
+            "g1f3"
+          ],
+          "score": "cp 52"
+        },
+        {
+          "depth": 2,
+          "nodes": 172,
+          "pv": [
+            "g1f3",
+            "g8f6"
+          ],
+          "score": "cp 22"
+        },
+        {
+          "depth": 3,
+          "nodes": 813,
+          "pv": [
+            "b1c3",
+            "e7e6",
+            "g1f3"
+          ],
+          "score": "cp 44"
+        },
+        {
+          "depth": 4,
+          "nodes": 2773,
+          "pv": [
+            "b1c3",
+            "e7e6",
+            "e2e3",
+            "b8c6"
+          ],
+          "score": "cp 22"
+        },
+        {
+          "depth": 5,
+          "nodes": 6729,
+          "pv": [
+            "b1c3",
+            "e7e6",
+            "e2e3",
+            "b8c6",
+            "g1f3"
+          ],
+          "score": "cp 32"
+        },
+        {
+          "depth": 6,
+          "nodes": 17781,
+          "pv": [
+            "d2d4",
+            "e7e6",
+            "b1c3",
+            "g8f6",
+            "e2e4",
+            "b8c6"
+          ],
+          "score": "cp 23"
+        },
+        {
+          "depth": 7,
+          "nodes": 41323,
+          "pv": [
+            "d2d4",
+            "g8f6",
+            "b1c3",
+            "d7d5",
+            "g1f3",
+            "b8c6",
+            "e2e3"
+          ],
+          "score": "cp 22"
+        },
+        {
+          "depth": 8,
+          "nodes": 99324,
+          "pv": [
+            "d2d4",
+            "g8f6",
+            "b1c3",
+            "d7d5",
+            "g1f3",
+            "b8c6",
+            "e2e3",
+            "e7e6"
+          ],
+          "score": "cp 22"
+        }
+      ],
+      "nodes": 99324,
+      "nps": 1770827,
+      "personality": {
+        "attempts": 13,
+        "completed": 8,
+        "exhausted": 5,
+        "nodes": 8760,
+        "selections": 1
+      },
+      "requested_nodes": 100000,
+      "score": "cp 22"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "f1c4",
+      "depth": 6,
+      "elapsed_ms": 58,
+      "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
+      "id": "central-space",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 40,
+          "pv": [
+            "b1c3"
+          ],
+          "score": "cp 25"
+        },
+        {
+          "depth": 2,
+          "nodes": 599,
+          "pv": [
+            "b1c3",
+            "g8f6"
+          ],
+          "score": "cp 22"
+        },
+        {
+          "depth": 3,
+          "nodes": 2208,
+          "pv": [
+            "f1c4",
+            "g8f6",
+            "b1c3"
+          ],
+          "score": "cp 17"
+        },
+        {
+          "depth": 4,
+          "nodes": 13223,
+          "pv": [
+            "f1c4",
+            "g8f6",
+            "b1c3",
+            "f8d6"
+          ],
+          "score": "cp 20"
+        },
+        {
+          "depth": 5,
+          "nodes": 32247,
+          "pv": [
+            "f1c4",
+            "g8f6",
+            "b1c3",
+            "f8d6",
+            "e1g1"
+          ],
+          "score": "cp 52"
+        },
+        {
+          "depth": 6,
+          "nodes": 99380,
+          "pv": [
+            "f1c4",
+            "g8f6",
+            "b1c3",
+            "f8c5",
+            "e1g1",
+            "e8g8"
+          ],
+          "score": "cp 22"
+        }
+      ],
+      "nodes": 99380,
+      "nps": 1693933,
+      "personality": {
+        "attempts": 9,
+        "completed": 5,
+        "exhausted": 4,
+        "nodes": 6203,
+        "selections": 3
+      },
+      "requested_nodes": 100000,
+      "score": "cp 22"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "c1g5",
+      "depth": 6,
+      "elapsed_ms": 60,
+      "fen": "r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8",
+      "id": "open-king-gambit",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 262,
+          "pv": [
+            "a2a3"
+          ],
+          "score": "cp 103"
+        },
+        {
+          "depth": 2,
+          "nodes": 806,
+          "pv": [
+            "a2a3",
+            "a7a6"
+          ],
+          "score": "cp 111"
+        },
+        {
+          "depth": 3,
+          "nodes": 3143,
+          "pv": [
+            "a2a3",
+            "a7a5",
+            "f1e1"
+          ],
+          "score": "cp 97"
+        },
+        {
+          "depth": 4,
+          "nodes": 23287,
+          "pv": [
+            "a2a3",
+            "a7a6",
+            "f1e1",
+            "f8e8"
+          ],
+          "score": "cp 104"
+        },
+        {
+          "depth": 5,
+          "nodes": 53799,
+          "pv": [
+            "c1g5",
+            "h7h6",
+            "g5f6",
+            "d8f6",
+            "c3d5"
+          ],
+          "score": "cp 99"
+        },
+        {
+          "depth": 6,
+          "nodes": 100000,
+          "pv": [
+            "c1g5",
+            "h7h6",
+            "g5f6",
+            "d8f6",
+            "c3d5",
+            "f6d8"
+          ],
+          "score": "cp 111"
+        }
+      ],
+      "nodes": 100000,
+      "nps": 1641218,
+      "personality": {
+        "attempts": 8,
+        "completed": 4,
+        "exhausted": 3,
+        "nodes": 8753,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 111"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "b2b4",
+      "depth": 7,
+      "elapsed_ms": 34,
+      "fen": "2kr3r/pppq1ppp/2n1bn2/3p4/3P4/2P1PN2/PP1N1PPP/R2Q1RK1 w - - 0 10",
+      "id": "opposite-castle-storm",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 44,
+          "pv": [
+            "b2b4"
+          ],
+          "score": "cp -261"
+        },
+        {
+          "depth": 2,
+          "nodes": 304,
+          "pv": [
+            "b2b4",
+            "h7h6"
+          ],
+          "score": "cp -259"
+        },
+        {
+          "depth": 3,
+          "nodes": 1595,
+          "pv": [
+            "b2b4",
+            "c8b8",
+            "d1c2"
+          ],
+          "score": "cp -258"
+        },
+        {
+          "depth": 4,
+          "nodes": 6382,
+          "pv": [
+            "b2b4",
+            "c8b8",
+            "a2a4",
+            "h7h6"
+          ],
+          "score": "cp -258"
+        },
+        {
+          "depth": 5,
+          "nodes": 12736,
+          "pv": [
+            "b2b4",
+            "c8b8",
+            "a2a4",
+            "h7h6",
+            "b4b5"
+          ],
+          "score": "cp -255"
+        },
+        {
+          "depth": 6,
+          "nodes": 28948,
+          "pv": [
+            "b2b4",
+            "c8b8",
+            "a2a4",
+            "h7h6",
+            "a4a5",
+            "c6e7"
+          ],
+          "score": "cp -257"
+        },
+        {
+          "depth": 7,
+          "nodes": 62751,
+          "pv": [
+            "b2b4",
+            "c8b8",
+            "a2a4",
+            "c6e7",
+            "a4a5",
+            "e7g6",
+            "d1c2"
+          ],
+          "score": "cp -243"
+        }
+      ],
+      "nodes": 62751,
+      "nps": 1828851,
+      "personality": {
+        "attempts": 11,
+        "completed": 8,
+        "exhausted": 3,
+        "nodes": 12125,
+        "selections": 4
+      },
+      "requested_nodes": 100000,
+      "score": "cp -243"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "e1e2",
+      "depth": 8,
+      "elapsed_ms": 12,
+      "fen": "4k3/8/8/8/8/8/4q3/4R1K1 w - - 0 1",
+      "id": "tactical-safety",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 111,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "e2d2",
+            "d7e6"
+          ],
+          "score": "cp 574"
+        },
+        {
+          "depth": 2,
+          "nodes": 207,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "e2g2"
+          ],
+          "score": "cp 610"
+        },
+        {
+          "depth": 3,
+          "nodes": 747,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "e2g2",
+            "d7e6"
+          ],
+          "score": "cp 611"
+        },
+        {
+          "depth": 4,
+          "nodes": 1778,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "g1f1",
+            "d7d6",
+            "e2f2"
+          ],
+          "score": "cp 633"
+        },
+        {
+          "depth": 5,
+          "nodes": 7603,
+          "pv": [
+            "e1e2",
+            "e8f7",
+            "g1f1",
+            "f7f6",
+            "e2a2",
+            "f6e6"
+          ],
+          "score": "cp 628"
+        },
+        {
+          "depth": 6,
+          "nodes": 16242,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "g1f1",
+            "d7d6",
+            "e2e8",
+            "d6d7",
+            "e8a8"
+          ],
+          "score": "cp 642"
+        },
+        {
+          "depth": 7,
+          "nodes": 29019,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "g1f1",
+            "d7d6",
+            "e2e8",
+            "d6d7",
+            "e8a8",
+            "d7e7"
+          ],
+          "score": "cp 649"
+        },
+        {
+          "depth": 8,
+          "nodes": 64912,
+          "pv": [
+            "e1e2",
+            "e8d7",
+            "e2a2",
+            "d7d6",
+            "a2a8",
+            "d6e5",
+            "g1f1",
+            "e5f4",
+            "f1e2"
+          ],
+          "score": "cp 652"
+        }
+      ],
+      "nodes": 64912,
+      "nps": 5149110,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 42,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 652"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "a1a2",
+      "depth": 11,
+      "elapsed_ms": 15,
+      "fen": "7k/8/8/8/8/1r6/8/K7 w - - 0 1",
+      "id": "defensive-safety",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 35,
+          "pv": [
+            "a1a2"
+          ],
+          "score": "cp -586"
+        },
+        {
+          "depth": 2,
+          "nodes": 56,
+          "pv": [
+            "a1a2",
+            "b3h3"
+          ],
+          "score": "cp -623"
+        },
+        {
+          "depth": 3,
+          "nodes": 302,
+          "pv": [
+            "a1a2",
+            "b3h3",
+            "a2b2"
+          ],
+          "score": "cp -627"
+        },
+        {
+          "depth": 4,
+          "nodes": 624,
+          "pv": [
+            "a1a2",
+            "b3g3",
+            "a2b2",
+            "g3g8"
+          ],
+          "score": "cp -648"
+        },
+        {
+          "depth": 5,
+          "nodes": 1977,
+          "pv": [
+            "a1a2",
+            "b3b8",
+            "a2a3",
+            "b8g8",
+            "a3b3"
+          ],
+          "score": "cp -644"
+        },
+        {
+          "depth": 6,
+          "nodes": 3416,
+          "pv": [
+            "a1a2",
+            "b3b8",
+            "a2a3",
+            "h8h7",
+            "a3a4",
+            "b8g8"
+          ],
+          "score": "cp -645"
+        },
+        {
+          "depth": 7,
+          "nodes": 10165,
+          "pv": [
+            "a1a2",
+            "b3g3",
+            "a2b2",
+            "h8g7",
+            "b2c2",
+            "g3g2",
+            "c2d1",
+            "g7f6"
+          ],
+          "score": "cp -647"
+        },
+        {
+          "depth": 8,
+          "nodes": 17856,
+          "pv": [
+            "a1a2",
+            "b3g3",
+            "a2b2",
+            "h8g7",
+            "b2c2",
+            "g7f7",
+            "c2d2",
+            "g3g8"
+          ],
+          "score": "cp -641"
+        },
+        {
+          "depth": 9,
+          "nodes": 38557,
+          "pv": [
+            "a1a2",
+            "b3b6",
+            "a2a3",
+            "h8g7",
+            "a3a4",
+            "b6b1",
+            "a4a5",
+            "b1g1",
+            "a5a6"
+          ],
+          "score": "cp -648"
+        },
+        {
+          "depth": 10,
+          "nodes": 54609,
+          "pv": [
+            "a1a2",
+            "b3b6",
+            "a2a3",
+            "h8g7",
+            "a3a4",
+            "b6b1",
+            "a4a5",
+            "g7f8",
+            "a5a6",
+            "b1f1"
+          ],
+          "score": "cp -652"
+        },
+        {
+          "depth": 11,
+          "nodes": 95190,
+          "pv": [
+            "a1a2",
+            "b3b7",
+            "a2a3",
+            "h8g7",
+            "a3a2",
+            "g7f7",
+            "a2a1",
+            "f7e6",
+            "a1a2",
+            "b7a7",
+            "a2b2",
+            "a7d7"
+          ],
+          "score": "cp -668"
+        }
+      ],
+      "nodes": 95190,
+      "nps": 6101068,
+      "personality": {
+        "attempts": 0,
+        "completed": 0,
+        "exhausted": 0,
+        "nodes": 0,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp -668"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "c3d5",
+      "depth": 8,
+      "elapsed_ms": 24,
+      "fen": "r3r1k1/ppp2ppp/2n2n2/3q4/8/2N2N2/PPPQ1PPP/R3R1K1 w - - 0 15",
+      "id": "central-queen-safety",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 90,
+          "pv": [
+            "c3d5"
+          ],
+          "score": "cp 1072"
+        },
+        {
+          "depth": 2,
+          "nodes": 289,
+          "pv": [
+            "c3d5",
+            "f6e4"
+          ],
+          "score": "cp 1064"
+        },
+        {
+          "depth": 3,
+          "nodes": 1187,
+          "pv": [
+            "c3d5",
+            "f6e4",
+            "d2e3"
+          ],
+          "score": "cp 1084"
+        },
+        {
+          "depth": 4,
+          "nodes": 4100,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "e1e8",
+            "a8e8",
+            "d2d5"
+          ],
+          "score": "cp 1069"
+        },
+        {
+          "depth": 5,
+          "nodes": 6251,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "d2d5",
+            "a8d8",
+            "e1e8",
+            "d8e8"
+          ],
+          "score": "cp 1091"
+        },
+        {
+          "depth": 6,
+          "nodes": 10895,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "d2d5",
+            "a8d8",
+            "e1e8",
+            "d8e8",
+            "d5d7"
+          ],
+          "score": "cp 1116"
+        },
+        {
+          "depth": 7,
+          "nodes": 35713,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "d2d5",
+            "e8d8",
+            "d5b5",
+            "a8b8",
+            "a1d1"
+          ],
+          "score": "cp 1119"
+        },
+        {
+          "depth": 8,
+          "nodes": 52984,
+          "pv": [
+            "c3d5",
+            "f6d5",
+            "d2d5",
+            "e8d8",
+            "d5b5",
+            "a8b8",
+            "a1d1",
+            "d8d1",
+            "e1d1"
+          ],
+          "score": "cp 1126"
+        }
+      ],
+      "nodes": 52984,
+      "nps": 2179307,
+      "personality": {
+        "attempts": 8,
+        "completed": 7,
+        "exhausted": 1,
+        "nodes": 9793,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 1126"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "g5f7",
+      "depth": 7,
+      "elapsed_ms": 45,
+      "fen": "r1bq1rk1/ppp2ppp/2n2n2/2b1p1NQ/2B1P3/2NP4/PPP2PPP/R4RK1 w - - 0 10",
+      "id": "bishop-f7-sacrifice",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 125,
+          "pv": [
+            "c4f7",
+            "g8h8"
+          ],
+          "score": "cp -136"
+        },
+        {
+          "depth": 2,
+          "nodes": 1311,
+          "pv": [
+            "c4f7",
+            "g8h8",
+            "h5e2"
+          ],
+          "score": "cp -136"
+        },
+        {
+          "depth": 3,
+          "nodes": 2486,
+          "pv": [
+            "c4f7",
+            "g8h8",
+            "h5h4",
+            "c6d4"
+          ],
+          "score": "cp -161"
+        },
+        {
+          "depth": 4,
+          "nodes": 7449,
+          "pv": [
+            "g5f7",
+            "d8d3",
+            "f7h6",
+            "g8h8",
+            "h6f7"
+          ],
+          "score": "cp -32"
+        },
+        {
+          "depth": 5,
+          "nodes": 11754,
+          "pv": [
+            "g5f7",
+            "d8d3",
+            "f7h6",
+            "g8h8",
+            "h6f7",
+            "h8g8",
+            "f7h6"
+          ],
+          "score": "cp -32"
+        },
+        {
+          "depth": 6,
+          "nodes": 19482,
+          "pv": [
+            "g5f7",
+            "d8d3",
+            "f7h6",
+            "g8h8",
+            "h6f7",
+            "h8g8",
+            "f7h6",
+            "g8h8"
+          ],
+          "score": "cp -32"
+        },
+        {
+          "depth": 7,
+          "nodes": 96229,
+          "pv": [
+            "g5f7",
+            "d8d3",
+            "f7h6",
+            "g8h8",
+            "h6f7",
+            "h8g8",
+            "f7h6",
+            "g8h8",
+            "h6f7"
+          ],
+          "score": "cp -32"
+        }
+      ],
+      "nodes": 96229,
+      "nps": 2134443,
+      "personality": {
+        "attempts": 1,
+        "completed": 1,
+        "exhausted": 1,
+        "nodes": 7766,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp -32"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "b1d2",
+      "depth": 7,
+      "elapsed_ms": 41,
+      "fen": "r1bq1rk1/ppp2ppp/2n2n2/3p4/3P4/2PB4/PP3PPP/RNBQ1RK1 w - - 0 8",
+      "id": "unsupported-greek-gift",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 65,
+          "pv": [
+            "f1e1"
+          ],
+          "score": "cp 70"
+        },
+        {
+          "depth": 2,
+          "nodes": 569,
+          "pv": [
+            "f1e1",
+            "f8e8"
+          ],
+          "score": "cp 52"
+        },
+        {
+          "depth": 3,
+          "nodes": 2128,
+          "pv": [
+            "f1e1",
+            "c8e6",
+            "c1e3"
+          ],
+          "score": "cp 48"
+        },
+        {
+          "depth": 4,
+          "nodes": 8579,
+          "pv": [
+            "f1e1",
+            "c8e6",
+            "d1b3",
+            "d8d6",
+            "b3b7"
+          ],
+          "score": "cp 43"
+        },
+        {
+          "depth": 5,
+          "nodes": 22610,
+          "pv": [
+            "b1d2",
+            "f8e8",
+            "d2f3",
+            "c8g4",
+            "c1e3"
+          ],
+          "score": "cp 35"
+        },
+        {
+          "depth": 6,
+          "nodes": 44036,
+          "pv": [
+            "b1d2",
+            "f8e8",
+            "d2f3",
+            "a7a5",
+            "f1e1",
+            "e8e1",
+            "d1e1"
+          ],
+          "score": "cp 48"
+        },
+        {
+          "depth": 7,
+          "nodes": 77923,
+          "pv": [
+            "b1d2",
+            "f8e8",
+            "d2f3",
+            "c8e6",
+            "f1e1",
+            "h7h6",
+            "f3e5",
+            "c6e5",
+            "d4e5"
+          ],
+          "score": "cp 50"
+        }
+      ],
+      "nodes": 77923,
+      "nps": 1886213,
+      "personality": {
+        "attempts": 11,
+        "completed": 7,
+        "exhausted": 4,
+        "nodes": 12820,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 50"
+    },
+    {
+      "aggression": 100,
+      "bestmove": "f2f4",
+      "depth": 10,
+      "elapsed_ms": 30,
+      "fen": "6k1/5ppp/8/8/6P1/8/5P1P/6K1 w - - 0 1",
+      "id": "kingside-pawn-storm",
+      "iterations": [
+        {
+          "depth": 1,
+          "nodes": 13,
+          "pv": [
+            "g1g2"
+          ],
+          "score": "cp 65"
+        },
+        {
+          "depth": 2,
+          "nodes": 84,
+          "pv": [
+            "g1g2",
+            "g8f8"
+          ],
+          "score": "cp 27"
+        },
+        {
+          "depth": 3,
+          "nodes": 321,
+          "pv": [
+            "g1f1",
+            "g8f8",
+            "f1e2"
+          ],
+          "score": "cp 44"
+        },
+        {
+          "depth": 4,
+          "nodes": 838,
+          "pv": [
+            "g1f1",
+            "g8f8",
+            "f1e2",
+            "f8e7"
+          ],
+          "score": "cp 15"
+        },
+        {
+          "depth": 5,
+          "nodes": 2239,
+          "pv": [
+            "g1f1",
+            "g8f8",
+            "f1e2",
+            "f8e7",
+            "e2e3"
+          ],
+          "score": "cp 24"
+        },
+        {
+          "depth": 6,
+          "nodes": 5508,
+          "pv": [
+            "g1f1",
+            "g8f8",
+            "f1e2",
+            "f8e7",
+            "f2f4",
+            "e7e6",
+            "f4f5",
+            "e6f6"
+          ],
+          "score": "cp 12"
+        },
+        {
+          "depth": 7,
+          "nodes": 12260,
+          "pv": [
+            "f2f4",
+            "g8f8",
+            "g1f2",
+            "f8e7",
+            "f2e3",
+            "e7e6",
+            "e3e4",
+            "f7f5",
+            "g4f5",
+            "e6f6"
+          ],
+          "score": "cp 20"
+        },
+        {
+          "depth": 8,
+          "nodes": 19800,
+          "pv": [
+            "f2f4",
+            "g8f8",
+            "g1f2",
+            "f8e7",
+            "f2e3",
+            "e7e6",
+            "e3e4",
+            "f7f5"
+          ],
+          "score": "cp 20"
+        },
+        {
+          "depth": 9,
+          "nodes": 48526,
+          "pv": [
+            "f2f4",
+            "g8f8",
+            "g1f2",
+            "f8e7",
+            "f2e3",
+            "e7e6",
+            "e3d4",
+            "g7g6",
+            "g4g5"
+          ],
+          "score": "cp 13"
+        },
+        {
+          "depth": 10,
+          "nodes": 74871,
+          "pv": [
+            "f2f4",
+            "g8f8",
+            "g1f2",
+            "f8e7",
+            "f2e3",
+            "e7e6",
+            "e3d4",
+            "g7g6",
+            "h2h4",
+            "e6f6"
+          ],
+          "score": "cp 18"
+        }
+      ],
+      "nodes": 74871,
+      "nps": 2451998,
+      "personality": {
+        "attempts": 16,
+        "completed": 13,
+        "exhausted": 4,
+        "nodes": 10887,
+        "selections": 0
+      },
+      "requested_nodes": 100000,
+      "score": "cp 18"
+    }
+  ]
+}

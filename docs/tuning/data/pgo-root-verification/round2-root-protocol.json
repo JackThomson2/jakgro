@@ -1,0 +1,32 @@
+{
+  "patch": "search: Anchor attacking choices to the strongest verified move",
+  "base_revision": "20485cffbb55e8d0ee1249eedc8db5dea3ff302b",
+  "base_sha256": "7328a3b15ca7cdd3214c1c614a933bff760d5d34f296d4c0fca95a7c67cdd471",
+  "candidate_sha256": "f21ade04a57d98101adc1166e3b6dec04a577c34036d7c60f8ca5e629706a39a",
+  "isolation": "Normal locked release binaries; no PGO or other search/evaluation policy changes. No fixture changes planned.",
+  "settings": {
+    "aggression": 75,
+    "threads": 1,
+    "hash_mib": 16,
+    "concurrency": 20,
+    "elo0": 0,
+    "elo1": 10,
+    "alpha": 0.05,
+    "beta": 0.05
+  },
+  "matches": [
+    {
+      "name": "round2-root-screen",
+      "games": 1024,
+      "movetime_ms": 50,
+      "book": "docs/tuning/data/evaluation-refit-pilot/development.epd"
+    },
+    {
+      "name": "round2-root-clock",
+      "games": 2000,
+      "time_control": "1.0+0.01",
+      "book": "docs/tuning/data/evaluation-refit-pilot/confirmation.epd"
+    }
+  ],
+  "policy": "Fixed declared caps, no early stopping or retuning from these results. Synthetic regressions demonstrate the stale-reference/mate-selection defect. Match results check practical regression and are not assumed to prove positive Elo. Retain failed tests and all match results. Existing historical books, not independent external opening families."
+}

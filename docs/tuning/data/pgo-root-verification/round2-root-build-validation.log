@@ -1,0 +1,5 @@
+    Checking jakgro v0.1.0 (/home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789204492577019134-0/workspace)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.57s
+    Finished `release` profile [optimized] target(s) in 0.04s
+f21ade04a57d98101adc1166e3b6dec04a577c34036d7c60f8ca5e629706a39a  target/release/jakgro
+7328a3b15ca7cdd3214c1c614a933bff760d5d34f296d4c0fca95a7c67cdd471  /tmp/jakkoo-temp/session-1135455-1789169345191-0/round2-base

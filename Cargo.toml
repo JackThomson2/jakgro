@@ -25,7 +25,7 @@ required-features = ["tuning"]
 
 [[bin]]
 name = "nnue-data"
-path = "src/bin/nnue-data.rs"
+path = "src/bin/nnue-data/main.rs"
 required-features = ["tuning"]
 
 [[bench]]

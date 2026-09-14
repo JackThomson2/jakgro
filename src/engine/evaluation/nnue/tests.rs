@@ -124,9 +124,8 @@ fn reference(model: &Network, board: &Board) -> ([[i32; HIDDEN_SIZE]; 2], i32) {
         .into_iter()
         .enumerate()
     {
-        for unit in 0..HIDDEN_SIZE {
-            numerator += i64::from(model.output_weights[slot][unit])
-                * i64::from(sums[side as usize][unit].clamp(0, 255));
+        for (&weight, &sum) in model.output_weights[slot].iter().zip(&sums[side as usize]) {
+            numerator += i64::from(weight) * i64::from(sum.clamp(0, 255));
         }
     }
     let score = (numerator / 16_320).clamp(-16_000, 16_000) as i32;

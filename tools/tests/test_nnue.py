@@ -2,7 +2,6 @@ import contextlib
 from array import array
 from dataclasses import replace
 import gzip
-import importlib.util
 import io
 import json
 import os
@@ -17,7 +16,6 @@ from tools import nnue_data as data
 from tools import nnue_format as fmt
 from tools import train_nnue as train
 
-HAS_NUMPY = importlib.util.find_spec("numpy") is not None
 HELPER_ENV = os.environ.get("JAKGRO_NNUE_DATA")
 HELPER = Path(HELPER_ENV).resolve() if HELPER_ENV else None
 if HELPER is not None and not HELPER.is_file():
@@ -158,66 +156,18 @@ class DatasetTests(unittest.TestCase):
                 data.expand(source, output)
 
 
-@unittest.skipUnless(HAS_NUMPY, "install tools/requirements-nnue.txt for training tests")
-class TrainingMathTests(unittest.TestCase):
-    def test_black_labels_are_reoriented_once(self):
-        np = train.numpy()
-        black = replace(SAMPLE, stm=1, outcome=1.0, teacher=150.0)
-        no_teacher = replace(black, teacher=None)
-        encoded = train.encode_samples([SAMPLE, black, no_teacher], 0.5, train.DEFAULT_K)
-        self.assertEqual(encoded["outcomes"].tolist(), [1.0, 0.0, 0.0])
-        p = float(train.probability(np.asarray([150.0]), train.DEFAULT_K)[0])
-        self.assertAlmostEqual(encoded["labels"][0], 0.5 + 0.5 * p)
-        self.assertAlmostEqual(encoded["labels"][1], 0.5 * (1 - p))
-        self.assertEqual(encoded["labels"][2], 0.0)
-        self.assertEqual(tuple(encoded["indices"][1, 0, :4]), SAMPLE.black)
-
-    def test_all_parameter_gradients_match_finite_differences(self):
-        np = train.numpy()
-        samples = [SAMPLE, replace(SAMPLE, outcome=0.0, teacher=-80.0)]
-        encoded = train.encode_samples(samples, 0.5, train.DEFAULT_K)
-        parameters = train.initialize(data.stats(samples)["feature_support"], 75)
-        parameters["input"].fill(0.0)
-        parameters["hidden"].fill(0.2)
-        gradient, _ = train.gradients(parameters, encoded["indices"], encoded["labels"], train.DEFAULT_K, 0.0)
-        for name, index in (("input", (1546, 3)), ("input", (1860, 7)),
-                            ("hidden", (3,)), ("output", (0, 3)), ("output", (1, 9)), ("bias", (0,))):
-            old = parameters[name][index]
-            epsilon = 1e-6
-            def loss(offset):
-                parameters[name][index] = old + offset
-                scores = train.forward(parameters, encoded["indices"])[0]
-                return float(np.mean((train.probability(scores, train.DEFAULT_K) - encoded["labels"]) ** 2))
-            numerical = (loss(epsilon) - loss(-epsilon)) / (2 * epsilon)
-            parameters[name][index] = old
-            self.assertAlmostEqual(float(gradient[name][index]), numerical, places=7, msg=(name, index))
-        self.assertFalse(np.any(gradient["input"][fmt.INPUTS]))
-
-    def test_integer_batch_evaluation_matches_scalar_oracle(self):
-        samples = [SAMPLE, replace(SAMPLE, stm=1), sample_with_pawn(3)]
-        parameters = train.initialize(data.stats(samples)["feature_support"], 19)
-        network = train.export_network(parameters)
-        encoded = train.encode_samples(samples, 0.5, train.DEFAULT_K)
-        expected = [network.infer(row.white, row.black, row.stm)["cp"] for row in samples]
-        self.assertEqual(train.integer_predictions(network, encoded, 2).tolist(), expected)
-        unsupported = data.stats(samples)["feature_support"].index(0)
-        self.assertFalse(any(network.input_weights[unsupported * fmt.HIDDEN:(unsupported + 1) * fmt.HIDDEN]))
-
-    def test_quantization_rejects_nonfinite_and_out_of_range_parameters(self):
-        np = train.numpy()
-        self.assertEqual(train.quantize(np.array([-1.5, -0.5, 0.5, 1.5]), 1, -32768, 32767).tolist(), [-2, -1, 1, 2])
-        for value in (float("nan"), float("inf"), 32768.0):
-            with self.assertRaises(ValueError):
-                train.quantize([value], 1, -32768, 32767)
+class OptionTests(unittest.TestCase):
+    def test_training_options_are_bounded(self):
         options = dict(epochs=1, batch_size=2, rate=0.001, l2=0.0, seed=1, label_mix=0.5, k=1.0)
-        for field, value in (("epochs", 0), ("rate", float("nan")), ("seed", -1), ("batch_size", 0), ("label_mix", 2)):
-            with self.assertRaises(ValueError):
+        train.validate_options(**options)
+        for field, value in (("epochs", 0), ("rate", float("nan")), ("seed", -1), ("batch_size", 0),
+                             ("label_mix", 2), ("threads", 0)):
+            with self.subTest(field=field), self.assertRaises(ValueError):
                 train.validate_options(**(options | {field: value}))
 
 
 @unittest.skipUnless(HELPER is not None, "set JAKGRO_NNUE_DATA to a freshly built nnue-data for end-to-end tests")
 class RustPipelineTests(unittest.TestCase):
-    @unittest.skipUnless(HAS_NUMPY, "install tools/requirements-nnue.txt")
     def test_changed_tool_sources_refuse_training_or_publication(self):
         original = train.tool_source_hashes()
         changed = original | {"train_nnue.py": "0" * 64}
@@ -292,7 +242,6 @@ class RustPipelineTests(unittest.TestCase):
             self.assertNotEqual(scored.returncode, 0)
             self.assertIn("checksum", scored.stderr)
 
-    @unittest.skipUnless(HAS_NUMPY, "install tools/requirements-nnue.txt")
     def test_real_training_is_deterministic_and_exports_only_after_parity(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -307,7 +256,7 @@ class RustPipelineTests(unittest.TestCase):
                 self.assertEqual(report["steps"], 6)
                 self.assertLess(report["selected_metrics"]["integer_training"]["label_mse"],
                                 report["initial_integer_training"]["label_mse"])
-                self.assertEqual(report["parity_positions"], 5)
+                self.assertEqual(report["parity_positions"], 2)
                 reports.append(report)
             self.assertEqual((root / "first/network.nnue").read_bytes(), (root / "second/network.nnue").read_bytes())
             self.assertEqual(reports[0]["history"], reports[1]["history"])
@@ -315,7 +264,6 @@ class RustPipelineTests(unittest.TestCase):
                 train.train(root / "prepared", HELPER, root / "zero", epochs=0)
             self.assertFalse((root / "zero").exists())
 
-    @unittest.skipUnless(HAS_NUMPY, "install tools/requirements-nnue.txt")
     def test_failed_parity_does_not_publish_an_output(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

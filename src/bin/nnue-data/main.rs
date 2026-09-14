@@ -1,4 +1,7 @@
-//! Strict, streaming feature preparation and integer inference for offline NNUE tools.
+//! Strict, streaming feature preparation, integer inference and CPU training
+//! for offline NNUE tools.
+
+mod train;
 
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::process::ExitCode;
@@ -12,21 +15,33 @@ const HEADER: &str = "# jakgro-nnue-data-v1\t12288\t128\t255\t64\nfen\tkey\tstm\
 fn main() -> ExitCode {
     let arguments: Vec<_> = std::env::args().skip(1).collect();
     let result = match arguments.as_slice() {
-        [command, input] if command == "prepare" => {
-            open(input).and_then(|reader| prepare(reader, io::stdout().lock()))
-        }
+        [command, input] if command == "prepare" => open(input)
+            .and_then(|reader| prepare(reader, io::stdout().lock()))
+            .map(|count| format!("{count} validated positions")),
         [command, model, input] if command == "score" => Network::load(model)
             .map_err(|error| error.to_string())
             .and_then(|network| {
                 open(input).and_then(|reader| score(&network, reader, io::stdout().lock()))
-            }),
+            })
+            .map(|count| format!("{count} validated positions")),
+        [command, rest @ ..] if command == "train" => {
+            train::Options::parse(rest).and_then(|(options, data, output)| {
+                train::train(&options, &data, &output).map(|summary| {
+                    println!("{summary}");
+                    format!("network written to {}", output.display())
+                })
+            })
+        }
         _ => Err(
-            "usage: nnue-data prepare <labelled-text|-> | score <network> <fen-text|->".to_owned(),
+            "usage: nnue-data prepare <labelled-text|-> | score <network> <fen-text|-> \
+                 | train --data-dir DIR --output-dir DIR [--epochs N] [--batch-size N] [--rate F] \
+                 [--l2 F] [--seed N] [--lambda F] [--k F] [--threads N]"
+                .to_owned(),
         ),
     };
     match result {
-        Ok(count) => {
-            eprintln!("nnue-data: {count} validated positions");
+        Ok(message) => {
+            eprintln!("nnue-data: {message}");
             ExitCode::SUCCESS
         }
         Err(error) => {

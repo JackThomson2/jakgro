@@ -1,4 +1,5 @@
 mod features;
+mod memo;
 mod placement;
 mod tactics;
 #[cfg(feature = "tuning")]
@@ -362,10 +363,12 @@ pub(super) fn evaluate_with_config(board: &Board, config: EvaluationConfig) -> S
 /// supported-threat terms only to multiply them away.
 #[inline(always)]
 fn objective_blended_score(board: &Board) -> Score {
-    let features = features::extract_with_style(board, false);
-    let base = weights::score(&features);
-    let phase = features::phase(board);
-    (base.middle_game * phase + base.end_game * (24 - phase)) / 24
+    memo::evaluate(board, || {
+        let features = features::extract_with_style(board, false);
+        let base = weights::score(&features);
+        let phase = features::phase(board);
+        (base.middle_game * phase + base.end_game * (24 - phase)) / 24
+    })
 }
 pub(super) fn root_complexity_bonus(
     board: &Board,

@@ -1,0 +1,29 @@
+{
+  "operations": [
+    {
+      "path": "src/engine/evaluation/weights.rs",
+      "pattern": "const KNIGHT_MOBILITY: [ScorePair; 9] = [\n    ScorePair::new(-3, 0),\n    ScorePair::new(4, 10),\n    ScorePair::new(11, 25),\n    ScorePair::new(18, 29),\n    ScorePair::new(15, 39),\n    ScorePair::new(18, 41),\n    ScorePair::new(18, 46),\n    ScorePair::new(22, 50),\n    ScorePair::new(19, 49),\n];",
+      "rewrite": "const KNIGHT_MOBILITY: [ScorePair; 9] = [\n    ScorePair::new(-3, 0),\n    ScorePair::new(4, 10),\n    ScorePair::new(10, 25),\n    ScorePair::new(18, 29),\n    ScorePair::new(16, 40),\n    ScorePair::new(20, 42),\n    ScorePair::new(20, 47),\n    ScorePair::new(22, 50),\n    ScorePair::new(19, 49),\n];"
+    },
+    {
+      "path": "src/engine/evaluation/weights.rs",
+      "pattern": "const BISHOP_MOBILITY: [ScorePair; 14] = [\n    ScorePair::new(-14, -4),\n    ScorePair::new(-2, 9),\n    ScorePair::new(11, 20),\n    ScorePair::new(10, 30),\n    ScorePair::new(14, 38),\n    ScorePair::new(26, 51),\n    ScorePair::new(28, 55),\n    ScorePair::new(34, 61),\n    ScorePair::new(26, 67),\n    ScorePair::new(27, 74),\n    ScorePair::new(30, 76),\n    ScorePair::new(33, 76),\n    ScorePair::new(42, 97),\n    ScorePair::new(45, 97),\n];",
+      "rewrite": "const BISHOP_MOBILITY: [ScorePair; 14] = [\n    ScorePair::new(-15, -4),\n    ScorePair::new(-3, 8),\n    ScorePair::new(10, 19),\n    ScorePair::new(12, 31),\n    ScorePair::new(16, 40),\n    ScorePair::new(25, 51),\n    ScorePair::new(28, 55),\n    ScorePair::new(34, 62),\n    ScorePair::new(27, 66),\n    ScorePair::new(27, 74),\n    ScorePair::new(30, 76),\n    ScorePair::new(33, 75),\n    ScorePair::new(42, 97),\n    ScorePair::new(45, 97),\n];"
+    },
+    {
+      "path": "src/engine/evaluation/weights.rs",
+      "pattern": "const ROOK_MOBILITY: [ScorePair; 15] = [\n    ScorePair::new(-17, -4),\n    ScorePair::new(0, 12),\n    ScorePair::new(6, 25),\n    ScorePair::new(16, 35),\n    ScorePair::new(23, 39),\n    ScorePair::new(23, 47),\n    ScorePair::new(20, 63),\n    ScorePair::new(26, 65),\n    ScorePair::new(26, 73),\n    ScorePair::new(30, 78),\n    ScorePair::new(32, 83),\n    ScorePair::new(31, 85),\n    ScorePair::new(37, 90),\n    ScorePair::new(42, 96),\n    ScorePair::new(42, 79),\n];",
+      "rewrite": "const ROOK_MOBILITY: [ScorePair; 15] = [\n    ScorePair::new(-17, -4),\n    ScorePair::new(0, 12),\n    ScorePair::new(6, 26),\n    ScorePair::new(14, 35),\n    ScorePair::new(22, 39),\n    ScorePair::new(24, 48),\n    ScorePair::new(20, 63),\n    ScorePair::new(26, 66),\n    ScorePair::new(26, 72),\n    ScorePair::new(30, 78),\n    ScorePair::new(32, 82),\n    ScorePair::new(31, 84),\n    ScorePair::new(37, 90),\n    ScorePair::new(42, 96),\n    ScorePair::new(42, 78),\n];"
+    },
+    {
+      "path": "src/engine/evaluation/weights.rs",
+      "pattern": "const QUEEN_MOBILITY: [ScorePair; 28] = [\n    ScorePair::new(0, 0),\n    ScorePair::new(6, 7),\n    ScorePair::new(9, 17),\n    ScorePair::new(17, 24),\n    ScorePair::new(18, 34),\n    ScorePair::new(23, 43),\n    ScorePair::new(28, 51),\n    ScorePair::new(32, 63),\n    ScorePair::new(35, 70),\n    ScorePair::new(37, 79),\n    ScorePair::new(38, 87),\n    ScorePair::new(39, 97),\n    ScorePair::new(46, 103),\n    ScorePair::new(52, 115),\n    ScorePair::new(57, 122),\n    ScorePair::new(53, 128),\n    ScorePair::new(60, 138),\n    ScorePair::new(57, 145),\n    ScorePair::new(60, 150),\n    ScorePair::new(66, 157),\n    ScorePair::new(69, 164),\n    ScorePair::new(72, 171),\n    ScorePair::new(77, 180),\n    ScorePair::new(81, 187),\n    ScorePair::new(84, 197),\n    ScorePair::new(89, 207),\n    ScorePair::new(93, 216),\n    ScorePair::new(96, 224),\n];",
+      "rewrite": "const QUEEN_MOBILITY: [ScorePair; 28] = [\n    ScorePair::new(0, 0),\n    ScorePair::new(6, 7),\n    ScorePair::new(9, 17),\n    ScorePair::new(17, 24),\n    ScorePair::new(18, 34),\n    ScorePair::new(23, 43),\n    ScorePair::new(29, 51),\n    ScorePair::new(32, 63),\n    ScorePair::new(37, 71),\n    ScorePair::new(39, 80),\n    ScorePair::new(39, 87),\n    ScorePair::new(39, 97),\n    ScorePair::new(45, 103),\n    ScorePair::new(52, 115),\n    ScorePair::new(56, 122),\n    ScorePair::new(53, 128),\n    ScorePair::new(60, 138),\n    ScorePair::new(57, 145),\n    ScorePair::new(60, 150),\n    ScorePair::new(66, 157),\n    ScorePair::new(69, 164),\n    ScorePair::new(72, 171),\n    ScorePair::new(77, 180),\n    ScorePair::new(81, 187),\n    ScorePair::new(84, 197),\n    ScorePair::new(89, 207),\n    ScorePair::new(93, 216),\n    ScorePair::new(96, 224),\n];"
+    },
+    {
+      "path": "src/engine/evaluation/weights.rs",
+      "pattern": "const UNSAFE_MOBILITY_BY_PIECE: [ScorePair; 4] = [\n    ScorePair::new(-7, -6),\n    ScorePair::new(-4, -5),\n    ScorePair::new(-8, 1),\n    ScorePair::new(-5, 11),\n];",
+      "rewrite": "const UNSAFE_MOBILITY_BY_PIECE: [ScorePair; 4] = [\n    ScorePair::new(-6, 0),\n    ScorePair::new(3, -1),\n    ScorePair::new(-2, 4),\n    ScorePair::new(-1, 14),\n];"
+    }
+  ]
+}

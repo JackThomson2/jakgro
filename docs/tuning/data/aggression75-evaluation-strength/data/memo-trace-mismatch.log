@@ -1,0 +1,149 @@
+0 Error: bash-19: failed (exit status 100); workspace=active; generation=1; elapsed=2101 ms; timeout=120000 ms; captured=10838 bytes
+  directory: /home/ubuntu/.local/state/jakkoo/worktrees/worktree-602950-1789388879712205907-0/workspace
+  queue=7 ms; execution=2093 ms; result_collected_at_snapshot=false
+  output:
+   Compiling jakgro v0.1.0 (/home/ubuntu/.local/state/jakkoo/worktrees/worktree-602950-1789388879712205907-0/workspace)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.96s
+────────────
+ Nextest run ID 963eec0d-548c-493a-94b8-2d818029a54d with nextest profile: default
+    Starting 78 tests across 1 binary (180 tests skipped)
+        PASS [   0.004s] ( 1/78) jakgro engine::evaluation::features::tests::cached_structure_is_stable_across_repeated_queries
+        PASS [   0.004s] ( 2/78) jakgro engine::evaluation::features::tests::structure_keys_separate_positions_that_differ_only_by_a_king
+        PASS [   0.004s] ( 3/78) jakgro engine::evaluation::features::tests::the_derived_passer_scalar_matches_the_weighted_sum
+        PASS [   0.005s] ( 4/78) jakgro engine::evaluation::features::tests::structure_terms_are_signed_from_whites_perspective
+        PASS [   0.005s] ( 5/78) jakgro engine::evaluation::features::tests::protected_passers_are_counted_separately_from_bare_ones
+        PASS [   0.005s] ( 6/78) jakgro engine::evaluation::memo::tests::an_exact_repeat_reuses_the_value
+        PASS [   0.005s] ( 7/78) jakgro engine::evaluation::features::tests::cached_attack_maps_match_reference_positions
+        PASS [   0.006s] ( 8/78) jakgro engine::evaluation::tests::fitted_evaluation_is_shared_without_weakening_attacking_style
+        PASS [   0.007s] ( 9/78) jakgro engine::evaluation::features::tests::cached_structure_matches_recomputation_over_a_playout
+        PASS [   0.013s] (10/78) jakgro engine::evaluation::features::tests::cached_attack_maps_match_reference_playout
+        PASS [   0.024s] (11/78) jakgro engine::evaluation::tests::passers_are_scored_by_the_state_of_their_path
+        PASS [   0.024s] (12/78) jakgro engine::evaluation::memo::tests::entries_fit_one_cache_line
+        PASS [   0.025s] (13/78) jakgro engine::evaluation::placement::tests::placement_moves_the_king_home_in_the_middlegame_and_out_in_the_endgame
+        PASS [   0.025s] (14/78) jakgro engine::evaluation::placement::tests::tables_describe_a_coherent_evaluation
+        PASS [   0.032s] (15/78) jakgro engine::evaluation::memo::tests::collisions_verify_pieces_colors_tempo_and_castling
+        PASS [   0.032s] (16/78) jakgro engine::evaluation::placement::tests::white_and_black_read_vertically_mirrored_entries
+        PASS [   0.032s] (17/78) jakgro engine::evaluation::tests::mobility_curves_are_read_per_piece_type
+        PASS [   0.032s] (18/78) jakgro engine::evaluation::tactics::tests::exchange_outcome_records_en_passant_on_the_destination_square
+        PASS [   0.032s] (19/78) jakgro engine::evaluation::tactics::tests::exchange_outcome_keeps_the_selected_line_and_board_together
+        PASS [   0.032s] (20/78) jakgro engine::evaluation::tests::objective_threats_count_attacked_pieces_by_kind
+        PASS [   0.032s] (21/78) jakgro engine::evaluation::placement::tests::the_first_rank_reads_the_last_table_row
+        PASS [   0.032s] (22/78) jakgro engine::evaluation::memo::tests::clock_and_en_passant_metadata_do_not_change_evaluation_inputs
+        PASS [   0.032s] (23/78) jakgro engine::evaluation::placement::tests::placement_is_colour_symmetric
+        PASS [   0.032s] (24/78) jakgro engine::evaluation::tests::mobility_onto_pawn_attacked_squares_is_counted_by_piece
+        PASS [   0.033s] (25/78) jakgro engine::evaluation::tactics::tests::exchange_risk_ignores_pinned_attackers
+        PASS [   0.032s] (26/78) jakgro engine::evaluation::tests::rook_files_and_the_seventh_are_counted_for_each_side
+        PASS [   0.032s] (27/78) jakgro engine::evaluation::tests::outposts_need_pawn_support_and_no_pawn_challenge
+        PASS [   0.033s] (28/78) jakgro engine::evaluation::tactics::tests::exchange_outcome_keeps_the_best_promotion
+        PASS [   0.033s] (29/78) jakgro engine::evaluation::tests::piece_mobility_is_weighted_without_entering_style
+        PASS [   0.033s] (30/78) jakgro engine::evaluation::tests::pawn_push_threats_and_castling_rights_are_counted
+        PASS [   0.033s] (31/78) jakgro engine::evaluation::placement::tests::advanced_pawns_are_worth_more_in_the_endgame
+        PASS [   0.033s] (32/78) jakgro engine::evaluation::tests::material_is_scored_for_the_side_to_move
+        PASS [   0.033s] (33/78) jakgro engine::evaluation::tactics::tests::exchange_risk_recognizes_en_passant
+        PASS [   0.033s] (34/78) jakgro engine::evaluation::placement::tests::placement_prefers_a_central_knight_to_a_cornered_one
+        PASS [   0.033s] (35/78) jakgro engine::evaluation::tactics::tests::exchange_risk_accounts_for_a_legal_recapture
+        PASS [   0.033s] (36/78) jakgro engine::evaluation::placement::tests::pawn_tables_are_empty_on_the_back_ranks
+        PASS [   0.033s] (37/78) jakgro engine::evaluation::tests::placement_is_symmetric_between_mirrored_positions
+        PASS [   0.033s] (38/78) jakgro engine::evaluation::tactics::tests::exchange_risk_finds_a_hanging_rook
+        PASS [   0.034s] (39/78) jakgro engine::evaluation::tests::quiet_check_budgets_are_bounded_and_monotone
+        PASS [   0.034s] (40/78) jakgro engine::evaluation::tests::objective_fast_path_matches_the_general_evaluation
+        FAIL [   0.035s] (41/78) jakgro engine::evaluation::memo::tests::cached_scores_match_the_independent_trace_over_legal_playouts
+  stdout ───
+
+    running 1 test
+    test engine::evaluation::memo::tests::cached_scores_match_the_independent_trace_over_legal_playouts ... FAILED
+
+    failures:
+
+    failures:
+        engine::evaluation::memo::tests::cached_scores_match_the_independent_trace_over_legal_playouts
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 257 filtered out; finished in 0.00s
+
+  stderr ───
+
+    thread 'engine::evaluation::memo::tests::cached_scores_match_the_independent_trace_over_legal_playouts' panicked at src/engine/evaluation/memo.rs:178:21:
+    assertion `left == right` failed: 1rb5/5p2/1pnkp3/p1pN2Pr/2P3P1/6KN/PBqP2BP/1R5R b - - 1 26
+      left: 172
+     right: 171
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: 37 tests still running
+        PASS [   0.037s] (42/78) jakgro engine::evaluation::features::tests::the_objective_scan_matches_the_styled_scan_over_a_playout
+        PASS [   0.026s] (43/78) jakgro engine::evaluation::tactics::tests::material_balance_is_mover_relative
+        PASS [   0.026s] (44/78) jakgro engine::evaluation::tests::style_free_extraction_preserves_material_and_mobility_features
+        PASS [   0.026s] (45/78) jakgro engine::evaluation::tests::tropism_buckets_each_piece_by_its_distance_to_the_enemy_king
+        PASS [   0.026s] (46/78) jakgro engine::evaluation::tuning::tests::the_shipped_weights_are_already_anchored
+        PASS [   0.026s] (47/78) jakgro engine::evaluation::tests::the_storm_is_graded_by_the_nearest_enemy_pawn_on_each_file
+        PASS [   0.026s] (48/78) jakgro engine::evaluation::tuning::tests::a_rescaled_fit_is_pulled_back_onto_the_anchor
+        PASS [   0.026s] (49/78) jakgro engine::evaluation::tactics::tests::tactical_snapshot_counts_legal_checks
+        PASS [   0.027s] (50/78) jakgro engine::evaluation::tests::soft_style_bound_preserves_sign_and_order_below_its_limit
+        PASS [   0.027s] (51/78) jakgro engine::evaluation::tests::attacking_style_does_not_refund_a_material_deficit
+        PASS [   0.027s] (52/78) jakgro engine::evaluation::tests::space_counts_safe_centre_squares_behind_the_pawns
+        PASS [   0.027s] (53/78) jakgro engine::evaluation::tests::piece_values_scale_with_the_pawn_count
+        PASS [   0.027s] (54/78) jakgro engine::evaluation::tactics::tests::exchange_outcome_marks_an_unresolved_depth_boundary
+        PASS [   0.027s] (55/78) jakgro engine::evaluation::tuning::tests::anchoring_preserves_the_ranking_of_every_position
+        PASS [   0.027s] (56/78) jakgro engine::evaluation::tests::feature_trace_exposes_pawn_structure
+        PASS [   0.027s] (57/78) jakgro engine::evaluation::tuning::tests::normalization_preserves_every_score
+        PASS [   0.027s] (58/78) jakgro engine::evaluation::tests::material_evaluation_does_not_embed_terminal_scores
+        PASS [   0.027s] (59/78) jakgro engine::evaluation::tactics::tests::exchange_risk_values_promotion_captures
+        PASS [   0.027s] (60/78) jakgro engine::evaluation::tests::attacking_style_is_color_symmetric
+        PASS [   0.027s] (61/78) jakgro engine::evaluation::tests::backward_and_connected_pawns_are_counted_by_rank
+        PASS [   0.027s] (62/78) jakgro engine::evaluation::tests::color_swapped_material_is_symmetric_for_the_side_to_move
+        PASS [   0.027s] (63/78) jakgro engine::evaluation::tests::coordinated_attack_keeps_more_raw_style_than_a_lone_attacker
+        PASS [   0.027s] (64/78) jakgro engine::evaluation::tests::candidate_passers_islands_and_pawnless_flanks_are_counted
+        PASS [   0.027s] (65/78) jakgro engine::evaluation::tests::king_danger_counts_attack_units_and_safe_checks
+        PASS [   0.027s] (66/78) jakgro engine::evaluation::tests::shelter_is_graded_by_the_nearest_pawn_on_each_file
+        PASS [   0.027s] (67/78) jakgro engine::evaluation::tests::phase_tracks_remaining_non_pawn_material
+        PASS [   0.027s] (68/78) jakgro engine::evaluation::tests::passers_report_blockade_and_king_distance
+        PASS [   0.027s] (69/78) jakgro engine::evaluation::tuning::tests::the_shipped_weights_are_already_centred
+        PASS [   0.027s] (70/78) jakgro engine::evaluation::tests::root_complexity_bonus_is_scaled_and_bounded
+        PASS [   0.027s] (71/78) jakgro engine::evaluation::tests::the_starting_position_scores_only_a_tempo
+        PASS [   0.028s] (72/78) jakgro engine::evaluation::tuning::tests::the_block_table_tiles_the_feature_vector
+        PASS [   0.028s] (73/78) jakgro engine::evaluation::tests::aggression_is_clamped_and_scales_tempered_style_caps
+        PASS [   0.028s] (74/78) jakgro engine::evaluation::tuning::tests::the_feature_vector_reproduces_the_objective_score
+        PASS [   0.028s] (75/78) jakgro engine::evaluation::tests::drawn_positions_score_near_zero_without_style
+        PASS [   0.028s] (76/78) jakgro engine::evaluation::tuning::tests::the_blended_model_matches_the_objective_evaluation
+        PASS [   0.029s] (77/78) jakgro engine::search::transposition::tests::stored_static_evaluations_are_recovered_and_optional
+        PASS [   0.031s] (78/78) jakgro engine::search::transposition::tests::evaluation_profile_changes_discard_entries
+────────────
+     Summary [   0.051s] 78 tests run: 77 passed, 1 failed, 180 skipped
+        FAIL [   0.035s] (41/78) jakgro engine::evaluation::memo::tests::cached_scores_match_the_independent_trace_over_legal_playouts
+error: test run failed
+bash-20: succeeded (exit status 0); workspace=active; generation=1; elapsed=9818 ms; timeout=120000 ms; captured=324 bytes
+  directory: /home/ubuntu/.local/state/jakkoo/worktrees/worktree-602950-1789388879712205907-0/workspace
+  queue=6 ms; execution=9812 ms; result_collected_at_snapshot=false
+  output:
+333cdfbe1977bb134ec6963a175aa0ec89e9cad353d61a7b99c612495b04b2c9  /tmp/jakkoo-temp/session-602950-1789388429317-0/eval-strength/bin/memo-8192
+   Compiling jakgro v0.1.0 (/home/ubuntu/.local/state/jakkoo/worktrees/worktree-602950-1789388879712205907-0/workspace)
+    Finished `release` profile [optimized] target(s) in 9.79s
+
+Diff: worktree
+Files: 1
+diff --git a/src/engine/evaluation.rs b/src/engine/evaluation.rs
+index 23ca83d..8048413 100644
+--- a/src/engine/evaluation.rs
++++ b/src/engine/evaluation.rs
+@@ -1,4 +1,5 @@
+ mod features;
++mod memo;
+ mod placement;
+ mod tactics;
+ #[cfg(feature = "tuning")]
+@@ -362,10 +363,12 @@ pub(super) fn evaluate_with_config(board: &Board, config: EvaluationConfig) -> S
+ /// supported-threat terms only to multiply them away.
+ #[inline(always)]
+ fn objective_blended_score(board: &Board) -> Score {
+-    let features = features::extract_with_style(board, false);
+-    let base = weights::score(&features);
+-    let phase = features::phase(board);
+-    (base.middle_game * phase + base.end_game * (24 - phase)) / 24
++    memo::evaluate(board, || {
++        let features = features::extract_with_style(board, false);
++        let base = weights::score(&features);
++        let phase = features::phase(board);
++        (base.middle_game * phase + base.end_game * (24 - phase)) / 24
++    })
+ }
+ pub(super) fn root_complexity_bonus(
+     board: &Board,

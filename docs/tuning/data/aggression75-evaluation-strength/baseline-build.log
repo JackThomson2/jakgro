@@ -1,0 +1,12 @@
+   Compiling find-msvc-tools v0.1.11
+   Compiling shlex v2.0.1
+   Compiling cozy-chess-types v0.2.2 (https://github.com/JackThomson2/cozy-chess?branch=board-state-save-restore#5851b224)
+   Compiling cc v1.4.4
+   Compiling cozy-chess v0.3.4 (https://github.com/JackThomson2/cozy-chess?branch=board-state-save-restore#5851b224)
+   Compiling libmimalloc-sys v0.1.49
+   Compiling mimalloc v0.1.52
+   Compiling jakgro v0.1.0 (/home/ubuntu/.local/state/jakkoo/worktrees/worktree-602950-1789388879712205907-0/workspace)
+    Finished `release` profile [optimized] target(s) in 14.26s
+   Compiling jakgro v0.1.0 (/home/ubuntu/.local/state/jakkoo/worktrees/worktree-602950-1789388879712205907-0/workspace)
+    Finished `release` profile [optimized] target(s) in 8.86s
+Built frozen engine/fitter and both helpers in /tmp/jakkoo-temp/session-602950-1789388429317-0/eval-strength/bin

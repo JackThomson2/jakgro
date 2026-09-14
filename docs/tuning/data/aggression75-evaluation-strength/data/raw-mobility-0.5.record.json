@@ -1,0 +1,284 @@
+{
+  "name": "raw-mobility-0.5",
+  "command": [
+    "/tmp/jakkoo-temp/session-602950-1789388429317-0/eval-strength/bin/refit-tune-base",
+    "fit",
+    "--positions",
+    "/tmp/jakkoo-temp/session-602950-1789388429317-0/eval-strength/data/training.txt",
+    "--out",
+    "/tmp/jakkoo-temp/session-602950-1789388429317-0/eval-strength/data/raw-mobility-0.5.fit.rs",
+    "--holdout",
+    "0",
+    "--lambda",
+    "0.5",
+    "--epochs",
+    "100",
+    "--rate",
+    "0.25",
+    "--l2",
+    "1e-6",
+    "--min-observations",
+    "2000",
+    "--hold",
+    "PAWN,KNIGHT,BISHOP,ROOK,QUEEN,ACTIVITY,TEMPO,PAWN_KING_MOBILITY,BISHOP_PAIR,DOUBLED_PAWN,ISOLATED_PAWN,PASSED_PAWN_BY_RANK,PROTECTED_PASSED_PAWN_BY_RANK,KING_SHELTER,OPEN_KING_FILE,KING,ROOK_OPEN_FILE,ROOK_SEMI_OPEN_FILE,ROOK_ON_SEVENTH,KNIGHT_OUTPOST,BISHOP_OUTPOST,BACKWARD_PAWN,THREAT_MINOR_BY_PAWN,THREAT_HANGING,THREAT_BY_LOWER_VALUE,CONNECTED_PAWN_BY_RANK,BLOCKED_PASSER_BY_RANK,PASSER_OWN_KING_DISTANCE,PASSER_ENEMY_KING_DISTANCE,KING_DANGER_BY_BUCKET,SAFE_CHECK_BY_PIECE,SHELTER_KING_FILE_BY_DISTANCE,SHELTER_ADJACENT_FILE_BY_DISTANCE,STORM_KING_FILE_BY_DISTANCE,STORM_ADJACENT_FILE_BY_DISTANCE,BLOCKED_STORM_BY_DISTANCE,SPACE_AREA,SPACE_AREA_BY_PIECES,CANDIDATE_PASSER_BY_RANK,PAWN_ISLANDS,KING_PAWNLESS_FLANK,KNIGHT_PER_PAWN,BISHOP_PER_PAWN,ROOK_PER_PAWN,BISHOP_PAWNS_ON_COLOUR,PASSER_SAFE_PATH_BY_RANK,PASSER_FREE_PATH_BY_RANK,ROOK_BEHIND_PASSER,THREAT_BY_PAWN_PUSH,CASTLING_RIGHTS,TROPISM_BY_PIECE_DISTANCE"
+  ],
+  "exit_status": 0,
+  "elapsed_seconds": 3.123195353000483,
+  "fitter_sha256": "e3134a65791d9de9298918f0ee1166ac3101fd80e5ee85801e00f99674a40fb8",
+  "representation": "raw",
+  "changed_pairs": 19,
+  "max_coordinate_delta": 2,
+  "changed_blocks": [
+    "KNIGHT_MOBILITY",
+    "BISHOP_MOBILITY",
+    "ROOK_MOBILITY",
+    "QUEEN_MOBILITY",
+    "UNSAFE_MOBILITY_BY_PIECE"
+  ],
+  "emitted_sha256": "e9adc59e16a834b363adc1d0df1cf70064f619ac59886ce08461348717f66e84",
+  "training": {
+    "positions": 140541,
+    "k": 0.8806824810924139,
+    "mse": 0.060255972845335876,
+    "phase_counts_eg_mixed_mg": [
+      61740,
+      41114,
+      37687
+    ],
+    "phase_mse": [
+      0.04778107176490071,
+      0.06090413001913913,
+      0.07998564245719951
+    ],
+    "min_score": -2123,
+    "max_score": 1727
+  },
+  "development": {
+    "positions": 17377,
+    "k": 0.8806824810924139,
+    "mse": 0.06447088193914118,
+    "phase_counts_eg_mixed_mg": [
+      6988,
+      5130,
+      5259
+    ],
+    "phase_mse": [
+      0.04876618452003234,
+      0.06986586543844502,
+      0.08007616054977361
+    ],
+    "min_score": -1141,
+    "max_score": 1332
+  },
+  "deltas": [
+    {
+      "index": 411,
+      "before": [
+        11,
+        25
+      ],
+      "after": [
+        10,
+        25
+      ]
+    },
+    {
+      "index": 413,
+      "before": [
+        15,
+        39
+      ],
+      "after": [
+        16,
+        39
+      ]
+    },
+    {
+      "index": 415,
+      "before": [
+        18,
+        46
+      ],
+      "after": [
+        19,
+        47
+      ]
+    },
+    {
+      "index": 416,
+      "before": [
+        22,
+        50
+      ],
+      "after": [
+        23,
+        50
+      ]
+    },
+    {
+      "index": 417,
+      "before": [
+        19,
+        49
+      ],
+      "after": [
+        20,
+        50
+      ]
+    },
+    {
+      "index": 420,
+      "before": [
+        11,
+        20
+      ],
+      "after": [
+        10,
+        20
+      ]
+    },
+    {
+      "index": 426,
+      "before": [
+        26,
+        67
+      ],
+      "after": [
+        27,
+        67
+      ]
+    },
+    {
+      "index": 427,
+      "before": [
+        27,
+        74
+      ],
+      "after": [
+        28,
+        74
+      ]
+    },
+    {
+      "index": 435,
+      "before": [
+        16,
+        35
+      ],
+      "after": [
+        15,
+        35
+      ]
+    },
+    {
+      "index": 436,
+      "before": [
+        23,
+        39
+      ],
+      "after": [
+        22,
+        39
+      ]
+    },
+    {
+      "index": 439,
+      "before": [
+        26,
+        65
+      ],
+      "after": [
+        26,
+        66
+      ]
+    },
+    {
+      "index": 442,
+      "before": [
+        32,
+        83
+      ],
+      "after": [
+        32,
+        82
+      ]
+    },
+    {
+      "index": 457,
+      "before": [
+        38,
+        87
+      ],
+      "after": [
+        39,
+        87
+      ]
+    },
+    {
+      "index": 458,
+      "before": [
+        39,
+        97
+      ],
+      "after": [
+        41,
+        97
+      ]
+    },
+    {
+      "index": 463,
+      "before": [
+        60,
+        138
+      ],
+      "after": [
+        59,
+        138
+      ]
+    },
+    {
+      "index": 576,
+      "before": [
+        -7,
+        -6
+      ],
+      "after": [
+        -8,
+        -4
+      ]
+    },
+    {
+      "index": 577,
+      "before": [
+        -4,
+        -5
+      ],
+      "after": [
+        -2,
+        -4
+      ]
+    },
+    {
+      "index": 578,
+      "before": [
+        -8,
+        1
+      ],
+      "after": [
+        -6,
+        2
+      ]
+    },
+    {
+      "index": 579,
+      "before": [
+        -5,
+        11
+      ],
+      "after": [
+        -5,
+        12
+      ]
+    }
+  ]
+}

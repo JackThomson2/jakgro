@@ -1,0 +1,73 @@
+..........................................................usage: python3 -m unittest [-h] --engine ENGINE
+                           [--baseline-engine BASELINE_ENGINE]
+                           [--runner RUNNER]
+                           [--candidate-aggression CANDIDATE_AGGRESSION]
+                           [--baseline-aggression BASELINE_AGGRESSION]
+                           [--candidate-name CANDIDATE_NAME]
+                           [--baseline-name BASELINE_NAME] [--games GAMES]
+                           [--nodes NODES | --movetime-ms MOVETIME_MS | --time-control TIME_CONTROL]
+                           [--hash HASH] [--concurrency CONCURRENCY]
+                           [--openings OPENINGS] [--pgn PGN]
+                           [--manifest MANIFEST] [--summary-json SUMMARY_JSON]
+                           [--results-json RESULTS_JSON] [--elo0 ELO0]
+                           [--elo1 ELO1] [--alpha ALPHA] [--beta BETA]
+                           [--candidate-revision CANDIDATE_REVISION]
+                           [--baseline-revision BASELINE_REVISION]
+                           [--dependency-revision DEPENDENCY_REVISION]
+                           [--build-profile BUILD_PROFILE]
+                           [--allow-identical-binaries] [--dry-run]
+python3 -m unittest: error: argument --time-control: not allowed with argument --nodes
+usage: python3 -m unittest [-h] --engine ENGINE
+                           [--baseline-engine BASELINE_ENGINE]
+                           [--runner RUNNER]
+                           [--candidate-aggression CANDIDATE_AGGRESSION]
+                           [--baseline-aggression BASELINE_AGGRESSION]
+                           [--candidate-name CANDIDATE_NAME]
+                           [--baseline-name BASELINE_NAME] [--games GAMES]
+                           [--nodes NODES | --movetime-ms MOVETIME_MS | --time-control TIME_CONTROL]
+                           [--hash HASH] [--concurrency CONCURRENCY]
+                           [--openings OPENINGS] [--pgn PGN]
+                           [--manifest MANIFEST] [--summary-json SUMMARY_JSON]
+                           [--results-json RESULTS_JSON] [--elo0 ELO0]
+                           [--elo1 ELO1] [--alpha ALPHA] [--beta BETA]
+                           [--candidate-revision CANDIDATE_REVISION]
+                           [--baseline-revision BASELINE_REVISION]
+                           [--dependency-revision DEPENDENCY_REVISION]
+                           [--build-profile BUILD_PROFILE]
+                           [--allow-identical-binaries] [--dry-run]
+python3 -m unittest: error: --games must be even so each opening is played with reversed colors
+.usage: python3 -m unittest [-h] --engine ENGINE
+                           [--baseline-engine BASELINE_ENGINE]
+                           [--runner RUNNER]
+                           [--candidate-aggression CANDIDATE_AGGRESSION]
+                           [--baseline-aggression BASELINE_AGGRESSION]
+                           [--candidate-name CANDIDATE_NAME]
+                           [--baseline-name BASELINE_NAME] [--games GAMES]
+                           [--nodes NODES | --movetime-ms MOVETIME_MS | --time-control TIME_CONTROL]
+                           [--hash HASH] [--concurrency CONCURRENCY]
+                           [--openings OPENINGS] [--pgn PGN]
+                           [--manifest MANIFEST] [--summary-json SUMMARY_JSON]
+                           [--results-json RESULTS_JSON] [--elo0 ELO0]
+                           [--elo1 ELO1] [--alpha ALPHA] [--beta BETA]
+                           [--candidate-revision CANDIDATE_REVISION]
+                           [--baseline-revision BASELINE_REVISION]
+                           [--dependency-revision DEPENDENCY_REVISION]
+                           [--build-profile BUILD_PROFILE]
+                           [--allow-identical-binaries] [--dry-run]
+python3 -m unittest: error: --elo1 must exceed --elo0
+...................................splice_weights: src/engine/evaluation/weights.rs does not exist under /tmp/jakkoo-temp/session-602950-1789388429317-0/tmp9wfjuqub
+........................
+----------------------------------------------------------------------
+Ran 118 tests in 0.226s
+
+OK
+src/engine/evaluation/weights.rs: PAWN
+src/engine/evaluation/weights.rs: KNIGHT_MOBILITY
+src/engine/evaluation/weights.rs: KING_DANGER_BY_BUCKET
+src/engine/evaluation/weights.rs: STORM_KING_FILE_BY_DISTANCE
+src/engine/evaluation/placement.rs: PAWN
+src/engine/evaluation/weights.rs: PAWN
+src/engine/evaluation/weights.rs: KNIGHT_MOBILITY
+src/engine/evaluation/weights.rs: KING_DANGER_BY_BUCKET
+src/engine/evaluation/weights.rs: STORM_KING_FILE_BY_DISTANCE
+src/engine/evaluation/placement.rs: PAWN

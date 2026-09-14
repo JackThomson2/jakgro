@@ -1,0 +1,160 @@
+{
+  "name": "raw-safety-1",
+  "command": [
+    "/tmp/jakkoo-temp/session-602950-1789388429317-0/eval-strength/bin/refit-tune-base",
+    "fit",
+    "--positions",
+    "/tmp/jakkoo-temp/session-602950-1789388429317-0/eval-strength/data/training.txt",
+    "--out",
+    "/tmp/jakkoo-temp/session-602950-1789388429317-0/eval-strength/data/raw-safety-1.fit.rs",
+    "--holdout",
+    "0",
+    "--lambda",
+    "1",
+    "--epochs",
+    "100",
+    "--rate",
+    "0.25",
+    "--l2",
+    "1e-6",
+    "--min-observations",
+    "2000",
+    "--hold",
+    "PAWN,KNIGHT,BISHOP,ROOK,QUEEN,ACTIVITY,TEMPO,PAWN_KING_MOBILITY,BISHOP_PAIR,DOUBLED_PAWN,ISOLATED_PAWN,PASSED_PAWN_BY_RANK,PROTECTED_PASSED_PAWN_BY_RANK,KING_SHELTER,OPEN_KING_FILE,KING,KNIGHT_MOBILITY,BISHOP_MOBILITY,ROOK_MOBILITY,QUEEN_MOBILITY,ROOK_OPEN_FILE,ROOK_SEMI_OPEN_FILE,ROOK_ON_SEVENTH,KNIGHT_OUTPOST,BISHOP_OUTPOST,BACKWARD_PAWN,THREAT_MINOR_BY_PAWN,THREAT_HANGING,THREAT_BY_LOWER_VALUE,CONNECTED_PAWN_BY_RANK,BLOCKED_PASSER_BY_RANK,PASSER_OWN_KING_DISTANCE,PASSER_ENEMY_KING_DISTANCE,SHELTER_KING_FILE_BY_DISTANCE,SHELTER_ADJACENT_FILE_BY_DISTANCE,STORM_KING_FILE_BY_DISTANCE,STORM_ADJACENT_FILE_BY_DISTANCE,BLOCKED_STORM_BY_DISTANCE,SPACE_AREA,SPACE_AREA_BY_PIECES,CANDIDATE_PASSER_BY_RANK,PAWN_ISLANDS,KING_PAWNLESS_FLANK,KNIGHT_PER_PAWN,BISHOP_PER_PAWN,ROOK_PER_PAWN,BISHOP_PAWNS_ON_COLOUR,UNSAFE_MOBILITY_BY_PIECE,PASSER_SAFE_PATH_BY_RANK,PASSER_FREE_PATH_BY_RANK,ROOK_BEHIND_PASSER,THREAT_BY_PAWN_PUSH,CASTLING_RIGHTS,TROPISM_BY_PIECE_DISTANCE"
+  ],
+  "exit_status": 0,
+  "elapsed_seconds": 3.1229603859992494,
+  "fitter_sha256": "e3134a65791d9de9298918f0ee1166ac3101fd80e5ee85801e00f99674a40fb8",
+  "representation": "raw",
+  "changed_pairs": 8,
+  "max_coordinate_delta": 2,
+  "changed_blocks": [
+    "KING_DANGER_BY_BUCKET",
+    "SAFE_CHECK_BY_PIECE"
+  ],
+  "emitted_sha256": "17befb25e0d9d0b9950dfa840ca9103df3dc168db2bc81ede3a58a660856a164",
+  "training": {
+    "positions": 140541,
+    "k": 0.8806824810924139,
+    "mse": 0.06032283640172739,
+    "phase_counts_eg_mixed_mg": [
+      61740,
+      41114,
+      37687
+    ],
+    "phase_mse": [
+      0.04779497622037182,
+      0.060970224027320254,
+      0.08014010476371507
+    ],
+    "min_score": -2123,
+    "max_score": 1726
+  },
+  "development": {
+    "positions": 17377,
+    "k": 0.8806824810924139,
+    "mse": 0.06448730092958391,
+    "phase_counts_eg_mixed_mg": [
+      6988,
+      5130,
+      5259
+    ],
+    "phase_mse": [
+      0.048806575354261514,
+      0.06989006919204356,
+      0.08005313267211103
+    ],
+    "min_score": -1139,
+    "max_score": 1331
+  },
+  "deltas": [
+    {
+      "index": 514,
+      "before": [
+        -12,
+        -5
+      ],
+      "after": [
+        -12,
+        -6
+      ]
+    },
+    {
+      "index": 516,
+      "before": [
+        -3,
+        -13
+      ],
+      "after": [
+        -2,
+        -14
+      ]
+    },
+    {
+      "index": 517,
+      "before": [
+        1,
+        -13
+      ],
+      "after": [
+        1,
+        -14
+      ]
+    },
+    {
+      "index": 519,
+      "before": [
+        7,
+        3
+      ],
+      "after": [
+        8,
+        3
+      ]
+    },
+    {
+      "index": 528,
+      "before": [
+        23,
+        -1
+      ],
+      "after": [
+        23,
+        0
+      ]
+    },
+    {
+      "index": 529,
+      "before": [
+        15,
+        15
+      ],
+      "after": [
+        16,
+        16
+      ]
+    },
+    {
+      "index": 530,
+      "before": [
+        25,
+        9
+      ],
+      "after": [
+        25,
+        7
+      ]
+    },
+    {
+      "index": 531,
+      "before": [
+        45,
+        15
+      ],
+      "after": [
+        46,
+        15
+      ]
+    }
+  ]
+}

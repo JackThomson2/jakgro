@@ -1,0 +1,75 @@
+{
+  "created_utc": "2026-09-14T12:29:47.091320+00:00",
+  "base": "9fda9ac72e63564e9f164c612376f28d0b549216",
+  "scope": "Objective evaluation only. Preserve aggression 75, attacking root rules and verified-sacrifice safeguards.",
+  "initial_trials": [
+    {
+      "family": "mobility",
+      "free_blocks": [
+        "KNIGHT_MOBILITY",
+        "BISHOP_MOBILITY",
+        "ROOK_MOBILITY",
+        "QUEEN_MOBILITY",
+        "UNSAFE_MOBILITY_BY_PIECE"
+      ],
+      "lambda": [
+        1.0,
+        0.5
+      ],
+      "epochs": 100,
+      "rate": 0.25,
+      "l2": 1e-06,
+      "min_observations": 2000,
+      "holdout": 0
+    },
+    {
+      "family": "safety",
+      "free_blocks": [
+        "KING_DANGER_BY_BUCKET",
+        "SAFE_CHECK_BY_PIECE"
+      ],
+      "lambda": [
+        1.0,
+        0.5
+      ],
+      "epochs": 100,
+      "rate": 0.25,
+      "l2": 1e-06,
+      "min_observations": 2000,
+      "holdout": 0
+    },
+    {
+      "family": "threats",
+      "free_blocks": [
+        "THREAT_MINOR_BY_PAWN",
+        "THREAT_HANGING",
+        "THREAT_BY_LOWER_VALUE",
+        "THREAT_BY_PAWN_PUSH"
+      ],
+      "lambda": [
+        1.0,
+        0.5
+      ],
+      "epochs": 100,
+      "rate": 0.25,
+      "l2": 1e-06,
+      "min_observations": 2000,
+      "holdout": 0
+    }
+  ],
+  "representation_trial": "Curves use pawn-safe mobility; raw attack and style counts unchanged. Refit the same mobility blocks with material/PST held, lambda 1 and .5 at the same settings.",
+  "screen": {
+    "games": 1024,
+    "movetime_ms": 50,
+    "aggression": [
+      75,
+      75
+    ],
+    "hash_mib": 16,
+    "threads": 1,
+    "concurrency_per_run": 16,
+    "book": "docs/tuning/data/evaluation-refit-pilot/development.epd",
+    "purpose": "Selection only; all tests reported."
+  },
+  "confirmation": "Freeze one selected candidate and declare larger match caps before playing. Require positive paired interval, H1, at least 90% forcing retention and no safety regression. Clock evidence reported separately; no promise of a gain."
+}

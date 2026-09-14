@@ -1,0 +1,43 @@
+{
+  "passed": true,
+  "indexed_files": 183,
+  "fits": 8,
+  "games": 3072,
+  "matches": [
+    {
+      "name": "safe-mobility-1-screen",
+      "games": 1024,
+      "elo": 7.126143,
+      "elo_ci95": [
+        -5.785234,
+        20.057239
+      ],
+      "forcing_retention_percent": 100.76282881608533,
+      "check_retention_percent": 104.64397520583537
+    },
+    {
+      "name": "raw-mobility-1-screen",
+      "games": 1024,
+      "elo": 5.429123,
+      "elo_ci95": [
+        -6.61839,
+        17.48971
+      ],
+      "forcing_retention_percent": 101.71879673726023,
+      "check_retention_percent": 103.39459704508413
+    },
+    {
+      "name": "memo-tagged-screen",
+      "games": 1024,
+      "elo": -1.017881,
+      "elo_ci95": [
+        -11.693132,
+        9.655449
+      ],
+      "forcing_retention_percent": 96.16070115979421,
+      "check_retention_percent": 91.29955100622246
+    }
+  ],
+  "verdict": "No demonstrated Elo gain; original baseline remains the strength recommendation.",
+  "limits": "Audit recomputes game and diagnostic statistics, not legal game replay, timed searches or fitted-model MSE."
+}

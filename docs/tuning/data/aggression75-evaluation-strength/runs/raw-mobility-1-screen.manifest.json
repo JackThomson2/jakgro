@@ -1,0 +1,125 @@
+{
+  "command": [
+    "/tmp/jakkoo-temp/session-602950-1789388429317-0/eval-strength/bin/selfplay",
+    "--engine",
+    "/tmp/jakkoo-temp/session-602950-1789388429317-0/eval-strength/bin/raw-mobility-1",
+    "--baseline-engine",
+    "/tmp/jakkoo-temp/session-602950-1789388429317-0/eval-strength/bin/refit-base",
+    "--candidate-aggression",
+    "75",
+    "--baseline-aggression",
+    "75",
+    "--candidate-name",
+    "raw-mobility-1",
+    "--baseline-name",
+    "Base9fda9ac",
+    "--games",
+    "1024",
+    "--openings",
+    "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-602950-1789388879712205907-0/workspace/docs/tuning/data/evaluation-refit-pilot/development.epd",
+    "--hash",
+    "16",
+    "--concurrency",
+    "16",
+    "--pgn",
+    "/tmp/jakkoo-temp/session-602950-1789388429317-0/eval-strength/runs/raw-mobility-1-screen.pgn",
+    "--results-json",
+    "/tmp/jakkoo-temp/session-602950-1789388429317-0/eval-strength/runs/raw-mobility-1-screen.arbiter.json",
+    "--movetime-ms",
+    "50"
+  ],
+  "comparison": {
+    "distinct_binaries_required": true,
+    "distinct_binary_hashes": true,
+    "identical_binaries_allowed": false,
+    "mode": "same-profile-binaries"
+  },
+  "created_utc": "2026-09-14T12:35:47.549629+00:00",
+  "execution": {
+    "changed_inputs": [],
+    "completed_games": 1024,
+    "duration_seconds": 163.197195,
+    "error": null,
+    "expected_games": 1024,
+    "faults": [],
+    "finished_utc": "2026-09-14T12:38:30.750015+00:00",
+    "inputs_unchanged": true,
+    "pgn_sha256": "29c9946ab496a6555999a94835fe368ed3f741b7c5a5783d9b92dc998f769540",
+    "return_code": 0,
+    "started_utc": "2026-09-14T12:35:47.552820+00:00",
+    "status": "complete"
+  },
+  "host": {
+    "platform": "Linux-7.0.0-1012-aws-x86_64-with-glibc2.39",
+    "python": "3.12.3"
+  },
+  "inputs": {
+    "baseline": {
+      "aggression": 75,
+      "name": "Base9fda9ac",
+      "path": "/tmp/jakkoo-temp/session-602950-1789388429317-0/eval-strength/bin/refit-base",
+      "revision": "9fda9ac72e63564e9f164c612376f28d0b549216",
+      "sha256": "c78cbaa1387bd59ffd43d289f359106a2ae3b6d86023d570055cf5c1eb380516"
+    },
+    "candidate": {
+      "aggression": 75,
+      "name": "raw-mobility-1",
+      "path": "/tmp/jakkoo-temp/session-602950-1789388429317-0/eval-strength/bin/raw-mobility-1",
+      "revision": null,
+      "sha256": "ace8aee5d575629b4959d335a7ef779c8d3cd1a7aafba915031933644e26e358"
+    },
+    "harness": {
+      "path": "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-602950-1789388879712205907-0/workspace/tools/run_sprt.py",
+      "sha256": "a471d092cc9f6a48088f5c61bbd041a192f1dc6b872541abba4a4b8c9eed7e96"
+    },
+    "openings": {
+      "count": 512,
+      "path": "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-602950-1789388879712205907-0/workspace/docs/tuning/data/evaluation-refit-pilot/development.epd",
+      "sha256": "9fccb65f421bd10aeaf037021b6ca7eae4039186093521f87a2a12d2156b3ec3"
+    },
+    "runner": {
+      "path": "/tmp/jakkoo-temp/session-602950-1789388429317-0/eval-strength/bin/selfplay",
+      "sha256": "c6495fb492a8b63e57fe944f4c67d62ec7bfb9cc0b84b16b1bf5864cd8130ca9"
+    }
+  },
+  "outputs": {
+    "manifest": "/tmp/jakkoo-temp/session-602950-1789388429317-0/eval-strength/runs/raw-mobility-1-screen.manifest.json",
+    "pgn": "/tmp/jakkoo-temp/session-602950-1789388429317-0/eval-strength/runs/raw-mobility-1-screen.pgn"
+  },
+  "provenance": {
+    "build_profile": "release-locked-portable",
+    "dependency_revision": null
+  },
+  "schema_version": 2,
+  "settings": {
+    "concurrency": 16,
+    "draw": {
+      "movecount": 10,
+      "movenumber": 80,
+      "score": 10
+    },
+    "games": 1024,
+    "hash_mib": 16,
+    "limit": {
+      "mode": "fixed-movetime",
+      "movetime_ms": 50,
+      "nodes_per_move": null,
+      "time_control": null
+    },
+    "maxmoves": 200,
+    "nodes_per_move": null,
+    "resign": {
+      "movecount": 4,
+      "score": 800,
+      "twosided": true
+    },
+    "rounds": 512,
+    "sprt": {
+      "alpha": 0.05,
+      "beta": 0.05,
+      "elo0": 0.0,
+      "elo1": 10.0
+    },
+    "time_control": null
+  }
+}

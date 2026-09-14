@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "checkpoint_revision": "575c534727bfecb7b8f4be7bb0161a9ae05f392b",
+  "commands": [
+    {
+      "command": "cargo nextest run --no-tests=pass",
+      "exit_status": 0,
+      "tests": 296,
+      "log": "data/bash-26-final.log"
+    },
+    {
+      "command": "cargo nextest run --no-tests=pass --features tuning",
+      "exit_status": 0,
+      "tests": 312,
+      "log": "data/bash-27-final.log"
+    },
+    {
+      "command": "cargo fmt --check",
+      "exit_status": 0,
+      "log": "data/memo-final-fmt.log"
+    },
+    {
+      "command": "cargo clippy --locked --all-targets --all-features -- -D warnings",
+      "exit_status": 0,
+      "log": "data/memo-final-clippy.log"
+    },
+    {
+      "command": "cargo build --release --locked --bin jakgro",
+      "exit_status": 0,
+      "log": "data/memo-final-build.log",
+      "binary_sha256": "34a3a33b08b1d26d8eda55280fdbb07e796df9f9a27b18c600d69d771a533481"
+    }
+  ],
+  "initial_trace_test": {
+    "exit_status": 100,
+    "passed": 77,
+    "failed": 1,
+    "log": "data/memo-trace-mismatch.log"
+  },
+  "baseline_wrong_profile_invocation": {
+    "exit_status": 1,
+    "mismatches": 16,
+    "log": "data/base-style.log"
+  },
+  "no_engine_changes_in_documentation_patch": true
+}

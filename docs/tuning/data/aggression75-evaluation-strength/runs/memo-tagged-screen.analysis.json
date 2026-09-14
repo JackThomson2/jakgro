@@ -1,0 +1,94 @@
+{
+  "schema_version": 2,
+  "inputs": {
+    "pgn": "memo-tagged-screen.pgn",
+    "pgn_sha256": "9fa13459172114e804fc6af794df3f48826ddf297d5dd2b81859109bb797d23a",
+    "manifest": "memo-tagged-screen.manifest.json",
+    "manifest_sha256": "479d04f99cf730aa9d555f05bd603219a63a4b5ccac59ed3190ed1de77e61119"
+  },
+  "engines": {
+    "candidate": "memo-tagged",
+    "baseline": "Base9fda9ac"
+  },
+  "games": 1024,
+  "pairs": {
+    "count": 512,
+    "point_distribution": {
+      "0.0": 15,
+      "0.5": 66,
+      "1.0": 357,
+      "1.5": 55,
+      "2.0": 19
+    },
+    "double_draws": 40,
+    "decisive_splits": 317
+  },
+  "result": {
+    "wins": 410,
+    "draws": 201,
+    "losses": 413,
+    "score_percent": 49.853516,
+    "decisive_percent": 80.371094
+  },
+  "colors": {
+    "white": {
+      "wins": 227,
+      "draws": 97,
+      "losses": 188,
+      "score_percent": 53.808594
+    },
+    "black": {
+      "wins": 183,
+      "draws": 104,
+      "losses": 225,
+      "score_percent": 45.898438
+    },
+    "score_gap_percentage_points": 7.910156
+  },
+  "confidence": {
+    "method": "95% Hoeffding bound over color-reversed pair scores",
+    "score_percent_ci95": [
+      43.851498,
+      55.855533
+    ],
+    "elo": -1.017881,
+    "elo_ci95": [
+      -42.941495,
+      40.87597
+    ]
+  },
+  "style": {
+    "candidate": {
+      "moves": 37390,
+      "checks": 4308,
+      "captures": 8555,
+      "promotions": 96,
+      "forcing_moves": 12006,
+      "checks_per_100_moves": 11.521797,
+      "captures_per_100_moves": 22.880449,
+      "promotions_per_100_moves": 0.256753,
+      "forcing_moves_per_100_moves": 32.11019
+    },
+    "baseline": {
+      "moves": 37362,
+      "checks": 4715,
+      "captures": 8599,
+      "promotions": 93,
+      "forcing_moves": 12476,
+      "checks_per_100_moves": 12.619774,
+      "captures_per_100_moves": 23.015363,
+      "promotions_per_100_moves": 0.248916,
+      "forcing_moves_per_100_moves": 33.392217
+    }
+  },
+  "terminations": {
+    "adjudication: drawn score": 1,
+    "adjudication: move limit": 2,
+    "adjudication: resignation": 816,
+    "checkmate": 7,
+    "fifty-move rule": 4,
+    "insufficient material": 14,
+    "threefold repetition": 180
+  },
+  "average_plies": 73.0
+}

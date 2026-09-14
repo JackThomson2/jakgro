@@ -1,0 +1,92 @@
+{
+  "schema_version": 2,
+  "inputs": {
+    "pgn": "safe-mobility-1-screen.pgn",
+    "pgn_sha256": "041e4e490232d54edd4612d2b366fedbd2508b16b163b8b1a7446343e41a6a1b",
+    "manifest": "safe-mobility-1-screen.manifest.json",
+    "manifest_sha256": "a4e8d13bdea9b735b6a6fe715e2a4d644b37ec0969fc7fe107ada698ee0a18e7"
+  },
+  "engines": {
+    "candidate": "safe-mobility-1",
+    "baseline": "Base9fda9ac"
+  },
+  "games": 1024,
+  "pairs": {
+    "count": 512,
+    "point_distribution": {
+      "0.0": 33,
+      "0.5": 48,
+      "1.0": 327,
+      "1.5": 73,
+      "2.0": 31
+    },
+    "double_draws": 29,
+    "decisive_splits": 298
+  },
+  "result": {
+    "wins": 433,
+    "draws": 179,
+    "losses": 412,
+    "score_percent": 51.025391,
+    "decisive_percent": 82.519531
+  },
+  "colors": {
+    "white": {
+      "wins": 223,
+      "draws": 95,
+      "losses": 194,
+      "score_percent": 52.832031
+    },
+    "black": {
+      "wins": 210,
+      "draws": 84,
+      "losses": 218,
+      "score_percent": 49.21875
+    },
+    "score_gap_percentage_points": 3.613281
+  },
+  "confidence": {
+    "method": "95% Hoeffding bound over color-reversed pair scores",
+    "score_percent_ci95": [
+      45.023373,
+      57.027408
+    ],
+    "elo": 7.126143,
+    "elo_ci95": [
+      -34.696024,
+      49.156834
+    ]
+  },
+  "style": {
+    "candidate": {
+      "moves": 36523,
+      "checks": 4395,
+      "captures": 8556,
+      "promotions": 107,
+      "forcing_moves": 12076,
+      "checks_per_100_moves": 12.033513,
+      "captures_per_100_moves": 23.426334,
+      "promotions_per_100_moves": 0.292966,
+      "forcing_moves_per_100_moves": 33.064097
+    },
+    "baseline": {
+      "moves": 36506,
+      "checks": 4198,
+      "captures": 8596,
+      "promotions": 100,
+      "forcing_moves": 11979,
+      "checks_per_100_moves": 11.49948,
+      "captures_per_100_moves": 23.546814,
+      "promotions_per_100_moves": 0.273928,
+      "forcing_moves_per_100_moves": 32.813784
+    }
+  },
+  "terminations": {
+    "adjudication: resignation": 840,
+    "checkmate": 5,
+    "fifty-move rule": 5,
+    "insufficient material": 17,
+    "threefold repetition": 157
+  },
+  "average_plies": 71.317383
+}

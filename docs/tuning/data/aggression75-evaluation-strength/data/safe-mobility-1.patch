@@ -1,0 +1,154 @@
+diff --git a/src/engine/evaluation/features.rs b/src/engine/evaluation/features.rs
+index 0bc99bc..4eb260e 100644
+--- a/src/engine/evaluation/features.rs
++++ b/src/engine/evaluation/features.rs
+@@ -851,13 +851,14 @@ fn scan_pieces<const PIECE: usize, const STYLE: bool>(
+         let raw_attacks = attacks_from(piece, square, color, context.occupied);
+         let attacks = raw_attacks & !context.friendly_pieces;
+         let moves = attacks.len() as i32;
++        let unsafe_moves = (attacks & context.enemy_pawn_attacks).len() as i32;
+         scan.mobility += moves;
+         scan.piece_mobility[PIECE] += moves;
+         if let Some(slot) = type_slot {
+             // Moves onto squares an enemy pawn attacks, counted beside the
+             // raw count rather than removed from it, so the mobility curve
+             // and the unsafe-square penalty remain separate features.
+-            scan.unsafe_mobility[slot] += (attacks & context.enemy_pawn_attacks).len() as i32;
++            scan.unsafe_mobility[slot] += unsafe_moves;
+             // Distance to the enemy king, bucketed at one, two, three and
+             // four or more, weighted here as the mobility curves are.
+             let bucket = king_distance(square, context.enemy_king).min(4) - 1;
+@@ -867,8 +868,8 @@ fn scan_pieces<const PIECE: usize, const STYLE: bool>(
+         // table lookup per piece, and expanding it into one count per move
+         // count is work only the fitter needs.
+         if let Some(offset) = curve {
+-            scan.mobility_curves =
+-                scan.mobility_curves + weights::mobility_curve_at(offset + moves as usize);
++            scan.mobility_curves = scan.mobility_curves
++                + weights::mobility_curve_at(offset + (moves - unsafe_moves) as usize);
+         }
+         if is_pawn && (context.enemy_pawns & context.passer_spans[square as usize]).is_empty() {
+             scan.passers |= square.bitboard();
+@@ -1289,7 +1290,11 @@ pub(super) fn attack_summary_with_style(board: &Board, style: bool) -> AttackSum
+ /// Returns how many squares a piece may move to, for the fitter's expansion.
+ #[cfg(feature = "tuning")]
+ pub(super) fn mobility_count(board: &Board, piece: Piece, square: Square, color: Color) -> usize {
+-    (attacks_from(piece, square, color, board.occupied()) & !board.colors(color)).len() as usize
++    let enemy_pawns = board.colored_pieces(!color, Piece::Pawn);
++    (attacks_from(piece, square, color, board.occupied())
++        & !board.colors(color)
++        & !pawn_attack_set(enemy_pawns, !color))
++        .len() as usize
+ }
+ 
+ /// Counts each side's knights, bishops, rooks and queens by their bucketed
+diff --git a/src/engine/evaluation/weights.rs b/src/engine/evaluation/weights.rs
+index 042f026..9284c13 100644
+--- a/src/engine/evaluation/weights.rs
++++ b/src/engine/evaluation/weights.rs
+@@ -23,46 +23,46 @@ const PAWN_KING_MOBILITY: ScorePair = ScorePair::new(-1, -4);
+ const KNIGHT_MOBILITY: [ScorePair; 9] = [
+     ScorePair::new(-3, 0),
+     ScorePair::new(4, 10),
+-    ScorePair::new(11, 25),
++    ScorePair::new(10, 25),
+     ScorePair::new(18, 29),
+-    ScorePair::new(15, 39),
+-    ScorePair::new(18, 41),
+-    ScorePair::new(18, 46),
++    ScorePair::new(16, 40),
++    ScorePair::new(20, 42),
++    ScorePair::new(20, 47),
+     ScorePair::new(22, 50),
+     ScorePair::new(19, 49),
+ ];
+ const BISHOP_MOBILITY: [ScorePair; 14] = [
+-    ScorePair::new(-14, -4),
+-    ScorePair::new(-2, 9),
+-    ScorePair::new(11, 20),
+-    ScorePair::new(10, 30),
+-    ScorePair::new(14, 38),
+-    ScorePair::new(26, 51),
++    ScorePair::new(-15, -4),
++    ScorePair::new(-3, 8),
++    ScorePair::new(10, 19),
++    ScorePair::new(12, 31),
++    ScorePair::new(16, 40),
++    ScorePair::new(25, 51),
+     ScorePair::new(28, 55),
+-    ScorePair::new(34, 61),
+-    ScorePair::new(26, 67),
++    ScorePair::new(34, 62),
++    ScorePair::new(27, 66),
+     ScorePair::new(27, 74),
+     ScorePair::new(30, 76),
+-    ScorePair::new(33, 76),
++    ScorePair::new(33, 75),
+     ScorePair::new(42, 97),
+     ScorePair::new(45, 97),
+ ];
+ const ROOK_MOBILITY: [ScorePair; 15] = [
+     ScorePair::new(-17, -4),
+     ScorePair::new(0, 12),
+-    ScorePair::new(6, 25),
+-    ScorePair::new(16, 35),
+-    ScorePair::new(23, 39),
+-    ScorePair::new(23, 47),
++    ScorePair::new(6, 26),
++    ScorePair::new(14, 35),
++    ScorePair::new(22, 39),
++    ScorePair::new(24, 48),
+     ScorePair::new(20, 63),
+-    ScorePair::new(26, 65),
+-    ScorePair::new(26, 73),
++    ScorePair::new(26, 66),
++    ScorePair::new(26, 72),
+     ScorePair::new(30, 78),
+-    ScorePair::new(32, 83),
+-    ScorePair::new(31, 85),
++    ScorePair::new(32, 82),
++    ScorePair::new(31, 84),
+     ScorePair::new(37, 90),
+     ScorePair::new(42, 96),
+-    ScorePair::new(42, 79),
++    ScorePair::new(42, 78),
+ ];
+ const QUEEN_MOBILITY: [ScorePair; 28] = [
+     ScorePair::new(0, 0),
+@@ -71,15 +71,15 @@ const QUEEN_MOBILITY: [ScorePair; 28] = [
+     ScorePair::new(17, 24),
+     ScorePair::new(18, 34),
+     ScorePair::new(23, 43),
+-    ScorePair::new(28, 51),
++    ScorePair::new(29, 51),
+     ScorePair::new(32, 63),
+-    ScorePair::new(35, 70),
+-    ScorePair::new(37, 79),
+-    ScorePair::new(38, 87),
++    ScorePair::new(37, 71),
++    ScorePair::new(39, 80),
++    ScorePair::new(39, 87),
+     ScorePair::new(39, 97),
+-    ScorePair::new(46, 103),
++    ScorePair::new(45, 103),
+     ScorePair::new(52, 115),
+-    ScorePair::new(57, 122),
++    ScorePair::new(56, 122),
+     ScorePair::new(53, 128),
+     ScorePair::new(60, 138),
+     ScorePair::new(57, 145),
+@@ -277,10 +277,10 @@ const BISHOP_PAWNS_ON_COLOUR: ScorePair = ScorePair::new(-5, -3);
+ /// knight to the queen; zero until fitted. The mobility curves count these
+ /// squares with the rest, so this is what a guarded square is worth less.
+ const UNSAFE_MOBILITY_BY_PIECE: [ScorePair; 4] = [
+-    ScorePair::new(-7, -6),
+-    ScorePair::new(-4, -5),
+-    ScorePair::new(-8, 1),
+-    ScorePair::new(-5, 11),
++    ScorePair::new(-6, 0),
++    ScorePair::new(3, -1),
++    ScorePair::new(-2, 4),
++    ScorePair::new(-1, 14),
+ ];
+ /// Passers whose path no enemy piece attacks and passers whose path no
+ /// piece stands on, by rank, and passers with a friendly rook behind them;

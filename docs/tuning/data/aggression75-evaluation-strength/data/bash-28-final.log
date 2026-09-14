@@ -1,0 +1,84 @@
+bash-28: succeeded (exit status 0); workspace=active; generation=1; elapsed=169305 ms; timeout=1200000 ms; captured=1745 bytes
+  directory: /home/ubuntu/.local/state/jakkoo/worktrees/worktree-602950-1789388879712205907-0/workspace
+  queue=9 ms; execution=169295 ms; result_collected_at_snapshot=false
+  output:
+{
+  "name": "memo-tagged-screen",
+  "elapsed_seconds": 168.8864167520005,
+  "result": {
+    "elo": -1.017881,
+    "elo_ci95": [
+      -11.693132,
+      9.655449
+    ],
+    "elo_margin_95": 10.67429,
+    "games": 1024,
+    "los_percent": 42.584662,
+    "pair_distribution": {
+      "0.0": 15,
+      "0.5": 66,
+      "1.0": 357,
+      "1.5": 55,
+      "2.0": 19
+    },
+    "pairs": 512,
+    "score_percent": 49.853516,
+    "score_percent_ci95": [
+      48.317858,
+      51.389173
+    ],
+    "sprt": {
+      "alpha": 0.05,
+      "beta": 0.05,
+      "decision": "continue",
+      "elo0": 0.0,
+      "elo1": 10.0,
+      "llr": -2.02919,
+      "lower_bound": -2.944439,
+      "upper_bound": 2.944439
+    }
+  },
+  "style": {
+    "candidate": {
+      "moves": 37390,
+      "checks": 4308,
+      "captures": 8555,
+      "promotions": 96,
+      "forcing_moves": 12006,
+      "checks_per_100_moves": 11.521797,
+      "captures_per_100_moves": 22.880449,
+      "promotions_per_100_moves": 0.256753,
+      "forcing_moves_per_100_moves": 32.11019
+    },
+    "baseline": {
+      "moves": 37362,
+      "checks": 4715,
+      "captures": 8599,
+      "promotions": 93,
+      "forcing_moves": 12476,
+      "checks_per_100_moves": 12.619774,
+      "captures_per_100_moves": 23.015363,
+      "promotions_per_100_moves": 0.248916,
+      "forcing_moves_per_100_moves": 33.392217
+    }
+  },
+  "counts": {
+    "wins": 410,
+    "draws": 201,
+    "losses": 413,
+    "score_percent": 49.853516,
+    "decisive_percent": 80.371094
+  },
+  "confidence": {
+    "method": "95% Hoeffding bound over color-reversed pair scores",
+    "score_percent_ci95": [
+      43.851498,
+      55.855533
+    ],
+    "elo": -1.017881,
+    "elo_ci95": [
+      -42.941495,
+      40.87597
+    ]
+  }
+}

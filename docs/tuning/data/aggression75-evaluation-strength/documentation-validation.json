@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "scope": "Documentation and evidence archive only; no engine or fixture changes.",
+  "checks": [
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 docs/tuning/data/aggression75-evaluation-strength/helpers/audit.py --scratch <external-scratch> --binary memo-tagged=<original-candidate> --binary refit-base=<original-baseline>",
+      "exit_status": 0,
+      "log": "data/archive-audit-initial.log",
+      "covers": "Initial archive inventory, 3072 games, eight fits, source-stage reconstruction, diagnostics and original binary hashes."
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 docs/tuning/data/aggression75-evaluation-strength/helpers/test_archive.py",
+      "exit_status": 0,
+      "tests": 7,
+      "log": "data/archive-helper-tests.log"
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools/tests -p \"test_*.py\"",
+      "exit_status": 0,
+      "tests": 118,
+      "log": "data/measurement-tool-tests.log"
+    },
+    {
+      "command": "prepare_stage.py --stage base/memo-tagged; cargo build --release --locked --bin jakgro [--bin selfplay for base]; compare rebuilt binaries with original match binaries",
+      "exit_status": 1,
+      "builds_succeeded": true,
+      "log": "data/reproduction-builds.log",
+      "reason": "Both reconstructed sources built successfully outside the checkout. The first cmp failed because the base executable bytes differ from the original. Both newly computed hashes differ from their original match binaries; no binary-reproducibility claim is made.",
+      "reconstructed_base_sha256": "f52d56cae20ef85e0448167fe5f32a56086bbdcb7354854f45e41a5cdca64792",
+      "reconstructed_cache_sha256": "48c4bdfbd4956a90c3f7b2d1c7056e9701c96535e4dd53b6a472d7e11d303b81"
+    }
+  ]
+}

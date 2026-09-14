@@ -1,0 +1,125 @@
+{
+  "command": [
+    "/tmp/jakkoo-temp/session-602950-1789388429317-0/eval-strength/bin/selfplay",
+    "--engine",
+    "/tmp/jakkoo-temp/session-602950-1789388429317-0/eval-strength/bin/memo-tagged",
+    "--baseline-engine",
+    "/tmp/jakkoo-temp/session-602950-1789388429317-0/eval-strength/bin/refit-base",
+    "--candidate-aggression",
+    "75",
+    "--baseline-aggression",
+    "75",
+    "--candidate-name",
+    "memo-tagged",
+    "--baseline-name",
+    "Base9fda9ac",
+    "--games",
+    "1024",
+    "--openings",
+    "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-602950-1789388879712205907-0/workspace/docs/tuning/data/evaluation-refit-pilot/development.epd",
+    "--hash",
+    "16",
+    "--concurrency",
+    "16",
+    "--pgn",
+    "/tmp/jakkoo-temp/session-602950-1789388429317-0/eval-strength/runs/memo-tagged-screen.pgn",
+    "--results-json",
+    "/tmp/jakkoo-temp/session-602950-1789388429317-0/eval-strength/runs/memo-tagged-screen.arbiter.json",
+    "--movetime-ms",
+    "50"
+  ],
+  "comparison": {
+    "distinct_binaries_required": true,
+    "distinct_binary_hashes": true,
+    "identical_binaries_allowed": false,
+    "mode": "same-profile-binaries"
+  },
+  "created_utc": "2026-09-14T12:54:30.863168+00:00",
+  "execution": {
+    "changed_inputs": [],
+    "completed_games": 1024,
+    "duration_seconds": 168.525658,
+    "error": null,
+    "expected_games": 1024,
+    "faults": [],
+    "finished_utc": "2026-09-14T12:57:19.391638+00:00",
+    "inputs_unchanged": true,
+    "pgn_sha256": "9fa13459172114e804fc6af794df3f48826ddf297d5dd2b81859109bb797d23a",
+    "return_code": 0,
+    "started_utc": "2026-09-14T12:54:30.865980+00:00",
+    "status": "complete"
+  },
+  "host": {
+    "platform": "Linux-7.0.0-1012-aws-x86_64-with-glibc2.39",
+    "python": "3.12.3"
+  },
+  "inputs": {
+    "baseline": {
+      "aggression": 75,
+      "name": "Base9fda9ac",
+      "path": "/tmp/jakkoo-temp/session-602950-1789388429317-0/eval-strength/bin/refit-base",
+      "revision": "9fda9ac72e63564e9f164c612376f28d0b549216",
+      "sha256": "c78cbaa1387bd59ffd43d289f359106a2ae3b6d86023d570055cf5c1eb380516"
+    },
+    "candidate": {
+      "aggression": 75,
+      "name": "memo-tagged",
+      "path": "/tmp/jakkoo-temp/session-602950-1789388429317-0/eval-strength/bin/memo-tagged",
+      "revision": null,
+      "sha256": "34a3a33b08b1d26d8eda55280fdbb07e796df9f9a27b18c600d69d771a533481"
+    },
+    "harness": {
+      "path": "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-602950-1789388879712205907-0/workspace/tools/run_sprt.py",
+      "sha256": "a471d092cc9f6a48088f5c61bbd041a192f1dc6b872541abba4a4b8c9eed7e96"
+    },
+    "openings": {
+      "count": 512,
+      "path": "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-602950-1789388879712205907-0/workspace/docs/tuning/data/evaluation-refit-pilot/development.epd",
+      "sha256": "9fccb65f421bd10aeaf037021b6ca7eae4039186093521f87a2a12d2156b3ec3"
+    },
+    "runner": {
+      "path": "/tmp/jakkoo-temp/session-602950-1789388429317-0/eval-strength/bin/selfplay",
+      "sha256": "c6495fb492a8b63e57fe944f4c67d62ec7bfb9cc0b84b16b1bf5864cd8130ca9"
+    }
+  },
+  "outputs": {
+    "manifest": "/tmp/jakkoo-temp/session-602950-1789388429317-0/eval-strength/runs/memo-tagged-screen.manifest.json",
+    "pgn": "/tmp/jakkoo-temp/session-602950-1789388429317-0/eval-strength/runs/memo-tagged-screen.pgn"
+  },
+  "provenance": {
+    "build_profile": "release-locked-portable",
+    "dependency_revision": null
+  },
+  "schema_version": 2,
+  "settings": {
+    "concurrency": 16,
+    "draw": {
+      "movecount": 10,
+      "movenumber": 80,
+      "score": 10
+    },
+    "games": 1024,
+    "hash_mib": 16,
+    "limit": {
+      "mode": "fixed-movetime",
+      "movetime_ms": 50,
+      "nodes_per_move": null,
+      "time_control": null
+    },
+    "maxmoves": 200,
+    "nodes_per_move": null,
+    "resign": {
+      "movecount": 4,
+      "score": 800,
+      "twosided": true
+    },
+    "rounds": 512,
+    "sprt": {
+      "alpha": 0.05,
+      "beta": 0.05,
+      "elo0": 0.0,
+      "elo1": 10.0
+    },
+    "time_control": null
+  }
+}

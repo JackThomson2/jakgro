@@ -27,6 +27,8 @@ The [PV-search follow-up](docs/tuning/aggression75-pv-lmr.md) measures +13.2 Elo
 
 The [PGO and root-verification experiments](docs/tuning/pgo-root-verification.md) report 10.7% higher throughput and +11.1 Elo in a 3,072-game 50 ms confirmation for an **optional PGO build**, with 99.8% forcing-rate retention. The clocked PGO result is inconclusive. A separate root-selection soundness fix prevents verified improvements or mates being ignored, but establishes no Elo gain. The comparisons use distinct binary pairs; a combined PGO/root gain has not been measured.
 
+The [evaluation strength trials](docs/tuning/aggression75-evaluation-strength.md) record eight small fits and three 1,024-game Aggression-75 screens, with **no demonstrated Elo gain**. The retained exact-evaluation cache is an experimental checkpoint: −1.0 Elo [−11.7, +9.7] and effectively unchanged throughput, despite passing the fixed-node safety and personality checks. The report preserves rejected fits, failed checks and reproduction evidence; it does not recommend replacing the baseline for strength.
+
 ## Requirements
 
 - Rust 1.85 or newer

@@ -301,6 +301,32 @@ class ManifestTests(unittest.TestCase):
             self.assertTrue(manifest["comparison"]["identical_binaries_allowed"])
             self.assertFalse(manifest["comparison"]["distinct_binaries_required"])
 
+    def test_a_network_on_one_side_makes_one_binary_two_configurations(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            network = root / "network.nnue"
+            network.write_bytes(b"network")
+            args = self._namespace(
+                root, pgn=root / "m.pgn", manifest=root / "m.json", candidate_eval_file=network
+            )
+            args.baseline_engine = args.engine
+
+            manifest = run_sprt.build_manifest(args, ["cmd"], "A", "B", 1)
+
+            self.assertFalse(manifest["comparison"]["distinct_binaries_required"])
+            self.assertEqual(
+                manifest["inputs"]["candidate"]["eval_file"]["sha256"],
+                run_sprt.sha256_file(network),
+            )
+            self.assertIsNone(manifest["inputs"]["baseline"]["eval_file"])
+            command = run_sprt.build_command(args, "A", "B")
+            self.assertEqual(command[command.index("--candidate-eval-file") + 1], str(network))
+            self.assertNotIn("--baseline-eval-file", command)
+
+            args.baseline_eval_file = network
+            with self.assertRaisesRegex(ValueError, "must differ"):
+                run_sprt.build_manifest(args, ["cmd"], "A", "B", 1)
+
     def test_derived_engine_names_are_disambiguated(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             args = self._namespace(Path(directory))

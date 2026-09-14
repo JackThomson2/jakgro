@@ -313,6 +313,8 @@ def arguments(argv=None):
     prepare_parser.add_argument("--development", required=True, type=Path)
     prepare_parser.add_argument("--output-dir", required=True, type=Path)
     prepare_parser.add_argument("--deduplicate", action="store_true")
+    prepare_parser.add_argument("--drop-development-overlap", action="store_true",
+                                help="drop development rows that duplicate a training position instead of rejecting the split")
     trainer = subcommands.add_parser("train")
     trainer.add_argument("--helper", required=True, type=Path)
     trainer.add_argument("--data-dir", required=True, type=Path)
@@ -331,7 +333,8 @@ def main(argv=None) -> int:
     options = arguments(argv)
     try:
         if options.command == "prepare":
-            report = data.prepare(options.helper, options.training, options.development, options.output_dir, options.deduplicate)
+            report = data.prepare(options.helper, options.training, options.development, options.output_dir,
+                                  options.deduplicate, options.drop_development_overlap)
             print(json.dumps({name: {key: value for key, value in record.items() if key != "feature_support"}
                               for name, record in report["splits"].items()}, indent=2))
         else:

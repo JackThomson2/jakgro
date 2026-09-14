@@ -155,7 +155,17 @@ def expand(source: Path, destination: Path) -> str:
     return digest.hexdigest()
 
 
-def prepare(helper: Path, training: Path, development: Path, output: Path, deduplicate: bool = False) -> dict:
+def drop_development_overlap(training: list[Sample], development: list[Sample]) -> tuple[list[Sample], int]:
+    """Removes development rows that duplicate any training position or its mirror."""
+    keys = {sample.key for sample in training}
+    identities = {sample.feature_key() for sample in training}
+    kept = [sample for sample in development
+            if sample.key not in keys and sample.feature_key() not in identities]
+    return kept, len(development) - len(kept)
+
+
+def prepare(helper: Path, training: Path, development: Path, output: Path, deduplicate: bool = False,
+            drop_overlap: bool = False) -> dict:
     helper, training, development = (path.resolve(strict=True) for path in (helper, training, development))
     output = output.absolute()
     require(not output.exists(), "output already exists; choose a new directory")
@@ -166,7 +176,7 @@ def prepare(helper: Path, training: Path, development: Path, output: Path, dedup
     with tempfile.TemporaryDirectory(prefix=".nnue-prepare-", dir=output.parent) as temporary:
         staging = Path(temporary)
         manifest = {"schema_version": 1, "architecture": ARCHITECTURE, "helper_sha256": before[str(helper)],
-                    "deduplicate": deduplicate, "splits": {},
+                    "deduplicate": deduplicate, "drop_development_overlap": drop_overlap, "splits": {},
                     "split_policy": "Reject canonical and feature-identical overlap, including turn changes and color/rank mirrors; not a game/family independence certificate."}
         prepared = {}
         for name, source in (("training", training), ("development", development)):
@@ -180,6 +190,10 @@ def prepare(helper: Path, training: Path, development: Path, output: Path, dedup
             require(result.returncode == 0, f"{name} preparation failed: {log.read_text(errors='replace')[-3000:]}")
             original = read_records(raw)
             records, dropped = unique_records(original, deduplicate)
+            if name == "development" and drop_overlap:
+                records, overlapping = drop_development_overlap(prepared["training"], records)
+                dropped["training_overlap"] = overlapping
+                require(bool(records), "every development row overlaps the training split")
             prepared[name] = records
             target = staging / (name + ".tsv")
             write_records(target, records)

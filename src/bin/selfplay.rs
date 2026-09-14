@@ -70,6 +70,8 @@ Engines:
   --baseline-engine PATH        baseline executable; defaults to --engine
   --candidate-aggression N      Aggression option for the candidate (default 75)
   --baseline-aggression N       Aggression option for the baseline (default 75)
+  --candidate-eval-file PATH    NNUE network the candidate loads and enables
+  --baseline-eval-file PATH     NNUE network the baseline loads and enables
   --candidate-name NAME         PGN name; defaults from the Aggression value
   --baseline-name NAME          PGN name; defaults from the Aggression value
 
@@ -109,6 +111,8 @@ struct EngineConfig {
     path: PathBuf,
     name: String,
     aggression: u8,
+    /// A network the engine must load and enable before its first search.
+    eval_file: Option<PathBuf>,
 }
 
 /// The move limit applied to every search in the match.
@@ -166,6 +170,8 @@ impl MatchConfig {
             "--baseline-engine",
             "--candidate-aggression",
             "--baseline-aggression",
+            "--candidate-eval-file",
+            "--baseline-eval-file",
             "--candidate-name",
             "--baseline-name",
             "--games",
@@ -252,11 +258,13 @@ impl MatchConfig {
                 path: engine,
                 name: candidate_name,
                 aggression: candidate_aggression,
+                eval_file: values.get("--candidate-eval-file").map(PathBuf::from),
             },
             baseline: EngineConfig {
                 path: baseline_engine,
                 name: baseline_name,
                 aggression: baseline_aggression,
+                eval_file: values.get("--baseline-eval-file").map(PathBuf::from),
             },
             games,
             hash_mib,
@@ -1240,14 +1248,36 @@ impl<'a> Engine<'a> {
         let aggression = self.config.aggression;
         let hash_mib = self.hash_mib;
         let threads = self.threads;
+        let eval_file = self.config.eval_file.clone();
         self.send("uci")?;
         self.expect("uciok", self.handshake_timeout)?;
         self.send(&format!("setoption name Hash value {hash_mib}"))?;
         self.send(&format!("setoption name Threads value {threads}"))?;
         self.send(&format!("setoption name Aggression value {aggression}"))?;
+        if let Some(eval_file) = eval_file {
+            self.send(&format!(
+                "setoption name EvalFile value {}",
+                eval_file.display()
+            ))?;
+            self.send("setoption name Use NNUE value true")?;
+        }
         self.send("isready")?;
-        self.expect("readyok", self.handshake_timeout)?;
-        Ok(())
+        // A rejected network is reported as `info string ... rejected: ...`
+        // before `readyok`; playing on would silently measure the wrong
+        // evaluator, so it is a fault attributed to this engine.
+        let deadline = Instant::now() + self.handshake_timeout;
+        loop {
+            let line = self.read_line(deadline)?;
+            let trimmed = line.trim();
+            if trimmed == "readyok" {
+                return Ok(());
+            }
+            if let Some(detail) = trimmed.strip_prefix("info string ") {
+                if detail.contains(" rejected: ") || detail.contains(" requires ") {
+                    return Err(self.fault("option rejected", detail));
+                }
+            }
+        }
     }
 
     fn send(&mut self, command: &str) -> Result<(), Fault> {

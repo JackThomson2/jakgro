@@ -23,6 +23,11 @@ name = "tune"
 path = "src/bin/tune.rs"
 required-features = ["tuning"]
 
+[[bin]]
+name = "nnue-data"
+path = "src/bin/nnue-data.rs"
+required-features = ["tuning"]
+
 [[bench]]
 name = "search"
 harness = false

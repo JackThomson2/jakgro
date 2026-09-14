@@ -1,0 +1,2 @@
+# Offline NNUE CPU training only; not an engine/runtime dependency.
+numpy==2.3.5

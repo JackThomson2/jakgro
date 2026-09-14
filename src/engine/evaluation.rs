@@ -1,5 +1,6 @@
 mod features;
 mod memo;
+pub mod nnue;
 mod placement;
 mod tactics;
 #[cfg(feature = "tuning")]

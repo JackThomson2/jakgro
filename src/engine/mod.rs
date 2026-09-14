@@ -9,6 +9,8 @@ mod evaluation;
 mod position;
 mod search;
 
+/// Standalone experimental neural evaluation; loading does not enable it.
+pub use evaluation::nnue;
 /// Linear feature vector for offline weight fitting.
 ///
 /// Behind the `tuning` feature, so the shipped engine does not carry it.

@@ -47,4 +47,4 @@ NNUE_DEVELOPMENT_SOURCE=$nnue_corpus_dir/development.txt.gz
 NNUE_PREPARE_ARGS=(--deduplicate --drop-development-overlap)
 
 # Extra arguments for `train_nnue.py train`.
-NNUE_TRAIN_ARGS=(--epochs 10 --batch-size 256 --rate 0.001 --l2 1e-6 --seed 75 --lambda 0.0)
+NNUE_TRAIN_ARGS=(--epochs 30 --batch-size 256 --rate 0.001 --l2 1e-6 --seed 75 --lambda 0.0)

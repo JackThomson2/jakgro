@@ -617,7 +617,7 @@ impl Epoch {
 ///
 /// Every epoch is exported and scored with integer inference. The published
 /// epoch must improve the training label loss over initialization and has the
-/// lowest development outcome loss among those; the history records all.
+/// lowest development label loss among those; the history records all.
 pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, String> {
     if output.exists() {
         return Err("output already exists; choose a new directory".to_owned());
@@ -762,7 +762,7 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
         if training_metric.label_mse < initial_training.label_mse
             && best
                 .as_ref()
-                .is_none_or(|(_, metrics, _)| development_metric.outcome_mse < metrics.outcome_mse)
+                .is_none_or(|(_, metrics, _)| development_metric.label_mse < metrics.label_mse)
         {
             best = Some((epoch, development_metric, bytes));
         }

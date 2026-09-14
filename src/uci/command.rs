@@ -61,7 +61,7 @@ pub(super) fn parse(line: &str) -> Result<Command, CommandError> {
         "uci" => no_arguments(command, &arguments, Command::Uci),
         "debug" => parse_debug(&arguments),
         "isready" => no_arguments(command, &arguments, Command::IsReady),
-        "setoption" => parse_set_option(&arguments),
+        "setoption" => parse_set_option(&line.trim_start()[command.len()..]),
         "ucinewgame" => no_arguments(command, &arguments, Command::UciNewGame),
         "position" => parse_position(&arguments),
         "go" => parse_go(&arguments),
@@ -95,20 +95,40 @@ fn parse_debug(arguments: &[&str]) -> Result<Command, CommandError> {
     }
 }
 
-fn parse_set_option(arguments: &[&str]) -> Result<Command, CommandError> {
-    if arguments.first() != Some(&"name") {
+fn parse_set_option(arguments: &str) -> Result<Command, CommandError> {
+    let mut remaining = arguments.trim();
+    let first_end = remaining
+        .find(char::is_whitespace)
+        .unwrap_or(remaining.len());
+    if &remaining[..first_end] != "name" {
         return Err(CommandError::new("setoption requires name"));
     }
-
-    let value_index = arguments.iter().position(|argument| *argument == "value");
-    let name_end = value_index.unwrap_or(arguments.len());
-    let name = arguments[1..name_end].join(" ");
-    if name.is_empty() {
+    remaining = remaining[first_end..].trim_start();
+    let mut names = Vec::new();
+    while !remaining.is_empty() {
+        let end = remaining
+            .find(char::is_whitespace)
+            .unwrap_or(remaining.len());
+        let word = &remaining[..end];
+        remaining = remaining[end..].trim_start();
+        if word == "value" {
+            if names.is_empty() {
+                return Err(CommandError::new("setoption requires a non-empty name"));
+            }
+            return Ok(Command::SetOption {
+                name: names.join(" "),
+                value: Some(remaining.to_owned()),
+            });
+        }
+        names.push(word);
+    }
+    if names.is_empty() {
         return Err(CommandError::new("setoption requires a non-empty name"));
     }
-
-    let value = value_index.map(|index| arguments[index + 1..].join(" "));
-    Ok(Command::SetOption { name, value })
+    Ok(Command::SetOption {
+        name: names.join(" "),
+        value: None,
+    })
 }
 
 fn parse_position(arguments: &[&str]) -> Result<Command, CommandError> {
@@ -352,5 +372,36 @@ mod tests {
                 .to_string(),
             "position fen requires six FEN fields"
         );
+    }
+
+    #[test]
+    fn option_file_values_preserve_internal_whitespace_and_unicode() {
+        for input in [
+            "setoption name EvalFile value nets/king  value λ\tset.nnue",
+            "  setoption\tname EvalFile\tvalue\tnets/king  value λ\tset.nnue  \r\n",
+        ] {
+            assert_eq!(
+                parse(input).unwrap(),
+                Command::SetOption {
+                    name: "EvalFile".to_owned(),
+                    value: Some("nets/king  value λ\tset.nnue".to_owned()),
+                }
+            );
+        }
+        assert_eq!(
+            parse("setoption name Use   NNUE value true").unwrap(),
+            Command::SetOption {
+                name: "Use NNUE".to_owned(),
+                value: Some("true".to_owned()),
+            }
+        );
+        for input in [
+            "setoption",
+            "setoption value file",
+            "setoption name",
+            "setoption name value file",
+        ] {
+            assert!(parse(input).is_err(), "{input}");
+        }
     }
 }

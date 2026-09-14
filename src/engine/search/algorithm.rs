@@ -10,6 +10,7 @@ use cozy_chess::{
 };
 
 use super::control::DeadlineWindow;
+use super::neural::NeuralEvaluator;
 use super::see::static_exchange_eval_settle;
 use super::time::allocate_time;
 use super::transposition::{Bound, Entry, RULE_FIFTY_EXACT_HORIZON, TranspositionTable};
@@ -1687,8 +1688,7 @@ fn verified_null_move_cutoff(
     if null_move_state_block(board, depth, beta, pv_node, context.mode).is_some() {
         return Ok(None);
     }
-    let static_evaluation =
-        static_evaluation.unwrap_or_else(|| evaluate_with_config(board, context.scoring));
+    let static_evaluation = static_evaluation.unwrap_or_else(|| context.static_score(board, ply));
     if null_move_static_block(static_evaluation, beta).is_some() {
         return Ok(None);
     }
@@ -1780,6 +1780,7 @@ struct SearchContext<'a> {
     static_evaluations: Vec<Option<Score>>,
     picker_storage: Vec<MovePickerStorage>,
     ordering: MoveOrdering,
+    neural: Option<NeuralEvaluator<'a>>,
 }
 
 /// Node accounting for contexts that exercise one node outside a real search.
@@ -1833,11 +1834,19 @@ impl<'a> SearchContext<'a> {
                 .map(|_| MovePickerStorage::with_typical_capacity())
                 .collect(),
             ordering: MoveOrdering::new(),
+            neural: None,
         }
     }
 }
 
 impl SearchContext<'_> {
+    fn static_score(&mut self, board: &Board, ply: u32) -> Score {
+        match &mut self.neural {
+            Some(neural) => neural.evaluate(board, ply),
+            None => evaluate_with_config(board, self.scoring),
+        }
+    }
+
     fn visit_node(&mut self) -> Result<(), Aborted> {
         if self.node_limit_reached() {
             return Err(Aborted);
@@ -2106,6 +2115,7 @@ struct SharedSearch<'a> {
     threads: usize,
     started: Instant,
     stats: SearchStats,
+    network: Option<&'a crate::engine::nnue::Network>,
 }
 
 /// What a search leaves for the next search of the same game.
@@ -2180,7 +2190,7 @@ pub(super) fn run<F>(
     position: &Position,
     limits: &SearchLimits,
     control: &SearchControl,
-    settings: SearchSettings,
+    settings: SearchSettings<'_>,
     table: &TranspositionTable,
     memory: Option<&Mutex<SearchMemory>>,
     mut report: F,
@@ -2251,6 +2261,7 @@ where
         threads: settings.threads.max(1),
         started: Instant::now(),
         stats: SearchStats::default(),
+        network: settings.network,
     };
 
     let history = RepetitionTracker::new(shared.hash_history);
@@ -2385,6 +2396,7 @@ fn run_worker(
         // The main searcher may inherit the previous move's ordering; a
         // helper always starts cold, so its diversification is its own.
         ordering: carried.unwrap_or_else(MoveOrdering::new),
+        neural: shared.network.map(NeuralEvaluator::new),
     };
     let root_moves = rotated_root_moves(&shared.root_moves, role.root_rotation());
     let mut history = RepetitionTracker::new(shared.hash_history);
@@ -3641,7 +3653,7 @@ fn negamax(
             });
         }
         return Ok(NodeResult {
-            score: evaluate_with_config(board, context.scoring),
+            score: context.static_score(board, ply),
             path_dependent: false,
         });
     }
@@ -3720,7 +3732,7 @@ fn negamax(
             hash_entry
                 .and_then(Entry::static_evaluation)
                 .inspect(|_| context.telemetry.static_evaluation_hits += 1)
-                .unwrap_or_else(|| evaluate_with_config(board, context.scoring)),
+                .unwrap_or_else(|| context.static_score(board, ply)),
         )
     } else {
         None
@@ -4059,7 +4071,7 @@ fn quiescence(
             });
         }
         return Ok(NodeResult {
-            score: evaluate_with_config(board, context.scoring),
+            score: context.static_score(board, ply),
             path_dependent: false,
         });
     }
@@ -4104,7 +4116,7 @@ fn quiescence(
             return Ok(result);
         }
         return Ok(NodeResult {
-            score: evaluate_with_config(board, context.scoring),
+            score: context.static_score(board, ply),
             path_dependent: false,
         });
     }
@@ -4118,7 +4130,7 @@ fn quiescence(
             hash_entry
                 .and_then(Entry::static_evaluation)
                 .inspect(|_| context.telemetry.static_evaluation_hits += 1)
-                .unwrap_or_else(|| evaluate_with_config(board, context.scoring)),
+                .unwrap_or_else(|| context.static_score(board, ply)),
         )
     };
     let alpha_original = alpha;
@@ -5009,6 +5021,117 @@ mod tests {
     };
     use crate::engine::Position;
     use cozy_chess::{Move, Piece, Square};
+
+    #[test]
+    fn nnue_node_fallbacks_use_the_selected_model_in_every_search_mode() {
+        use crate::engine::nnue::{MAX_SCORE, Network};
+        use crate::engine::nnue_test_support::network_bytes;
+        let network = Network::from_bytes(&network_bytes(137, false)).unwrap();
+        let position = Position::default();
+        let board = position.board();
+        let control = super::SearchControl::new();
+        for mode in [
+            super::SearchMode::Normal,
+            super::SearchMode::NullProbe,
+            super::SearchMode::Verification,
+        ] {
+            for ply in [1, super::MAX_PLY, super::MAX_PLY + 1] {
+                let table = super::TranspositionTable::new(1).unwrap();
+                let mut context = super::SearchContext::for_test(&table, &control, mode);
+                assert!(context.neural.is_none());
+                context.neural = Some(super::NeuralEvaluator::new(&network));
+                let mut history = RepetitionTracker::new(position.hash_history());
+                let result = super::quiescence(
+                    board,
+                    &mut history,
+                    ply,
+                    -MAX_SCORE,
+                    MAX_SCORE,
+                    0,
+                    0,
+                    None,
+                    false,
+                    &mut context,
+                )
+                .unwrap();
+                assert_eq!(result.score, 137);
+                if ply >= super::MAX_PLY {
+                    let result = super::negamax(
+                        board,
+                        &mut history,
+                        1,
+                        ply,
+                        0,
+                        -MAX_SCORE,
+                        MAX_SCORE,
+                        None,
+                        &[],
+                        &mut context,
+                    )
+                    .unwrap();
+                    assert_eq!(result.score, 137);
+                }
+            }
+            let table = super::TranspositionTable::new(1).unwrap();
+            let mut context = super::SearchContext::for_test(&table, &control, mode);
+            context.neural = Some(super::NeuralEvaluator::new(&network));
+            let mut history = RepetitionTracker::new(position.hash_history());
+            let result = super::quiescence(
+                board,
+                &mut history,
+                1,
+                -1000,
+                100,
+                4,
+                0,
+                None,
+                false,
+                &mut context,
+            )
+            .unwrap();
+            assert_eq!(result.score, 137, "stand pat uses NNUE in {mode:?}");
+            if matches!(mode, super::SearchMode::NullProbe) {
+                assert_eq!(context.telemetry.tt_probes, 0);
+            }
+        }
+    }
+
+    #[test]
+    fn nnue_null_verification_restores_mode_and_reuses_the_same_backend() {
+        use crate::engine::nnue::Network;
+        use crate::engine::nnue_test_support::network_bytes;
+        let network = Network::from_bytes(&network_bytes(137, false)).unwrap();
+        let position = Position::default();
+        let board = position.board();
+        let table = super::TranspositionTable::new(1).unwrap();
+        let control = super::SearchControl::new();
+        let mut context =
+            super::SearchContext::for_test(&table, &control, super::SearchMode::Normal);
+        context.neural = Some(super::NeuralEvaluator::new(&network));
+        let mut history = RepetitionTracker::new(position.hash_history());
+        let original_key = history.current_key();
+        let result = super::verified_null_move_cutoff(
+            board,
+            &mut history,
+            4,
+            1,
+            0,
+            -201,
+            -200,
+            None,
+            None,
+            &mut context,
+        )
+        .unwrap();
+        assert!(result.is_some());
+        assert_eq!(context.telemetry.null_move_attempts, 1);
+        assert_eq!(context.telemetry.null_move_verifications, 1);
+        assert!(context.telemetry.null_probe_nodes > 0);
+        assert!(context.telemetry.null_verification_nodes > 0);
+        assert!(matches!(context.mode, super::SearchMode::Normal));
+        assert_eq!(history.current_key(), original_key);
+        assert_eq!(context.static_score(board, 1), 137);
+    }
 
     #[test]
     fn repetition_occurrences_match_a_full_scan_inside_the_halfmove_window() {

@@ -187,11 +187,47 @@ where
             "option name Move Overhead type spin default {DEFAULT_MOVE_OVERHEAD_MS} min {MIN_MOVE_OVERHEAD_MS} max {MAX_MOVE_OVERHEAD_MS}",
         )?;
         writeln!(self.output, "option name Clear Hash type button")?;
+        writeln!(
+            self.output,
+            "option name EvalFile type string default <empty>"
+        )?;
+        writeln!(self.output, "option name Use NNUE type check default false")?;
         writeln!(self.output, "uciok")?;
         self.output.flush()
     }
 
     fn set_option(&mut self, name: &str, value: Option<&str>) -> io::Result<()> {
+        if name.eq_ignore_ascii_case("EvalFile") {
+            let Some(path) = value.filter(|path| !path.is_empty() && *path != "<empty>") else {
+                return self.write_line("info string EvalFile requires a non-empty path");
+            };
+            // Stage the entire configuration, including its new cache domain,
+            // before cancelling the old search or changing the session engine.
+            let mut candidate = self.engine.clone();
+            if let Err(error) = candidate.load_eval_file(path) {
+                return self.nnue_option_error("EvalFile", &error.to_string());
+            }
+            self.cancel_active();
+            self.engine = candidate;
+            return Ok(());
+        }
+        if name.eq_ignore_ascii_case("Use NNUE") {
+            let enabled = match value {
+                Some(value) if value.eq_ignore_ascii_case("true") => true,
+                Some(value) if value.eq_ignore_ascii_case("false") => false,
+                _ => return self.write_line("info string Use NNUE requires true or false"),
+            };
+            if enabled == self.engine.use_nnue() {
+                return Ok(());
+            }
+            let mut candidate = self.engine.clone();
+            if let Err(error) = candidate.set_use_nnue(enabled) {
+                return self.nnue_option_error("Use NNUE", &error.to_string());
+            }
+            self.cancel_active();
+            self.engine = candidate;
+            return Ok(());
+        }
         if name.eq_ignore_ascii_case("Hash") {
             let Some(value) = value.filter(|value| !value.is_empty()) else {
                 return self.debug_info("Hash requires a size in MiB");
@@ -401,6 +437,20 @@ where
         }
     }
 
+    fn nnue_option_error(&mut self, option: &str, message: &str) -> io::Result<()> {
+        let message = message
+            .chars()
+            .map(|character| {
+                if character.is_control() {
+                    ' '
+                } else {
+                    character
+                }
+            })
+            .collect::<String>();
+        self.write_line(&format!("info string {option} rejected: {message}"))
+    }
+
     fn debug_info(&mut self, message: &str) -> io::Result<()> {
         if self.debug {
             self.write_line(&format!("info string {message}"))?;
@@ -433,7 +483,7 @@ mod tests {
             concat!(
                 "id name Jakgro ",
                 env!("CARGO_PKG_VERSION"),
-                "\nid author Jakgro contributors\noption name Hash type spin default 16 min 1 max 1024\noption name Threads type spin default 1 min 1 max 128\noption name Aggression type spin default 75 min 0 max 100\noption name Move Overhead type spin default 10 min 0 max 5000\noption name Clear Hash type button\nuciok\nreadyok\n"
+                "\nid author Jakgro contributors\noption name Hash type spin default 16 min 1 max 1024\noption name Threads type spin default 1 min 1 max 128\noption name Aggression type spin default 75 min 0 max 100\noption name Move Overhead type spin default 10 min 0 max 5000\noption name Clear Hash type button\noption name EvalFile type string default <empty>\noption name Use NNUE type check default false\nuciok\nreadyok\n"
             )
         );
     }
@@ -527,5 +577,42 @@ mod tests {
         let error = run(PanickingReader, &mut output).unwrap_err();
 
         assert_eq!(error.kind(), io::ErrorKind::Other);
+    }
+
+    #[test]
+    fn nnue_option_errors_are_visible_without_debug_and_success_is_quiet() {
+        assert_eq!(
+            transcript(
+                "setoption name Use NNUE value true\nsetoption name Use NNUE value invalid\nsetoption name Use NNUE\nsetoption name EvalFile\nsetoption name EvalFile value <empty>\nsetoption name Use NNUE value false\nisready\nquit\n"
+            ),
+            concat!(
+                "info string Use NNUE rejected: load EvalFile before enabling NNUE\n",
+                "info string Use NNUE requires true or false\n",
+                "info string Use NNUE requires true or false\n",
+                "info string EvalFile requires a non-empty path\n",
+                "info string EvalFile requires a non-empty path\n",
+                "readyok\n",
+            ),
+        );
+        let file = crate::engine::nnue_test_support::NetworkFile::new(137, false);
+        assert_eq!(
+            transcript(&format!(
+                "setoption name eVaLfIlE value {}\nsetoption name use nnue value TRUE\nucinewgame\nsetoption name Use NNUE value FALSE\nisready\nquit\n",
+                file.path.display()
+            )),
+            "readyok\n",
+        );
+    }
+
+    #[test]
+    fn nnue_option_diagnostics_cannot_inject_protocol_lines() {
+        let (sender, _) = std::sync::mpsc::channel();
+        let mut session = super::Session::new(Vec::new(), sender);
+        session
+            .nnue_option_error("EvalFile", "bad\r\nbestmove a1a2\t\0path")
+            .unwrap();
+        let output = String::from_utf8(session.output).unwrap();
+        assert_eq!(output.lines().count(), 1);
+        assert!(output.starts_with("info string EvalFile rejected: "));
     }
 }

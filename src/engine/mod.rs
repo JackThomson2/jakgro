@@ -6,6 +6,11 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
 mod evaluation;
+mod neural;
+#[cfg(test)]
+#[path = "../../tests/support/nnue_network.rs"]
+pub(crate) mod nnue_test_support;
+pub use neural::NnueConfigError;
 mod position;
 mod search;
 
@@ -87,6 +92,7 @@ pub struct Engine {
     threads: usize,
     table: Arc<Mutex<Arc<search::TranspositionTable>>>,
     memory: Arc<Mutex<search::SearchMemory>>,
+    neural: neural::Configuration,
 }
 
 impl Default for Engine {
@@ -100,6 +106,7 @@ impl Default for Engine {
             threads: DEFAULT_THREADS,
             table: Arc::new(Mutex::new(Arc::new(table))),
             memory: Arc::new(Mutex::new(search::SearchMemory::default())),
+            neural: neural::Configuration::default(),
         }
     }
 }
@@ -226,6 +233,7 @@ impl Engine {
                 evaluation: self.evaluation,
                 move_overhead: self.move_overhead,
                 threads: self.threads,
+                network: self.neural.active_network(),
             },
             &table,
             &self.memory,

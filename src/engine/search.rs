@@ -1,5 +1,6 @@
 mod algorithm;
 mod control;
+mod neural;
 mod see;
 mod time;
 mod transposition;
@@ -532,19 +533,21 @@ impl SearchResult {
 
 /// Settings a search reads that are configured rather than derived per move.
 #[derive(Clone, Copy, Debug)]
-pub(super) struct SearchSettings {
+pub(super) struct SearchSettings<'network> {
     pub(super) evaluation: EvaluationConfig,
     pub(super) move_overhead: Duration,
     pub(super) threads: usize,
+    pub(super) network: Option<&'network super::nnue::Network>,
 }
 
-impl SearchSettings {
+impl SearchSettings<'_> {
     #[cfg(test)]
     fn for_test(evaluation: EvaluationConfig) -> Self {
         Self {
             evaluation,
             move_overhead: Duration::from_millis(DEFAULT_MOVE_OVERHEAD_MS),
             threads: DEFAULT_THREADS,
+            network: None,
         }
     }
 }
@@ -582,7 +585,7 @@ pub(super) fn search_with_table<F>(
     position: &Position,
     limits: &SearchLimits,
     control: &SearchControl,
-    settings: SearchSettings,
+    settings: SearchSettings<'_>,
     table: &TranspositionTable,
     report: F,
 ) -> SearchResult
@@ -598,7 +601,7 @@ pub(super) fn search_with_memory<F>(
     position: &Position,
     limits: &SearchLimits,
     control: &SearchControl,
-    settings: SearchSettings,
+    settings: SearchSettings<'_>,
     table: &TranspositionTable,
     memory: &Mutex<SearchMemory>,
     report: F,

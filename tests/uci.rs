@@ -6,6 +6,9 @@ use std::time::{Duration, Instant};
 
 use jakgro::uci::run;
 
+#[path = "support/nnue_network.rs"]
+mod nnue_support;
+
 const TEST_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[test]
@@ -36,6 +39,183 @@ fn personality_telemetry_is_only_reported_in_debug_mode() {
             assert!(value("completed") >= value("selections"));
             assert!(value("nodes") > 0);
         }
+    }
+}
+
+fn nnue_depth_one(engine: &mut EngineProcess) -> (String, String) {
+    engine.send("go depth 1");
+    let lines = engine.receive_until(TEST_TIMEOUT, |line| line.starts_with("bestmove "));
+    let score = lines
+        .iter()
+        .rev()
+        .find(|line| line.starts_with("info depth "))
+        .unwrap()
+        .split(" score ")
+        .nth(1)
+        .unwrap()
+        .split(" nodes ")
+        .next()
+        .unwrap()
+        .to_owned();
+    assert!(
+        !lines
+            .iter()
+            .any(|line| line.contains("search worker failed"))
+    );
+    (score, lines.last().unwrap().clone())
+}
+
+#[test]
+fn nnue_options_load_toggle_replace_and_persist_without_implicit_activation() {
+    let first = nnue_support::NetworkFile::new(137, false);
+    let second = nnue_support::NetworkFile::new(271, false);
+    let mut engine = EngineProcess::spawn();
+    engine.send("setoption name Hash value 1");
+    engine.send("setoption name Aggression value 0");
+    engine.send("position startpos");
+    let handcrafted = nnue_depth_one(&mut engine);
+    engine.send(&format!(
+        "setoption name EvalFile value {}",
+        first.path.display()
+    ));
+    engine.send("isready");
+    assert_eq!(
+        engine.receive_until(TEST_TIMEOUT, |line| line == "readyok"),
+        ["readyok"]
+    );
+    assert_eq!(nnue_depth_one(&mut engine), handcrafted);
+    engine.send("setoption name Use NNUE value true");
+    assert_eq!(nnue_depth_one(&mut engine).0, "cp -137");
+    engine.send(&format!(
+        "setoption name EvalFile value {}",
+        second.path.display()
+    ));
+    assert_eq!(nnue_depth_one(&mut engine).0, "cp -271");
+    engine.send("ucinewgame");
+    engine.send("position startpos");
+    assert_eq!(nnue_depth_one(&mut engine).0, "cp -271");
+    engine.send("setoption name Clear Hash");
+    assert_eq!(nnue_depth_one(&mut engine).0, "cp -271");
+    engine.send("setoption name Use NNUE value false");
+    assert_eq!(nnue_depth_one(&mut engine), handcrafted);
+    engine.send("setoption name Use NNUE value true");
+    assert_eq!(nnue_depth_one(&mut engine).0, "cp -271");
+    engine.send("quit");
+    assert!(engine.wait_for_exit(TEST_TIMEOUT).success());
+}
+
+#[test]
+fn rejected_nnue_options_and_noop_toggles_do_not_cancel_active_searches() {
+    let file = nnue_support::NetworkFile::new(137, false);
+    let mut engine = EngineProcess::spawn();
+    engine.send("setoption name Hash value 1");
+    engine.send(&format!(
+        "setoption name EvalFile value {}",
+        file.path.display()
+    ));
+    engine.send("setoption name Use NNUE value true");
+    engine.send("position startpos");
+    engine.send("go infinite");
+    engine.receive_until(TEST_TIMEOUT, |line| line.starts_with("info depth "));
+    engine.send(&format!(
+        "setoption name EvalFile value {}",
+        file.path.with_extension("missing").display()
+    ));
+    engine.send("setoption name Use NNUE value invalid");
+    engine.send("setoption name Use NNUE value true");
+    engine.send("isready");
+    let lines = engine.receive_until(TEST_TIMEOUT, |line| line == "readyok");
+    assert!(
+        lines
+            .iter()
+            .any(|line| line.starts_with("info string EvalFile rejected:"))
+    );
+    assert!(
+        lines
+            .iter()
+            .any(|line| line == "info string Use NNUE requires true or false")
+    );
+    assert!(lines.iter().all(|line| !line.starts_with("bestmove ")));
+    engine.send("stop");
+    let stopped = engine.receive_until(TEST_TIMEOUT, |line| line.starts_with("bestmove "));
+    assert_eq!(
+        stopped
+            .iter()
+            .filter(|line| line.starts_with("bestmove "))
+            .count(),
+        1
+    );
+    engine.send("quit");
+    assert!(engine.wait_for_exit(TEST_TIMEOUT).success());
+}
+
+#[test]
+fn successful_nnue_reconfiguration_joins_workers_and_discards_stale_results() {
+    let first = nnue_support::NetworkFile::new(137, false);
+    let second = nnue_support::NetworkFile::new(271, false);
+    let mut engine = EngineProcess::spawn();
+    engine.send("setoption name Hash value 1");
+    engine.send("setoption name Threads value 3");
+    engine.send(&format!(
+        "setoption name EvalFile value {}",
+        first.path.display()
+    ));
+    engine.send("setoption name Use NNUE value true");
+    engine.send("position startpos");
+    engine.send("go infinite");
+    engine.receive_until(TEST_TIMEOUT, |line| line.starts_with("info depth "));
+    engine.send(&format!(
+        "setoption name EvalFile value {}",
+        second.path.display()
+    ));
+    engine.send("isready");
+    let cancelled = engine.receive_until(TEST_TIMEOUT, |line| line == "readyok");
+    assert!(
+        cancelled
+            .iter()
+            .all(|line| !line.starts_with("bestmove ") && !line.contains("rejected"))
+    );
+    engine.assert_no_bestmove(Duration::from_millis(30));
+    engine.send("setoption name Threads value 1");
+    engine.send("setoption name Aggression value 0");
+    assert_eq!(nnue_depth_one(&mut engine).0, "cp -271");
+    engine.send("go infinite");
+    engine.receive_until(TEST_TIMEOUT, |line| line.starts_with("info depth "));
+    engine.send("setoption name Use NNUE value false");
+    engine.send("isready");
+    let cancelled = engine.receive_until(TEST_TIMEOUT, |line| line == "readyok");
+    assert!(cancelled.iter().all(|line| !line.starts_with("bestmove ")));
+    assert_ne!(nnue_depth_one(&mut engine).0, "cp -271");
+    engine.send("quit");
+    assert!(engine.wait_for_exit(TEST_TIMEOUT).success());
+}
+
+#[test]
+fn nnue_workers_are_joined_on_quit_and_end_of_input() {
+    let file = nnue_support::NetworkFile::new(0, true);
+    for close_input in [false, true] {
+        let mut engine = EngineProcess::spawn();
+        engine.send("setoption name Hash value 1");
+        engine.send("setoption name Threads value 3");
+        engine.send(&format!(
+            "setoption name EvalFile value {}",
+            file.path.display()
+        ));
+        engine.send("setoption name Use NNUE value true");
+        engine.send("position startpos");
+        engine.send("go infinite");
+        engine.receive_until(TEST_TIMEOUT, |line| line.starts_with("info depth "));
+        if close_input {
+            engine.close_input();
+        } else {
+            engine.send("quit");
+        }
+        assert!(engine.wait_for_exit(TEST_TIMEOUT).success());
+        assert!(
+            engine.receive_to_end(TEST_TIMEOUT).iter().all(
+                |line| !line.starts_with("bestmove ") && !line.contains("search worker failed")
+            )
+        );
     }
 }
 
@@ -180,7 +360,7 @@ fn public_runner_handles_a_protocol_transcript() {
         concat!(
             "id name Jakgro ",
             env!("CARGO_PKG_VERSION"),
-            "\nid author Jakgro contributors\noption name Hash type spin default 16 min 1 max 1024\noption name Threads type spin default 1 min 1 max 128\noption name Aggression type spin default 75 min 0 max 100\noption name Move Overhead type spin default 10 min 0 max 5000\noption name Clear Hash type button\nuciok\nreadyok\n"
+            "\nid author Jakgro contributors\noption name Hash type spin default 16 min 1 max 1024\noption name Threads type spin default 1 min 1 max 128\noption name Aggression type spin default 75 min 0 max 100\noption name Move Overhead type spin default 10 min 0 max 5000\noption name Clear Hash type button\noption name EvalFile type string default <empty>\noption name Use NNUE type check default false\nuciok\nreadyok\n"
         )
     );
 }

@@ -485,6 +485,10 @@ fn shard_gradient(
 }
 
 /// Full-parameter Adam with bias correction over a contiguous range.
+///
+/// Updated values are clamped to `limit`, the largest magnitude the integer
+/// export can store for that tensor, so a long run cannot drift into weights
+/// the engine could never load.
 fn adam(
     parameters: &mut [f32],
     moment: &mut [f32],
@@ -493,6 +497,7 @@ fn adam(
     step: usize,
     rate: f32,
     l2: f32,
+    limit: f32,
 ) {
     let moment_correction = 1.0 - 0.9_f32.powi(step as i32);
     let velocity_correction = 1.0 - 0.999_f32.powi(step as i32);
@@ -500,10 +505,17 @@ fn adam(
         let g = gradient(index) + l2 * parameters[index];
         moment[index] = 0.9 * moment[index] + 0.1 * g;
         velocity[index] = 0.999 * velocity[index] + 0.001 * g * g;
-        parameters[index] -= rate * (moment[index] / moment_correction)
-            / ((velocity[index] / velocity_correction).sqrt() + 1e-8);
+        parameters[index] = (parameters[index]
+            - rate * (moment[index] / moment_correction)
+                / ((velocity[index] / velocity_correction).sqrt() + 1e-8))
+            .clamp(-limit, limit);
     }
 }
+
+/// Largest float magnitudes the i16/i32 export can represent per tensor.
+const INPUT_LIMIT: f32 = i16::MAX as f32 / ACTIVATION_MAX as f32;
+const OUTPUT_LIMIT: f32 = i16::MAX as f32 / (FLOAT_CP_SCALE * OUTPUT_SCALE as f32);
+const BIAS_LIMIT: f32 = i32::MAX as f32 / (FLOAT_CP_SCALE * CP_DIVISOR as f32);
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Metrics {
@@ -696,6 +708,7 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
                             step,
                             options.rate,
                             options.l2,
+                            INPUT_LIMIT,
                         );
                     });
                 }
@@ -708,6 +721,7 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
                 step,
                 options.rate,
                 options.l2,
+                INPUT_LIMIT,
             );
             adam(
                 &mut parameters.output,
@@ -717,6 +731,7 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
                 step,
                 options.rate,
                 options.l2,
+                OUTPUT_LIMIT,
             );
             let bias_gradient = used.iter().map(|shard| shard.bias).sum::<f32>();
             adam(
@@ -727,6 +742,7 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
                 step,
                 options.rate,
                 options.l2,
+                BIAS_LIMIT,
             );
         }
         let bytes = parameters.quantize(&support)?;

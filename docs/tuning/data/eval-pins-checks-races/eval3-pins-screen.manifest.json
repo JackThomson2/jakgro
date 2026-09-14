@@ -1,0 +1,125 @@
+{
+  "command": [
+    "/tmp/jakkoo-temp/session-1135455-1789169345191-0/eval3-selfplay",
+    "--engine",
+    "/tmp/jakkoo-temp/session-1135455-1789169345191-0/eval3-pins",
+    "--baseline-engine",
+    "/tmp/jakkoo-temp/session-1135455-1789169345191-0/eval3-base",
+    "--candidate-aggression",
+    "75",
+    "--baseline-aggression",
+    "75",
+    "--candidate-name",
+    "Candidate-Aggression-75",
+    "--baseline-name",
+    "Baseline-Aggression-75",
+    "--games",
+    "1024",
+    "--openings",
+    "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789207695935592271-0/workspace/docs/tuning/data/evaluation-refit-pilot/development.epd",
+    "--hash",
+    "16",
+    "--concurrency",
+    "20",
+    "--pgn",
+    "/tmp/jakkoo-temp/session-1135455-1789169345191-0/eval3-pins-screen.pgn",
+    "--results-json",
+    "/tmp/jakkoo-temp/session-1135455-1789169345191-0/eval3-pins-screen.arbiter.json",
+    "--movetime-ms",
+    "50"
+  ],
+  "comparison": {
+    "distinct_binaries_required": true,
+    "distinct_binary_hashes": true,
+    "identical_binaries_allowed": false,
+    "mode": "same-profile-binaries"
+  },
+  "created_utc": "2026-09-12T10:27:51.283551+00:00",
+  "execution": {
+    "changed_inputs": [],
+    "completed_games": 1024,
+    "duration_seconds": 134.149544,
+    "error": null,
+    "expected_games": 1024,
+    "faults": [],
+    "finished_utc": "2026-09-12T10:30:05.435817+00:00",
+    "inputs_unchanged": true,
+    "pgn_sha256": "ea6a9de5aed8efd743f6da7415712984aede98cb76261ccfedcb1c539e1a2d07",
+    "return_code": 0,
+    "started_utc": "2026-09-12T10:27:51.286273+00:00",
+    "status": "complete"
+  },
+  "host": {
+    "platform": "Linux-7.0.0-1010-aws-x86_64-with-glibc2.39",
+    "python": "3.12.3"
+  },
+  "inputs": {
+    "baseline": {
+      "aggression": 75,
+      "name": "Baseline-Aggression-75",
+      "path": "/tmp/jakkoo-temp/session-1135455-1789169345191-0/eval3-base",
+      "revision": "9fda9ac72e63564e9f164c612376f28d0b549216",
+      "sha256": "8d874dad48a15ddc0c88ccbc430781e7aee960067a9d5c6bc6a2e7de17433f61"
+    },
+    "candidate": {
+      "aggression": 75,
+      "name": "Candidate-Aggression-75",
+      "path": "/tmp/jakkoo-temp/session-1135455-1789169345191-0/eval3-pins",
+      "revision": "pins-only",
+      "sha256": "83f9cd4942891c6694dc8dcacf8c5a9f9096a78c3e6ac5b0550d8268206637b0"
+    },
+    "harness": {
+      "path": "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789207695935592271-0/workspace/tools/run_sprt.py",
+      "sha256": "a471d092cc9f6a48088f5c61bbd041a192f1dc6b872541abba4a4b8c9eed7e96"
+    },
+    "openings": {
+      "count": 512,
+      "path": "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789207695935592271-0/workspace/docs/tuning/data/evaluation-refit-pilot/development.epd",
+      "sha256": "9fccb65f421bd10aeaf037021b6ca7eae4039186093521f87a2a12d2156b3ec3"
+    },
+    "runner": {
+      "path": "/tmp/jakkoo-temp/session-1135455-1789169345191-0/eval3-selfplay",
+      "sha256": "c6495fb492a8b63e57fe944f4c67d62ec7bfb9cc0b84b16b1bf5864cd8130ca9"
+    }
+  },
+  "outputs": {
+    "manifest": "/tmp/jakkoo-temp/session-1135455-1789169345191-0/eval3-pins-screen.manifest.json",
+    "pgn": "/tmp/jakkoo-temp/session-1135455-1789169345191-0/eval3-pins-screen.pgn"
+  },
+  "provenance": {
+    "build_profile": "release-locked",
+    "dependency_revision": "5851b224ca58ef3330b9d41813fa76f391bb60cf"
+  },
+  "schema_version": 2,
+  "settings": {
+    "concurrency": 20,
+    "draw": {
+      "movecount": 10,
+      "movenumber": 80,
+      "score": 10
+    },
+    "games": 1024,
+    "hash_mib": 16,
+    "limit": {
+      "mode": "fixed-movetime",
+      "movetime_ms": 50,
+      "nodes_per_move": null,
+      "time_control": null
+    },
+    "maxmoves": 200,
+    "nodes_per_move": null,
+    "resign": {
+      "movecount": 4,
+      "score": 800,
+      "twosided": true
+    },
+    "rounds": 512,
+    "sprt": {
+      "alpha": 0.05,
+      "beta": 0.05,
+      "elo0": 0.0,
+      "elo1": 10.0
+    },
+    "time_control": null
+  }
+}

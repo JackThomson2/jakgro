@@ -29,6 +29,8 @@ The [PGO and root-verification experiments](docs/tuning/pgo-root-verification.md
 
 The [evaluation strength trials](docs/tuning/aggression75-evaluation-strength.md) record eight small fits and three 1,024-game Aggression-75 screens, with **no demonstrated Elo gain**. The retained exact-evaluation cache is an experimental checkpoint: −1.0 Elo [−11.7, +9.7] and effectively unchanged throughput, despite passing the fixed-node safety and personality checks. The report preserves rejected fits, failed checks and reproduction evidence; it does not recommend replacing the baseline for strength.
 
+The [pin, safe-check and pawn-race trials](docs/tuning/eval-pins-checks-races.md) add pin-aware objective mobility, scoped post-move safe-check validation and a conservative pawn-only race term, but **do not demonstrate an Elo gain**. Combined testing estimates +2.9 Elo at 50 ms/move and -2.3 under a clock, both with intervals crossing zero; measured throughput is 4.0% lower. The report retains all nine matches, rejected variants and the single non-forced standard-profile fixture mismatch, without relaxing test expectations.
+
 ## Requirements
 
 - Rust 1.85 or newer

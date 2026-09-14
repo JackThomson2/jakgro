@@ -1,0 +1,10 @@
+measured 8 searches; mismatches=0
+id,category,aggression,bestmove,expected,score,depth,nodes,elapsed_ms,status,personality
+gate-knight-c6-investment,sacrifice,0,d2d4,d2d4,cp -113,6,13899,11,pass,"{'nodes': 0, 'attempts': 0, 'completed': 0, 'exhausted': 0, 'selections': 0}"
+gate-knight-c6-investment,sacrifice,100,e5c6,e5c6,cp -135,5,13561,11,pass,"{'nodes': 2145, 'attempts': 7, 'completed': 7, 'exhausted': 0, 'selections': 3}"
+gate-unsupported-greek-gift,anti-sacrifice,0,b1d2,b1d2,cp 41,7,64170,46,pass,"{'nodes': 0, 'attempts': 0, 'completed': 0, 'exhausted': 0, 'selections': 0}"
+gate-unsupported-greek-gift,anti-sacrifice,100,b1d2,b1d2,cp 50,7,77205,58,pass,"{'nodes': 12820, 'attempts': 11, 'completed': 7, 'exhausted': 4, 'selections': 0}"
+gate-unsupported-rook-f7,anti-sacrifice,0,g1h1,g1h1,cp -453,6,14833,10,pass,"{'nodes': 0, 'attempts': 0, 'completed': 0, 'exhausted': 0, 'selections': 0}"
+gate-unsupported-rook-f7,anti-sacrifice,100,g1h1,g1h1,cp -453,5,18330,14,pass,"{'nodes': 1444, 'attempts': 0, 'completed': 0, 'exhausted': 0, 'selections': 0}"
+gate-forcing-mate-safety,safety,0,h5f7,h5f7,mate 2,1,86,0,pass,"{'nodes': 0, 'attempts': 0, 'completed': 0, 'exhausted': 0, 'selections': 0}"
+gate-forcing-mate-safety,safety,100,h5f7,h5f7,mate 2,1,1126,0,pass,"{'nodes': 0, 'attempts': 0, 'completed': 0, 'exhausted': 0, 'selections': 0}"

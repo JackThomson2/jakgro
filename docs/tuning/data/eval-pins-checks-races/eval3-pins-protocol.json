@@ -1,0 +1,37 @@
+{
+  "patch": "eval: Account for pinned pieces in objective mobility",
+  "base_revision": "9fda9ac72e63564e9f164c612376f28d0b549216",
+  "baseline_sha256": "8d874dad48a15ddc0c88ccbc430781e7aee960067a9d5c6bc6a2e7de17433f61",
+  "candidate_sha256": "83f9cd4942891c6694dc8dcacf8c5a9f9096a78c3e6ac5b0550d8268206637b0",
+  "isolation": "Pin-aware objective mobility and direct threats only. No safe-check, pawn-race, weight, search, fixture or PGO changes.",
+  "settings": {
+    "aggression": 75,
+    "threads": 1,
+    "hash_mib": 16,
+    "concurrency": 20,
+    "elo0": 0,
+    "elo1": 10,
+    "alpha": 0.05,
+    "beta": 0.05
+  },
+  "matches": [
+    {
+      "name": "eval3-pins-screen",
+      "games": 1024,
+      "movetime_ms": 50,
+      "book": "docs/tuning/data/evaluation-refit-pilot/development.epd"
+    },
+    {
+      "name": "eval3-pins-clock",
+      "games": 2000,
+      "time_control": "1.0+0.01",
+      "book": "docs/tuning/data/evaluation-refit-pilot/confirmation.epd"
+    }
+  ],
+  "efficiency": {
+    "depth": 8,
+    "samples": 5,
+    "move_time_ms": 500
+  },
+  "policy": "Fixed caps declared before results, no retuning from confirmation. Historical opening books, shared-host jobs overlap. No Elo gain claimed unless match evidence supports it. Keep all results; do not repin fixtures to hide tactical regression."
+}

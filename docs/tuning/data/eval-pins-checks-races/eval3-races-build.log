@@ -1,0 +1,7 @@
+    Blocking waiting for file lock on build directory
+    Checking jakgro v0.1.0 (/home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789207695935592271-0/workspace)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.29s
+   Compiling jakgro v0.1.0 (/home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789207695935592271-0/workspace)
+    Finished `release` profile [optimized] target(s) in 9.89s
+f51cf037f5bdd45ed54a1e77e2333ae5b40b82e3af4f831b7a2d7d702d487799  /tmp/jakkoo-temp/session-1135455-1789169345191-0/eval3-races
+fad263700afb397d01350cd17ff6c154139620cc387bd89ed1a53fae35332d1a  /tmp/jakkoo-temp/session-1135455-1789169345191-0/eval3-checks-nbr

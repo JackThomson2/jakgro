@@ -1,0 +1,22 @@
+{
+  "patch": "eval: Validate safe checks against resulting occupancy",
+  "candidate": "full-origin-aware-legal-capture-validation",
+  "base_revision": "03c5d7e07c7be8896e9c9b12bb220064a624a64b",
+  "baseline_sha256": "83f9cd4942891c6694dc8dcacf8c5a9f9096a78c3e6ac5b0550d8268206637b0",
+  "candidate_sha256": "3bdf31a4d03d3762baeaea93bf977c9d5aaa4a5b39adfcfd3f162f02ffe553a4",
+  "known_regressions": [
+    "null-in-check depth-nine on/off root-move equality",
+    "Aggression100 queen-trade avoidance"
+  ],
+  "match": {
+    "games": 1024,
+    "movetime_ms": 50,
+    "concurrency": 20,
+    "hash_mib": 16,
+    "aggression": 75,
+    "book": "docs/tuning/data/evaluation-refit-pilot/development.epd",
+    "elo0": 0,
+    "elo1": 10
+  },
+  "policy": "Exploratory fixed-cap evaluation-only test against pin-only baseline. No PGO; no changes to mobility or pawn races. Original failed gates and all match results retained. Do not promote solely for geometric correctness; account for throughput and style."
+}

@@ -1,0 +1,430 @@
+diff --git a/src/engine/evaluation/features.rs b/src/engine/evaluation/features.rs
+index 0bc99bc..02c9b19 100644
+--- a/src/engine/evaluation/features.rs
++++ b/src/engine/evaluation/features.rs
+@@ -1,8 +1,9 @@
+ use std::cell::Cell;
+ 
+ use cozy_chess::{
+-    BitBoard, Board, Color, File, Piece, Rank, Square, get_bishop_moves, get_king_moves,
+-    get_knight_moves, get_pawn_attacks, get_rook_moves,
++    BitBoard, Board, Color, File, Piece, Rank, Square, get_between_rays, get_bishop_moves,
++    get_bishop_rays, get_king_moves, get_knight_moves, get_line_rays, get_pawn_attacks,
++    get_rook_moves, get_rook_rays,
+ };
+ 
+ use super::{
+@@ -677,24 +678,51 @@ fn centrality(square: Square) -> i32 {
+ fn reference_mobility(board: &Board, color: Color) -> i32 {
+     let occupied = board.occupied();
+     let friendly = board.colors(color);
++    let pinned = pinned_pieces(board, color);
++    let king = board.king(color);
+     let mut total = 0;
+-
+-    for piece in [
+-        Piece::Pawn,
+-        Piece::Knight,
+-        Piece::Bishop,
+-        Piece::Rook,
+-        Piece::Queen,
+-        Piece::King,
+-    ] {
++    for piece in Piece::ALL {
+         for square in board.colored_pieces(color, piece) {
+-            total += (attacks_from(piece, square, color, occupied) & !friendly).len() as i32;
++            let attacks = attacks_from(piece, square, color, occupied);
++            total +=
++                (pin_restricted_attacks(attacks, square, king, pinned) & !friendly).len() as i32;
+         }
+     }
+-
+     total
+ }
+ 
++/// Finds absolute pins for either side, independent of the side to move.
++fn pinned_pieces(board: &Board, color: Color) -> BitBoard {
++    let king = board.king(color);
++    let enemy = !color;
++    let queens = board.colored_pieces(enemy, Piece::Queen);
++    let diagonal = board.colored_pieces(enemy, Piece::Bishop) | queens;
++    let orthogonal = board.colored_pieces(enemy, Piece::Rook) | queens;
++    let snipers = (get_bishop_rays(king) & diagonal) | (get_rook_rays(king) & orthogonal);
++    let mut pinned = BitBoard::EMPTY;
++    for sniper in snipers {
++        let blockers = get_between_rays(king, sniper) & board.occupied();
++        if blockers.len() == 1 {
++            pinned |= blockers & board.colors(color);
++        }
++    }
++    pinned
++}
++
++#[inline(always)]
++fn pin_restricted_attacks(
++    attacks: BitBoard,
++    square: Square,
++    king: Square,
++    pinned: BitBoard,
++) -> BitBoard {
++    if pinned.has(square) {
++        attacks & get_line_rays(king, square)
++    } else {
++        attacks
++    }
++}
++
+ #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+ pub(super) struct AttackSummary {
+     /// Each colour's scan, White first.
+@@ -765,6 +793,11 @@ pub(super) struct ColourScan {
+     /// queen by its bucketed distance to the enemy king, looked up in the
+     /// loop as the mobility curves are.
+     pub(super) tropism: ScorePair,
++    /// Pin-restricted reach for direct threats, separate from king safety.
++    actionable: BitBoard,
++    actionable_minors: BitBoard,
++    actionable_rooks: BitBoard,
++    actionable_pawns: BitBoard,
+ }
+ 
+ impl ColourScan {
+@@ -795,6 +828,8 @@ struct ScanContext {
+     outpost_ranks: BitBoard,
+     /// Every square an enemy pawn attacks, two shifts computed once.
+     enemy_pawn_attacks: BitBoard,
++    own_king: Square,
++    pinned: BitBoard,
+ }
+ 
+ /// Scans one colour's pieces of one type.
+@@ -850,14 +885,18 @@ fn scan_pieces<const PIECE: usize, const STYLE: bool>(
+         };
+         let raw_attacks = attacks_from(piece, square, color, context.occupied);
+         let attacks = raw_attacks & !context.friendly_pieces;
+-        let moves = attacks.len() as i32;
++        let actionable =
++            pin_restricted_attacks(raw_attacks, square, context.own_king, context.pinned);
++        let mobility_attacks = actionable & !context.friendly_pieces;
++        let moves = mobility_attacks.len() as i32;
+         scan.mobility += moves;
+         scan.piece_mobility[PIECE] += moves;
+         if let Some(slot) = type_slot {
+             // Moves onto squares an enemy pawn attacks, counted beside the
+             // raw count rather than removed from it, so the mobility curve
+             // and the unsafe-square penalty remain separate features.
+-            scan.unsafe_mobility[slot] += (attacks & context.enemy_pawn_attacks).len() as i32;
++            scan.unsafe_mobility[slot] +=
++                (mobility_attacks & context.enemy_pawn_attacks).len() as i32;
+             // Distance to the enemy king, bucketed at one, two, three and
+             // four or more, weighted here as the mobility curves are.
+             let bucket = king_distance(square, context.enemy_king).min(4) - 1;
+@@ -905,6 +944,14 @@ fn scan_pieces<const PIECE: usize, const STYLE: bool>(
+             }
+         }
+         if !is_king {
++            scan.actionable |= actionable;
++            if is_pawn {
++                scan.actionable_pawns |= actionable;
++            } else if is_minor {
++                scan.actionable_minors |= actionable;
++            } else if is_rook {
++                scan.actionable_rooks |= actionable;
++            }
+             scan.attacked_twice |= scan.attacked & raw_attacks;
+             scan.attacked |= raw_attacks;
+             if let Some(slot) = type_slot {
+@@ -1024,6 +1071,8 @@ fn scan_pawns(context: &ScanContext, scan: &mut ColourScan) {
+     scan.attacked_twice |= scan.attacked & (left | right) | (left & right);
+     scan.attacked |= left | right;
+     scan.pawn_attacks |= left | right;
++    scan.actionable |= left | right;
++    scan.actionable_pawns |= left | right;
+ 
+     let zone = context.enemy_king_zone & free;
+     scan.zone_hits += (left & zone).len() as i32 + (right & zone).len() as i32;
+@@ -1039,7 +1088,7 @@ fn scan_colour<const STYLE: bool>(
+     scan: &mut ColourScan,
+     attack_counts: &mut [u8; 64],
+ ) {
+-    if STYLE {
++    if STYLE || !(context.pinned & context.own_pawns).is_empty() {
+         scan_pieces::<0, STYLE>(board, context, scan, attack_counts);
+     } else {
+         scan_pawns(context, scan);
+@@ -1115,6 +1164,8 @@ pub(super) fn attack_summary_with_style(board: &Board, style: bool) -> AttackSum
+             challenges,
+             outpost_ranks,
+             enemy_pawn_attacks: pawn_attack_set(enemy_pawns, enemy),
++            own_king: board.king(color),
++            pinned: pinned_pieces(board, color),
+         };
+         let scan = &mut summary.scans[index];
+         if style {
+@@ -1240,12 +1291,13 @@ pub(super) fn attack_summary_with_style(board: &Board, style: bool) -> AttackSum
+             let behind = get_rook_moves(passer, occupied) & file & !path;
+             summary.rook_behind_passer[index] += i32::from(!(behind & own_rooks).is_empty());
+         }
+-        let minor_attacks = own.type_attacks[0] | own.type_attacks[1];
+-        summary.threats[index][0] = (enemy_minors & own.pawn_attacks).len() as i32;
+-        summary.threats[index][1] = (enemy_pieces & own_reach & !enemy_defends).len() as i32;
+-        summary.threats[index][2] = (enemy_majors & (own.pawn_attacks | minor_attacks)).len()
++        let minor_attacks = own.actionable_minors;
++        let threat_reach = own.actionable | get_king_moves(board.king(color));
++        summary.threats[index][0] = (enemy_minors & own.actionable_pawns).len() as i32;
++        summary.threats[index][1] = (enemy_pieces & threat_reach & !enemy_defends).len() as i32;
++        summary.threats[index][2] = (enemy_majors & (own.actionable_pawns | minor_attacks)).len()
+             as i32
+-            + (enemy_queens & own.type_attacks[2]).len() as i32;
++            + (enemy_queens & own.actionable_rooks).len() as i32;
+ 
+         // A pawn that can push, once or twice from its second rank, onto an
+         // empty square no enemy pawn attacks that is either unattacked or
+@@ -1289,7 +1341,14 @@ pub(super) fn attack_summary_with_style(board: &Board, style: bool) -> AttackSum
+ /// Returns how many squares a piece may move to, for the fitter's expansion.
+ #[cfg(feature = "tuning")]
+ pub(super) fn mobility_count(board: &Board, piece: Piece, square: Square, color: Color) -> usize {
+-    (attacks_from(piece, square, color, board.occupied()) & !board.colors(color)).len() as usize
++    let attacks = attacks_from(piece, square, color, board.occupied());
++    (pin_restricted_attacks(
++        attacks,
++        square,
++        board.king(color),
++        pinned_pieces(board, color),
++    ) & !board.colors(color))
++    .len() as usize
+ }
+ 
+ /// Counts each side's knights, bishops, rooks and queens by their bucketed
+@@ -2064,6 +2123,230 @@ mod tests {
+     }
+ 
+     #[test]
++    fn pinned_knights_have_no_objective_mobility() {
++        for (fen, color) in [
++            ("k3r3/8/8/8/8/8/4N3/4K3 w - - 0 1", Color::White),
++            ("4k3/4n3/8/8/8/8/8/K3R3 b - - 0 1", Color::Black),
++        ] {
++            let board: Board = fen.parse().unwrap();
++            for style in [false, true] {
++                let summary = super::attack_summary_with_style(&board, style);
++                assert_eq!(summary.scans[color as usize].piece_mobility[1], 0, "{fen}");
++            }
++        }
++    }
++
++    #[test]
++    fn pinned_knights_do_not_create_actionable_queen_threats() {
++        for (fen, color) in [
++            ("k3r3/8/8/8/5q2/8/4N3/4K3 w - - 0 1", Color::White),
++            ("4k3/4n3/8/5Q2/8/8/8/K3R3 b - - 0 1", Color::Black),
++        ] {
++            let board: Board = fen.parse().unwrap();
++            let summary = super::attack_summary(&board);
++            assert_eq!(summary.threats[color as usize], [0; 3], "{fen}");
++        }
++    }
++
++    #[test]
++    fn pinned_sliders_and_pawns_keep_only_the_pin_line() {
++        use cozy_chess::{Piece, Square};
++        for (fen, color, piece, from, target, count) in [
++            (
++                "k3r3/8/8/8/8/8/4R3/4K3 w - - 0 1",
++                Color::White,
++                Piece::Rook,
++                Square::E2,
++                Square::E8,
++                6,
++            ),
++            (
++                "4k3/4r3/8/8/8/8/8/K3R3 b - - 0 1",
++                Color::Black,
++                Piece::Rook,
++                Square::E7,
++                Square::E1,
++                6,
++            ),
++            (
++                "k7/8/8/7b/8/8/4B3/3K4 w - - 0 1",
++                Color::White,
++                Piece::Bishop,
++                Square::E2,
++                Square::H5,
++                3,
++            ),
++            (
++                "3k4/4b3/8/8/7B/8/8/K7 b - - 0 1",
++                Color::Black,
++                Piece::Bishop,
++                Square::E7,
++                Square::H4,
++                3,
++            ),
++            (
++                "k7/8/8/8/8/5b2/4P3/3K4 w - - 0 1",
++                Color::White,
++                Piece::Pawn,
++                Square::E2,
++                Square::F3,
++                1,
++            ),
++            (
++                "3k4/4p3/5B2/8/8/8/8/K7 b - - 0 1",
++                Color::Black,
++                Piece::Pawn,
++                Square::E7,
++                Square::F6,
++                1,
++            ),
++        ] {
++            let board: Board = fen.parse().unwrap();
++            let pins = super::pinned_pieces(&board, color);
++            assert_eq!(pins, from.bitboard(), "{fen}");
++            let raw = super::attacks_from(piece, from, color, board.occupied());
++            let allowed = super::pin_restricted_attacks(raw, from, board.king(color), pins)
++                & !board.colors(color);
++            assert_eq!(allowed.len(), count, "{fen}");
++            assert!(allowed.has(target), "the pinner remains capturable: {fen}");
++            for to in allowed {
++                assert!(
++                    board.is_legal(Move {
++                        from,
++                        to,
++                        promotion: None
++                    }),
++                    "{fen}: {from}{to}"
++                );
++            }
++            for style in [false, true] {
++                let summary = super::attack_summary_with_style(&board, style);
++                let scan = summary.scans[color as usize];
++                assert_eq!(scan.piece_mobility[piece as usize], count as i32, "{fen}");
++                assert_eq!(scan.attacked, raw, "geometric control must survive: {fen}");
++                assert_eq!(
++                    scan.actionable,
++                    raw & super::get_line_rays(board.king(color), from)
++                );
++            }
++        }
++    }
++
++    #[test]
++    fn pinned_pieces_preserve_geometric_king_safety() {
++        use cozy_chess::{Piece, Square};
++        for (fen, color, square, piece) in [
++            (
++                "k3r3/8/8/8/8/8/4N3/4K3 w - - 0 1",
++                Color::White,
++                Square::E2,
++                Piece::Knight,
++            ),
++            (
++                "4k3/4n3/8/8/8/8/8/K3R3 b - - 0 1",
++                Color::Black,
++                Square::E7,
++                Piece::Knight,
++            ),
++            (
++                "k3r3/8/8/8/8/8/4P3/4K3 w - - 0 1",
++                Color::White,
++                Square::E2,
++                Piece::Pawn,
++            ),
++            (
++                "4k3/4p3/8/8/8/8/8/K3R3 b - - 0 1",
++                Color::Black,
++                Square::E7,
++                Piece::Pawn,
++            ),
++        ] {
++            let board: Board = fen.parse().unwrap();
++            let raw = super::attacks_from(piece, square, color, board.occupied());
++            for style in [false, true] {
++                let summary = super::attack_summary_with_style(&board, style);
++                let scan = summary.scans[color as usize];
++                assert_eq!(scan.attacked, raw);
++                assert_eq!(scan.actionable, super::BitBoard::EMPTY);
++                assert_eq!(scan.piece_mobility[piece as usize], 0);
++            }
++            assert_matches_reference(&board);
++        }
++    }
++
++    #[test]
++    fn multiple_blockers_and_wrong_slider_types_do_not_create_pins() {
++        for fen in [
++            "k3r3/8/8/8/8/4P3/4N3/4K3 w - - 0 1",
++            "k3r3/8/8/8/8/4p3/4N3/4K3 w - - 0 1",
++            "k3b3/8/8/8/8/8/4N3/4K3 w - - 0 1",
++            "k7/8/8/7r/8/8/4N3/3K4 w - - 0 1",
++        ] {
++            let board: Board = fen.parse().unwrap();
++            assert!(
++                super::pinned_pieces(&board, Color::White).is_empty(),
++                "{fen}"
++            );
++        }
++    }
++
++    #[test]
++    fn evaluation_pins_match_move_generator_pins_over_a_playout() {
++        let mut board = Board::default();
++        for turn in 0..256 {
++            assert_eq!(
++                super::pinned_pieces(&board, board.side_to_move()),
++                board.pinned() & board.colors(board.side_to_move()),
++                "{board}"
++            );
++            let mut moves = Vec::new();
++            board.generate_moves(|piece_moves| {
++                moves.extend(piece_moves);
++                false
++            });
++            if moves.is_empty() {
++                board = Board::default();
++            } else {
++                board.play_unchecked(moves[(turn * 37 + 11) % moves.len()]);
++            }
++        }
++    }
++
++    #[cfg(feature = "tuning")]
++    #[test]
++    fn pinned_mobility_matches_the_tuning_vector() {
++        use crate::engine::evaluation::tuning::{current_weights, tuning_features};
++        let weights = current_weights();
++        for fen in [
++            "k3r3/8/8/8/5q2/8/4N3/4K3 w - - 0 1",
++            "4k3/4n3/8/5Q2/8/8/8/K3R3 b - - 0 1",
++            "k3r3/8/8/8/8/8/4R3/4K3 w - - 0 1",
++            "4k3/4r3/8/8/8/8/8/K3R3 b - - 0 1",
++            "k7/8/8/8/8/5b2/4P3/3K4 w - - 0 1",
++            "3k4/4p3/5B2/8/8/8/8/K7 b - - 0 1",
++        ] {
++            let board: Board = fen.parse().unwrap();
++            let expected = super::weights::score(&super::extract_with_style(&board, false));
++            let vector = tuning_features(&board);
++            let actual = vector
++                .entries
++                .iter()
++                .fold((0, 0), |(mg, eg), &(index, count)| {
++                    let weight = weights[index as usize];
++                    (
++                        mg + weight.0 * i32::from(count),
++                        eg + weight.1 * i32::from(count),
++                    )
++                });
++            assert_eq!(
++                actual,
++                (expected.middle_game(), expected.end_game()),
++                "{fen}"
++            );
++        }
++    }
++
++    #[test]
+     fn cached_attack_maps_match_reference_positions() {
+         for fen in [
+             "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+

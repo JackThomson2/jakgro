@@ -1,0 +1,38 @@
+{
+  "base_revision": "9fda9ac72e63564e9f164c612376f28d0b549216",
+  "candidate_revision": "042f1eeea55fc7bef46105ed9b61726b721e400c",
+  "baseline_sha256": "8d874dad48a15ddc0c88ccbc430781e7aee960067a9d5c6bc6a2e7de17433f61",
+  "candidate_sha256": "f51cf037f5bdd45ed54a1e77e2333ae5b40b82e3af4f831b7a2d7d702d487799",
+  "comparison": "All three evaluation patches versus the original series base. Plain locked release builds, no PGO. No source or weight tuning during these matches.",
+  "settings": {
+    "aggression": 75,
+    "threads": 1,
+    "hash_mib": 16,
+    "concurrency": 20,
+    "elo0": 0,
+    "elo1": 10,
+    "alpha": 0.05,
+    "beta": 0.05
+  },
+  "matches": [
+    {
+      "name": "eval3-combined-confirm",
+      "games": 4096,
+      "movetime_ms": 50,
+      "book": "docs/tuning/data/selective-search-confirmation.epd"
+    },
+    {
+      "name": "eval3-combined-clock",
+      "games": 2000,
+      "time_control": "1.0+0.01",
+      "book": "docs/tuning/data/selective-search-confirmation.epd"
+    }
+  ],
+  "efficiency": {
+    "depth": 8,
+    "samples": 7,
+    "move_time_ms": 500,
+    "suite": "tests/data/search-performance.epd"
+  },
+  "policy": "Fixed caps declared before any combined match result; no early stopping or retuning from results. The 2048-position historical book differs from this round's component-test books, but is not a new independent external opening source. Shared-host match channels and validation jobs may overlap. Retain every result; do not add component Elo estimates."
+}

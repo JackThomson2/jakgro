@@ -1,0 +1,37 @@
+{
+  "patch": "eval: Validate safe checks against resulting occupancy",
+  "base_revision": "03c5d7e07c7be8896e9c9b12bb220064a624a64b",
+  "baseline_sha256": "83f9cd4942891c6694dc8dcacf8c5a9f9096a78c3e6ac5b0550d8268206637b0",
+  "candidate_sha256": "fad263700afb397d01350cd17ff6c154139620cc387bd89ed1a53fae35332d1a",
+  "scope": "Validate existing knight, bishop and rook checking candidates against resulting occupancy, absolute pins and legal immediate captures. Retain the queen approximation and original candidate prefilter. No mobility, weight, search, fixture or pawn-race changes.",
+  "settings": {
+    "aggression": 75,
+    "threads": 1,
+    "hash_mib": 16,
+    "concurrency": 20,
+    "elo0": 0,
+    "elo1": 10,
+    "alpha": 0.05,
+    "beta": 0.05
+  },
+  "matches": [
+    {
+      "name": "eval3-checks-nbr-screen",
+      "games": 1024,
+      "movetime_ms": 50,
+      "book": "docs/tuning/data/evaluation-refit-pilot/development.epd"
+    },
+    {
+      "name": "eval3-checks-nbr-clock",
+      "games": 2000,
+      "time_control": "1.0+0.01",
+      "book": "docs/tuning/data/evaluation-refit-pilot/confirmation.epd"
+    }
+  ],
+  "efficiency": {
+    "depth": 8,
+    "samples": 5,
+    "move_time_ms": 500
+  },
+  "policy": "Fixed caps, no early stopping or retuning from clock results. Final scoped candidate was selected after full/filtered/latent queen variants failed regression checks; full version also lost its screen. Archive all variants and results. Historical books, shared-host concurrent jobs, not independent external opening families."
+}

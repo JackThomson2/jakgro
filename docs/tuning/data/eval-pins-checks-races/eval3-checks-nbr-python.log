@@ -1,0 +1,22 @@
+{
+  "acceptance": {
+    "forcing_rate_retention_percent": 90,
+    "null_forbidden_attempts": 0,
+    "personality_cost_elo_floor": -75,
+    "personality_required_hits": 16,
+    "root_loss_cap_cp": 120,
+    "sacrifice_required_control_hits": 3,
+    "sacrifice_required_positive_hits": 1,
+    "same_profile_elo_floor": -35
+  },
+  "baseline_commit": "bc51beaa7e13ea47a9090168589e788984a90da7",
+  "suites": {
+    "legacy-personality": 16,
+    "null-move": 8,
+    "objective-personality": 16,
+    "openings": 48,
+    "sacrifice": 4
+  }
+}
+..................................................                       [100%]
+50 passed in 0.20s

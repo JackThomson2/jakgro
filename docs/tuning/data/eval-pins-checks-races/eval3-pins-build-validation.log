@@ -1,0 +1,8 @@
+   Compiling cozy-chess-types v0.2.2 (https://github.com/JackThomson2/cozy-chess?branch=board-state-save-restore#5851b224)
+    Checking libmimalloc-sys v0.1.49
+    Checking mimalloc v0.1.52
+   Compiling cozy-chess v0.3.4 (https://github.com/JackThomson2/cozy-chess?branch=board-state-save-restore#5851b224)
+    Checking jakgro v0.1.0 (/home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789207695935592271-0/workspace)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.95s
+    Finished `release` profile [optimized] target(s) in 0.03s
+83f9cd4942891c6694dc8dcacf8c5a9f9096a78c3e6ac5b0550d8268206637b0  target/release/jakgro

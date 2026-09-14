@@ -1,0 +1,37 @@
+{
+  "patch": "eval: Recognize tempo-sensitive passed pawn races",
+  "baseline_revision": "ede85b3dd1757477911cc6ae1f72a7fbf2176f55",
+  "baseline_sha256": "fad263700afb397d01350cd17ff6c154139620cc387bd89ed1a53fae35332d1a",
+  "candidate_sha256": "f51cf037f5bdd45ed54a1e77e2333ae5b40b82e3af4f831b7a2d7d702d487799",
+  "scope": "Add one White-relative {-1,0,1} pawn-only race feature with weight (MG 0, EG 80), append tuning index 611, and leave prior evaluation, personality, search, fixtures and PGO unchanged. Require a passed pawn with a clear entire path, no check or en passant, conservative king interception, and a lead over optimistic enemy promotions and pawn threats.",
+  "settings": {
+    "aggression": 75,
+    "threads": 1,
+    "hash_mib": 16,
+    "concurrency": 20,
+    "elo0": 0,
+    "elo1": 10,
+    "alpha": 0.05,
+    "beta": 0.05
+  },
+  "matches": [
+    {
+      "name": "eval3-races-screen",
+      "games": 1024,
+      "movetime_ms": 50,
+      "book": "docs/tuning/data/evaluation-refit-pilot/development.epd"
+    },
+    {
+      "name": "eval3-races-clock",
+      "games": 2000,
+      "time_control": "1.0+0.01",
+      "book": "docs/tuning/data/evaluation-refit-pilot/confirmation.epd"
+    }
+  ],
+  "efficiency": {
+    "depth": 8,
+    "samples": 5,
+    "move_time_ms": 500
+  },
+  "policy": "Fixed caps declared before results. No early stopping or weight tuning from these matches. Record all results and inherited safety/style mismatches. Historical opening books and shared-host overlapping jobs; not a fresh independent holdout. The modest additive term is not a forced-win or draw adjudication."
+}

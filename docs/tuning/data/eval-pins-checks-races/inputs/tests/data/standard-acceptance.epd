@@ -1,0 +1,12 @@
+# Standard-profile safety and root-loss contract, separate from frozen endpoint inputs.
+r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3 ; id standard-central-space ; category initiative ; nodes 20000 ; obm b1c3 ; bm0 b1c3 ; bm75 b1c3,f1c4 ; bm100 f1c4 ; maxloss 45 ; gate personality ; motif initiative
+4k3/8/8/8/8/8/4q3/4R1K1 w - - 0 1 ; id standard-tactical-safety ; category safety ; nodes 20000 ; obm e1e2 ; bm0 e1e2 ; bm75 e1e2 ; bm100 e1e2 ; maxloss 0 ; gate control ; motif safety
+7k/8/8/8/8/1r6/8/K7 w - - 0 1 ; id standard-defensive-safety ; category safety ; nodes 20000 ; obm a1a2 ; bm0 a1a2 ; bm75 a1a2 ; bm100 a1a2 ; maxloss 0 ; gate control ; motif safety
+r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8 ; id standard-open-king-gambit ; category forcing-attack ; nodes 100000 ; obm c3d5 ; bm0 c3d5,c1g5 ; bm75 c1g5,c3d5 ; bm100 c1g5 ; maxloss 45 ; gate personality ; motif forcing-attack
+2kr3r/pppq1ppp/2n1bn2/3p4/3P4/2P1PN2/PP1N1PPP/R2Q1RK1 w - - 0 10 ; id standard-opposite-castle-storm ; category pawn-storm ; nodes 20000 ; obm f1e1 ; bm0 f1e1 ; bm75 b2b4,f3e5,d2b3 ; bm100 b2b4 ; maxloss 45 ; gate personality ; motif pawn-storm
+2kr3r/pppq1ppp/2n1bn2/3p4/3P4/2P1PN2/PP1N1PPP/R2Q1RK1 w - - 0 10 ; id standard-opposite-castle-storm-deeper ; category pawn-storm ; nodes 400000 ; obm b2b4 ; bm0 b2b4 ; bm75 b2b4 ; bm100 b2b4 ; maxloss 0 ; gate personality ; motif pawn-storm
+6k1/5ppp/8/7Q/2B5/8/5PPP/6K1 w - - 0 1 ; id standard-forcing-mate-safety ; category safety ; nodes 20000 ; obm h5f7 ; bm0 h5f7 ; bm75 h5f7 ; bm100 h5f7 ; maxloss 0 ; gate control ; motif safety
+1r1qk2r/1ppbppb1/2n2np1/p2pNP1p/7P/6PB/PPPPP3/RNBQKR2 w Qk - 0 1 ; id standard-knight-c6-investment ; category sacrifice ; nodes 20000 ; obm d2d4 ; bm0 d2d4 ; bm75 e5c6 ; bm100 e5c6 ; maxloss 67 ; gate personality ; motif sacrifice
+r1bq1rk1/ppp2ppp/2n2n2/3p4/3P4/2PB4/PP3PPP/RNBQ1RK1 w - - 0 8 ; id standard-unsupported-greek-gift ; category anti-sacrifice ; nodes 100000 ; obm b1d2 ; bm0 b1d2 ; bm75 b1d2,f1e1 ; bm100 b1d2 ; maxloss 1 ; gate control ; motif anti-sacrifice
+r4rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP4/PPP3PP/R4RK1 w - - 0 10 ; id standard-unsupported-rook-f7 ; category anti-sacrifice ; nodes 20000 ; obm g1h1 ; bm0 g1h1 ; bm75 g1h1 ; bm100 g1h1 ; maxloss 0 ; gate control ; motif anti-sacrifice
+4k3/3q4/8/8/8/8/3Q4/4K3 w - - 0 1 ; id standard-avoid-equal-queen-trade ; category simplification ; nodes 100000 ; obm d2d7 ; bm0 d2d7 ; bm75 d2e2 ; bm100 d2e2 ; maxloss 45 ; gate personality ; motif simplification

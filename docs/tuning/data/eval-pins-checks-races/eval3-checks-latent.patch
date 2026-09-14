@@ -1,0 +1,419 @@
+diff --git a/src/engine/evaluation/features.rs b/src/engine/evaluation/features.rs
+index 02c9b19..554acb6 100644
+--- a/src/engine/evaluation/features.rs
++++ b/src/engine/evaluation/features.rs
+@@ -1236,10 +1236,8 @@ pub(super) fn attack_summary_with_style(board: &Board, style: bool) -> AttackSum
+         }
+     }
+ 
+-    // A check is safe when the square is attacked by no enemy piece, or only
+-    // by the enemy king while a second friendly piece covers it. The checking
+-    // squares are the attacks of each piece type from the enemy king's square,
+-    // so the count is one intersection per type rather than a walk over moves.
++    // Combine both geometric scans for threats and passer paths. Direct-check
++    // safety is tested separately with the checking origin vacated.
+     for color in [Color::White, Color::Black] {
+         let index = color as usize;
+         let enemy = !color;
+@@ -1316,28 +1314,133 @@ pub(super) fn attack_summary_with_style(board: &Board, style: bool) -> AttackSum
+         summary.pawn_push_threats[index] =
+             (pawn_attack_set(safe_pushes, color) & enemy_pieces).len() as i32;
+ 
+-        let safe = !theirs.attacked & (!king_reach | own.attacked_twice);
+-        let diagonals = get_bishop_moves(enemy_king, occupied);
+-        let lines = get_rook_moves(enemy_king, occupied);
+-        let checks = [
+-            get_knight_moves(enemy_king),
+-            diagonals,
+-            lines,
+-            diagonals | lines,
+-        ];
+-        let landing = !board.colors(color) & safe;
+-        for ((count, attacks), check_squares) in summary.safe_checks[index]
+-            .iter_mut()
+-            .zip(&own.type_attacks)
+-            .zip(&checks)
+-        {
+-            *count = (*attacks & *check_squares & landing).len() as i32;
+-        }
++        summary.safe_checks[index] = safe_check_counts(board, color, own, theirs);
+     }
+ 
+     summary
+ }
+ 
++/// Geometric attackers under a hypothetical occupancy, excluding removed pieces.
++/// Pinned pieces still control squares against kings.
++#[inline(always)]
++fn geometric_attackers_to(
++    board: &Board,
++    color: Color,
++    target: Square,
++    occupied: BitBoard,
++    removed: BitBoard,
++) -> BitBoard {
++    let available = board.colors(color) & !removed;
++    let queens = board.pieces(Piece::Queen);
++    ((get_pawn_attacks(target, !color) & board.pieces(Piece::Pawn))
++        | (get_knight_moves(target) & board.pieces(Piece::Knight))
++        | (get_bishop_moves(target, occupied) & (board.pieces(Piece::Bishop) | queens))
++        | (get_rook_moves(target, occupied) & (board.pieces(Piece::Rook) | queens))
++        | (get_king_moves(target) & board.pieces(Piece::King)))
++        & available
++}
++
++/// Direct N/B/R/Q checks with no legal immediate capture of the checker.
++/// Destinations count once per piece type, even if several origins can use them.
++fn safe_check_counts(
++    board: &Board,
++    color: Color,
++    own: &ColourScan,
++    theirs: &ColourScan,
++) -> [i32; 4] {
++    let candidates = safe_check_candidates(board, color, own, theirs);
++    if candidates.iter().all(|squares| squares.is_empty()) {
++        return [0; 4];
++    }
++    let pinned = if board.side_to_move() == color {
++        board.pinned() & board.colors(color)
++    } else {
++        pinned_pieces(board, color)
++    };
++    std::array::from_fn(|slot| {
++        let piece = [Piece::Knight, Piece::Bishop, Piece::Rook, Piece::Queen][slot];
++        safe_check_destinations(board, color, piece, candidates[slot], pinned, false).len()
++            as i32
++    })
++}
++
++/// Preserve the fitted feature's candidate scope before validating occupancy.
++/// Newly opened support and pinned defenders may leave safe checks uncounted.
++fn safe_check_candidates(
++    board: &Board,
++    color: Color,
++    own: &ColourScan,
++    theirs: &ColourScan,
++) -> [BitBoard; 4] {
++    let enemy_king = board.king(!color);
++    let occupied = board.occupied();
++    let diagonals = get_bishop_moves(enemy_king, occupied);
++    let lines = get_rook_moves(enemy_king, occupied);
++    let checks = [
++        get_knight_moves(enemy_king),
++        diagonals,
++        lines,
++        diagonals | lines,
++    ];
++    let safe = !theirs.attacked & (!get_king_moves(enemy_king) | own.attacked_twice);
++    let landing = !board.colors(color) & !enemy_king.bitboard() & safe;
++    std::array::from_fn(|slot| own.type_attacks[slot] & checks[slot] & landing)
++}
++
++fn safe_check_destinations(
++    board: &Board,
++    color: Color,
++    piece: Piece,
++    candidates: BitBoard,
++    pinned: BitBoard,
++    in_check: bool,
++) -> BitBoard {
++    if candidates.is_empty() {
++        return BitBoard::EMPTY;
++    }
++    let occupied = board.occupied();
++    let own_king = board.king(color);
++    let enemy = !color;
++    let enemy_king = board.king(enemy);
++    let mut safe = BitBoard::EMPTY;
++    for from in board.colored_pieces(color, piece) {
++        let attacks = attacks_from(piece, from, color, occupied);
++        let destinations =
++            pin_restricted_attacks(attacks, from, own_king, pinned) & candidates & !safe;
++        for to in destinations {
++            let after_move = (occupied & !from.bitboard()) | to.bitboard();
++            if !attacks_from(piece, to, color, after_move).has(enemy_king) {
++                continue;
++            }
++            // Outside check, the pin-line restriction proves king safety for
++            // these ordinary non-king moves. Check evasions need a fresh probe.
++            if in_check
++                && !geometric_attackers_to(board, enemy, own_king, after_move, to.bitboard())
++                    .is_empty()
++            {
++                continue;
++            }
++            let capturers = geometric_attackers_to(board, enemy, to, after_move, to.bitboard());
++            let capturable = capturers.into_iter().any(|capturer| {
++                let after_capture = after_move & !capturer.bitboard();
++                let king = if capturer == enemy_king {
++                    to
++                } else {
++                    enemy_king
++                };
++                // Once the checker is captured, the only friendly piece
++                // removed from the original masks is the checking origin.
++                geometric_attackers_to(board, color, king, after_capture, from.bitboard())
++                    .is_empty()
++            });
++            if !capturable {
++                safe |= to.bitboard();
++            }
++        }
++    }
++    safe
++}
++
+ /// Returns how many squares a piece may move to, for the fitter's expansion.
+ #[cfg(feature = "tuning")]
+ pub(super) fn mobility_count(board: &Board, piece: Piece, square: Square, color: Color) -> usize {
+@@ -2411,4 +2514,249 @@ mod tests {
+             board.play_unchecked(chess_move);
+         }
+     }
++
++    #[test]
++    fn safe_check_validation_recognizes_support_opened_by_the_checking_move() {
++        use cozy_chess::{BitBoard, Piece, Square};
++        let board: Board = "4k3/8/8/8/8/8/3R4/K2R4 w - - 0 1".parse().unwrap();
++        let safe = super::safe_check_destinations(
++            &board,
++            Color::White,
++            Piece::Rook,
++            Square::D8.bitboard(),
++            BitBoard::EMPTY,
++            false,
++        );
++        assert!(safe.has(Square::D8));
++        // The fitted prefilter does not add the newly uncovered checking square.
++        assert_eq!(super::attack_summary(&board).safe_checks[0], [0, 0, 2, 0]);
++    }
++
++    #[test]
++    fn safe_checks_reject_a_check_that_exposes_the_movers_king() {
++        let board: Board = "4r2k/8/8/8/8/8/4R3/4K3 w - - 0 1".parse().unwrap();
++        assert_eq!(super::attack_summary(&board).safe_checks[0], [0, 0, 1, 0]);
++    }
++
++    #[test]
++    fn safe_checks_must_also_evade_an_existing_check() {
++        let board: Board = "4k3/8/8/8/4N3/8/8/r6K w - - 0 1".parse().unwrap();
++        assert_eq!(super::attack_summary(&board).safe_checks[0], [0; 4]);
++    }
++
++    fn legal_safe_check_destinations(board: &Board) -> [super::BitBoard; 4] {
++        use cozy_chess::Piece;
++        let mut result = [super::BitBoard::EMPTY; 4];
++        let color = board.side_to_move();
++        board.generate_moves(|moves| {
++            let piece = board.piece_on(moves.from).unwrap();
++            let slot = match piece {
++                Piece::Knight => 0,
++                Piece::Bishop => 1,
++                Piece::Rook => 2,
++                Piece::Queen => 3,
++                Piece::Pawn | Piece::King => return false,
++            };
++            for chess_move in moves {
++                let mut child = board.clone();
++                child.play_unchecked(chess_move);
++                if !child.checkers().has(chess_move.to) {
++                    continue;
++                }
++                let mut capturable = false;
++                child.generate_moves(|replies| {
++                    if replies.to.has(chess_move.to) {
++                        capturable = true;
++                        true
++                    } else {
++                        false
++                    }
++                });
++                if !capturable {
++                    result[slot] |= chess_move.to.bitboard();
++                }
++            }
++            false
++        });
++        assert_eq!(board.side_to_move(), color);
++        result
++    }
++
++    fn filtered_safe_check_oracle(board: &Board) -> [i32; 4] {
++        use super::{BitBoard, Piece};
++        let color = board.side_to_move();
++        let enemy = !color;
++        let mut attacked = [BitBoard::EMPTY; 2];
++        let mut twice = [BitBoard::EMPTY; 2];
++        let mut type_attacks = [BitBoard::EMPTY; 4];
++        for side in [color, enemy] {
++            for piece in [
++                Piece::Pawn,
++                Piece::Knight,
++                Piece::Bishop,
++                Piece::Rook,
++                Piece::Queen,
++            ] {
++                for square in board.colored_pieces(side, piece) {
++                    let reach = super::attacks_from(piece, square, side, board.occupied());
++                    twice[side as usize] |= attacked[side as usize] & reach;
++                    attacked[side as usize] |= reach;
++                    if side == color && piece != Piece::Pawn {
++                        type_attacks[piece as usize - 1] |= reach;
++                    }
++                }
++            }
++        }
++        let enemy_king = board.king(enemy);
++        let bishop = super::get_bishop_moves(enemy_king, board.occupied());
++        let rook = super::get_rook_moves(enemy_king, board.occupied());
++        let checking = [
++            super::get_knight_moves(enemy_king),
++            bishop,
++            rook,
++            bishop | rook,
++        ];
++        let landing = !board.colors(color)
++            & !attacked[enemy as usize]
++            & (!super::get_king_moves(enemy_king) | twice[color as usize]);
++        let legal = legal_safe_check_destinations(board);
++        std::array::from_fn(|slot| {
++            (legal[slot] & type_attacks[slot] & checking[slot] & landing).len() as i32
++        })
++    }
++
++    fn mirror_safe_check_position(board: &Board) -> Board {
++        let fen = board.to_string();
++        let fields: Vec<_> = fen.split_whitespace().collect();
++        assert_eq!(fields[2], "-");
++        assert_eq!(fields[3], "-");
++        let placement = fields[0]
++            .split('/')
++            .rev()
++            .map(|rank| {
++                rank.chars()
++                    .map(|piece| {
++                        if piece.is_ascii_uppercase() {
++                            piece.to_ascii_lowercase()
++                        } else {
++                            piece.to_ascii_uppercase()
++                        }
++                    })
++                    .collect::<String>()
++            })
++            .collect::<Vec<_>>()
++            .join("/");
++        let side = if fields[1] == "w" { "b" } else { "w" };
++        format!("{placement} {side} - - {} {}", fields[4], fields[5])
++            .parse()
++            .unwrap()
++    }
++
++    #[test]
++    fn safe_check_occupancy_matches_legal_captures_and_color_mirrors() {
++        for (fen, piece, destination, expected) in [
++            ("4k3/8/8/8/8/8/8/3QK3 w - - 0 1", 3, "d8", false),
++            ("4k3/8/8/8/8/8/3R4/K2R4 w - - 0 1", 2, "d8", true),
++            ("4r2k/8/8/8/8/8/4R3/4K3 w - - 0 1", 2, "h2", false),
++            ("4r2k/8/8/8/8/8/4R3/4K3 w - - 0 1", 2, "e8", true),
++            ("4k3/8/8/8/4N3/8/8/r6K w - - 0 1", 0, "d6", false),
++            ("4k3/8/8/8/4p3/8/8/3QK3 w - - 0 1", 3, "e2", false),
++            ("7k/8/8/8/8/1Q6/b7/6RK w - - 0 1", 3, "g8", false),
++            ("4k3/K7/1B6/2b5/8/8/8/3Q4 w - - 0 1", 3, "d8", true),
++            ("4k3/4p3/8/8/2N5/8/8/K3R3 w - - 0 1", 0, "d6", true),
++        ] {
++            let board: Board = fen.parse().unwrap();
++            let oracle = legal_safe_check_destinations(&board);
++            assert_eq!(
++                oracle[piece].has(destination.parse().unwrap()),
++                expected,
++                "{fen}"
++            );
++            let mirror = mirror_safe_check_position(&board);
++            for position in [&board, &mirror] {
++                let expected = filtered_safe_check_oracle(position);
++                for style in [false, true] {
++                    let actual = super::attack_summary_with_style(position, style);
++                    assert_eq!(
++                        actual.safe_checks[position.side_to_move() as usize],
++                        expected,
++                        "{position}"
++                    );
++                }
++            }
++            let original = super::attack_summary(&board).safe_checks;
++            let flipped = super::attack_summary(&mirror).safe_checks;
++            assert_eq!(original, [flipped[1], flipped[0]], "{fen}");
++        }
++    }
++
++    #[test]
++    fn safe_check_counts_match_legal_move_generation_over_playouts() {
++        for seed in [7, 23, 53] {
++            let mut board = Board::default();
++            for turn in 0..128 {
++                let expected = filtered_safe_check_oracle(&board);
++                let actual = super::attack_summary_with_style(&board, false);
++                assert_eq!(
++                    actual.safe_checks[board.side_to_move() as usize],
++                    expected,
++                    "{board}"
++                );
++                if let Some(opposite) = board.null_move() {
++                    let expected = filtered_safe_check_oracle(&opposite);
++                    assert_eq!(
++                        actual.safe_checks[opposite.side_to_move() as usize],
++                        expected,
++                        "other side of {board}"
++                    );
++                }
++                let mut moves = Vec::new();
++                board.generate_moves(|batch| {
++                    moves.extend(batch);
++                    false
++                });
++                if moves.is_empty() {
++                    board = Board::default();
++                } else {
++                    board.play_unchecked(moves[(turn * seed + 11) % moves.len()]);
++                }
++            }
++        }
++    }
++
++    #[cfg(feature = "tuning")]
++    #[test]
++    fn safe_check_occupancy_matches_the_tuning_vector() {
++        use crate::engine::evaluation::tuning::{current_weights, tuning_features};
++        let weights = current_weights();
++        for fen in [
++            "4k3/8/8/8/8/8/3R4/K2R4 w - - 0 1",
++            "4r2k/8/8/8/8/8/4R3/4K3 w - - 0 1",
++            "4k3/8/8/8/4N3/8/8/r6K w - - 0 1",
++            "7k/8/8/8/8/1Q6/b7/6RK w - - 0 1",
++            "4k3/K7/1B6/2b5/8/8/8/3Q4 w - - 0 1",
++            "4k3/4p3/8/8/2N5/8/8/K3R3 w - - 0 1",
++        ] {
++            let board: Board = fen.parse().unwrap();
++            for position in [&board, &mirror_safe_check_position(&board)] {
++                let expected = super::weights::score(&super::extract_with_style(position, false));
++                let vector = tuning_features(position);
++                let actual = vector
++                    .entries
++                    .iter()
++                    .fold((0, 0), |(mg, eg), &(index, count)| {
++                        let weight = weights[index as usize];
++                        (
++                            mg + weight.0 * i32::from(count),
++                            eg + weight.1 * i32::from(count),
++                        )
++                    });
++                assert_eq!(
++                    actual,
++                    (expected.middle_game(), expected.end_game()),
++                    "{position}"
++                );
++            }
++        }
++    }
+ }
+

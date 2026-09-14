@@ -1,0 +1,67 @@
+[
+  {
+    "command": "NEXTEST_TEST_THREADS=4 cargo nextest run --no-tests=pass",
+    "exit_status": 0,
+    "log": "eval3-pins-tests.log",
+    "passed": 297,
+    "stage": "pins"
+  },
+  {
+    "command": "NEXTEST_TEST_THREADS=4 cargo nextest run --no-tests=pass --features tuning",
+    "exit_status": 0,
+    "log": "eval3-pins-tests.log",
+    "passed": 314,
+    "stage": "pins"
+  },
+  {
+    "command": "NEXTEST_TEST_THREADS=4 cargo nextest run --no-tests=pass",
+    "exit_status": 0,
+    "log": "eval3-checks-nbr-tests.log",
+    "passed": 302,
+    "stage": "checks"
+  },
+  {
+    "command": "NEXTEST_TEST_THREADS=4 cargo nextest run --no-tests=pass --features tuning",
+    "exit_status": 0,
+    "log": "eval3-checks-nbr-tests.log",
+    "passed": 320,
+    "stage": "checks"
+  },
+  {
+    "command": "NEXTEST_TEST_THREADS=4 cargo nextest run --no-tests=pass",
+    "exit_status": 0,
+    "log": "eval3-races-tests.log",
+    "passed": 307,
+    "stage": "races"
+  },
+  {
+    "command": "NEXTEST_TEST_THREADS=4 cargo nextest run --no-tests=pass --features tuning",
+    "exit_status": 0,
+    "log": "eval3-races-tests.log",
+    "passed": 326,
+    "stage": "races"
+  },
+  {
+    "command": "python3 -m pytest tools/tests -q",
+    "exit_status": 0,
+    "log": "eval3-final-python.log",
+    "passed": 118,
+    "subtests": 41
+  },
+  {
+    "command": "cargo fmt --check && cargo clippy --all-targets --features tuning -- -D warnings && cargo build --release --locked --bin jakgro && cmp target/release/jakgro \"$JAKKOO_TEMP/eval3-races\" && sha256sum target/release/jakgro",
+    "exit_status": 0,
+    "log": "eval3-races-validation.log"
+  },
+  {
+    "command": "python3 tools/measure_acceptance.py --engine \"$JAKKOO_TEMP/eval3-races\" --suite tests/data/standard-acceptance.epd --selected-profile 75 --summary-json \"$JAKKOO_TEMP/eval3-races-acceptance.json\" --check",
+    "disposition": {
+      "base": "11/11 pass",
+      "exception": "standard-opposite-castle-storm at 20000 nodes: f1e1 instead of the reviewed bm75 alternatives, zero measured objective reference loss; all mandatory safety controls and the 400000-node b2b4 target pass",
+      "pins_checks_races": "10/11 pass",
+      "policy": "The mismatch is recorded, not erased by repinning a fixture or increasing a loss cap."
+    },
+    "exit_status": 1,
+    "log": "eval3-races-acceptance.log"
+  }
+]

@@ -1,0 +1,674 @@
+[
+  {
+    "binary": "eval3-pins",
+    "position": "queen-trade",
+    "nodes": 100000,
+    "free": {
+      "0": {
+        "bestmove": "d2d7",
+        "score": "cp 0",
+        "depth": 7,
+        "nodes": 46378,
+        "elapsed_ms": 16,
+        "nps": 2867813,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "75": {
+        "bestmove": "d2e2",
+        "score": "cp 0",
+        "depth": 7,
+        "nodes": 82848,
+        "elapsed_ms": 29,
+        "nps": 2831282,
+        "personality": {
+          "nodes": 6986,
+          "attempts": 12,
+          "completed": 12,
+          "exhausted": 0,
+          "selections": 1
+        }
+      },
+      "100": {
+        "bestmove": "d2e2",
+        "score": "cp 0",
+        "depth": 5,
+        "nodes": 64600,
+        "elapsed_ms": 21,
+        "nps": 2990438,
+        "personality": {
+          "nodes": 4859,
+          "attempts": 6,
+          "completed": 3,
+          "exhausted": 3,
+          "selections": 1
+        }
+      }
+    },
+    "restricted": {
+      "d2d7": {
+        "bestmove": "d2d7",
+        "score": "cp 0",
+        "depth": 30,
+        "nodes": 79295,
+        "elapsed_ms": 44,
+        "nps": 1773538,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "d2e2": {
+        "bestmove": "d2e2",
+        "score": "cp 0",
+        "depth": 9,
+        "nodes": 72148,
+        "elapsed_ms": 25,
+        "nps": 2816491,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  },
+  {
+    "binary": "eval3-pins",
+    "position": "queen-trade",
+    "nodes": 400000,
+    "free": {
+      "0": {
+        "bestmove": "d2d7",
+        "score": "cp 0",
+        "depth": 9,
+        "nodes": 242959,
+        "elapsed_ms": 82,
+        "nps": 2944450,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "75": {
+        "bestmove": "d2e2",
+        "score": "cp 0",
+        "depth": 8,
+        "nodes": 200343,
+        "elapsed_ms": 72,
+        "nps": 2755583,
+        "personality": {
+          "nodes": 11082,
+          "attempts": 12,
+          "completed": 12,
+          "exhausted": 1,
+          "selections": 1
+        }
+      },
+      "100": {
+        "bestmove": "d2e2",
+        "score": "cp 0",
+        "depth": 7,
+        "nodes": 328565,
+        "elapsed_ms": 114,
+        "nps": 2871996,
+        "personality": {
+          "nodes": 13051,
+          "attempts": 7,
+          "completed": 3,
+          "exhausted": 5,
+          "selections": 1
+        }
+      }
+    },
+    "restricted": {
+      "d2d7": {
+        "bestmove": "d2d7",
+        "score": "cp 0",
+        "depth": 33,
+        "nodes": 302573,
+        "elapsed_ms": 177,
+        "nps": 1702430,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "d2e2": {
+        "bestmove": "d2e2",
+        "score": "cp 0",
+        "depth": 11,
+        "nodes": 288082,
+        "elapsed_ms": 101,
+        "nps": 2829971,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  },
+  {
+    "binary": "eval3-pins",
+    "position": "checked-rook-capture",
+    "nodes": 100000,
+    "free": {
+      "0": {
+        "bestmove": "d1e2",
+        "score": "cp 1323",
+        "depth": 6,
+        "nodes": 68672,
+        "elapsed_ms": 16,
+        "nps": 4231443,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "75": {
+        "bestmove": "d1e2",
+        "score": "cp 1332",
+        "depth": 6,
+        "nodes": 82101,
+        "elapsed_ms": 18,
+        "nps": 4452314,
+        "personality": {
+          "nodes": 4370,
+          "attempts": 5,
+          "completed": 2,
+          "exhausted": 3,
+          "selections": 0
+        }
+      },
+      "100": {
+        "bestmove": "d1e2",
+        "score": "cp 1317",
+        "depth": 5,
+        "nodes": 89854,
+        "elapsed_ms": 20,
+        "nps": 4422849,
+        "personality": {
+          "nodes": 2130,
+          "attempts": 4,
+          "completed": 3,
+          "exhausted": 1,
+          "selections": 0
+        }
+      }
+    },
+    "restricted": {
+      "d1e2": {
+        "bestmove": "d1e2",
+        "score": "cp 1335",
+        "depth": 7,
+        "nodes": 97072,
+        "elapsed_ms": 20,
+        "nps": 4668044,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "e1e2": {
+        "bestmove": "e1e2",
+        "score": "cp 1333",
+        "depth": 8,
+        "nodes": 85904,
+        "elapsed_ms": 20,
+        "nps": 4246428,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  },
+  {
+    "binary": "eval3-pins",
+    "position": "checked-rook-capture",
+    "nodes": 400000,
+    "free": {
+      "0": {
+        "bestmove": "d1e2",
+        "score": "cp 1339",
+        "depth": 9,
+        "nodes": 350667,
+        "elapsed_ms": 73,
+        "nps": 4793992,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "75": {
+        "bestmove": "d1e2",
+        "score": "cp 1337",
+        "depth": 8,
+        "nodes": 326471,
+        "elapsed_ms": 66,
+        "nps": 4930635,
+        "personality": {
+          "nodes": 7443,
+          "attempts": 7,
+          "completed": 3,
+          "exhausted": 4,
+          "selections": 1
+        }
+      },
+      "100": {
+        "bestmove": "d1e2",
+        "score": "cp 1335",
+        "depth": 7,
+        "nodes": 326361,
+        "elapsed_ms": 65,
+        "nps": 4962858,
+        "personality": {
+          "nodes": 6226,
+          "attempts": 6,
+          "completed": 3,
+          "exhausted": 3,
+          "selections": 0
+        }
+      }
+    },
+    "restricted": {
+      "d1e2": {
+        "bestmove": "d1e2",
+        "score": "cp 1338",
+        "depth": 9,
+        "nodes": 267531,
+        "elapsed_ms": 54,
+        "nps": 4892328,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "e1e2": {
+        "bestmove": "e1e2",
+        "score": "cp 1340",
+        "depth": 10,
+        "nodes": 334654,
+        "elapsed_ms": 73,
+        "nps": 4542652,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  },
+  {
+    "binary": "eval3-checks",
+    "position": "queen-trade",
+    "nodes": 100000,
+    "free": {
+      "0": {
+        "bestmove": "d2d7",
+        "score": "cp 0",
+        "depth": 7,
+        "nodes": 49738,
+        "elapsed_ms": 23,
+        "nps": 2107381,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "75": {
+        "bestmove": "d2e2",
+        "score": "cp 0",
+        "depth": 7,
+        "nodes": 76323,
+        "elapsed_ms": 35,
+        "nps": 2141190,
+        "personality": {
+          "nodes": 6658,
+          "attempts": 12,
+          "completed": 12,
+          "exhausted": 0,
+          "selections": 1
+        }
+      },
+      "100": {
+        "bestmove": "d2d7",
+        "score": "cp 0",
+        "depth": 5,
+        "nodes": 67622,
+        "elapsed_ms": 30,
+        "nps": 2186739,
+        "personality": {
+          "nodes": 3074,
+          "attempts": 6,
+          "completed": 2,
+          "exhausted": 4,
+          "selections": 0
+        }
+      }
+    },
+    "restricted": {
+      "d2d7": {
+        "bestmove": "d2d7",
+        "score": "cp 0",
+        "depth": 30,
+        "nodes": 79295,
+        "elapsed_ms": 48,
+        "nps": 1618328,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "d2e2": {
+        "bestmove": "d2e2",
+        "score": "cp 0",
+        "depth": 9,
+        "nodes": 63006,
+        "elapsed_ms": 29,
+        "nps": 2107877,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  },
+  {
+    "binary": "eval3-checks",
+    "position": "queen-trade",
+    "nodes": 400000,
+    "free": {
+      "0": {
+        "bestmove": "d2d7",
+        "score": "cp 0",
+        "depth": 9,
+        "nodes": 248264,
+        "elapsed_ms": 113,
+        "nps": 2177816,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "75": {
+        "bestmove": "d2e2",
+        "score": "cp 0",
+        "depth": 8,
+        "nodes": 190475,
+        "elapsed_ms": 88,
+        "nps": 2154934,
+        "personality": {
+          "nodes": 10754,
+          "attempts": 12,
+          "completed": 12,
+          "exhausted": 1,
+          "selections": 1
+        }
+      },
+      "100": {
+        "bestmove": "d2d7",
+        "score": "cp 0",
+        "depth": 7,
+        "nodes": 283703,
+        "elapsed_ms": 126,
+        "nps": 2242616,
+        "personality": {
+          "nodes": 11266,
+          "attempts": 7,
+          "completed": 2,
+          "exhausted": 6,
+          "selections": 0
+        }
+      }
+    },
+    "restricted": {
+      "d2d7": {
+        "bestmove": "d2d7",
+        "score": "cp 0",
+        "depth": 33,
+        "nodes": 302573,
+        "elapsed_ms": 188,
+        "nps": 1601217,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "d2e2": {
+        "bestmove": "d2e2",
+        "score": "cp 0",
+        "depth": 11,
+        "nodes": 205864,
+        "elapsed_ms": 97,
+        "nps": 2115242,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  },
+  {
+    "binary": "eval3-checks",
+    "position": "checked-rook-capture",
+    "nodes": 100000,
+    "free": {
+      "0": {
+        "bestmove": "d1e2",
+        "score": "cp 1323",
+        "depth": 6,
+        "nodes": 71018,
+        "elapsed_ms": 18,
+        "nps": 3935731,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "75": {
+        "bestmove": "d1e2",
+        "score": "cp 1332",
+        "depth": 6,
+        "nodes": 82055,
+        "elapsed_ms": 21,
+        "nps": 3903581,
+        "personality": {
+          "nodes": 4370,
+          "attempts": 5,
+          "completed": 2,
+          "exhausted": 3,
+          "selections": 0
+        }
+      },
+      "100": {
+        "bestmove": "d1e2",
+        "score": "cp 1317",
+        "depth": 5,
+        "nodes": 89413,
+        "elapsed_ms": 22,
+        "nps": 4042097,
+        "personality": {
+          "nodes": 2130,
+          "attempts": 4,
+          "completed": 3,
+          "exhausted": 1,
+          "selections": 0
+        }
+      }
+    },
+    "restricted": {
+      "d1e2": {
+        "bestmove": "d1e2",
+        "score": "cp 1323",
+        "depth": 6,
+        "nodes": 70181,
+        "elapsed_ms": 16,
+        "nps": 4167868,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "e1e2": {
+        "bestmove": "e1e2",
+        "score": "cp 1331",
+        "depth": 7,
+        "nodes": 54984,
+        "elapsed_ms": 15,
+        "nps": 3623142,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  },
+  {
+    "binary": "eval3-checks",
+    "position": "checked-rook-capture",
+    "nodes": 400000,
+    "free": {
+      "0": {
+        "bestmove": "e1e2",
+        "score": "cp 1346",
+        "depth": 9,
+        "nodes": 345080,
+        "elapsed_ms": 79,
+        "nps": 4333378,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "75": {
+        "bestmove": "d1e2",
+        "score": "cp 1337",
+        "depth": 8,
+        "nodes": 293300,
+        "elapsed_ms": 65,
+        "nps": 4472010,
+        "personality": {
+          "nodes": 8466,
+          "attempts": 6,
+          "completed": 2,
+          "exhausted": 5,
+          "selections": 0
+        }
+      },
+      "100": {
+        "bestmove": "d1e2",
+        "score": "cp 1331",
+        "depth": 7,
+        "nodes": 373789,
+        "elapsed_ms": 85,
+        "nps": 4388541,
+        "personality": {
+          "nodes": 4180,
+          "attempts": 6,
+          "completed": 4,
+          "exhausted": 2,
+          "selections": 1
+        }
+      }
+    },
+    "restricted": {
+      "d1e2": {
+        "bestmove": "d1e2",
+        "score": "cp 1350",
+        "depth": 9,
+        "nodes": 345055,
+        "elapsed_ms": 74,
+        "nps": 4628375,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      },
+      "e1e2": {
+        "bestmove": "e1e2",
+        "score": "cp 1341",
+        "depth": 10,
+        "nodes": 355852,
+        "elapsed_ms": 81,
+        "nps": 4360402,
+        "personality": {
+          "nodes": 0,
+          "attempts": 0,
+          "completed": 0,
+          "exhausted": 0,
+          "selections": 0
+        }
+      }
+    }
+  }
+]

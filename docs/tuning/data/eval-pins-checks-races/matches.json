@@ -1,0 +1,515 @@
+[
+  {
+    "check_retention_percent": 99.757269,
+    "comparison": "pins",
+    "forcing_retention_percent": 99.688164,
+    "games": 1024,
+    "hoeffding_elo_ci95": [
+      -34.35337,
+      49.503012
+    ],
+    "limit": {
+      "mode": "fixed-movetime",
+      "movetime_ms": 50,
+      "nodes_per_move": null,
+      "time_control": null
+    },
+    "paired_result": {
+      "elo": 7.465585,
+      "elo_ci95": [
+        -3.615438,
+        18.56182
+      ],
+      "elo_margin_95": 11.088629,
+      "games": 1024,
+      "los_percent": 90.665426,
+      "pair_distribution": {
+        "0.0": 21,
+        "0.5": 48,
+        "1.0": 348,
+        "1.5": 78,
+        "2.0": 17
+      },
+      "pairs": 512,
+      "score_percent": 51.074219,
+      "score_percent_ci95": [
+        49.479715,
+        52.668722
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "continue",
+        "elo0": 0,
+        "elo1": 10,
+        "llr": 0.771396,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "stem": "eval3-pins-screen",
+    "wdl": {
+      "decisive_percent": 80.46875,
+      "draws": 200,
+      "losses": 401,
+      "score_percent": 51.074219,
+      "wins": 423
+    }
+  },
+  {
+    "check_retention_percent": 100.246054,
+    "comparison": "pins",
+    "forcing_retention_percent": 100.034112,
+    "games": 2000,
+    "hoeffding_elo_ci95": [
+      -25.021663,
+      34.822829
+    ],
+    "limit": {
+      "mode": "fixed-time",
+      "movetime_ms": null,
+      "nodes_per_move": null,
+      "time_control": "1.0+0.01"
+    },
+    "paired_result": {
+      "elo": 4.864416,
+      "elo_ci95": [
+        -4.105091,
+        13.840413
+      ],
+      "elo_margin_95": 8.972752,
+      "games": 2000,
+      "los_percent": 85.609416,
+      "pair_distribution": {
+        "0.0": 45,
+        "0.5": 145,
+        "1.0": 600,
+        "1.5": 157,
+        "2.0": 53
+      },
+      "pairs": 1000,
+      "score_percent": 50.7,
+      "score_percent_ci95": [
+        49.409257,
+        51.990743
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "continue",
+        "elo0": 0,
+        "elo1": 10,
+        "llr": -0.064221,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "stem": "eval3-pins-clock",
+    "wdl": {
+      "decisive_percent": 78.7,
+      "draws": 426,
+      "losses": 773,
+      "score_percent": 50.7,
+      "wins": 801
+    }
+  },
+  {
+    "check_retention_percent": 105.347191,
+    "comparison": "full-checks",
+    "forcing_retention_percent": 101.217996,
+    "games": 1024,
+    "hoeffding_elo_ci95": [
+      -50.88871,
+      32.983413
+    ],
+    "limit": {
+      "mode": "fixed-movetime",
+      "movetime_ms": 50,
+      "nodes_per_move": null,
+      "time_control": null
+    },
+    "paired_result": {
+      "elo": -8.823503,
+      "elo_ci95": [
+        -20.691635,
+        3.02407
+      ],
+      "elo_margin_95": 11.857853,
+      "games": 1024,
+      "los_percent": 7.219777,
+      "pair_distribution": {
+        "0.0": 24,
+        "0.5": 81,
+        "1.0": 323,
+        "1.5": 65,
+        "2.0": 19
+      },
+      "pairs": 512,
+      "score_percent": 48.730469,
+      "score_percent_ci95": [
+        47.02575,
+        50.435188
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "accept_h0",
+        "elo0": 0,
+        "elo1": 10,
+        "llr": -3.782486,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "stem": "eval3-checks-full-screen",
+    "wdl": {
+      "decisive_percent": 80.273438,
+      "draws": 202,
+      "losses": 424,
+      "score_percent": 48.730469,
+      "wins": 398
+    }
+  },
+  {
+    "check_retention_percent": 97.530593,
+    "comparison": "checks",
+    "forcing_retention_percent": 99.109999,
+    "games": 1024,
+    "hoeffding_elo_ci95": [
+      -33.668261,
+      50.195663
+    ],
+    "limit": {
+      "mode": "fixed-movetime",
+      "movetime_ms": 50,
+      "nodes_per_move": null,
+      "time_control": null
+    },
+    "paired_result": {
+      "elo": 8.144513,
+      "elo_ci95": [
+        -2.933198,
+        19.238811
+      ],
+      "elo_margin_95": 11.086005,
+      "games": 1024,
+      "los_percent": 92.519869,
+      "pair_distribution": {
+        "0.0": 16,
+        "0.5": 59,
+        "1.0": 342,
+        "1.5": 75,
+        "2.0": 20
+      },
+      "pairs": 512,
+      "score_percent": 51.171875,
+      "score_percent_ci95": [
+        49.577889,
+        52.765861
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "continue",
+        "elo0": 0,
+        "elo1": 10,
+        "llr": 0.984321,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "stem": "eval3-checks-nbr-screen",
+    "wdl": {
+      "decisive_percent": 80.46875,
+      "draws": 200,
+      "losses": 400,
+      "score_percent": 51.171875,
+      "wins": 424
+    }
+  },
+  {
+    "check_retention_percent": 97.545179,
+    "comparison": "checks",
+    "forcing_retention_percent": 99.348019,
+    "games": 2000,
+    "hoeffding_elo_ci95": [
+      -27.467625,
+      32.367959
+    ],
+    "limit": {
+      "mode": "fixed-time",
+      "movetime_ms": null,
+      "nodes_per_move": null,
+      "time_control": "1.0+0.01"
+    },
+    "paired_result": {
+      "elo": 2.432089,
+      "elo_ci95": [
+        -5.813401,
+        10.68032
+      ],
+      "elo_margin_95": 8.246861,
+      "games": 2000,
+      "los_percent": 71.841592,
+      "pair_distribution": {
+        "0.0": 39,
+        "0.5": 128,
+        "1.0": 654,
+        "1.5": 138,
+        "2.0": 41
+      },
+      "pairs": 1000,
+      "score_percent": 50.35,
+      "score_percent_ci95": [
+        49.163462,
+        51.536538
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "continue",
+        "elo0": 0,
+        "elo1": 10,
+        "llr": -1.449966,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "stem": "eval3-checks-nbr-clock",
+    "wdl": {
+      "decisive_percent": 80.2,
+      "draws": 396,
+      "losses": 795,
+      "score_percent": 50.35,
+      "wins": 809
+    }
+  },
+  {
+    "check_retention_percent": 103.819251,
+    "comparison": "races",
+    "forcing_retention_percent": 101.573197,
+    "games": 1024,
+    "hoeffding_elo_ci95": [
+      -42.941495,
+      40.87597
+    ],
+    "limit": {
+      "mode": "fixed-movetime",
+      "movetime_ms": 50,
+      "nodes_per_move": null,
+      "time_control": null
+    },
+    "paired_result": {
+      "elo": -1.017881,
+      "elo_ci95": [
+        -10.781306,
+        8.743937
+      ],
+      "elo_margin_95": 9.762621,
+      "games": 1024,
+      "los_percent": 41.901783,
+      "pair_distribution": {
+        "0.0": 13,
+        "0.5": 58,
+        "1.0": 372,
+        "1.5": 57,
+        "2.0": 12
+      },
+      "pairs": 512,
+      "score_percent": 49.853516,
+      "score_percent_ci95": [
+        48.448943,
+        51.258088
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "continue",
+        "elo0": 0,
+        "elo1": 10,
+        "llr": -2.425622,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "stem": "eval3-races-screen",
+    "wdl": {
+      "decisive_percent": 79.199219,
+      "draws": 213,
+      "losses": 407,
+      "score_percent": 49.853516,
+      "wins": 404
+    }
+  },
+  {
+    "check_retention_percent": 102.241698,
+    "comparison": "races",
+    "forcing_retention_percent": 100.892694,
+    "games": 2000,
+    "hoeffding_elo_ci95": [
+      -28.691611,
+      31.141747
+    ],
+    "limit": {
+      "mode": "fixed-time",
+      "movetime_ms": null,
+      "nodes_per_move": null,
+      "time_control": "1.0+0.01"
+    },
+    "paired_result": {
+      "elo": 1.21603,
+      "elo_ci95": [
+        -5.092834,
+        7.525695
+      ],
+      "elo_margin_95": 6.309265,
+      "games": 2000,
+      "los_percent": 64.721132,
+      "pair_distribution": {
+        "0.0": 18,
+        "0.5": 93,
+        "1.0": 774,
+        "1.5": 94,
+        "2.0": 21
+      },
+      "pairs": 1000,
+      "score_percent": 50.175,
+      "score_percent_ci95": [
+        49.267135,
+        51.082865
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "accept_h0",
+        "elo0": 0,
+        "elo1": 10,
+        "llr": -3.650184,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "stem": "eval3-races-clock",
+    "wdl": {
+      "decisive_percent": 80.95,
+      "draws": 381,
+      "losses": 806,
+      "score_percent": 50.175,
+      "wins": 813
+    }
+  },
+  {
+    "check_retention_percent": 101.893879,
+    "comparison": "combined",
+    "forcing_retention_percent": 100.380353,
+    "games": 4096,
+    "hoeffding_elo_ci95": [
+      -17.985205,
+      23.774168
+    ],
+    "limit": {
+      "mode": "fixed-movetime",
+      "movetime_ms": 50,
+      "nodes_per_move": null,
+      "time_control": null
+    },
+    "paired_result": {
+      "elo": 2.884053,
+      "elo_ci95": [
+        -3.87388,
+        9.644169
+      ],
+      "elo_margin_95": 6.759025,
+      "games": 4096,
+      "los_percent": 79.855022,
+      "pair_distribution": {
+        "0.0": 108,
+        "0.5": 364,
+        "1.0": 1083,
+        "1.5": 372,
+        "2.0": 121
+      },
+      "pairs": 2048,
+      "score_percent": 50.415039,
+      "score_percent_ci95": [
+        49.442527,
+        51.387551
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "continue",
+        "elo0": 0,
+        "elo1": 10,
+        "llr": -1.778331,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "stem": "eval3-combined-confirm",
+    "wdl": {
+      "decisive_percent": 72.753906,
+      "draws": 1116,
+      "losses": 1473,
+      "score_percent": 50.415039,
+      "wins": 1507
+    }
+  },
+  {
+    "check_retention_percent": 104.39198,
+    "comparison": "combined",
+    "forcing_retention_percent": 101.012918,
+    "games": 2000,
+    "hoeffding_elo_ci95": [
+      -32.192738,
+      27.642438
+    ],
+    "limit": {
+      "mode": "fixed-time",
+      "movetime_ms": null,
+      "nodes_per_move": null,
+      "time_control": "1.0+0.01"
+    },
+    "paired_result": {
+      "elo": -2.258363,
+      "elo_ci95": [
+        -11.830471,
+        7.310317
+      ],
+      "elo_margin_95": 9.570394,
+      "games": 2000,
+      "los_percent": 32.181468,
+      "pair_distribution": {
+        "0.0": 61,
+        "0.5": 158,
+        "1.0": 574,
+        "1.5": 147,
+        "2.0": 60
+      },
+      "pairs": 1000,
+      "score_percent": 49.675,
+      "score_percent_ci95": [
+        48.298116,
+        51.051884
+      ],
+      "sprt": {
+        "alpha": 0.05,
+        "beta": 0.05,
+        "decision": "accept_h0",
+        "elo0": 0,
+        "elo1": 10,
+        "llr": -3.044579,
+        "lower_bound": -2.944439,
+        "upper_bound": 2.944439
+      }
+    },
+    "stem": "eval3-combined-clock",
+    "wdl": {
+      "decisive_percent": 75.45,
+      "draws": 491,
+      "losses": 761,
+      "score_percent": 49.675,
+      "wins": 748
+    }
+  }
+]

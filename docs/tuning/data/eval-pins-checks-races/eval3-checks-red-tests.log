@@ -1,0 +1,60 @@
+Error: Checks check-fc8942e39e949f406a3667fc92322c1d-4: NEXTEST_TEST_THREADS='2' 'cargo' 'nextest' 'run' '--no-tests=pass' '--lib' 'safe_checks_'
+  directory: /home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789207695935592271-0/workspace
+bash-92: failed (exit status 100); workspace=active; generation=5; elapsed=1002 ms; timeout=600000 ms; captured=2639 bytes
+  directory: /home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789207695935592271-0/workspace
+  queue=19 ms; execution=982 ms; result_collected_at_snapshot=false
+  output:
+   Compiling jakgro v0.1.0 (/home/ubuntu/.local/state/jakkoo/worktrees/worktree-1135455-1789207695935592271-0/workspace)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.87s
+────────────
+ Nextest run ID c654af74-4aa3-4964-8c02-93bf2a7c94a3 with nextest profile: default
+    Starting 3 tests across 1 binary (251 tests skipped)
+        FAIL [   0.004s] (1/3) jakgro engine::evaluation::features::tests::safe_checks_recognize_support_opened_by_the_checking_move
+  stdout ───
+
+    running 1 test
+    test engine::evaluation::features::tests::safe_checks_recognize_support_opened_by_the_checking_move ... FAILED
+
+    failures:
+
+    failures:
+        engine::evaluation::features::tests::safe_checks_recognize_support_opened_by_the_checking_move
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 253 filtered out; finished in 0.00s
+
+  stderr ───
+
+    thread 'engine::evaluation::features::tests::safe_checks_recognize_support_opened_by_the_checking_move' panicked at src/engine/evaluation/features.rs:2418:9:
+    assertion `left == right` failed
+      left: [0, 0, 2, 0]
+     right: [0, 0, 3, 0]
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: 1 test still running
+        FAIL [   0.005s] (2/3) jakgro engine::evaluation::features::tests::safe_checks_must_also_evade_an_existing_check
+  stdout ───
+
+    running 1 test
+    test engine::evaluation::features::tests::safe_checks_must_also_evade_an_existing_check ... FAILED
+
+    failures:
+
+    failures:
+        engine::evaluation::features::tests::safe_checks_must_also_evade_an_existing_check
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 253 filtered out; finished in 0.00s
+
+  stderr ───
+
+    thread 'engine::evaluation::features::tests::safe_checks_must_also_evade_an_existing_check' panicked at src/engine/evaluation/features.rs:2430:9:
+    assertion `left == right` failed
+      left: [2, 0, 0, 0]
+     right: [0, 0, 0, 0]
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+────────────
+     Summary [   0.005s] 2/3 tests run: 0 passed, 2 failed, 251 skipped
+        FAIL [   0.004s] (1/3) jakgro engine::evaluation::features::tests::safe_checks_recognize_support_opened_by_the_checking_move
+        FAIL [   0.005s] (2/3) jakgro engine::evaluation::features::tests::safe_checks_must_also_evade_an_existing_check
+warning: 1/3 tests were not run due to test failure (run with --no-fail-fast to run all tests, or run with --max-fail)
+error: test run failed

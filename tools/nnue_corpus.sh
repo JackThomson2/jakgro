@@ -10,6 +10,7 @@ export ART=artifacts/autoresearch
 export OPENINGS=${OPENINGS:-docs/tuning/data/selective-search-confirmation.epd}
 export CONCURRENCY=${CONCURRENCY:-88}
 export BASELINE="$ART/baseline/jakgro-${BASELINE_COMMIT:0:12}"
+export ENGINE=target/release/jakgro
 export RUNNER=target/release/selfplay
 export HELPER=target/release/nnue-data
 log() { printf 'autoresearch: %s\n' "$*" >&2; }

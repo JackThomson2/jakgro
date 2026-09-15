@@ -20,8 +20,19 @@ NNUE_CORPUS_SKIP_PLIES=8
 # Aggression profiles for the two sides; unequal profiles keep the two games
 # of a colour-reversed pair distinct.
 NNUE_CORPUS_PROFILES=(75 0)
+# Optional teacher network: when set, both generating sides load it, so the
+# corpus is labelled by the NNUE engine rather than the handcrafted one. The
+# file must be a previously published network; record its origin here.
+NNUE_CORPUS_TEACHER_NET=
 
 nnue_corpus_dir="$ART/corpus/g${NNUE_CORPUS_GAMES_PER_SEED}-n${NNUE_CORPUS_NODES}-r${NNUE_CORPUS_RANDOM_PLIES}-s${NNUE_CORPUS_SKIP_PLIES}-a${NNUE_CORPUS_PROFILES[0]}v${NNUE_CORPUS_PROFILES[1]}-${BASELINE_COMMIT:0:12}"
+nnue_corpus_engine=$BASELINE
+nnue_corpus_teacher=()
+if [ -n "$NNUE_CORPUS_TEACHER_NET" ]; then
+    nnue_corpus_dir+="-t$(sha256sum "$NNUE_CORPUS_TEACHER_NET" | cut -c1-12)"
+    nnue_corpus_engine=$ENGINE
+    nnue_corpus_teacher=(--eval-file "$NNUE_CORPUS_TEACHER_NET")
+fi
 
 # nnue_corpus NAME "SEEDS"... generates one cached file per seed group, then
 # concatenates them into $nnue_corpus_dir/NAME-FIRST-LAST.txt and leaves that
@@ -36,7 +47,8 @@ nnue_corpus() {
         if [ ! -f "$member" ]; then
             log "generating corpus seeds $group -> $member"
             cargo build --release --locked --features tuning --bin tune 2>&1 | tail -1 >&2
-            python3 tools/generate_nnue_corpus.py --engine "$BASELINE" --runner "$RUNNER" \
+            python3 tools/generate_nnue_corpus.py --engine "$nnue_corpus_engine" --runner "$RUNNER" \
+                "${nnue_corpus_teacher[@]}" \
                 --tune target/release/tune --openings "$OPENINGS" --output "$member" \
                 --games-per-seed "$NNUE_CORPUS_GAMES_PER_SEED" --seeds "${seeds[@]}" \
                 --nodes "$NNUE_CORPUS_NODES" --random-plies "$NNUE_CORPUS_RANDOM_PLIES" \

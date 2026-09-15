@@ -7,8 +7,12 @@
 # deterministic fixed-node self-play of the frozen baseline engine.
 
 NNUE_CORPUS_GAMES_PER_SEED=4096
-# Seed groups: one cached corpus member per group, generated in one arbiter run.
-NNUE_CORPUS_TRAINING_SEED_GROUPS=("1 2 3 4 5 6 7 8" "9 10 11 12 13 14 15 16")
+# Seed groups: one cached corpus member per group, generated in one arbiter
+# run. Semicolon-separated groups; NNUE_CORPUS_TRAINING_SEED_GROUPS_LIST in the
+# environment overrides the training groups (tools/nnue_corpus.sh uses this to
+# pre-generate members the recipe does not use yet).
+IFS=';' read -r -a NNUE_CORPUS_TRAINING_SEED_GROUPS <<< \
+    "${NNUE_CORPUS_TRAINING_SEED_GROUPS_LIST:-1 2 3 4 5 6 7 8;9 10 11 12 13 14 15 16}"
 NNUE_CORPUS_DEVELOPMENT_SEED_GROUPS=("101")
 NNUE_CORPUS_NODES=50000
 NNUE_CORPUS_RANDOM_PLIES=8
@@ -20,7 +24,8 @@ NNUE_CORPUS_PROFILES=(75 0)
 nnue_corpus_dir="$ART/corpus/g${NNUE_CORPUS_GAMES_PER_SEED}-n${NNUE_CORPUS_NODES}-r${NNUE_CORPUS_RANDOM_PLIES}-s${NNUE_CORPUS_SKIP_PLIES}-a${NNUE_CORPUS_PROFILES[0]}v${NNUE_CORPUS_PROFILES[1]}-${BASELINE_COMMIT:0:12}"
 
 # nnue_corpus NAME "SEEDS"... generates one cached file per seed group, then
-# concatenates them into $nnue_corpus_dir/NAME.txt.
+# concatenates them into $nnue_corpus_dir/NAME-FIRST-LAST.txt and leaves that
+# path in $nnue_corpus_result.
 nnue_corpus() {
     local name=$1
     shift
@@ -42,15 +47,20 @@ nnue_corpus() {
         fi
         members+=("$member")
     done
-    cat "${members[@]}" >"$nnue_corpus_dir/$name.txt.tmp"
-    mv "$nnue_corpus_dir/$name.txt.tmp" "$nnue_corpus_dir/$name.txt"
+    local first=($1)
+    local last=(${*: -1})
+    nnue_corpus_result="$nnue_corpus_dir/$name-${first[0]}-${last[-1]}.txt"
+    if [ ! -f "$nnue_corpus_result" ]; then
+        cat "${members[@]}" >"$nnue_corpus_result.tmp"
+        mv "$nnue_corpus_result.tmp" "$nnue_corpus_result"
+    fi
 }
-nnue_corpus training "${NNUE_CORPUS_TRAINING_SEED_GROUPS[@]}"
-nnue_corpus development "${NNUE_CORPUS_DEVELOPMENT_SEED_GROUPS[@]}"
 
 # Labelled corpus: plain `FEN;white-outcome;white-score-cp` lines.
-NNUE_TRAINING_SOURCE=$nnue_corpus_dir/training.txt
-NNUE_DEVELOPMENT_SOURCE=$nnue_corpus_dir/development.txt
+nnue_corpus training "${NNUE_CORPUS_TRAINING_SEED_GROUPS[@]}"
+NNUE_TRAINING_SOURCE=$nnue_corpus_result
+nnue_corpus development "${NNUE_CORPUS_DEVELOPMENT_SEED_GROUPS[@]}"
+NNUE_DEVELOPMENT_SOURCE=$nnue_corpus_result
 
 # Extra arguments for `nnue-data prepare`.
 NNUE_PREPARE_ARGS=(--deduplicate --drop-development-overlap)

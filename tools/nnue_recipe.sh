@@ -23,21 +23,24 @@ NNUE_CORPUS_PROFILES=(75 0)
 # Teacher networks for NNUE-taught seed groups: both generating sides load the
 # network into the current engine build, so those rows are labelled by the
 # neural engine rather than the handcrafted one. Each set is a previously
-# published network under $ART/teachers followed by its seed groups; sets are
-# separated by `|`, fields within a set by `,`, seeds within a group by spaces.
+# published network under $ART/teachers, optionally `@NODES` to search deeper
+# than NNUE_CORPUS_NODES, followed by its seed groups; sets are separated by
+# `|`, fields within a set by `,`, seeds within a group by spaces.
 # NNUE_CORPUS_TEACHER_SETS_LIST in the environment overrides the default.
 #   hce64-230c5e3023c7: trained on the 64 handcrafted-taught groups
 #                       (autoresearch run 18, +62.8 Elo vs HCE-75).
 #   mix80m-0b9eacd319: mirrored-feature network trained on 64 handcrafted and
 #                       16 hce64-taught groups (run 21, +97.8 Elo vs HCE-75).
 #   mix96-7d8c8fd0f3:  as above with 32 hce64-taught groups (run 22, +115.3).
+#   mix128-45549474bb92: the published nets/jakgro.nnue (run 26, +123.0).
 IFS='|' read -r -a NNUE_CORPUS_TEACHER_SETS <<< \
     "${NNUE_CORPUS_TEACHER_SETS_LIST:-hce64-230c5e3023c7,201 202 203 204 205 206 207 208,209 210 211 212 213 214 215 216,217 218 219 220 221 222 223 224,225 226 227 228 229 230 231 232|mix80m-0b9eacd319,233 234 235 236 237 238 239 240,241 242 243 244 245 246 247 248|mix96-7d8c8fd0f3,249 250 251 252 253 254 255 256,257 258 259 260 261 262 263 264}"
 
-# nnue_corpus_select TEACHER_NET points nnue_corpus at the handcrafted corpus
-# (empty argument) or at the corpus taught by that network.
+# nnue_corpus_select TEACHER_NET [NODES] points nnue_corpus at the handcrafted
+# corpus (empty argument) or at the corpus taught by that network.
 nnue_corpus_select() {
-    nnue_corpus_dir="$ART/corpus/g${NNUE_CORPUS_GAMES_PER_SEED}-n${NNUE_CORPUS_NODES}-r${NNUE_CORPUS_RANDOM_PLIES}-s${NNUE_CORPUS_SKIP_PLIES}-a${NNUE_CORPUS_PROFILES[0]}v${NNUE_CORPUS_PROFILES[1]}-${BASELINE_COMMIT:0:12}"
+    nnue_corpus_nodes=${2:-$NNUE_CORPUS_NODES}
+    nnue_corpus_dir="$ART/corpus/g${NNUE_CORPUS_GAMES_PER_SEED}-n${nnue_corpus_nodes}-r${NNUE_CORPUS_RANDOM_PLIES}-s${NNUE_CORPUS_SKIP_PLIES}-a${NNUE_CORPUS_PROFILES[0]}v${NNUE_CORPUS_PROFILES[1]}-${BASELINE_COMMIT:0:12}"
     nnue_corpus_engine=$BASELINE
     nnue_corpus_teacher=()
     if [ -n "$1" ]; then
@@ -64,7 +67,7 @@ nnue_corpus() {
                 "${nnue_corpus_teacher[@]}" \
                 --tune target/release/tune --openings "$OPENINGS" --output "$member" \
                 --games-per-seed "$NNUE_CORPUS_GAMES_PER_SEED" --seeds "${seeds[@]}" \
-                --nodes "$NNUE_CORPUS_NODES" --random-plies "$NNUE_CORPUS_RANDOM_PLIES" \
+                --nodes "$nnue_corpus_nodes" --random-plies "$NNUE_CORPUS_RANDOM_PLIES" \
                 --skip-plies "$NNUE_CORPUS_SKIP_PLIES" \
                 --candidate-aggression "${NNUE_CORPUS_PROFILES[0]}" \
                 --baseline-aggression "${NNUE_CORPUS_PROFILES[1]}" \
@@ -92,9 +95,11 @@ nnue_mixed_parts=("$NNUE_TRAINING_SOURCE")
 for set in "${NNUE_CORPUS_TEACHER_SETS[@]}"; do
     [ -n "$set" ] || continue
     IFS=',' read -r -a fields <<< "$set"
-    teacher="$ART/teachers/${fields[0]}.nnue"
+    teacher="$ART/teachers/${fields[0]%%@*}.nnue"
     [ -f "$teacher" ] || { log "missing teacher network $teacher"; exit 1; }
-    nnue_corpus_select "$teacher"
+    nodes=${fields[0]#*@}
+    [ "$nodes" != "${fields[0]}" ] || nodes=
+    nnue_corpus_select "$teacher" "$nodes"
     nnue_corpus training "${fields[@]:1}"
     nnue_mixed_parts+=("$nnue_corpus_result")
 done

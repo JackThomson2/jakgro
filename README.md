@@ -293,6 +293,54 @@ from a paste; `--dry-run` lists what it would replace.
 
 Both are behind the `tuning` feature and are not built into the shipped engine.
 
+### Neural evaluation (NNUE)
+
+The engine can replace the handcrafted static evaluation with an external
+quantized network: colored piece-square features under sixteen king buckets,
+a shared 128-unit feature transformer with clipped-ReLU activations and one
+side-to-move-relative output in centipawns. Search, terminal handling and the
+`Aggression` policy are unchanged; only `static_score` is routed. No network is
+bundled and the handcrafted evaluator remains the default:
+
+```text
+setoption name EvalFile value nets/jakgro.nnue
+setoption name Use NNUE value true
+```
+
+A rejected file or an enable without a loaded file is reported as
+`info string ... rejected: ...` and leaves the previous configuration in place.
+
+Networks are produced by the tuning-only `nnue-data` helper, entirely on CPU
+and without Python numeric dependencies:
+
+```sh
+cargo build --release --locked --features tuning --bin nnue-data --bin tune
+python3 tools/generate_nnue_corpus.py --engine target/release/jakgro \
+  --runner target/release/selfplay --tune target/release/tune \
+  --openings docs/tuning/data/selective-search-confirmation.epd \
+  --games-per-seed 4096 --seeds 1 2 3 4 --output artifacts/nnue/training.txt
+./target/release/nnue-data prepare --training artifacts/nnue/training.txt \
+  --development artifacts/nnue/development.txt --output-dir artifacts/nnue/data \
+  --deduplicate --drop-development-overlap
+./target/release/nnue-data train --data-dir artifacts/nnue/data \
+  --output-dir artifacts/nnue/net --epochs 30 --batch-size 1024 \
+  --rate 0.002 --rate-decay 0.9 --lambda 0
+```
+
+`generate_nnue_corpus.py` plays deterministic fixed-node self-play between two
+aggression profiles from seeded random-ply openings and extracts
+`FEN;white-outcome;white-score-cp` rows with `tune extract`, so the mover's own
+search score is the teacher label. `prepare` computes the runtime features,
+rejects (or, when asked, drops) duplicate positions and development rows that
+repeat a training position up to colour and rank mirroring, and binds the
+result to the helper and inputs with SHA-256 manifests. `train` runs
+full-parameter Adam over fixed gradient shards, so the exported network does
+not depend on the thread count; each epoch is exported, re-loaded through the
+engine's own network loader and scored on the development split, and the epoch
+with the lowest development label loss is published beside `report.json`.
+`tools/nnue_recipe.sh` records the corpus and training settings the
+autoresearch harness measures.
+
 ## Roadmap
 
 1. **Search efficiency and repeatability**

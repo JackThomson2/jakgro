@@ -41,14 +41,16 @@ result against the frozen handcrafted engine at commit `5c242b7`, measured by
 | 31 | 25.8M rows incl. 16 groups taught at 100k nodes; batch 8192, rate 0.0057 | +136 [+125, +147] | 1.052* | 1.32 |
 | 33 | Eight piece-count output buckets (format v2) | +130 [+119, +141] | 1.114 | — |
 | 36 | 40 epochs | +138 [+127, +149] | 1.094 | — |
-| 38 | 31.4M rows (176 seed groups, 32 taught at 100k nodes) | **+142 [+131, +153]** | 1.083 | 1.24 |
+| 38 | 31.4M rows (176 seed groups, 32 taught at 100k nodes) | +142 [+131, +153] | 1.083 | 1.24 |
+| 42 | 34.2M rows (192 seed groups, 48 taught at 100k nodes) | **+147 [+136, +158]** | 1.077 | 1.28 |
 
 \* re-measured over 2048 games; the 512-game figure was 1.009.
 
 The published network (`nets/jakgro.nnue`, SHA-256
-`f1a0836dd3b6b74150328e148f0f30b64e836cfb556927e6c8a6f606bd1eb070`) is run 38.
-At 50 ms per move over 1024 games it scored 71.5%, +160 Elo [145, 176], against
-the same baseline (run 26 scored +143 [127, 160] under the same clock).
+`b544ba91fd4caf068a544864047fedcbdae98b6aeea37b6edebb0e485b298eca`) is run 42.
+At 50 ms per move over 1024 games it scored 71.8%, +163 Elo [146, 180], against
+the same baseline (run 26 scored +143 [127, 160], run 38 +160 [145, 176] under
+the same clock).
 
 The output buckets did not move the fixed-node result but lowered the
 development label loss by 2% and were kept; the piece-count bucket lets the
@@ -56,7 +58,10 @@ network value the same material differently in middlegame and ending.
 
 Rejected: L2 1e-4 (-43 Elo), λ 0.1 (within noise), a 256-unit hidden layer at
 5.8M and at 20M rows (within noise at fixed nodes, and 20% fewer nodes per
-second), sigmoid scale K 1.2 (-14) and 0.7 (within noise), 45-, 50- and
+second) and again at 31.4M rows with output buckets (+138 fixed-node, +156
+under the clock against +142/+160 for 128 units, 10% fewer nodes per second),
+sigmoid scale K 1.2 (-14) and 0.7 (within noise), λ 0.1 at 31M rows (within
+noise), 45-, 50- and
 60-epoch schedules (within noise), learning rate 0.008 at batch 8192 (within
 noise, worse label loss), and damping the network's static score toward the
 fifty-move draw (+6 within noise; it flipped a knife-edge sacrifice fixture).
@@ -91,9 +96,9 @@ train` recomputes every row's features from its FEN, then runs float32 Adam
 over sixteen persistent gradient-shard workers (thread-count independent),
 flushes subnormal moments, clamps weights to the export bounds, exports every
 epoch and selects the lowest development label loss. `tools/nnue_recipe.sh`
-records the corpus (176 seed groups of 4096 games: 64 taught by the handcrafted
-engine at 50k nodes, then 32, 16, 16 and 16 taught at 50k nodes and 16 and 16
-at 100k nodes by successively stronger published networks) and the training
+records the corpus (192 seed groups of 4096 games: 64 taught by the handcrafted
+engine at 50k nodes, then 32, 16, 16 and 16 taught at 50k nodes and 16, 16 and
+16 at 100k nodes by successively stronger published networks) and the training
 settings (40 epochs, batch 8192, rate 0.0057 decaying by 0.9 per epoch, λ 0,
 K 0.88). A whole run (prepare, train, match, style, throughput) takes about ten
 minutes on 96 cores; the corpus members are cached per seed group.
@@ -104,15 +109,15 @@ The fixed-node fixtures in `tests/data` pinned handcrafted-era outputs and were
 re-pinned to the network; each published network moves the 20,000-node
 knife-edge positions again, so the profile-control fixtures are mined from
 self-play against the shipped network: positions where Aggression 100 invests
-material and Aggression 0 does not (`bishop-d4-investment`,
-`knight-d5-investment`), declines an unsound king-side sacrifice with the same
-move as Aggression 0 (`unsupported-bishop-g6`, `unsupported-bishop-b7`), keeps
+material and Aggression 0 does not (`knight-f6-investment`,
+`rook-c3-investment`), declines an unsound king-side sacrifice with the same
+move as Aggression 0 (`unsupported-bishop-f6`, `unsupported-bishop-b7`), keeps
 the queens on where Aggression 0 trades them
-(`avoid-queen-trade-for-knight-check`), and pushes a central or king-side pawn
-where Aggression 0 shuffles a rook or knight (`central-pawn-thrust`,
-`kingside-pawn-thrust`). The standard-profile acceptance suite has two
-sacrifices that Aggression 75 makes within its ceiling
-(`standard-bishop-f2-investment`, `standard-knight-e4-investment`). The
+(`avoid-queen-trade-for-knight-d5`), and pushes a pawn where Aggression 0
+moves a piece (`central-pawn-thrust`, `queenside-pawn-thrust`). The
+standard-profile acceptance suite has two sacrifices that Aggression 75 makes
+within its ceiling (`standard-bishop-f2-investment`,
+`standard-queen-d5-investment`). The
 verified-null contract allows a 25-centipawn score drift with an unchanged
 best move, and its in-check position has a single winning capture.
 
@@ -129,6 +134,7 @@ The 75-over-0 forcing-move ratio of the shipped network is 1.08 over 512 games
   depends on are kept under `artifacts/autoresearch/teachers`.
 - The 256-unit network was not adopted because its fixed-node gain was within
   noise and it costs about 20% of throughput; it may pay off with more data.
-- Data returns are small now: 22.9M to 31.4M rows moved the fixed-node result
-  from +123 to +142 with the last 8.5M rows worth about +5 per 3M. The
-  remaining levers are deeper teacher labels and, under a clock, throughput.
+- Data returns are small now: 22.9M to 34.2M rows moved the fixed-node result
+  from +123 to +147, about +5 per 3M rows, all from groups labelled at 100k
+  nodes. The remaining levers are deeper teacher labels and, under a clock,
+  throughput.

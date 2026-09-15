@@ -313,10 +313,10 @@ setoption name EvalFile value <embedded>  # back to the built-in network
 ```
 
 A rejected file is reported as `info string EvalFile rejected: ...` and leaves
-the previous configuration in place. The published network measured +142 Elo
-[131, 153] over the handcrafted evaluator at Aggression 75 in 2048 paired
-50,000-node games, and +160 [145, 176] in 1024 games at 50 ms per move, while
-searching about 1.2 times as many nodes per second; the Aggression 75 versus 0
+the previous configuration in place. The published network measured +147 Elo
+[136, 158] over the handcrafted evaluator at Aggression 75 in 2048 paired
+50,000-node games, and +163 [146, 180] in 1024 games at 50 ms per move, while
+searching about 1.3 times as many nodes per second; the Aggression 75 versus 0
 forcing-move ratio is kept (1.08 against the handcrafted 1.06). The series is
 recorded in [`docs/tuning/nnue-aggression75.md`](docs/tuning/nnue-aggression75.md).
 

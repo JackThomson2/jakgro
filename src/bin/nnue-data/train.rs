@@ -16,15 +16,15 @@
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::fs;
-use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::thread;
+use std::time::Instant;
 
 use crate::{prepare, sha256};
 use cozy_chess::Board;
 use jakgro::engine::nnue::{
     ACTIVATION_MAX, FILE_BYTES, FORMAT_VERSION, HEADER_BYTES, HIDDEN_SIZE, INPUT_FEATURES, MAGIC,
-    MAX_SCORE, Network, OUTPUT_SCALE,
+    MAX_SCORE, Network, OUTPUT_SCALE, active_features,
 };
 
 /// Centipawns per unit of float output, shared with the Python reference.
@@ -181,30 +181,82 @@ fn sigmoid(score: f32, k: f32) -> f32 {
     1.0 / (1.0 + (-(score * sigmoid_scale(k)).clamp(-80.0, 80.0)).exp())
 }
 
-fn read_rows(path: &Path, label_mix: f32, k: f32) -> Result<Vec<Row>, String> {
-    let file = fs::File::open(path).map_err(|error| format!("{}: {error}", path.display()))?;
-    let mut lines = BufReader::new(file).lines();
-    let mut header = || {
-        lines
-            .next()
-            .transpose()
-            .map_err(|error| error.to_string())?
-            .ok_or_else(|| format!("{}: truncated header", path.display()))
+/// Loads a prepared split, parsing line chunks on every thread.
+///
+/// Every row's stored features are recomputed from its FEN with the engine's
+/// own mapping, so a dataset prepared by another feature set is rejected here
+/// rather than trusted.
+fn read_rows(path: &Path, label_mix: f32, k: f32, threads: usize) -> Result<Vec<Row>, String> {
+    let bytes = fs::read(path).map_err(|error| format!("{}: {error}", path.display()))?;
+    let mut offset = 0;
+    for expected in crate::HEADER.lines() {
+        let end = bytes[offset..]
+            .iter()
+            .position(|&byte| byte == b'\n')
+            .map(|end| offset + end)
+            .ok_or_else(|| format!("{}: truncated header", path.display()))?;
+        if &bytes[offset..end] != expected.as_bytes() {
+            let what = if offset == 0 {
+                "unsupported feature schema"
+            } else {
+                "wrong dataset columns"
+            };
+            return Err(format!("{}: {what}", path.display()));
+        }
+        offset = end + 1;
+    }
+    let body = &bytes[offset..];
+    // Chunk boundaries fall on newlines so every line is parsed exactly once.
+    let target = body.len().div_ceil(threads * 4).max(1);
+    let mut bounds = vec![0];
+    while *bounds.last().unwrap() < body.len() {
+        let start = *bounds.last().unwrap();
+        let end = (start + target).min(body.len());
+        let end = body[end..]
+            .iter()
+            .position(|&byte| byte == b'\n')
+            .map_or(body.len(), |extra| end + extra + 1);
+        bounds.push(end);
+    }
+    let lines_before: Vec<usize> = {
+        let mut counts = vec![0];
+        for pair in bounds.windows(2) {
+            let last = *counts.last().unwrap();
+            counts.push(
+                last + body[pair[0]..pair[1]]
+                    .iter()
+                    .filter(|&&byte| byte == b'\n')
+                    .count(),
+            );
+        }
+        counts
     };
-    let mut expected = crate::HEADER.lines();
-    if header()? != expected.next().unwrap_or_default() {
-        return Err(format!("{}: unsupported feature schema", path.display()));
-    }
-    if header()? != expected.next().unwrap_or_default() {
-        return Err(format!("{}: wrong dataset columns", path.display()));
-    }
-    let mut rows = Vec::new();
-    for (index, line) in lines.enumerate() {
-        let line = line.map_err(|error| error.to_string())?;
-        let row = parse_row(&line, label_mix, k)
-            .map_err(|error| format!("{}:{}: {error}", path.display(), index + 3))?;
-        rows.push(row);
-    }
+    let chunks = thread::scope(|scope| {
+        let handles = bounds
+            .windows(2)
+            .zip(&lines_before)
+            .map(|(pair, &first_line)| {
+                let chunk = &body[pair[0]..pair[1]];
+                scope.spawn(move || -> Result<Vec<Row>, String> {
+                    let text = std::str::from_utf8(chunk)
+                        .map_err(|_| format!("{}: invalid UTF-8", path.display()))?;
+                    let mut rows = Vec::with_capacity(chunk.len() / 200);
+                    for (index, line) in text.lines().enumerate() {
+                        let row = parse_row(line, label_mix, k).map_err(|error| {
+                            format!("{}:{}: {error}", path.display(), first_line + index + 3)
+                        })?;
+                        rows.push(row);
+                    }
+                    Ok(rows)
+                })
+            })
+            .collect::<Vec<_>>();
+        handles
+            .into_iter()
+            .map(|handle| handle.join().expect("row parser panicked"))
+            .collect::<Result<Vec<_>, _>>()
+    })?;
+    let rows = chunks.into_iter().flatten().collect::<Vec<_>>();
     if rows.is_empty() {
         return Err(format!("{}: empty dataset", path.display()));
     }
@@ -262,6 +314,14 @@ fn parse_row(line: &str, label_mix: f32, k: f32) -> Result<Row, String> {
     let (black, black_count) = parse_features(black)?;
     if white_count != black_count {
         return Err("perspective piece counts differ".to_owned());
+    }
+    for (perspective, stored, count) in [
+        (cozy_chess::Color::White, &white, white_count),
+        (cozy_chess::Color::Black, &black, black_count),
+    ] {
+        if active_features(&board, perspective) != stored[..count] {
+            return Err("stored features disagree with the engine's feature mapping".to_owned());
+        }
     }
     let sign = if stm == 0 { 1.0 } else { -1.0 };
     let outcome = if stm == 0 {
@@ -353,6 +413,7 @@ impl Parameters {
     }
 
     /// Unclipped sums, activations and the raw float score of one row.
+    #[inline(always)]
     fn forward(&self, row: &Row) -> ([[f32; HIDDEN_SIZE]; 2], f32) {
         let mut sums = [[0.0_f32; HIDDEN_SIZE]; 2];
         let mut total = self.bias;
@@ -440,8 +501,54 @@ impl Parameters {
 
 /// Zeroes a shard, then accumulates its rows' batch-mean gradient into it.
 ///
-/// Returns the shard's sum of squared errors.
+/// Returns the shard's sum of squared errors. The arithmetic runs at the
+/// host's vector width when AVX2 and FMA are available; the result is the
+/// same either way up to the usual float reassociation the autovectorizer
+/// performs, which is fixed for a given binary and host.
 fn shard_gradient(
+    parameters: &Parameters,
+    rows: &[&Row],
+    batch: usize,
+    k: f32,
+    gradient: &mut Parameters,
+) -> f64 {
+    #[cfg(target_arch = "x86_64")]
+    if wide_math() {
+        // SAFETY: `wide_math` checked the CPU features this function requires.
+        return unsafe { shard_gradient_avx2(parameters, rows, batch, k, gradient) };
+    }
+    shard_gradient_impl(parameters, rows, batch, k, gradient)
+}
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2,fma")]
+unsafe fn shard_gradient_avx2(
+    parameters: &Parameters,
+    rows: &[&Row],
+    batch: usize,
+    k: f32,
+    gradient: &mut Parameters,
+) -> f64 {
+    shard_gradient_impl(parameters, rows, batch, k, gradient)
+}
+
+/// Whether the AVX2/FMA paths may run on this host, decided once.
+fn wide_math() -> bool {
+    #[cfg(target_arch = "x86_64")]
+    {
+        static WIDE: std::sync::LazyLock<bool> = std::sync::LazyLock::new(|| {
+            is_x86_feature_detected!("avx2") && is_x86_feature_detected!("fma")
+        });
+        *WIDE
+    }
+    #[cfg(not(target_arch = "x86_64"))]
+    {
+        false
+    }
+}
+
+#[inline(always)]
+fn shard_gradient_impl(
     parameters: &Parameters,
     rows: &[&Row],
     batch: usize,
@@ -497,6 +604,36 @@ fn shard_gradient(
 /// export can store for that tensor, so a long run cannot drift into weights
 /// the engine could never load.
 fn adam(
+    parameters: &mut [f32],
+    moment: &mut [f32],
+    velocity: &mut [f32],
+    gradient: impl Fn(usize) -> f32,
+    update: AdamUpdate,
+    limit: f32,
+) {
+    #[cfg(target_arch = "x86_64")]
+    if wide_math() {
+        // SAFETY: `wide_math` checked the CPU features this function requires.
+        return unsafe { adam_avx2(parameters, moment, velocity, gradient, update, limit) };
+    }
+    adam_impl(parameters, moment, velocity, gradient, update, limit);
+}
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2,fma")]
+unsafe fn adam_avx2(
+    parameters: &mut [f32],
+    moment: &mut [f32],
+    velocity: &mut [f32],
+    gradient: impl Fn(usize) -> f32,
+    update: AdamUpdate,
+    limit: f32,
+) {
+    adam_impl(parameters, moment, velocity, gradient, update, limit);
+}
+
+#[inline(always)]
+fn adam_impl(
     parameters: &mut [f32],
     moment: &mut [f32],
     velocity: &mut [f32],
@@ -611,10 +748,220 @@ fn subsample(rows: &[Row], maximum: usize) -> Vec<Row> {
         .collect()
 }
 
+/// Raw pointer to state the epoch workers share under barrier discipline.
+///
+/// Between two barriers every worker either reads a buffer or writes a part of
+/// it no other thread touches; the barriers order those phases. This is the
+/// only place the trainer steps outside the borrow checker.
+struct Ptr<T>(*mut T);
+
+impl<T> Clone for Ptr<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for Ptr<T> {}
+
+// SAFETY: the pointee outlives the epoch scope and access follows the phase
+// discipline documented on `run_epoch`.
+unsafe impl<T> Send for Ptr<T> {}
+unsafe impl<T> Sync for Ptr<T> {}
+
+impl<T> Ptr<T> {
+    /// Accessor so closures capture the whole wrapper rather than the field.
+    fn get(self) -> *mut T {
+        self.0
+    }
+}
+
+struct EpochState<'a> {
+    parameters: &'a mut Parameters,
+    moment: &'a mut Parameters,
+    velocity: &'a mut Parameters,
+    shards: &'a mut [Parameters],
+}
+
+/// What the workers need for one minibatch.
+struct Step<'a> {
+    rows: Vec<&'a Row>,
+    shard_size: usize,
+    update: AdamUpdate,
+    finished: bool,
+}
+
+/// Runs every minibatch of one epoch on a persistent set of `SHARDS` workers.
+///
+/// Per step, three barriers separate: (1) the main thread publishing the
+/// batch; (2) every worker accumulating its shard's gradient while reading
+/// the parameters; (3) every worker applying Adam to its own parameter range
+/// while reading all shards. Worker zero also owns the small tensors. Returns
+/// the summed batch losses, the batch count and the wall seconds of phases
+/// two and three.
+fn run_epoch<'a>(
+    training: &'a [Row],
+    order: &[usize],
+    options: &Options,
+    state: EpochState<'_>,
+    step: &mut usize,
+    rate: f32,
+) -> Result<(f64, usize, [f64; 2]), String> {
+    let shard_count = state.shards.len();
+    let barrier = std::sync::Barrier::new(shard_count + 1);
+    let parameters = Ptr(state.parameters as *mut Parameters);
+    let moment = Ptr(state.moment as *mut Parameters);
+    let velocity = Ptr(state.velocity as *mut Parameters);
+    let shards = Ptr(state.shards.as_mut_ptr());
+    let mut current = Step {
+        rows: Vec::new(),
+        shard_size: 1,
+        update: AdamUpdate {
+            step: 0,
+            rate,
+            l2: options.l2,
+        },
+        finished: false,
+    };
+    let current_ptr = Ptr(&mut current as *mut Step<'a>);
+    let mut losses = vec![0.0_f64; shard_count];
+    let losses_ptr = Ptr(losses.as_mut_ptr());
+    let input_len = INPUT_FEATURES * HIDDEN_SIZE;
+    let range = input_len.div_ceil(shard_count);
+    let k = options.k;
+
+    thread::scope(|scope| {
+        for worker in 0..shard_count {
+            let barrier = &barrier;
+            scope.spawn(move || {
+                loop {
+                    barrier.wait();
+                    // SAFETY: the main thread wrote `current` before this barrier
+                    // and does not touch it until the third one.
+                    let step = unsafe { &*current_ptr.get() };
+                    if step.finished {
+                        break;
+                    }
+                    let rows = step.rows.chunks(step.shard_size).nth(worker).unwrap_or(&[]);
+                    // SAFETY: phase two reads the parameters and writes only
+                    // this worker's shard and loss slot.
+                    let loss = unsafe {
+                        shard_gradient(
+                            &*parameters.get(),
+                            rows,
+                            step.rows.len(),
+                            k,
+                            &mut *shards.get().add(worker),
+                        )
+                    };
+                    unsafe { *losses_ptr.get().add(worker) = loss };
+                    barrier.wait();
+                    // SAFETY: phase three reads every shard and writes only
+                    // this worker's parameter range (and, for worker zero, the
+                    // small tensors nobody else writes).
+                    unsafe {
+                        let used = std::slice::from_raw_parts(shards.get(), shard_count);
+                        let parameters = &mut *parameters.get();
+                        let moment = &mut *moment.get();
+                        let velocity = &mut *velocity.get();
+                        let lo = (worker * range).min(input_len);
+                        let hi = ((worker + 1) * range).min(input_len);
+                        adam(
+                            &mut parameters.input[lo..hi],
+                            &mut moment.input[lo..hi],
+                            &mut velocity.input[lo..hi],
+                            |index| used.iter().map(|shard| shard.input[lo + index]).sum(),
+                            step.update,
+                            INPUT_LIMIT,
+                        );
+                        if worker == 0 {
+                            adam(
+                                &mut parameters.hidden,
+                                &mut moment.hidden,
+                                &mut velocity.hidden,
+                                |index| used.iter().map(|shard| shard.hidden[index]).sum(),
+                                step.update,
+                                INPUT_LIMIT,
+                            );
+                            adam(
+                                &mut parameters.output,
+                                &mut moment.output,
+                                &mut velocity.output,
+                                |index| used.iter().map(|shard| shard.output[index]).sum(),
+                                step.update,
+                                OUTPUT_LIMIT,
+                            );
+                            let bias_gradient = used.iter().map(|shard| shard.bias).sum::<f32>();
+                            adam(
+                                std::slice::from_mut(&mut parameters.bias),
+                                std::slice::from_mut(&mut moment.bias),
+                                std::slice::from_mut(&mut velocity.bias),
+                                |_| bias_gradient,
+                                step.update,
+                                BIAS_LIMIT,
+                            );
+                        }
+                    }
+                    barrier.wait();
+                }
+            });
+        }
+
+        let mut loss_sum = 0.0_f64;
+        let mut batches = 0_usize;
+        let mut seconds = [0.0_f64; 2];
+        for batch in order.chunks(options.batch_size) {
+            *step += 1;
+            batches += 1;
+            // SAFETY: no worker reads `current` until the barrier below.
+            unsafe {
+                let current = &mut *current_ptr.get();
+                current.rows.clear();
+                current
+                    .rows
+                    .extend(batch.iter().map(|&index| &training[index]));
+                current.shard_size = batch.len().div_ceil(shard_count).max(1);
+                current.update.step = *step;
+            }
+            let phase = Instant::now();
+            barrier.wait();
+            barrier.wait();
+            seconds[0] += phase.elapsed().as_secs_f64();
+            // SAFETY: every worker wrote its loss before the second barrier.
+            let squared_errors =
+                unsafe { std::slice::from_raw_parts(losses_ptr.get(), shard_count) }
+                    .iter()
+                    .take(
+                        batch
+                            .len()
+                            .div_ceil(batch.len().div_ceil(shard_count).max(1)),
+                    )
+                    .sum::<f64>();
+            let loss = squared_errors / batch.len() as f64;
+            if !loss.is_finite() {
+                // Let the workers finish the step before unwinding.
+                barrier.wait();
+                unsafe { (*current_ptr.get()).finished = true };
+                barrier.wait();
+                return Err("nonfinite training loss".to_owned());
+            }
+            loss_sum += loss;
+            let phase = Instant::now();
+            barrier.wait();
+            seconds[1] += phase.elapsed().as_secs_f64();
+        }
+        // SAFETY: workers are parked on the first barrier of the next step.
+        unsafe { (*current_ptr.get()).finished = true };
+        barrier.wait();
+        Ok((loss_sum, batches, seconds))
+    })
+}
+
 struct Epoch {
     epoch: usize,
     steps: usize,
     training_loss: f64,
+    /// Wall seconds spent in gradient shards, Adam reduction and metrics.
+    seconds: [f64; 3],
     training: Metrics,
     development: Metrics,
 }
@@ -622,11 +969,14 @@ struct Epoch {
 impl Epoch {
     fn json(&self) -> String {
         format!(
-            "{{\"epoch\": {}, \"float_training_loss\": {}, \"integer_development\": {}, \"integer_training\": {}, \"steps\": {}}}",
+            "{{\"epoch\": {}, \"float_training_loss\": {}, \"integer_development\": {}, \"integer_training\": {}, \"seconds\": {{\"gradients\": {:.3}, \"adam\": {:.3}, \"metrics\": {:.3}}}, \"steps\": {}}}",
             self.epoch,
             self.training_loss,
             self.development.json(),
             self.training.json(),
+            self.seconds[0],
+            self.seconds[1],
+            self.seconds[2],
             self.steps
         )
     }
@@ -641,9 +991,21 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
     if output.exists() {
         return Err("output already exists; choose a new directory".to_owned());
     }
+    let started = Instant::now();
     let input_hashes = prepare::verify_dataset(data)?;
-    let training = read_rows(&data.join("training.tsv"), options.label_mix, options.k)?;
-    let development = read_rows(&data.join("development.tsv"), options.label_mix, options.k)?;
+    let verified = started.elapsed().as_secs_f64();
+    let training = read_rows(
+        &data.join("training.tsv"),
+        options.label_mix,
+        options.k,
+        options.threads,
+    )?;
+    let development = read_rows(
+        &data.join("development.tsv"),
+        options.label_mix,
+        options.k,
+        options.threads,
+    )?;
     let mut support = vec![false; INPUT_FEATURES];
     for row in &training {
         for side in &row.features {
@@ -659,6 +1021,11 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
     let mut shards = (0..SHARDS).map(|_| Parameters::zeros()).collect::<Vec<_>>();
     let initial_network =
         Network::from_bytes(&parameters.quantize(&support)?).map_err(|error| error.to_string())?;
+    eprintln!(
+        "nnue-data: verified inputs in {verified:.1} s, loaded {} rows in {:.1} s",
+        training.len(),
+        started.elapsed().as_secs_f64() - verified
+    );
     let initial_training = integer_metrics(
         &initial_network,
         &training_sample,
@@ -672,107 +1039,43 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
     let mut step = 0;
     let mut history = Vec::new();
     let mut best: Option<(usize, Metrics, Vec<u8>)> = None;
-    let rows_per_thread = |len: usize| len.div_ceil(options.threads).max(1);
 
     let mut rate = options.rate;
     for epoch in 1..=options.epochs {
         random.shuffle(&mut order);
         let mut epoch_loss = 0.0_f64;
         let mut batches = 0_usize;
-        for batch in order.chunks(options.batch_size) {
-            step += 1;
-            batches += 1;
-            let rows = batch
-                .iter()
-                .map(|&index| &training[index])
-                .collect::<Vec<_>>();
-            let shard_size = rows.len().div_ceil(SHARDS).max(1);
-            // Phase one: every shard accumulates its slice's batch-mean gradient.
-            let squared_errors = thread::scope(|scope| {
-                let parameters = &parameters;
-                let handles = shards
-                    .iter_mut()
-                    .zip(rows.chunks(shard_size))
-                    .map(|(shard, rows)| {
-                        scope.spawn(move || {
-                            shard_gradient(parameters, rows, batch.len(), options.k, shard)
-                        })
-                    })
-                    .collect::<Vec<_>>();
-                handles
-                    .into_iter()
-                    .map(|handle| handle.join().expect("gradient worker panicked"))
-                    .sum::<f64>()
-            });
-            let loss = squared_errors / batch.len() as f64;
-            if !loss.is_finite() {
-                return Err("nonfinite training loss".to_owned());
-            }
-            epoch_loss += loss;
-            let used = &shards[..rows.chunks(shard_size).len()];
-            // Phase two: fixed parameter ranges reduce the shards in order.
-            let update = AdamUpdate {
-                step,
-                rate,
-                l2: options.l2,
-            };
-            let chunk = rows_per_thread(parameters.input.len());
-            thread::scope(|scope| {
-                let ranges = parameters
-                    .input
-                    .chunks_mut(chunk)
-                    .zip(moment.input.chunks_mut(chunk))
-                    .zip(velocity.input.chunks_mut(chunk));
-                for (index, ((values, moment), velocity)) in ranges.enumerate() {
-                    let offset = index * chunk;
-                    scope.spawn(move || {
-                        adam(
-                            values,
-                            moment,
-                            velocity,
-                            |index| used.iter().map(|shard| shard.input[offset + index]).sum(),
-                            update,
-                            INPUT_LIMIT,
-                        );
-                    });
-                }
-            });
-            adam(
-                &mut parameters.hidden,
-                &mut moment.hidden,
-                &mut velocity.hidden,
-                |index| used.iter().map(|shard| shard.hidden[index]).sum(),
-                update,
-                INPUT_LIMIT,
-            );
-            adam(
-                &mut parameters.output,
-                &mut moment.output,
-                &mut velocity.output,
-                |index| used.iter().map(|shard| shard.output[index]).sum(),
-                update,
-                OUTPUT_LIMIT,
-            );
-            let bias_gradient = used.iter().map(|shard| shard.bias).sum::<f32>();
-            adam(
-                std::slice::from_mut(&mut parameters.bias),
-                std::slice::from_mut(&mut moment.bias),
-                std::slice::from_mut(&mut velocity.bias),
-                |_| bias_gradient,
-                update,
-                BIAS_LIMIT,
-            );
-        }
+        let mut seconds = [0.0_f64; 3];
+        let (loss_sum, batch_count, phase_seconds) = run_epoch(
+            &training,
+            &order,
+            options,
+            EpochState {
+                parameters: &mut parameters,
+                moment: &mut moment,
+                velocity: &mut velocity,
+                shards: &mut shards,
+            },
+            &mut step,
+            rate,
+        )?;
+        epoch_loss += loss_sum;
+        batches += batch_count;
+        seconds[0] = phase_seconds[0];
+        seconds[1] = phase_seconds[1];
+        let phase = Instant::now();
         let bytes = parameters.quantize(&support)?;
         let network = Network::from_bytes(&bytes).map_err(|error| error.to_string())?;
         let training_metric =
             integer_metrics(&network, &training_sample, options.k, options.threads);
         let development_metric =
             integer_metrics(&network, &development, options.k, options.threads);
+        seconds[2] = phase.elapsed().as_secs_f64();
         let record = Epoch {
             epoch,
             steps: step,
             training_loss: epoch_loss / batches as f64,
+            seconds,
             training: training_metric,
             development: development_metric,
         };
@@ -833,7 +1136,7 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
     );
     let _ = writeln!(
         report,
-        "  \"inputs\": {{\"data_dir\": {}, \"helper_sha256\": \"{}\", \"training_sha256\": \"{}\", \"development_sha256\": \"{}\"}},",
+        "  \"inputs\": {{\"data_dir\": {}, \"helper_sha256\": \"{}\", \"training_checksum\": \"{}\", \"development_checksum\": \"{}\"}},",
         prepare::json_string(&data.to_string_lossy()),
         prepare::helper_sha256()?,
         input_hashes["training.tsv"],

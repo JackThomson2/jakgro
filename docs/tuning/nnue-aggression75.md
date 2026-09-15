@@ -65,8 +65,9 @@ second), sigmoid scale K 1.2 (-14), 45- and 60-epoch schedules (within noise).
 between Aggression 75 and 0 from seeded random-ply openings and extracts
 `FEN;outcome;score` rows; `nnue-data prepare` computes features, removes
 duplicates and development rows that repeat a training position up to colour
-and rank mirroring, and binds everything by SHA-256; `nnue-data train` runs
-float32 Adam over sixteen fixed gradient shards (thread-count independent),
+and rank mirroring, and binds everything by SHA-256 tree digests; `nnue-data
+train` recomputes every row's features from its FEN, then runs float32 Adam
+over sixteen persistent gradient-shard workers (thread-count independent),
 flushes subnormal moments, clamps weights to the export bounds, exports every
 epoch and selects the lowest development label loss. `tools/nnue_recipe.sh`
 records the corpus (128 seed groups of 4096 games: 64 taught by the handcrafted

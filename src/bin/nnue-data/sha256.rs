@@ -7,6 +7,10 @@
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::Path;
+use std::thread;
+
+/// Leaf size of the parallel tree digest.
+const TREE_CHUNK: usize = 32 << 20;
 
 const K: [u32; 64] = [
     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
@@ -146,6 +150,45 @@ pub fn file(path: &Path) -> io::Result<String> {
     Ok(to_hex(&hasher.finish()))
 }
 
+/// Parallel digest of a large file: SHA-256 of every 32 MiB leaf, then
+/// SHA-256 over the big-endian length followed by the leaf digests in order.
+///
+/// Rendered as `sha256tree:<hex>`. It binds content as strongly as the plain
+/// digest while letting a multi-gigabyte corpus be verified in seconds.
+pub fn file_tree(path: &Path) -> io::Result<String> {
+    let bytes = std::fs::read(path)?;
+    let threads = thread::available_parallelism().map_or(1, |count| count.get());
+    let leaves = bytes.chunks(TREE_CHUNK).collect::<Vec<_>>();
+    let per_thread = leaves.len().div_ceil(threads).max(1);
+    let digests = thread::scope(|scope| {
+        let handles = leaves
+            .chunks(per_thread)
+            .map(|group| {
+                scope.spawn(move || {
+                    group
+                        .iter()
+                        .map(|leaf| {
+                            let mut hasher = Sha256::default();
+                            hasher.update(leaf);
+                            hasher.finish()
+                        })
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect::<Vec<_>>();
+        handles
+            .into_iter()
+            .flat_map(|handle| handle.join().expect("digest worker panicked"))
+            .collect::<Vec<_>>()
+    });
+    let mut root = Sha256::default();
+    root.update(&(bytes.len() as u64).to_be_bytes());
+    for digest in &digests {
+        root.update(digest);
+    }
+    Ok(format!("sha256tree:{}", to_hex(&root.finish())))
+}
+
 fn to_hex(digest: &[u8; 32]) -> String {
     digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }
@@ -178,5 +221,17 @@ mod tests {
             to_hex(&hasher.finish()),
             "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0"
         );
+    }
+
+    #[test]
+    fn the_tree_digest_is_a_deterministic_function_of_content_and_length() {
+        let path = std::env::temp_dir().join(format!("sha256tree-{}", std::process::id()));
+        std::fs::write(&path, b"abc").unwrap();
+        let first = file_tree(&path).unwrap();
+        assert!(first.starts_with("sha256tree:"));
+        assert_eq!(first, file_tree(&path).unwrap());
+        std::fs::write(&path, b"abd").unwrap();
+        assert_ne!(first, file_tree(&path).unwrap());
+        std::fs::remove_file(path).unwrap();
     }
 }

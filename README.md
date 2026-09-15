@@ -342,7 +342,7 @@ aggression profiles from seeded random-ply openings and extracts
 search score is the teacher label. `prepare` computes the runtime features,
 rejects (or, when asked, drops) duplicate positions and development rows that
 repeat a training position up to colour and rank mirroring, and binds the
-result to the helper and inputs with SHA-256 manifests. `train` runs
+result to its inputs with parallel SHA-256 tree digests (`CHECKSUMS`). `train` runs
 full-parameter Adam over fixed gradient shards, so the exported network does
 not depend on the thread count; each epoch is exported, re-loaded through the
 engine's own network loader and scored on the development split, and the epoch

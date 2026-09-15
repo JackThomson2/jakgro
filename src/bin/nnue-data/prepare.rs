@@ -12,7 +12,7 @@
 use std::collections::{BTreeMap, HashSet};
 use std::fmt::Write as _;
 use std::fs::{self, File};
-use std::io::{BufReader, BufWriter, Write};
+use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
 
 use cozy_chess::Color;
@@ -21,7 +21,7 @@ use jakgro::engine::nnue::{
     active_features,
 };
 
-use crate::{HEADER, canonical, comma, lines, parse_sample, sha256};
+use crate::{HEADER, canonical, comma, parse_sample, sha256};
 
 #[derive(Debug)]
 pub struct Options {
@@ -153,6 +153,77 @@ impl SplitStats {
     }
 }
 
+/// One parsed input line, ready for the sequential deduplication pass.
+struct Parsed {
+    key: String,
+    identity: Vec<u16>,
+    white_to_move: bool,
+    outcome: f64,
+    teacher: bool,
+    white: Vec<u16>,
+    black: Vec<u16>,
+    row: String,
+}
+
+/// Lines per parallel batch; bounds the memory held between passes.
+const PARSE_BATCH_LINES: usize = 1 << 20;
+
+fn parse_line(line: &str) -> Result<Parsed, String> {
+    let sample = parse_sample(line)?;
+    let white = active_features(&sample.board, Color::White);
+    let black = active_features(&sample.board, Color::Black);
+    let key = canonical(&sample.board);
+    let teacher = sample
+        .teacher
+        .map_or_else(|| "-".to_owned(), |score| score.to_string());
+    let row = format!(
+        "{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+        sample.board,
+        key,
+        u8::from(sample.board.side_to_move() == Color::Black),
+        sample.outcome,
+        teacher,
+        comma(&white),
+        comma(&black)
+    );
+    Ok(Parsed {
+        identity: identity(&white, &black),
+        key,
+        white_to_move: sample.board.side_to_move() == Color::White,
+        outcome: sample.outcome,
+        teacher: sample.teacher.is_some(),
+        white,
+        black,
+        row,
+    })
+}
+
+/// Parses a batch of numbered lines on every available thread, in order.
+fn parse_batch(batch: &[(usize, &str)]) -> Result<Vec<Parsed>, String> {
+    let threads = std::thread::available_parallelism().map_or(1, |count| count.get());
+    let chunk = batch.len().div_ceil(threads).max(1);
+    std::thread::scope(|scope| {
+        let handles = batch
+            .chunks(chunk)
+            .map(|lines| {
+                scope.spawn(move || {
+                    lines
+                        .iter()
+                        .map(|&(number, line)| {
+                            parse_line(line).map_err(|error| format!("line {number}: {error}"))
+                        })
+                        .collect::<Result<Vec<_>, _>>()
+                })
+            })
+            .collect::<Vec<_>>();
+        let mut parsed = Vec::with_capacity(batch.len());
+        for handle in handles {
+            parsed.extend(handle.join().expect("parser thread panicked")?);
+        }
+        Ok(parsed)
+    })
+}
+
 fn process_split(
     source: &Path,
     target: &Path,
@@ -161,9 +232,14 @@ fn process_split(
     deduplicate: bool,
     drop_overlap: bool,
 ) -> Result<SplitStats, String> {
-    let reader = BufReader::new(
-        File::open(source).map_err(|error| format!("{}: {error}", source.display()))?,
-    );
+    let bytes = fs::read(source).map_err(|error| format!("{}: {error}", source.display()))?;
+    let text = std::str::from_utf8(&bytes).map_err(|error| {
+        format!(
+            "{}: invalid UTF-8 at byte {}",
+            source.display(),
+            error.valid_up_to()
+        )
+    })?;
     let mut writer = BufWriter::new(
         File::create(target).map_err(|error| format!("{}: {error}", target.display()))?,
     );
@@ -171,63 +247,71 @@ fn process_split(
         .write_all(HEADER.as_bytes())
         .map_err(|error| error.to_string())?;
     let mut stats = SplitStats::new();
-    lines(reader, |_, line| {
-        stats.raw_rows += 1;
-        let sample = parse_sample(line)?;
-        let white = active_features(&sample.board, Color::White);
-        let black = active_features(&sample.board, Color::Black);
-        let key = canonical(&sample.board);
-        let identity = identity(&white, &black);
-        let reason = if keys.canonical.contains(&key) {
-            Some(("canonical_duplicate", deduplicate))
-        } else if keys.identity.contains(&identity) {
-            Some(("feature_duplicate", deduplicate))
-        } else if training.is_some_and(|training| {
-            training.canonical.contains(&key) || training.identity.contains(&identity)
-        }) {
-            Some(("training_overlap", drop_overlap))
-        } else {
-            None
-        };
-        if let Some((reason, allowed)) = reason {
-            if !allowed {
-                return Err(match reason {
-                    "training_overlap" => "training/development overlap (including omitted metadata, turn changes and colour mirrors); use --drop-development-overlap to remove such rows".to_owned(),
-                    _ => format!("{reason}: use --deduplicate to explicitly keep only the first occurrence"),
-                });
+    let mut batch: Vec<(usize, &str)> = Vec::with_capacity(PARSE_BATCH_LINES);
+    let mut lines = text.lines().enumerate().peekable();
+    while lines.peek().is_some() {
+        batch.clear();
+        for (index, line) in lines.by_ref() {
+            let number = index + 1;
+            if line.len() as u64 > crate::MAX_LINE_BYTES {
+                return Err(format!(
+                    "line {number}: record exceeds {} bytes",
+                    crate::MAX_LINE_BYTES
+                ));
             }
-            *stats.dropped.entry(reason).or_default() += 1;
-            return Ok(());
-        }
-        stats.rows += 1;
-        stats.white_to_move += usize::from(sample.board.side_to_move() == Color::White);
-        stats.white_outcomes[(sample.outcome * 2.0) as usize] += 1;
-        stats.teacher_rows += usize::from(sample.teacher.is_some());
-        for (side, features) in [&white, &black].into_iter().enumerate() {
-            stats.king_bucket_rows[side][usize::from(features[0]) / (PIECE_PLANES * 64)] += 1;
-            for &feature in features {
-                stats.feature_support[usize::from(feature)] += 1;
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            batch.push((number, line));
+            if batch.len() == PARSE_BATCH_LINES {
+                break;
             }
         }
-        let teacher = sample
-            .teacher
-            .map_or_else(|| "-".to_owned(), |score| score.to_string());
-        writeln!(
-            writer,
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}",
-            sample.board,
-            key,
-            u8::from(sample.board.side_to_move() == Color::Black),
-            sample.outcome,
-            teacher,
-            comma(&white),
-            comma(&black)
-        )
-        .map_err(|error| error.to_string())?;
-        keys.canonical.insert(key);
-        keys.identity.insert(identity);
-        Ok(())
-    })?;
+        for parsed in parse_batch(&batch)? {
+            stats.raw_rows += 1;
+            let reason = if keys.canonical.contains(&parsed.key) {
+                Some(("canonical_duplicate", deduplicate))
+            } else if keys.identity.contains(&parsed.identity) {
+                Some(("feature_duplicate", deduplicate))
+            } else if training.is_some_and(|training| {
+                training.canonical.contains(&parsed.key)
+                    || training.identity.contains(&parsed.identity)
+            }) {
+                Some(("training_overlap", drop_overlap))
+            } else {
+                None
+            };
+            if let Some((reason, allowed)) = reason {
+                if !allowed {
+                    return Err(match reason {
+                        "training_overlap" => "training/development overlap (including omitted metadata, turn changes and colour mirrors); use --drop-development-overlap to remove such rows".to_owned(),
+                        _ => format!("{reason}: use --deduplicate to explicitly keep only the first occurrence"),
+                    });
+                }
+                *stats.dropped.entry(reason).or_default() += 1;
+                continue;
+            }
+            stats.rows += 1;
+            stats.white_to_move += usize::from(parsed.white_to_move);
+            stats.white_outcomes[(parsed.outcome * 2.0) as usize] += 1;
+            stats.teacher_rows += usize::from(parsed.teacher);
+            for (side, features) in [&parsed.white, &parsed.black].into_iter().enumerate() {
+                stats.king_bucket_rows[side][usize::from(features[0]) / (PIECE_PLANES * 64)] += 1;
+                for &feature in features {
+                    stats.feature_support[usize::from(feature)] += 1;
+                }
+            }
+            writer
+                .write_all(parsed.row.as_bytes())
+                .map_err(|error| error.to_string())?;
+            keys.canonical.insert(parsed.key);
+            keys.identity.insert(parsed.identity);
+        }
+    }
+    if stats.raw_rows == 0 {
+        return Err(format!("{}: input contains no positions", source.display()));
+    }
     if stats.rows == 0 {
         return Err(format!("{}: every row was dropped", source.display()));
     }
@@ -284,7 +368,9 @@ pub fn prepare(options: &Options) -> Result<String, String> {
     ];
     let source_hashes = sources
         .iter()
-        .map(|(_, path)| sha256::file(path).map_err(|error| format!("{}: {error}", path.display())))
+        .map(|(_, path)| {
+            sha256::file_tree(path).map_err(|error| format!("{}: {error}", path.display()))
+        })
         .collect::<Result<Vec<_>, _>>()?;
     let staging = options.output.with_extension("staging");
     if staging.exists() {
@@ -313,7 +399,7 @@ pub fn prepare(options: &Options) -> Result<String, String> {
     // Inputs are re-hashed after the pass: a corpus rewritten underneath the
     // helper would otherwise be bound to the wrong content.
     for ((_, path), before) in sources.iter().zip(&source_hashes) {
-        let after = sha256::file(path).map_err(|error| error.to_string())?;
+        let after = sha256::file_tree(path).map_err(|error| error.to_string())?;
         if after != *before {
             return Err("inputs changed during preparation".to_owned());
         }
@@ -336,12 +422,13 @@ pub fn prepare(options: &Options) -> Result<String, String> {
         .enumerate()
     {
         let file = format!("{name}.tsv");
-        let prepared = sha256::file(&staging.join(&file)).map_err(|error| error.to_string())?;
+        let prepared =
+            sha256::file_tree(&staging.join(&file)).map_err(|error| error.to_string())?;
         let _ = writeln!(checksums, "{prepared}  {file}");
         let separator = if index == 0 { "" } else { ",\n" };
         let _ = write!(
             manifest,
-            "{separator}    \"{name}\": {{\"source\": {}, \"source_sha256\": \"{source_hash}\", \"prepared_file\": \"{file}\", \"prepared_sha256\": \"{prepared}\", \"stats\": {}}}",
+            "{separator}    \"{name}\": {{\"source\": {}, \"source_checksum\": \"{source_hash}\", \"prepared_file\": \"{file}\", \"prepared_checksum\": \"{prepared}\", \"stats\": {}}}",
             json_string(&source.to_string_lossy()),
             stats.json(true)
         );
@@ -354,7 +441,7 @@ pub fn prepare(options: &Options) -> Result<String, String> {
     }
     manifest.push_str("\n  }\n}\n");
     summary.push('}');
-    fs::write(staging.join("SHA256SUMS"), checksums).map_err(|error| error.to_string())?;
+    fs::write(staging.join("CHECKSUMS"), checksums).map_err(|error| error.to_string())?;
     fs::write(staging.join("helper.sha256"), format!("{helper}\n"))
         .map_err(|error| error.to_string())?;
     fs::write(staging.join("manifest.json"), manifest).map_err(|error| error.to_string())?;
@@ -365,33 +452,31 @@ pub fn prepare(options: &Options) -> Result<String, String> {
     Ok(summary)
 }
 
-/// Verifies `SHA256SUMS` and `helper.sha256` of a prepared dataset directory.
+/// Verifies `CHECKSUMS` of a prepared dataset directory.
 ///
-/// Returns the recorded file hashes by name.
+/// Returns the recorded file digests by name. The helper that prepared the
+/// dataset is recorded in `helper.sha256` for provenance only: the trainer
+/// recomputes every row's features from its FEN, which is the check that
+/// matters, and a trainer-only change must not invalidate a corpus.
 pub fn verify_dataset(directory: &Path) -> Result<BTreeMap<String, String>, String> {
-    let helper = fs::read_to_string(directory.join("helper.sha256"))
-        .map_err(|error| format!("{}: helper.sha256: {error}", directory.display()))?;
-    if helper.trim() != helper_sha256()? {
-        return Err("feature/scoring helper differs from the prepared dataset".to_owned());
-    }
-    let checksums = fs::read_to_string(directory.join("SHA256SUMS"))
-        .map_err(|error| format!("{}: SHA256SUMS: {error}", directory.display()))?;
+    let checksums = fs::read_to_string(directory.join("CHECKSUMS"))
+        .map_err(|error| format!("{}: CHECKSUMS: {error}", directory.display()))?;
     let mut hashes = BTreeMap::new();
     for line in checksums.lines() {
-        let (expected, name) = line.split_once("  ").ok_or("malformed SHA256SUMS line")?;
+        let (expected, name) = line.split_once("  ").ok_or("malformed CHECKSUMS line")?;
         if name.contains('/') || name.contains("..") {
             return Err("unsafe prepared filename".to_owned());
         }
         let actual =
-            sha256::file(&directory.join(name)).map_err(|error| format!("{name}: {error}"))?;
+            sha256::file_tree(&directory.join(name)).map_err(|error| format!("{name}: {error}"))?;
         if actual != expected {
-            return Err(format!("{name}: dataset hash mismatch"));
+            return Err(format!("{name}: dataset checksum mismatch"));
         }
         hashes.insert(name.to_owned(), actual);
     }
     for required in ["training.tsv", "development.tsv"] {
         if !hashes.contains_key(required) {
-            return Err(format!("SHA256SUMS does not cover {required}"));
+            return Err(format!("CHECKSUMS does not cover {required}"));
         }
     }
     Ok(hashes)
@@ -453,7 +538,7 @@ mod tests {
         assert!(
             verify_dataset(&root.join("prepared"))
                 .unwrap_err()
-                .contains("hash mismatch")
+                .contains("checksum mismatch")
         );
         fs::remove_dir_all(root).unwrap();
     }

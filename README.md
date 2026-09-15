@@ -2,7 +2,7 @@
 
 Jakgro is a Rust chess engine aimed at playing aggressive, tactical, and interesting chess while remaining compatible with the Universal Chess Interface (UCI).
 
-> **Current status:** Jakgro runs a cancellable iterative-deepening alpha-beta search with quiescence, principal variations, repetition and draw handling, a lock-free fixed-size transposition table consulted in quiescence as well as in the main search, optional lazy SMP across a configurable thread count, tapered positional evaluation whose weights and piece-square tables are fitted offline against recorded games, with a cached pawn structure, a bounded attacking personality, and volatility-aware soft/hard clock management. It is UCI-playable and exposes a reproducibly gated `Aggression` profile from 0 to 100. Four measured series are recorded: [`docs/tuning/strength-series.md`](docs/tuning/strength-series.md) at +108 Elo at the default profile, [`docs/tuning/strength-series-two.md`](docs/tuning/strength-series-two.md) at a further +65 Elo on top of it, [`docs/tuning/strength-series-three.md`](docs/tuning/strength-series-three.md) at a further +94.2 Elo, of which the evaluation refit is +56.3; that series also records why neither node count nor completed depth substitutes for a match when pricing a change, and why the engine plays 53% more checks than before it. [`docs/tuning/strength-series-four.md`](docs/tuning/strength-series-four.md) adds a further +67.7 Elo at the default profile and +71.2 under a clock, all of it from a hundred and thirty-five new evaluation parameters and their refit — mobility curves, rook files, outposts, pawn structure, passer refinements, king danger, graded shelter and threats — while every search and clock patch tried on top of it was rejected on match; the engine plays 30% more checks than before it. [`docs/tuning/strength-series-five.md`](docs/tuning/strength-series-five.md) adds a further +39.3 Elo at the default profile and +37.3 under a clock, from sixty-seven more objective evaluation terms — pawn storm, space, candidate passers, minors by pawn count, mobility onto pawn-guarded squares, passer paths, pawn-push threats, castling rights and king tropism — refitted on the fourth series' corpus, and from the first search patch since the second series to survive a match: the move ordering one search builds is carried into the next move of the same game. Parallel search defaults to one thread and carries no measured Elo claim yet; see [`docs/tuning/lazy-smp.md`](docs/tuning/lazy-smp.md).
+> **Current status:** Jakgro runs a cancellable iterative-deepening alpha-beta search with quiescence, principal variations, repetition and draw handling, a lock-free fixed-size transposition table consulted in quiescence as well as in the main search, optional lazy SMP across a configurable thread count, an embedded NNUE static evaluation trained on the engine's own fixed-node self-play (the fitted handcrafted evaluation, with its cached pawn structure, remains selectable), a bounded attacking personality, and volatility-aware soft/hard clock management. It is UCI-playable and exposes a reproducibly gated `Aggression` profile from 0 to 100. Four measured series are recorded: [`docs/tuning/strength-series.md`](docs/tuning/strength-series.md) at +108 Elo at the default profile, [`docs/tuning/strength-series-two.md`](docs/tuning/strength-series-two.md) at a further +65 Elo on top of it, [`docs/tuning/strength-series-three.md`](docs/tuning/strength-series-three.md) at a further +94.2 Elo, of which the evaluation refit is +56.3; that series also records why neither node count nor completed depth substitutes for a match when pricing a change, and why the engine plays 53% more checks than before it. [`docs/tuning/strength-series-four.md`](docs/tuning/strength-series-four.md) adds a further +67.7 Elo at the default profile and +71.2 under a clock, all of it from a hundred and thirty-five new evaluation parameters and their refit — mobility curves, rook files, outposts, pawn structure, passer refinements, king danger, graded shelter and threats — while every search and clock patch tried on top of it was rejected on match; the engine plays 30% more checks than before it. [`docs/tuning/strength-series-five.md`](docs/tuning/strength-series-five.md) adds a further +39.3 Elo at the default profile and +37.3 under a clock, from sixty-seven more objective evaluation terms — pawn storm, space, candidate passers, minors by pawn count, mobility onto pawn-guarded squares, passer paths, pawn-push threats, castling rights and king tropism — refitted on the fourth series' corpus, and from the first search patch since the second series to survive a match: the move ordering one search builds is carried into the next move of the same game. Parallel search defaults to one thread and carries no measured Elo claim yet; see [`docs/tuning/lazy-smp.md`](docs/tuning/lazy-smp.md).
 
 ## Goals
 
@@ -81,7 +81,7 @@ Jakgro currently handles these GUI commands:
 - `uci`
 - `debug on|off`
 - `isready`
-- `setoption name Hash value <MiB>`, `setoption name Clear Hash`, `setoption name Threads value <1..128>`, `setoption name Aggression value <0..100>`, and `setoption name Move Overhead value <milliseconds>`
+- `setoption name Hash value <MiB>`, `setoption name Clear Hash`, `setoption name Threads value <1..128>`, `setoption name Aggression value <0..100>`, `setoption name Move Overhead value <milliseconds>`, `setoption name EvalFile value <path|<embedded>>`, and `setoption name Use NNUE value <true|false>`
 - `ucinewgame`
 - `position startpos ...`
 - `position fen <six FEN fields> ...`
@@ -106,7 +106,7 @@ To use Jakgro from a chess GUI, build the release binary and configure the GUI t
 - intermediate values gradually add coordinated attack terms, tactical search effort, and a nonlinear root-choice margin; and
 - `100` uses a 26-centipawn ordinary margin, tightens winning conversions to 20, and reserves the absolute 120-centipawn ceiling for verified investments. At the default 75, the corresponding investment ceiling is 67 centipawns.
 
-All profiles use the same fitted objective evaluation, including per-piece mobility curves and unsafe-square penalties. Aggression changes attacking preferences and search policy, not an extra mobility overlay. At 75, ordinary alternatives have a 16-centipawn margin outside winning conversions; the existing winning-conversion margin is 20.
+All profiles use the same objective evaluation, the embedded network by default or the fitted handcrafted evaluation on request. Aggression changes attacking preferences and search policy, not the evaluator. At 75, ordinary alternatives have a 16-centipawn margin outside winning conversions; the existing winning-conversion margin is 20.
 
 Quiescence allows one optional quiet check per line at profiles 0–79, two at 80–99, and three at 100. Captures and promotions do not consume this allowance, and legal check evasions remain searchable after it is exhausted. The default 75 still has three main-search check extensions.
 
@@ -219,7 +219,7 @@ measurement protocol and interpretation rules.
 ## Current search and protocol limitations
 
 - Only standard chess is supported; Chess960 is deferred.
-- Static evaluation tapers material, tuned piece-square placement, tempo, activity, mobility, bishop-pair, pawn-structure, passed-pawn, and king-shelter features between middlegame and endgame. Search scores and transposition bounds remain personality-neutral; aggression instead controls tactical search policy and root interest in coordinated king attacks, supported threats, open attacking lines, and pawn breaks.
+- Static evaluation is the embedded network by default; the handcrafted alternative tapers material, tuned piece-square placement, tempo, activity, mobility, bishop-pair, pawn-structure, passed-pawn, and king-shelter features between middlegame and endgame. Search scores and transposition bounds remain personality-neutral; aggression instead controls tactical search policy and root interest in coordinated king attacks, supported threats, open attacking lines, and pawn breaks.
 - Higher aggression spends additional search effort on checks and forcing continuations. Root personality work threshold-probes diverse alternatives, fully verifies at most two inside a deterministic node budget, and keeps only completed verification when that local budget expires. Ordinary choices use a 26-centipawn cap (16 at the default 75), winning conversions use 20, non-negative objective results cannot cross below zero, and only independently verified sacrifices may use the absolute 120-centipawn ceiling.
 - Search runs on a configurable number of threads through lazy SMP. One thread, the default, is deterministic and is what every fixed-node fixture, aggression gate, and recorded series measures. More than one thread shares the transposition table between searchers and is deliberately not reproducible move for move, because the tree the helpers explore depends on how their timing interleaves.
 - Every child clones the `cozy-chess` board. A make/unmake layer was implemented and measured for an earlier series and rejected: `size_of::<Board>()` equals `size_of::<BoardState>()`, so a snapshot costs as much as the copy it avoids. A persistent fixed-size transposition table reuses exact and bounded search results, and quiescence consults it as well, which matters because quiescence is roughly 97% of all nodes. Each entry packs its payload into one machine word beside a verification word, so a bucket is one cache line and several searchers can read and write it without locking.
@@ -295,20 +295,29 @@ Both are behind the `tuning` feature and are not built into the shipped engine.
 
 ### Neural evaluation (NNUE)
 
-The engine can replace the handcrafted static evaluation with an external
-quantized network: colored piece-square features under sixteen king buckets,
-a shared 128-unit feature transformer with clipped-ReLU activations and one
-side-to-move-relative output in centipawns. Search, terminal handling and the
-`Aggression` policy are unchanged; only `static_score` is routed. No network is
-bundled and the handcrafted evaluator remains the default:
+The default static evaluation is a quantized network embedded in the
+executable (`nets/jakgro.nnue`, provenance in `nets/jakgro.report.json`):
+colored piece-square features under eight king buckets on a file-mirrored half
+board, a shared 128-unit feature transformer with clipped-ReLU activations and
+one side-to-move-relative output in centipawns. Search, terminal handling and
+the `Aggression` policy are unchanged; only `static_score` is routed, and the
+sacrifice verification and attacking preferences still read the handcrafted
+feature snapshots. The handcrafted evaluator remains available, and another
+network can be loaded from a file:
 
 ```text
-setoption name EvalFile value nets/jakgro.nnue
-setoption name Use NNUE value true
+setoption name Use NNUE value false      # handcrafted evaluation
+setoption name EvalFile value other.nnue  # a different network
+setoption name EvalFile value <embedded>  # back to the built-in network
 ```
 
-A rejected file or an enable without a loaded file is reported as
-`info string ... rejected: ...` and leaves the previous configuration in place.
+A rejected file is reported as `info string EvalFile rejected: ...` and leaves
+the previous configuration in place. The published network measured +123 Elo
+[112, 134] over the handcrafted evaluator at Aggression 75 in 2048 paired
+50,000-node games, and +143 [127, 160] in 1024 games at 50 ms per move, while
+searching about 1.3 times as many nodes per second; the Aggression 75 versus 0
+forcing-move ratio is unchanged (1.06 for both evaluators). The series is
+recorded in [`docs/tuning/nnue-aggression75.md`](docs/tuning/nnue-aggression75.md).
 
 Networks are produced by the tuning-only `nnue-data` helper, entirely on CPU
 and without Python numeric dependencies:

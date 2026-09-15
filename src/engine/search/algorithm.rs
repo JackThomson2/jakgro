@@ -2485,12 +2485,16 @@ fn run_worker(
         if role.is_main() {
             report(info.clone());
         }
-        let found_mate = matches!(info.score(), SearchScore::Mate(_));
+        // A mate score is settled only once the iteration is deep enough to
+        // have proven it; a shallow score inherited from the table may name
+        // a longer mate and, replayed, shuffle into a repetition.
+        let mate_settled = iteration.selected.score.abs() >= MATE_THRESHOLD
+            && depth >= (MATE_SCORE - iteration.selected.score.abs()) as u32;
         final_info = Some(info);
         // The obligation is discharged: from here the ordinary budgets apply.
         context.first_iteration_pending = false;
 
-        if found_mate || context.should_stop() {
+        if mate_settled || context.should_stop() {
             break;
         }
         if !role.is_main() {

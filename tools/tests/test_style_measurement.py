@@ -321,7 +321,7 @@ class FrozenSacrificeSuiteTests(unittest.TestCase):
     def test_suite_contains_positive_and_control_positions(self) -> None:
         fixtures = measure_style.parse_suite(Path("tests/data/sacrifice-gates.epd"))
 
-        self.assertEqual(len(fixtures), 4)
+        self.assertEqual(len(fixtures), 5)
         self.assertEqual(
             {fixture.category for fixture in fixtures},
             {"sacrifice", "anti-sacrifice", "safety"},
@@ -329,7 +329,7 @@ class FrozenSacrificeSuiteTests(unittest.TestCase):
         self.assertTrue(all(100 in fixture.expected for fixture in fixtures))
         self.assertEqual(
             measure_style.sha256_file(Path("tests/data/sacrifice-gates.epd")),
-            "84623d9108822d2c92d4423aa631c376bfc6062ccba6e1e42c96d509aa9ad022",
+            "c8a2e133b3613c69f0dde348471e2c1a8e42d4da01516a7b3f782dad3f612880",
         )
 
 

@@ -45,7 +45,7 @@ nnue_corpus_select() {
     nnue_corpus_engine=$BASELINE
     nnue_corpus_teacher=()
     if [ -n "$1" ]; then
-        nnue_corpus_dir+="-t$(sha256sum "$1" | cut -c1-12)"
+        nnue_corpus_dir+="-t$(sha256sum "$1" | cut -c1-12)"  # keyed by the network file; re-key cached members if the file is rewritten
         nnue_corpus_engine=$ENGINE
         nnue_corpus_teacher=(--eval-file "$1")
     fi

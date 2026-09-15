@@ -10,7 +10,7 @@ mod neural;
 #[cfg(test)]
 #[path = "../../tests/support/nnue_network.rs"]
 pub(crate) mod nnue_test_support;
-pub use neural::NnueConfigError;
+pub use neural::{EMBEDDED_EVAL_FILE, NnueConfigError};
 mod position;
 mod search;
 

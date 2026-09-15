@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 
 use super::{Engine, nnue, search};
 
@@ -15,8 +15,6 @@ pub enum NnueConfigError {
     EmptyPath,
     /// The model file failed validation or could not be read.
     Load(nnue::LoadError),
-    /// NNUE cannot be enabled before a network has been loaded.
-    NetworkNotLoaded,
     /// A fresh search-cache domain could not be allocated.
     AllocationFailed,
 }
@@ -26,7 +24,6 @@ impl Display for NnueConfigError {
         match self {
             Self::EmptyPath => formatter.write_str("EvalFile requires a non-empty path"),
             Self::Load(error) => Display::fmt(error, formatter),
-            Self::NetworkNotLoaded => formatter.write_str("load EvalFile before enabling NNUE"),
             Self::AllocationFailed => formatter.write_str("unable to allocate NNUE search caches"),
         }
     }
@@ -41,11 +38,36 @@ impl Error for NnueConfigError {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+/// The network shipped inside the executable and used by default.
+///
+/// `nets/jakgro.nnue` is the published network of the recipe in
+/// `tools/nnue_recipe.sh`; `nets/jakgro.report.json` records its training.
+static EMBEDDED_NETWORK: LazyLock<Arc<nnue::Network>> = LazyLock::new(|| {
+    Arc::new(
+        nnue::Network::from_bytes(include_bytes!("../../nets/jakgro.nnue"))
+            .expect("the embedded network matches the compiled architecture"),
+    )
+});
+
+/// The `EvalFile` value that selects the embedded network.
+pub const EMBEDDED_EVAL_FILE: &str = "<embedded>";
+
+#[derive(Clone, Debug)]
 pub(super) struct Configuration {
     network: Option<Arc<nnue::Network>>,
+    /// `None` while the embedded network is loaded.
     path: Option<PathBuf>,
     enabled: bool,
+}
+
+impl Default for Configuration {
+    fn default() -> Self {
+        Self {
+            network: Some(Arc::clone(&EMBEDDED_NETWORK)),
+            path: None,
+            enabled: true,
+        }
+    }
 }
 
 impl Configuration {
@@ -59,10 +81,23 @@ impl Configuration {
 }
 
 impl Engine {
-    /// Returns the path of the last successfully loaded network, if any.
+    /// Returns the path of the last successfully loaded network, or `None`
+    /// while the embedded network is loaded.
     #[must_use]
     pub fn eval_file(&self) -> Option<&Path> {
         self.neural.path.as_deref()
+    }
+
+    /// Reinstates the embedded network, detaching search caches when a file
+    /// network was loaded before.
+    pub fn load_embedded_eval_file(&mut self) -> Result<(), NnueConfigError> {
+        if self.neural.path.is_none() {
+            return Ok(());
+        }
+        self.detach_evaluation_memory()?;
+        self.neural.network = Some(Arc::clone(&EMBEDDED_NETWORK));
+        self.neural.path = None;
+        Ok(())
     }
 
     /// Whether new searches use the loaded neural evaluator.
@@ -71,7 +106,7 @@ impl Engine {
         self.neural.enabled
     }
 
-    /// Loads a validated immutable network without implicitly enabling it.
+    /// Loads a validated immutable network in place of the embedded one.
     ///
     /// Successful loads retain position, aggression, resources' sizes and the
     /// enabled flag, but detach search caches from existing engine clones.
@@ -89,15 +124,13 @@ impl Engine {
         Ok(())
     }
 
-    /// Selects the neural or handcrafted evaluator for subsequent searches.
+    /// Selects the neural (default) or handcrafted evaluator for subsequent
+    /// searches.
     ///
-    /// Enabling without a loaded network fails. Disabling keeps the model for
-    /// later reuse. A real backend change detaches the receiving engine's table
-    /// and carried ordering; existing clones retain their own evaluator domain.
+    /// Disabling keeps the model for later reuse. A real backend change
+    /// detaches the receiving engine's table and carried ordering; existing
+    /// clones retain their own evaluator domain.
     pub fn set_use_nnue(&mut self, enabled: bool) -> Result<(), NnueConfigError> {
-        if enabled && self.neural.network.is_none() {
-            return Err(NnueConfigError::NetworkNotLoaded);
-        }
         if enabled == self.neural.enabled {
             return Ok(());
         }

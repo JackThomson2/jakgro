@@ -49,26 +49,37 @@ fn same_configuration(first: &Engine, second: &Engine) {
 }
 
 #[test]
-fn nnue_is_opt_in_and_loading_does_not_enable_it() {
+fn the_embedded_network_is_the_default_and_loading_a_file_keeps_the_backend_choice() {
     let mut engine = Engine::new();
-    assert!(!engine.use_nnue());
+    assert!(engine.use_nnue());
     assert!(engine.eval_file().is_none());
     let original = engine.clone();
-    assert!(matches!(
-        engine.set_use_nnue(true),
-        Err(NnueConfigError::NetworkNotLoaded)
-    ));
+    engine.set_use_nnue(true).unwrap();
     same_configuration(&engine, &original);
+    // Disabling switches to the handcrafted evaluator without dropping the model.
     engine.set_use_nnue(false).unwrap();
-    same_configuration(&engine, &original);
-    let before = engine.search(&limits());
+    assert!(!engine.use_nnue());
+    assert!(!Arc::ptr_eq(&engine.table, &original.table));
+    let handcrafted = engine.search(&limits());
     let file = NetworkFile::new(137, false);
     engine.load_eval_file(&file.path).unwrap();
     assert!(!engine.use_nnue());
     assert_eq!(engine.eval_file(), Some(file.path.as_path()));
-    assert!(!Arc::ptr_eq(&engine.table, &original.table));
-    let after = engine.search(&limits());
-    assert_eq!(signature(&before), signature(&after));
+    let still_handcrafted = engine.search(&limits());
+    assert_eq!(signature(&handcrafted), signature(&still_handcrafted));
+    // Returning to the embedded network is a real model change.
+    let file_table = Arc::clone(&engine.table);
+    engine.load_embedded_eval_file().unwrap();
+    assert!(engine.eval_file().is_none());
+    assert!(!Arc::ptr_eq(&engine.table, &file_table));
+    engine.load_embedded_eval_file().unwrap();
+    assert!(engine.eval_file().is_none());
+    engine.set_use_nnue(true).unwrap();
+    let embedded = engine.search(&limits());
+    assert_eq!(
+        signature(&embedded),
+        signature(&original.clone().search(&limits()))
+    );
     assert_eq!(engine.aggression(), 75);
 }
 
@@ -148,6 +159,7 @@ fn model_and_backend_switches_create_isolated_search_domains() {
     let mut handcrafted = Engine::new();
     handcrafted.set_aggression(0);
     handcrafted.set_hash_size_mib(1).unwrap();
+    handcrafted.set_use_nnue(false).unwrap();
     assert_eq!(
         signature(&engine.search(&limits())),
         signature(&handcrafted.search(&limits()))

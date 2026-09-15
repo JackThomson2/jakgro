@@ -5,10 +5,10 @@ use std::thread;
 use std::time::Duration;
 
 use crate::engine::{
-    DEFAULT_AGGRESSION, DEFAULT_HASH_MIB, DEFAULT_MOVE_OVERHEAD_MS, DEFAULT_THREADS, Engine,
-    MAX_AGGRESSION, MAX_HASH_MIB, MAX_MOVE_OVERHEAD_MS, MAX_THREADS, MIN_AGGRESSION, MIN_HASH_MIB,
-    MIN_MOVE_OVERHEAD_MS, MIN_THREADS, Position, SearchInfo, SearchLimits, SearchResult,
-    SearchScore,
+    DEFAULT_AGGRESSION, DEFAULT_HASH_MIB, DEFAULT_MOVE_OVERHEAD_MS, DEFAULT_THREADS,
+    EMBEDDED_EVAL_FILE, Engine, MAX_AGGRESSION, MAX_HASH_MIB, MAX_MOVE_OVERHEAD_MS, MAX_THREADS,
+    MIN_AGGRESSION, MIN_HASH_MIB, MIN_MOVE_OVERHEAD_MS, MIN_THREADS, Position, SearchInfo,
+    SearchLimits, SearchResult, SearchScore,
 };
 
 use super::command::{Command, PositionCommand, PositionSource, parse};
@@ -189,9 +189,9 @@ where
         writeln!(self.output, "option name Clear Hash type button")?;
         writeln!(
             self.output,
-            "option name EvalFile type string default <empty>"
+            "option name EvalFile type string default {EMBEDDED_EVAL_FILE}"
         )?;
-        writeln!(self.output, "option name Use NNUE type check default false")?;
+        writeln!(self.output, "option name Use NNUE type check default true")?;
         writeln!(self.output, "uciok")?;
         self.output.flush()
     }
@@ -204,7 +204,12 @@ where
             // Stage the entire configuration, including its new cache domain,
             // before cancelling the old search or changing the session engine.
             let mut candidate = self.engine.clone();
-            if let Err(error) = candidate.load_eval_file(path) {
+            let loaded = if path == EMBEDDED_EVAL_FILE {
+                candidate.load_embedded_eval_file()
+            } else {
+                candidate.load_eval_file(path)
+            };
+            if let Err(error) = loaded {
                 return self.nnue_option_error("EvalFile", &error.to_string());
             }
             self.cancel_active();
@@ -483,7 +488,7 @@ mod tests {
             concat!(
                 "id name Jakgro ",
                 env!("CARGO_PKG_VERSION"),
-                "\nid author Jakgro contributors\noption name Hash type spin default 16 min 1 max 1024\noption name Threads type spin default 1 min 1 max 128\noption name Aggression type spin default 75 min 0 max 100\noption name Move Overhead type spin default 10 min 0 max 5000\noption name Clear Hash type button\noption name EvalFile type string default <empty>\noption name Use NNUE type check default false\nuciok\nreadyok\n"
+                "\nid author Jakgro contributors\noption name Hash type spin default 16 min 1 max 1024\noption name Threads type spin default 1 min 1 max 128\noption name Aggression type spin default 75 min 0 max 100\noption name Move Overhead type spin default 10 min 0 max 5000\noption name Clear Hash type button\noption name EvalFile type string default <embedded>\noption name Use NNUE type check default true\nuciok\nreadyok\n"
             )
         );
     }
@@ -583,21 +588,21 @@ mod tests {
     fn nnue_option_errors_are_visible_without_debug_and_success_is_quiet() {
         assert_eq!(
             transcript(
-                "setoption name Use NNUE value true\nsetoption name Use NNUE value invalid\nsetoption name Use NNUE\nsetoption name EvalFile\nsetoption name EvalFile value <empty>\nsetoption name Use NNUE value false\nisready\nquit\n"
+                "setoption name Use NNUE value true\nsetoption name Use NNUE value invalid\nsetoption name Use NNUE\nsetoption name EvalFile\nsetoption name EvalFile value <empty>\nsetoption name EvalFile value <embedded>\nsetoption name EvalFile value /nonexistent/net.nnue\nsetoption name Use NNUE value false\nisready\nquit\n"
             ),
             concat!(
-                "info string Use NNUE rejected: load EvalFile before enabling NNUE\n",
                 "info string Use NNUE requires true or false\n",
                 "info string Use NNUE requires true or false\n",
                 "info string EvalFile requires a non-empty path\n",
                 "info string EvalFile requires a non-empty path\n",
+                "info string EvalFile rejected: NNUE I/O error: No such file or directory (os error 2)\n",
                 "readyok\n",
             ),
         );
         let file = crate::engine::nnue_test_support::NetworkFile::new(137, false);
         assert_eq!(
             transcript(&format!(
-                "setoption name eVaLfIlE value {}\nsetoption name use nnue value TRUE\nucinewgame\nsetoption name Use NNUE value FALSE\nisready\nquit\n",
+                "setoption name eVaLfIlE value {}\nsetoption name use nnue value TRUE\nucinewgame\nsetoption name Use NNUE value FALSE\nsetoption name EvalFile value <embedded>\nisready\nquit\n",
                 file.path.display()
             )),
             "readyok\n",

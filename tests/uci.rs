@@ -66,14 +66,18 @@ fn nnue_depth_one(engine: &mut EngineProcess) -> (String, String) {
 }
 
 #[test]
-fn nnue_options_load_toggle_replace_and_persist_without_implicit_activation() {
+fn nnue_options_load_toggle_replace_and_persist_with_the_embedded_default() {
     let first = nnue_support::NetworkFile::new(137, false);
     let second = nnue_support::NetworkFile::new(271, false);
     let mut engine = EngineProcess::spawn();
     engine.send("setoption name Hash value 1");
     engine.send("setoption name Aggression value 0");
     engine.send("position startpos");
+    let embedded = nnue_depth_one(&mut engine);
+    engine.send("setoption name Use NNUE value false");
     let handcrafted = nnue_depth_one(&mut engine);
+    assert_ne!(handcrafted, embedded);
+    // Loading a file while the handcrafted evaluator is selected changes nothing yet.
     engine.send(&format!(
         "setoption name EvalFile value {}",
         first.path.display()
@@ -100,6 +104,8 @@ fn nnue_options_load_toggle_replace_and_persist_without_implicit_activation() {
     assert_eq!(nnue_depth_one(&mut engine), handcrafted);
     engine.send("setoption name Use NNUE value true");
     assert_eq!(nnue_depth_one(&mut engine).0, "cp -271");
+    engine.send("setoption name EvalFile value <embedded>");
+    assert_eq!(nnue_depth_one(&mut engine), embedded);
     engine.send("quit");
     assert!(engine.wait_for_exit(TEST_TIMEOUT).success());
 }
@@ -360,7 +366,7 @@ fn public_runner_handles_a_protocol_transcript() {
         concat!(
             "id name Jakgro ",
             env!("CARGO_PKG_VERSION"),
-            "\nid author Jakgro contributors\noption name Hash type spin default 16 min 1 max 1024\noption name Threads type spin default 1 min 1 max 128\noption name Aggression type spin default 75 min 0 max 100\noption name Move Overhead type spin default 10 min 0 max 5000\noption name Clear Hash type button\noption name EvalFile type string default <empty>\noption name Use NNUE type check default false\nuciok\nreadyok\n"
+            "\nid author Jakgro contributors\noption name Hash type spin default 16 min 1 max 1024\noption name Threads type spin default 1 min 1 max 128\noption name Aggression type spin default 75 min 0 max 100\noption name Move Overhead type spin default 10 min 0 max 5000\noption name Clear Hash type button\noption name EvalFile type string default <embedded>\noption name Use NNUE type check default true\nuciok\nreadyok\n"
         )
     );
 }

@@ -299,7 +299,8 @@ The default static evaluation is a quantized network embedded in the
 executable (`nets/jakgro.nnue`, provenance in `nets/jakgro.report.json`):
 colored piece-square features under eight king buckets on a file-mirrored half
 board, a shared 128-unit feature transformer with clipped-ReLU activations and
-one side-to-move-relative output in centipawns. Search, terminal handling and
+a side-to-move-relative output in centipawns from one of eight layers selected
+by the piece count. Search, terminal handling and
 the `Aggression` policy are unchanged; only `static_score` is routed, and the
 sacrifice verification and attacking preferences still read the handcrafted
 feature snapshots. The handcrafted evaluator remains available, and another
@@ -312,11 +313,11 @@ setoption name EvalFile value <embedded>  # back to the built-in network
 ```
 
 A rejected file is reported as `info string EvalFile rejected: ...` and leaves
-the previous configuration in place. The published network measured +123 Elo
-[112, 134] over the handcrafted evaluator at Aggression 75 in 2048 paired
-50,000-node games, and +143 [127, 160] in 1024 games at 50 ms per move, while
-searching about 1.3 times as many nodes per second; the Aggression 75 versus 0
-forcing-move ratio is unchanged (1.06 for both evaluators). The series is
+the previous configuration in place. The published network measured +142 Elo
+[131, 153] over the handcrafted evaluator at Aggression 75 in 2048 paired
+50,000-node games, and +160 [145, 176] in 1024 games at 50 ms per move, while
+searching about 1.2 times as many nodes per second; the Aggression 75 versus 0
+forcing-move ratio is kept (1.08 against the handcrafted 1.06). The series is
 recorded in [`docs/tuning/nnue-aggression75.md`](docs/tuning/nnue-aggression75.md).
 
 Networks are produced by the tuning-only `nnue-data` helper, entirely on CPU
@@ -332,8 +333,8 @@ python3 tools/generate_nnue_corpus.py --engine target/release/jakgro \
   --development artifacts/nnue/development.txt --output-dir artifacts/nnue/data \
   --deduplicate --drop-development-overlap
 ./target/release/nnue-data train --data-dir artifacts/nnue/data \
-  --output-dir artifacts/nnue/net --epochs 30 --batch-size 1024 \
-  --rate 0.002 --rate-decay 0.9 --lambda 0
+  --output-dir artifacts/nnue/net --epochs 40 --batch-size 8192 \
+  --rate 0.0057 --rate-decay 0.9 --lambda 0
 ```
 
 `generate_nnue_corpus.py` plays deterministic fixed-node self-play between two
@@ -348,7 +349,9 @@ not depend on the thread count; each epoch is exported, re-loaded through the
 engine's own network loader and scored on the development split, and the epoch
 with the lowest development label loss is published beside `report.json`.
 `tools/nnue_recipe.sh` records the corpus and training settings the
-autoresearch harness measures.
+autoresearch harness measures, and `tools/nnue_corpus.sh` pre-generates any
+missing corpus members, including seed groups taught by a previously published
+network loaded through `--eval-file`.
 
 ## Roadmap
 

@@ -20,16 +20,18 @@ NNUE_CORPUS_SKIP_PLIES=8
 # Aggression profiles for the two sides; unequal profiles keep the two games
 # of a colour-reversed pair distinct.
 NNUE_CORPUS_PROFILES=(75 0)
-# Optional teacher network for NNUE-taught seed groups: both generating sides
-# load it into the current engine build, so those rows are labelled by the
-# neural engine rather than the handcrafted one. The file must be a previously
-# published network kept under $ART/teachers; its origin is recorded beside it.
-# hce64-230c5e3023c7: 128-hidden network trained by this recipe on the 64
-# handcrafted-taught seed groups (autoresearch run 18, +62.8 Elo vs HCE-75).
-NNUE_CORPUS_TEACHER_NET=$ART/teachers/hce64-230c5e3023c7.nnue
-# Semicolon-separated seed groups generated with the teacher (may be empty).
-IFS=';' read -r -a NNUE_CORPUS_TEACHER_SEED_GROUPS <<< \
-    "${NNUE_CORPUS_TEACHER_SEED_GROUPS_LIST:-201 202 203 204 205 206 207 208;209 210 211 212 213 214 215 216}"
+# Teacher networks for NNUE-taught seed groups: both generating sides load the
+# network into the current engine build, so those rows are labelled by the
+# neural engine rather than the handcrafted one. Each set is a previously
+# published network under $ART/teachers followed by its seed groups; sets are
+# separated by `|`, fields within a set by `,`, seeds within a group by spaces.
+# NNUE_CORPUS_TEACHER_SETS_LIST in the environment overrides the default.
+#   hce64-230c5e3023c7: trained on the 64 handcrafted-taught groups
+#                       (autoresearch run 18, +62.8 Elo vs HCE-75).
+#   mix80m-0b9eacd319: mirrored-feature network trained on 64 handcrafted and
+#                       16 hce64-taught groups (run 21, +97.8 Elo vs HCE-75).
+IFS='|' read -r -a NNUE_CORPUS_TEACHER_SETS <<< \
+    "${NNUE_CORPUS_TEACHER_SETS_LIST:-hce64-230c5e3023c7,201 202 203 204 205 206 207 208,209 210 211 212 213 214 215 216,217 218 219 220 221 222 223 224,225 226 227 228 229 230 231 232}"
 
 # nnue_corpus_select TEACHER_NET points nnue_corpus at the handcrafted corpus
 # (empty argument) or at the corpus taught by that network.
@@ -85,13 +87,20 @@ nnue_corpus training "${NNUE_CORPUS_TRAINING_SEED_GROUPS[@]}"
 NNUE_TRAINING_SOURCE=$nnue_corpus_result
 nnue_corpus development "${NNUE_CORPUS_DEVELOPMENT_SEED_GROUPS[@]}"
 NNUE_DEVELOPMENT_SOURCE=$nnue_corpus_result
-if [ ${#NNUE_CORPUS_TEACHER_SEED_GROUPS[@]} -gt 0 ]; then
-    [ -n "$NNUE_CORPUS_TEACHER_NET" ] || { log "teacher seed groups need NNUE_CORPUS_TEACHER_NET"; exit 1; }
-    nnue_corpus_select "$NNUE_CORPUS_TEACHER_NET"
-    nnue_corpus training "${NNUE_CORPUS_TEACHER_SEED_GROUPS[@]}"
-    mixed="$ART/corpus/mixed-$(cat "$NNUE_TRAINING_SOURCE" "$nnue_corpus_result" | sha256sum | cut -c1-16).txt"
+nnue_mixed_parts=("$NNUE_TRAINING_SOURCE")
+for set in "${NNUE_CORPUS_TEACHER_SETS[@]}"; do
+    [ -n "$set" ] || continue
+    IFS=',' read -r -a fields <<< "$set"
+    teacher="$ART/teachers/${fields[0]}.nnue"
+    [ -f "$teacher" ] || { log "missing teacher network $teacher"; exit 1; }
+    nnue_corpus_select "$teacher"
+    nnue_corpus training "${fields[@]:1}"
+    nnue_mixed_parts+=("$nnue_corpus_result")
+done
+if [ ${#nnue_mixed_parts[@]} -gt 1 ]; then
+    mixed="$ART/corpus/mixed-$(cat "${nnue_mixed_parts[@]}" | sha256sum | cut -c1-16).txt"
     if [ ! -f "$mixed" ]; then
-        cat "$NNUE_TRAINING_SOURCE" "$nnue_corpus_result" >"$mixed.tmp"
+        cat "${nnue_mixed_parts[@]}" >"$mixed.tmp"
         mv "$mixed.tmp" "$mixed"
     fi
     NNUE_TRAINING_SOURCE=$mixed

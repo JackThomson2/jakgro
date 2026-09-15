@@ -116,4 +116,4 @@ fi
 NNUE_PREPARE_ARGS=(--deduplicate --drop-development-overlap)
 
 # Extra arguments for `nnue-data train`.
-NNUE_TRAIN_ARGS=(--epochs 30 --batch-size 4096 --rate 0.004 --rate-decay 0.9 --l2 1e-6 --seed 75 --lambda 0.0)
+NNUE_TRAIN_ARGS=(--epochs 30 --batch-size 8192 --rate 0.0057 --rate-decay 0.9 --l2 1e-6 --seed 75 --lambda 0.0)

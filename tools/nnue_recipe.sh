@@ -12,7 +12,7 @@ NNUE_CORPUS_GAMES_PER_SEED=4096
 # environment overrides the training groups (tools/nnue_corpus.sh uses this to
 # pre-generate members the recipe does not use yet).
 IFS=';' read -r -a NNUE_CORPUS_TRAINING_SEED_GROUPS <<< \
-    "${NNUE_CORPUS_TRAINING_SEED_GROUPS_LIST:-1 2 3 4 5 6 7 8;9 10 11 12 13 14 15 16}"
+    "${NNUE_CORPUS_TRAINING_SEED_GROUPS_LIST:-1 2 3 4 5 6 7 8;9 10 11 12 13 14 15 16;17 18 19 20 21 22 23 24;25 26 27 28 29 30 31 32}"
 NNUE_CORPUS_DEVELOPMENT_SEED_GROUPS=("101")
 NNUE_CORPUS_NODES=50000
 NNUE_CORPUS_RANDOM_PLIES=8

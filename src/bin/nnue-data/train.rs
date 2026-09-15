@@ -20,6 +20,7 @@ use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::thread;
 
+use crate::{prepare, sha256};
 use cozy_chess::Board;
 use jakgro::engine::nnue::{
     ACTIVATION_MAX, FILE_BYTES, FORMAT_VERSION, HEADER_BYTES, HIDDEN_SIZE, INPUT_FEATURES, MAGIC,
@@ -44,6 +45,8 @@ pub struct Options {
     pub epochs: usize,
     pub batch_size: usize,
     pub rate: f32,
+    /// Multiplies the learning rate after every epoch.
+    pub rate_decay: f32,
     pub l2: f32,
     pub seed: u64,
     pub label_mix: f32,
@@ -86,6 +89,7 @@ impl Options {
             epochs: number(&values, "--epochs", 10)?,
             batch_size: number(&values, "--batch-size", 256)?,
             rate: number(&values, "--rate", 0.001)?,
+            rate_decay: number(&values, "--rate-decay", 1.0)?,
             l2: number(&values, "--l2", 1e-6)?,
             seed: number(&values, "--seed", 75)?,
             label_mix: number(&values, "--lambda", 0.5)?,
@@ -103,6 +107,7 @@ impl Options {
                 "--epochs",
                 "--batch-size",
                 "--rate",
+                "--rate-decay",
                 "--l2",
                 "--seed",
                 "--lambda",
@@ -137,6 +142,10 @@ impl Options {
         check(
             self.rate.is_finite() && self.rate > 0.0 && self.rate <= 1.0,
             "rate must be finite in (0,1]",
+        )?;
+        check(
+            self.rate_decay.is_finite() && self.rate_decay > 0.0 && self.rate_decay <= 1.0,
+            "rate decay must be finite in (0,1]",
         )?;
         check(
             self.l2.is_finite() && (0.0..=1.0).contains(&self.l2),
@@ -494,22 +503,34 @@ fn adam(
     moment: &mut [f32],
     velocity: &mut [f32],
     gradient: impl Fn(usize) -> f32,
-    step: usize,
-    rate: f32,
-    l2: f32,
+    update: AdamUpdate,
     limit: f32,
 ) {
+    let AdamUpdate { step, rate, l2 } = update;
     let moment_correction = 1.0 - 0.9_f32.powi(step as i32);
     let velocity_correction = 1.0 - 0.999_f32.powi(step as i32);
+    // Moments of parameters that stop receiving gradient decay geometrically
+    // into subnormal floats, which the CPU handles two orders of magnitude
+    // slower; flushing them to zero changes no visible update.
+    const TINY: f32 = 1e-30;
+    let flush = |value: f32| if value.abs() < TINY { 0.0 } else { value };
     for index in 0..parameters.len() {
         let g = gradient(index) + l2 * parameters[index];
-        moment[index] = 0.9 * moment[index] + 0.1 * g;
-        velocity[index] = 0.999 * velocity[index] + 0.001 * g * g;
+        moment[index] = flush(0.9 * moment[index] + 0.1 * g);
+        velocity[index] = flush(0.999 * velocity[index] + 0.001 * g * g);
         parameters[index] = (parameters[index]
             - rate * (moment[index] / moment_correction)
                 / ((velocity[index] / velocity_correction).sqrt() + 1e-8))
             .clamp(-limit, limit);
     }
+}
+
+/// The step-dependent Adam settings shared by every tensor in one update.
+#[derive(Clone, Copy)]
+struct AdamUpdate {
+    step: usize,
+    rate: f32,
+    l2: f32,
 }
 
 /// Largest float magnitudes the i16/i32 export can represent per tensor.
@@ -622,6 +643,7 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
     if output.exists() {
         return Err("output already exists; choose a new directory".to_owned());
     }
+    let input_hashes = prepare::verify_dataset(data)?;
     let training = read_rows(&data.join("training.tsv"), options.label_mix, options.k)?;
     let development = read_rows(&data.join("development.tsv"), options.label_mix, options.k)?;
     let mut support = vec![false; INPUT_FEATURES];
@@ -654,6 +676,7 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
     let mut best: Option<(usize, Metrics, Vec<u8>)> = None;
     let rows_per_thread = |len: usize| len.div_ceil(options.threads).max(1);
 
+    let mut rate = options.rate;
     for epoch in 1..=options.epochs {
         random.shuffle(&mut order);
         let mut epoch_loss = 0.0_f64;
@@ -690,6 +713,11 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
             epoch_loss += loss;
             let used = &shards[..rows.chunks(shard_size).len()];
             // Phase two: fixed parameter ranges reduce the shards in order.
+            let update = AdamUpdate {
+                step,
+                rate,
+                l2: options.l2,
+            };
             let chunk = rows_per_thread(parameters.input.len());
             thread::scope(|scope| {
                 let ranges = parameters
@@ -705,9 +733,7 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
                             moment,
                             velocity,
                             |index| used.iter().map(|shard| shard.input[offset + index]).sum(),
-                            step,
-                            options.rate,
-                            options.l2,
+                            update,
                             INPUT_LIMIT,
                         );
                     });
@@ -718,9 +744,7 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
                 &mut moment.hidden,
                 &mut velocity.hidden,
                 |index| used.iter().map(|shard| shard.hidden[index]).sum(),
-                step,
-                options.rate,
-                options.l2,
+                update,
                 INPUT_LIMIT,
             );
             adam(
@@ -728,9 +752,7 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
                 &mut moment.output,
                 &mut velocity.output,
                 |index| used.iter().map(|shard| shard.output[index]).sum(),
-                step,
-                options.rate,
-                options.l2,
+                update,
                 OUTPUT_LIMIT,
             );
             let bias_gradient = used.iter().map(|shard| shard.bias).sum::<f32>();
@@ -739,9 +761,7 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
                 std::slice::from_mut(&mut moment.bias),
                 std::slice::from_mut(&mut velocity.bias),
                 |_| bias_gradient,
-                step,
-                options.rate,
-                options.l2,
+                update,
                 BIAS_LIMIT,
             );
         }
@@ -767,44 +787,96 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
             best = Some((epoch, development_metric, bytes));
         }
         history.push(record);
+        rate *= options.rate_decay;
     }
     let (selected, _, bytes) =
         best.ok_or("no trained integer model improved training loss; no artifact exported")?;
+    // Inputs are re-verified after the run so the report never binds a corpus
+    // that changed underneath it.
+    if prepare::verify_dataset(data)? != input_hashes {
+        return Err("training inputs changed".to_owned());
+    }
     let staging = output.with_extension("staging");
     if staging.exists() {
         fs::remove_dir_all(&staging).map_err(|error| error.to_string())?;
     }
     fs::create_dir_all(&staging).map_err(|error| error.to_string())?;
     fs::write(staging.join("network.nnue"), &bytes).map_err(|error| error.to_string())?;
-    let mut summary = String::new();
-    let _ = write!(
-        summary,
-        "{{\"initial_integer_development\": {}, \"initial_integer_training\": {}, \"history\": [",
-        initial_development.json(),
-        initial_training.json()
+    let history_json = history
+        .iter()
+        .map(Epoch::json)
+        .collect::<Vec<_>>()
+        .join(", ");
+    let selected_json = history[selected - 1].json();
+    let mut report = String::from("{\n");
+    let _ = writeln!(report, "  \"schema_version\": 3,");
+    let _ = writeln!(
+        report,
+        "  \"architecture\": {},",
+        prepare::architecture_json()
     );
-    for (index, record) in history.iter().enumerate() {
-        if index > 0 {
-            summary.push_str(", ");
-        }
-        summary.push_str(&record.json());
-    }
-    let _ = write!(
-        summary,
-        "], \"selected_epoch\": {selected}, \"steps\": {step}, \"training_rows\": {}, \"development_rows\": {}, \"training_metric_rows\": {}, \"threads\": {}, \"shards\": {SHARDS}, \"unsupported_feature_rows\": {}}}",
+    let _ = writeln!(report, "  \"training_completed\": true,");
+    let _ = writeln!(
+        report,
+        "  \"optimizer\": \"full-parameter Adam, float32, {SHARDS} fixed gradient shards, {} threads, SplitMix64 minibatches, weights clamped to export bounds\",",
+        options.threads
+    );
+    let _ = writeln!(
+        report,
+        "  \"hyperparameters\": {{\"epochs\": {}, \"batch_size\": {}, \"rate\": {}, \"rate_decay\": {}, \"l2\": {}, \"seed\": {}, \"lambda\": {}, \"k\": {}}},",
+        options.epochs,
+        options.batch_size,
+        options.rate,
+        options.rate_decay,
+        options.l2,
+        options.seed,
+        options.label_mix,
+        options.k
+    );
+    let _ = writeln!(
+        report,
+        "  \"inputs\": {{\"data_dir\": {}, \"helper_sha256\": \"{}\", \"training_sha256\": \"{}\", \"development_sha256\": \"{}\"}},",
+        prepare::json_string(&data.to_string_lossy()),
+        prepare::helper_sha256()?,
+        input_hashes["training.tsv"],
+        input_hashes["development.tsv"]
+    );
+    let _ = writeln!(report, "  \"network_sha256\": \"{}\",", sha256::hex(&bytes));
+    let _ = writeln!(
+        report,
+        "  \"training_rows\": {}, \"development_rows\": {}, \"training_metric_rows\": {}, \"steps\": {step}, \"unsupported_feature_rows\": {},",
         training.len(),
         development.len(),
         training_sample.len(),
-        options.threads,
         support.iter().filter(|supported| !**supported).count()
     );
-    fs::write(staging.join("training.json"), format!("{summary}\n"))
-        .map_err(|error| error.to_string())?;
+    let _ = writeln!(
+        report,
+        "  \"initial_integer_training\": {},",
+        initial_training.json()
+    );
+    let _ = writeln!(
+        report,
+        "  \"initial_integer_development\": {},",
+        initial_development.json()
+    );
+    let _ = writeln!(report, "  \"selected_epoch\": {selected},");
+    let _ = writeln!(report, "  \"selected_metrics\": {selected_json},");
+    let _ = writeln!(report, "  \"history\": [{history_json}],");
+    let _ = writeln!(
+        report,
+        "  \"limitations\": [\"No Elo, speed or personality claim; external experimental model only.\", \"Development label loss selects an epoch, not an independent strength confirmation.\", \"Split-overlap rejection does not establish opening-family or game independence.\", \"Integer metrics use the engine's own network loader; the training subsample is strided to at most training_metric_rows positions.\"]"
+    );
+    report.push_str("}\n");
+    fs::write(staging.join("report.json"), &report).map_err(|error| error.to_string())?;
     if output.exists() {
         return Err("output appeared during training".to_owned());
     }
     fs::rename(&staging, output).map_err(|error| error.to_string())?;
-    Ok(summary)
+    Ok(format!(
+        "{{\"network_sha256\": \"{}\", \"selected_epoch\": {selected}, \"steps\": {step}, \"selected_metrics\": {selected_json}}}",
+        sha256::hex(&bytes)
+    ))
 }
 
 #[cfg(test)]

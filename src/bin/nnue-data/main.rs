@@ -1,13 +1,15 @@
 //! Strict, streaming feature preparation, integer inference and CPU training
 //! for offline NNUE tools.
 
+mod prepare;
+mod sha256;
 mod train;
 
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::process::ExitCode;
 
 use cozy_chess::{BitBoard, Board, Color, GameStatus, Piece};
-use jakgro::engine::nnue::{Network, active_features};
+use jakgro::engine::nnue::Network;
 
 const MAX_LINE_BYTES: u64 = 4096;
 const HEADER: &str = "# jakgro-nnue-data-v1\t12288\t128\t255\t64\nfen\tkey\tstm\toutcome\tteacher_cp\twhite\tblack\n";
@@ -15,9 +17,12 @@ const HEADER: &str = "# jakgro-nnue-data-v1\t12288\t128\t255\t64\nfen\tkey\tstm\
 fn main() -> ExitCode {
     let arguments: Vec<_> = std::env::args().skip(1).collect();
     let result = match arguments.as_slice() {
-        [command, input] if command == "prepare" => open(input)
-            .and_then(|reader| prepare(reader, io::stdout().lock()))
-            .map(|count| format!("{count} validated positions")),
+        [command, rest @ ..] if command == "prepare" => prepare::Options::parse(rest)
+            .and_then(|options| prepare::prepare(&options))
+            .map(|summary| {
+                println!("{summary}");
+                "dataset prepared".to_owned()
+            }),
         [command, model, input] if command == "score" => Network::load(model)
             .map_err(|error| error.to_string())
             .and_then(|network| {
@@ -33,9 +38,11 @@ fn main() -> ExitCode {
             })
         }
         _ => Err(
-            "usage: nnue-data prepare <labelled-text|-> | score <network> <fen-text|-> \
+            "usage: nnue-data prepare --training TXT --development TXT --output-dir DIR \
+                 [--deduplicate] [--drop-development-overlap] \
+                 | score <network> <fen-text|-> \
                  | train --data-dir DIR --output-dir DIR [--epochs N] [--batch-size N] [--rate F] \
-                 [--l2 F] [--seed N] [--lambda F] [--k F] [--threads N]"
+                 [--rate-decay F] [--l2 F] [--seed N] [--lambda F] [--k F] [--threads N]"
                 .to_owned(),
         ),
     };
@@ -187,34 +194,6 @@ fn comma(values: impl IntoIterator<Item = impl ToString>) -> String {
         .join(",")
 }
 
-fn prepare(reader: impl BufRead, mut writer: impl Write) -> Result<usize, String> {
-    writer
-        .write_all(HEADER.as_bytes())
-        .map_err(|error| error.to_string())?;
-    let count = lines(reader, |_, line| {
-        let sample = parse_sample(line)?;
-        let white = active_features(&sample.board, Color::White);
-        let black = active_features(&sample.board, Color::Black);
-        let teacher = sample
-            .teacher
-            .map_or_else(|| "-".to_owned(), |score| score.to_string());
-        writeln!(
-            writer,
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}",
-            sample.board,
-            canonical(&sample.board),
-            u8::from(sample.board.side_to_move() == Color::Black),
-            sample.outcome,
-            teacher,
-            comma(white),
-            comma(black)
-        )
-        .map_err(|error| error.to_string())
-    })?;
-    writer.flush().map_err(|error| error.to_string())?;
-    Ok(count)
-}
-
 fn score(network: &Network, reader: impl BufRead, mut writer: impl Write) -> Result<usize, String> {
     let count = lines(reader, |_, line| {
         let board = line
@@ -256,17 +235,15 @@ mod tests {
     const FEN: &str = "4k3/8/5n2/8/8/8/2P5/4K3 w - - 0 1";
 
     #[test]
-    fn preparation_uses_runtime_features_and_preserves_white_labels() {
-        let mut output = Vec::new();
-        let input = format!("{FEN};0.5;-123\n");
-        assert_eq!(prepare(input.as_bytes(), &mut output).unwrap(), 1);
-        let text = String::from_utf8(output).unwrap();
-        assert!(text.starts_with(HEADER));
-        assert!(text.ends_with("\t0\t0.5\t-123\t1546,1860,2029,2300\t1621,1860,1970,2300\n"));
+    fn black_labels_are_preserved_as_white_relative() {
         let black = FEN.replace(" w ", " b ");
         let sample = parse_sample(&format!("{black};1;345")).unwrap();
         assert_eq!(sample.outcome, 1.0);
         assert_eq!(sample.teacher, Some(345.0));
+    }
+
+    fn consume_all(input: &[u8]) -> Result<usize, String> {
+        lines(input, |_, line| parse_sample(line).map(|_| ()))
     }
 
     #[test]
@@ -280,7 +257,7 @@ mod tests {
         assert!(parse_sample("7k/8/8/8/8/8/8/K7 w - - 0 1;0.5").is_err());
         let input = format!("{FEN};1\n{FEN};NaN\n");
         assert!(
-            prepare(input.as_bytes(), Vec::new())
+            consume_all(input.as_bytes())
                 .unwrap_err()
                 .contains("line 2")
         );
@@ -288,14 +265,14 @@ mod tests {
 
     #[test]
     fn line_lengths_encoding_and_empty_inputs_are_bounded() {
-        assert!(prepare("# empty\n".as_bytes(), Vec::new()).is_err());
+        assert!(consume_all("# empty\n".as_bytes()).is_err());
         assert!(
-            prepare([0xff, b'\n'].as_slice(), Vec::new())
+            consume_all([0xff, b'\n'].as_slice())
                 .unwrap_err()
                 .contains("UTF-8")
         );
         assert!(
-            prepare(vec![b'a'; 5000].as_slice(), Vec::new())
+            consume_all(vec![b'a'; 5000].as_slice())
                 .unwrap_err()
                 .contains("exceeds")
         );

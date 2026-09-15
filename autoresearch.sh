@@ -56,22 +56,20 @@ fi
 # 3. Corpus and network, cached by input hashes.
 source tools/nnue_recipe.sh
 DATA_KEY=$(sha "$HELPER" "$NNUE_TRAINING_SOURCE" "$NNUE_DEVELOPMENT_SOURCE" \
-    tools/nnue_data.py tools/nnue_format.py <(printf '%s\n' "${NNUE_PREPARE_ARGS[@]}"))
+    <(printf '%s\n' "${NNUE_PREPARE_ARGS[@]}"))
 DATA="$ART/data/$DATA_KEY"
 if [ ! -f "$DATA/manifest.json" ]; then
     log "preparing corpus -> $DATA"
     rm -rf "$DATA"
-    python3 tools/train_nnue.py prepare --helper "$HELPER" \
-        --training "$NNUE_TRAINING_SOURCE" --development "$NNUE_DEVELOPMENT_SOURCE" \
+    "$HELPER" prepare --training "$NNUE_TRAINING_SOURCE" --development "$NNUE_DEVELOPMENT_SOURCE" \
         --output-dir "$DATA" "${NNUE_PREPARE_ARGS[@]}" >"$ART/prepare.log"
 fi
-NET_KEY=$(sha "$DATA/manifest.json" tools/train_nnue.py <(printf '%s\n' "${NNUE_TRAIN_ARGS[@]}"))
+NET_KEY=$(sha "$DATA/manifest.json" <(printf '%s\n' "${NNUE_TRAIN_ARGS[@]}"))
 NET_DIR="$ART/nets/$NET_KEY"
 if [ ! -f "$NET_DIR/network.nnue" ]; then
     log "training network -> $NET_DIR"
     rm -rf "$NET_DIR"
-    python3 tools/train_nnue.py train --helper "$HELPER" --data-dir "$DATA" \
-        --output-dir "$NET_DIR" "${NNUE_TRAIN_ARGS[@]}" >"$ART/train.log"
+    "$HELPER" train --data-dir "$DATA" --output-dir "$NET_DIR" "${NNUE_TRAIN_ARGS[@]}" >"$ART/train.log"
 fi
 NET="$NET_DIR/network.nnue"
 log "network $(sha256sum "$NET" | cut -c1-16) epoch $(json "$NET_DIR/report.json" selected_epoch)"

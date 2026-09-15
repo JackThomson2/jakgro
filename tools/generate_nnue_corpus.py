@@ -8,17 +8,15 @@ in check whose played move is neither a capture nor a promotion, labelled by
 the game result and by the score the mover's search reported. Fixed nodes,
 one thread and a fixed seed make the PGN, and so the corpus, reproducible.
 
-The output is gzip text ready for `train_nnue.py prepare`, beside a manifest
+The output is plain text ready for `nnue-data prepare`, beside a manifest
 binding the binaries, suite and settings by hash.
 """
 
 from __future__ import annotations
 
 import argparse
-import gzip
 import hashlib
 import json
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -48,7 +46,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--runner", type=Path, required=True, help="selfplay arbiter")
     parser.add_argument("--tune", type=Path, required=True, help="tuning-feature `tune` binary")
     parser.add_argument("--openings", type=Path, required=True)
-    parser.add_argument("--output", type=Path, required=True, help="gzip corpus path")
+    parser.add_argument("--output", type=Path, required=True, help="plain-text corpus path")
     parser.add_argument("--games-per-seed", type=int, default=4096)
     parser.add_argument("--seeds", type=int, nargs="+", default=[1])
     parser.add_argument("--nodes", type=int, default=50_000)
@@ -85,9 +83,7 @@ def main(argv: list[str] | None = None) -> int:
             run([str(args.tune), "extract", "--pgn", *map(str, pgns), "--out", str(positions),
                  "--skip-plies", str(args.skip_plies)], log)
             rows = sum(1 for _ in positions.open(encoding="utf-8"))
-            staged = work / "corpus.txt.gz"
-            with positions.open("rb") as source, gzip.GzipFile(staged, "wb", mtime=0) as target:
-                shutil.copyfileobj(source, target)
+            staged = positions
             manifest = {
                 "schema_version": 1, "rows": rows, "games": args.games_per_seed * len(args.seeds),
                 "settings": {"games_per_seed": args.games_per_seed, "seeds": args.seeds, "nodes": args.nodes,

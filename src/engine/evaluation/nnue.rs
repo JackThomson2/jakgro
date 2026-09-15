@@ -2,7 +2,8 @@
 //!
 //! This module does not select an engine backend or supply a default network.
 //! Features are colored piece-square pairs, including both kings, conditioned
-//! on one of eight 2x2 buckets of the perspective king. Black's perspective
+//! on one of eight 2x2 buckets of the perspective king; one of eight output
+//! layers is selected by the number of pieces on the board. Black's perspective
 //! mirrors ranks; a perspective whose king stands on files e-h mirrors files as
 //! well, so the king always lies on files a-d and every position shares
 //! weights with its horizontal reflection. Both perspectives share the feature
@@ -37,6 +38,8 @@ pub const HIDDEN_SIZE: usize = 128;
 pub const ACTIVATION_MAX: i32 = 255;
 /// Quantization scale for centipawn-valued output weights.
 pub const OUTPUT_SCALE: i32 = 64;
+/// Output layers selected by piece count: `(pieces - 1) / 4` for 2..=32 pieces.
+pub const OUTPUT_BUCKETS: usize = 8;
 /// Largest absolute nonterminal score returned by this backend.
 pub const MAX_SCORE: i32 = 16_000;
 
@@ -60,8 +63,9 @@ const COLORS: [Color; 2] = [Color::White, Color::Black];
 pub struct Network {
     hidden_bias: [i16; HIDDEN_SIZE],
     input_weights: Box<[i16]>,
-    output_weights: [[i16; HIDDEN_SIZE]; 2],
-    output_bias: i32,
+    /// Per output bucket: side-to-move row, then opponent row.
+    output_weights: [[[i16; HIDDEN_SIZE]; 2]; OUTPUT_BUCKETS],
+    output_bias: [i32; OUTPUT_BUCKETS],
 }
 
 impl fmt::Debug for Network {
@@ -119,11 +123,10 @@ impl Network {
         (kernels::kernels().sub)(sum, self.row(index));
     }
 
-    fn output(&self, sums: &[[i32; HIDDEN_SIZE]; 2], side_to_move: Color) -> i32 {
+    fn output(&self, sums: &[[i32; HIDDEN_SIZE]; 2], side_to_move: Color, bucket: usize) -> i32 {
         let dot = kernels::kernels().dot;
-        let mut numerator = self.output_bias;
-        for (weights, color) in self
-            .output_weights
+        let mut numerator = self.output_bias[bucket];
+        for (weights, color) in self.output_weights[bucket]
             .iter()
             .zip([side_to_move, !side_to_move])
         {
@@ -187,7 +190,11 @@ impl Accumulator<'_> {
     /// Returns the current side-to-move-relative static centipawn score.
     #[must_use]
     pub fn evaluate(&self) -> i32 {
-        self.network.output(&self.sums, self.position.side_to_move)
+        self.network.output(
+            &self.sums,
+            self.position.side_to_move,
+            self.position.output_bucket,
+        )
     }
 
     /// Exposes the exact, unclipped sums for exporter and reference validation.
@@ -211,6 +218,7 @@ struct FeaturePosition {
     pieces: [u64; PIECE_PLANES],
     views: [View; 2],
     side_to_move: Color,
+    output_bucket: usize,
 }
 
 impl FeaturePosition {
@@ -221,6 +229,7 @@ impl FeaturePosition {
             }),
             views: std::array::from_fn(|index| view(board.king(COLORS[index]), COLORS[index])),
             side_to_move: board.side_to_move(),
+            output_bucket: output_bucket(board),
         }
     }
 }
@@ -243,6 +252,12 @@ pub fn active_features(board: &Board, perspective: Color) -> Vec<u16> {
     }
     features.sort_unstable();
     features
+}
+
+/// Selects the output layer from the piece count; both kings are always present.
+#[must_use]
+pub fn output_bucket(board: &Board) -> usize {
+    (board.occupied().len() as usize - 1) / 4
 }
 
 fn color_index(color: Color) -> usize {

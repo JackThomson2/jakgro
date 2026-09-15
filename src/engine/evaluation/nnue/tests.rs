@@ -8,7 +8,8 @@ use cozy_chess::{Board, Color, Move, Piece, Square};
 
 use super::{
     ACTIVATION_MAX, Accumulator, FILE_BYTES, FORMAT_VERSION, HEADER_BYTES, HIDDEN_SIZE,
-    INPUT_FEATURES, LoadError, MAX_SCORE, Network, OUTPUT_SCALE, active_features,
+    INPUT_FEATURES, LoadError, MAX_SCORE, Network, OUTPUT_BUCKETS, OUTPUT_SCALE, active_features,
+    output_bucket,
 };
 
 fn synthetic_network() -> &'static Network {
@@ -27,9 +28,9 @@ fn synthetic_network() -> &'static Network {
                 .map(|_| (next() % 65) as i16 - 32)
                 .collect(),
             output_weights: std::array::from_fn(|_| {
-                std::array::from_fn(|_| (next() % 2049) as i16 - 1024)
+                std::array::from_fn(|_| std::array::from_fn(|_| (next() % 2049) as i16 - 1024))
             }),
-            output_bias: -16_333,
+            output_bias: std::array::from_fn(|bucket| -16_333 + 977 * bucket as i32),
         };
         Network::from_bytes(&encode(&model)).unwrap()
     })
@@ -39,8 +40,8 @@ fn zero_network() -> Network {
     Network {
         hidden_bias: [0; HIDDEN_SIZE],
         input_weights: vec![0; INPUT_FEATURES * HIDDEN_SIZE].into_boxed_slice(),
-        output_weights: [[0; HIDDEN_SIZE]; 2],
-        output_bias: 0,
+        output_weights: [[[0; HIDDEN_SIZE]; 2]; OUTPUT_BUCKETS],
+        output_bias: [0; OUTPUT_BUCKETS],
     }
 }
 
@@ -48,14 +49,14 @@ fn encode(model: &Network) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(FILE_BYTES);
     bytes.extend_from_slice(b"JAKNNUE\0");
     for value in [
-        1_u32,
+        2_u32,
         1,
         INPUT_FEATURES as u32,
         HIDDEN_SIZE as u32,
         255,
         64,
         (FILE_BYTES - HEADER_BYTES) as u32,
-        0,
+        OUTPUT_BUCKETS as u32,
     ] {
         bytes.extend_from_slice(&value.to_le_bytes());
     }
@@ -66,10 +67,12 @@ fn encode(model: &Network) -> Vec<u8> {
     for &value in &model.input_weights {
         bytes.extend_from_slice(&value.to_le_bytes());
     }
-    for &value in model.output_weights.iter().flatten() {
+    for &value in model.output_weights.iter().flatten().flatten() {
         bytes.extend_from_slice(&value.to_le_bytes());
     }
-    bytes.extend_from_slice(&model.output_bias.to_le_bytes());
+    for &value in &model.output_bias {
+        bytes.extend_from_slice(&value.to_le_bytes());
+    }
     assert_eq!(bytes.len(), FILE_BYTES);
     update_checksum(&mut bytes);
     bytes
@@ -131,12 +134,16 @@ fn reference(model: &Network, board: &Board) -> ([[i32; HIDDEN_SIZE]; 2], i32) {
             i32::try_from(total).unwrap()
         })
     });
-    let mut numerator = i64::from(model.output_bias);
+    let bucket = (board.occupied().len() as usize - 1) / 4;
+    let mut numerator = i64::from(model.output_bias[bucket]);
     for (slot, side) in [board.side_to_move(), !board.side_to_move()]
         .into_iter()
         .enumerate()
     {
-        for (&weight, &sum) in model.output_weights[slot].iter().zip(&sums[side as usize]) {
+        for (&weight, &sum) in model.output_weights[bucket][slot]
+            .iter()
+            .zip(&sums[side as usize])
+        {
             numerator += i64::from(weight) * i64::from(sum.clamp(0, 255));
         }
     }
@@ -195,13 +202,19 @@ fn mirror(board: &Board) -> Board {
 
 #[test]
 fn feature_and_file_contract_has_explicit_dimensions() {
-    assert_eq!(FORMAT_VERSION, 1);
+    assert_eq!(FORMAT_VERSION, 2);
+    assert_eq!(OUTPUT_BUCKETS, 8);
     assert_eq!(INPUT_FEATURES, 6_144);
     assert_eq!(HIDDEN_SIZE, 128);
     assert_eq!(ACTIVATION_MAX, 255);
     assert_eq!(OUTPUT_SCALE, 64);
     assert_eq!(HEADER_BYTES, 48);
-    assert_eq!(FILE_BYTES, 1_573_684);
+    assert_eq!(
+        FILE_BYTES,
+        HEADER_BYTES
+            + 2 * (HIDDEN_SIZE + INPUT_FEATURES * HIDDEN_SIZE + OUTPUT_BUCKETS * 2 * HIDDEN_SIZE)
+            + 4 * OUTPUT_BUCKETS
+    );
 }
 
 #[test]
@@ -439,8 +452,10 @@ fn incremental_playouts_siblings_and_clones_match_independent_reference() {
 fn activation_clipping_and_negative_division_are_explicit() {
     let mut model = zero_network();
     model.hidden_bias[..4].copy_from_slice(&[-5, 100, 255, 300]);
-    model.output_weights[0][..4].copy_from_slice(&[64, 64, -64, 64]);
     let board = Board::default();
+    let bucket = output_bucket(&board);
+    assert_eq!(bucket, 7);
+    model.output_weights[bucket][0][..4].copy_from_slice(&[64, 64, -64, 64]);
     assert_eq!(
         model.accumulator(&board).values(Color::White)[..4],
         [-5, 100, 255, 300]
@@ -452,7 +467,7 @@ fn activation_clipping_and_negative_division_are_explicit() {
             .evaluate(&board),
         expected
     );
-    model.output_weights = [[0; HIDDEN_SIZE]; 2];
+    model.output_weights = [[[0; HIDDEN_SIZE]; 2]; OUTPUT_BUCKETS];
     for (bias, expected) in [
         (-16_319, 0),
         (-16_320, -1),
@@ -460,7 +475,7 @@ fn activation_clipping_and_negative_division_are_explicit() {
         (16_319, 0),
         (16_320, 1),
     ] {
-        model.output_bias = bias;
+        model.output_bias[bucket] = bias;
         assert_eq!(
             Network::from_bytes(&encode(&model))
                 .unwrap()
@@ -476,7 +491,7 @@ fn extreme_weights_keep_unclipped_incremental_sums_and_bounded_output() {
         let mut model = zero_network();
         model.hidden_bias = [value; HIDDEN_SIZE];
         model.input_weights.fill(value);
-        model.output_weights = [[i16::MIN; HIDDEN_SIZE]; 2];
+        model.output_weights = [[[i16::MIN; HIDDEN_SIZE]; 2]; OUTPUT_BUCKETS];
         let model = Network::from_bytes(&encode(&model)).unwrap();
         let board = Board::default();
         let sparse: Board = "7k/8/8/8/8/8/8/K7 w - - 0 1".parse().unwrap();
@@ -489,7 +504,7 @@ fn extreme_weights_keep_unclipped_incremental_sums_and_bounded_output() {
     }
     let mut model = zero_network();
     for (bias, expected) in [(i32::MAX, MAX_SCORE), (-i32::MAX, -MAX_SCORE)] {
-        model.output_bias = bias;
+        model.output_bias = [bias; OUTPUT_BUCKETS];
         assert_eq!(
             Network::from_bytes(&encode(&model))
                 .unwrap()
@@ -502,20 +517,21 @@ fn extreme_weights_keep_unclipped_incremental_sums_and_bounded_output() {
 #[test]
 fn unsafe_output_bounds_are_rejected_at_the_exact_boundary() {
     let mut model = zero_network();
-    model.output_weights = [[i16::MIN; HIDDEN_SIZE]; 2];
+    // Only the last bucket carries extreme weights: the bound is per bucket.
+    model.output_weights[OUTPUT_BUCKETS - 1] = [[i16::MIN; HIDDEN_SIZE]; 2];
     let contribution = 256_i64 * 255 * 32_768;
     let allowed_bias = (i64::from(i32::MAX) - contribution) as i32;
     for sign in [-1, 1] {
-        model.output_bias = sign * allowed_bias;
+        model.output_bias[OUTPUT_BUCKETS - 1] = sign * allowed_bias;
         assert!(Network::from_bytes(&encode(&model)).is_ok());
-        model.output_bias = sign * (allowed_bias + 1);
+        model.output_bias[OUTPUT_BUCKETS - 1] = sign * (allowed_bias + 1);
         assert!(matches!(
             Network::from_bytes(&encode(&model)),
             Err(LoadError::OutputOverflow)
         ));
     }
-    model.output_weights = [[0; HIDDEN_SIZE]; 2];
-    model.output_bias = i32::MIN;
+    model.output_weights = [[[0; HIDDEN_SIZE]; 2]; OUTPUT_BUCKETS];
+    model.output_bias[0] = i32::MIN;
     assert!(matches!(
         Network::from_bytes(&encode(&model)),
         Err(LoadError::OutputOverflow)

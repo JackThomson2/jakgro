@@ -5,18 +5,19 @@ use std::sync::atomic::{AtomicU64, Ordering};
 pub fn network_bytes(score: i32, patterned: bool) -> Vec<u8> {
     const HIDDEN: usize = 128;
     const INPUTS: usize = 6_144;
-    const PAYLOAD: usize = 2 * (HIDDEN + INPUTS * HIDDEN + 2 * HIDDEN) + 4;
+    const BUCKETS: usize = 8;
+    const PAYLOAD: usize = 2 * (HIDDEN + INPUTS * HIDDEN + BUCKETS * 2 * HIDDEN) + 4 * BUCKETS;
     let mut bytes = Vec::with_capacity(48 + PAYLOAD);
     bytes.extend_from_slice(b"JAKNNUE\0");
     for value in [
-        1_u32,
+        2_u32,
         1,
         INPUTS as u32,
         HIDDEN as u32,
         255,
         64,
         PAYLOAD as u32,
-        0,
+        BUCKETS as u32,
     ] {
         bytes.extend_from_slice(&value.to_le_bytes());
     }
@@ -32,15 +33,19 @@ pub fn network_bytes(score: i32, patterned: bool) -> Vec<u8> {
         };
         bytes.extend_from_slice(&weight.to_le_bytes());
     }
-    for index in 0..2 * HIDDEN {
-        let weight = if patterned {
-            ((index * 71 + 13) % 1025) as i16 - 512
-        } else {
-            0
-        };
-        bytes.extend_from_slice(&weight.to_le_bytes());
+    for _ in 0..BUCKETS {
+        for index in 0..2 * HIDDEN {
+            let weight = if patterned {
+                ((index * 71 + 13) % 1025) as i16 - 512
+            } else {
+                0
+            };
+            bytes.extend_from_slice(&weight.to_le_bytes());
+        }
     }
-    bytes.extend_from_slice(&(score * 16_320).to_le_bytes());
+    for _ in 0..BUCKETS {
+        bytes.extend_from_slice(&(score * 16_320).to_le_bytes());
+    }
     let mut checksum = 14_695_981_039_346_656_037_u64;
     for &byte in &bytes[48..] {
         checksum = (checksum ^ u64::from(byte)).wrapping_mul(1_099_511_628_211);

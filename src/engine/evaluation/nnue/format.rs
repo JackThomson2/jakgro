@@ -4,16 +4,18 @@ use std::fs::File;
 use std::io::{self, Read};
 use std::path::Path;
 
-use super::{ACTIVATION_MAX, HIDDEN_SIZE, INPUT_FEATURES, Network, OUTPUT_SCALE};
+use super::{ACTIVATION_MAX, HIDDEN_SIZE, INPUT_FEATURES, Network, OUTPUT_BUCKETS, OUTPUT_SCALE};
 
 /// Magic bytes of a Jakgro network; this is not a Stockfish network format.
 pub const MAGIC: [u8; 8] = *b"JAKNNUE\0";
 /// Version of the fixed feature mapping, tensor layout and quantization.
-pub const FORMAT_VERSION: u32 = 1;
+pub const FORMAT_VERSION: u32 = 2;
 /// Fixed little-endian header size, including the payload checksum.
 pub const HEADER_BYTES: usize = 48;
 const FEATURE_SET: u32 = 1;
-const PAYLOAD_BYTES: usize = 2 * (HIDDEN_SIZE + INPUT_FEATURES * HIDDEN_SIZE + 2 * HIDDEN_SIZE) + 4;
+const PAYLOAD_BYTES: usize = 2
+    * (HIDDEN_SIZE + INPUT_FEATURES * HIDDEN_SIZE + OUTPUT_BUCKETS * 2 * HIDDEN_SIZE)
+    + 4 * OUTPUT_BUCKETS;
 /// Exact file length accepted by this fixed architecture.
 pub const FILE_BYTES: usize = HEADER_BYTES + PAYLOAD_BYTES;
 
@@ -130,8 +132,8 @@ fn validate_header(header: &[u8; HEADER_BYTES]) -> Result<(), LoadError> {
     if header[..8] != MAGIC {
         return Err(LoadError::Header("magic"));
     }
-    // Seven fixed fields followed by a reserved zero word. Payload dimensions
-    // can never request a larger allocation or a different feature contract.
+    // Eight fixed fields. Payload dimensions can never request a larger
+    // allocation or a different feature contract.
     for (index, (expected, name)) in [
         (FORMAT_VERSION, "version"),
         (FEATURE_SET, "feature set"),
@@ -140,7 +142,7 @@ fn validate_header(header: &[u8; HEADER_BYTES]) -> Result<(), LoadError> {
         (ACTIVATION_MAX as u32, "activation scale"),
         (OUTPUT_SCALE as u32, "output scale"),
         (PAYLOAD_BYTES as u32, "payload length"),
-        (0, "reserved bits"),
+        (OUTPUT_BUCKETS as u32, "output buckets"),
     ]
     .into_iter()
     .enumerate()
@@ -159,24 +161,36 @@ fn decode(header: &[u8; HEADER_BYTES], payload: &[u8]) -> Result<Network, LoadEr
     if checksum(payload) != expected {
         return Err(LoadError::Checksum);
     }
-    // Tensor order: hidden bias, feature-major input rows, two output rows,
-    // output bias. All weights and hidden biases are signed little-endian i16.
+    // Tensor order: hidden bias, feature-major input rows, then per output
+    // bucket two output rows, then one i32 bias per bucket. All weights and
+    // hidden biases are signed little-endian i16.
     let output_start = 2 * (HIDDEN_SIZE + INPUT_FEATURES * HIDDEN_SIZE);
-    let output_weights: [[i16; HIDDEN_SIZE]; 2] = std::array::from_fn(|side| {
-        std::array::from_fn(|unit| {
-            read_i16(payload, output_start + 2 * (side * HIDDEN_SIZE + unit))
+    let bias_start = output_start + 2 * OUTPUT_BUCKETS * 2 * HIDDEN_SIZE;
+    let output_weights: [[[i16; HIDDEN_SIZE]; 2]; OUTPUT_BUCKETS] = std::array::from_fn(|bucket| {
+        std::array::from_fn(|side| {
+            std::array::from_fn(|unit| {
+                read_i16(
+                    payload,
+                    output_start + 2 * ((bucket * 2 + side) * HIDDEN_SIZE + unit),
+                )
+            })
         })
     });
-    let output_bias = i32::from_le_bytes(payload[PAYLOAD_BYTES - 4..].try_into().unwrap());
-    let bound = i64::from(output_bias).abs()
-        + i64::from(ACTIVATION_MAX)
-            * output_weights
-                .iter()
-                .flatten()
-                .map(|&weight| i64::from(weight).abs())
-                .sum::<i64>();
-    if bound > i64::from(i32::MAX) {
-        return Err(LoadError::OutputOverflow);
+    let output_bias: [i32; OUTPUT_BUCKETS] = std::array::from_fn(|bucket| {
+        let offset = bias_start + 4 * bucket;
+        i32::from_le_bytes(payload[offset..offset + 4].try_into().unwrap())
+    });
+    for (weights, &bias) in output_weights.iter().zip(&output_bias) {
+        let bound = i64::from(bias).abs()
+            + i64::from(ACTIVATION_MAX)
+                * weights
+                    .iter()
+                    .flatten()
+                    .map(|&weight| i64::from(weight).abs())
+                    .sum::<i64>();
+        if bound > i64::from(i32::MAX) {
+            return Err(LoadError::OutputOverflow);
+        }
     }
     // A board occupies at most 64 squares. With i16 weights and hidden bias,
     // every unclipped sum is bounded by 65 * 32768, well within i32.

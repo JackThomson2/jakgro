@@ -24,7 +24,7 @@ use crate::{prepare, sha256};
 use cozy_chess::Board;
 use jakgro::engine::nnue::{
     ACTIVATION_MAX, FILE_BYTES, FORMAT_VERSION, HEADER_BYTES, HIDDEN_SIZE, INPUT_FEATURES, MAGIC,
-    MAX_SCORE, Network, OUTPUT_SCALE, active_features,
+    MAX_SCORE, Network, OUTPUT_BUCKETS, OUTPUT_SCALE, active_features,
 };
 
 /// Centipawns per unit of float output, shared with the Python reference.
@@ -167,6 +167,8 @@ struct Row {
     /// Side-to-move perspective features, then the opponent's.
     features: [[u16; MAX_PIECES]; 2],
     count: u8,
+    /// Output layer selected by the piece count.
+    bucket: u8,
     /// Side-to-move outcome in points.
     outcome: f32,
     /// Fitted label after mixing outcome and teacher probability.
@@ -340,6 +342,7 @@ fn parse_row(line: &str, label_mix: f32, k: f32) -> Result<Row, String> {
             [black, white]
         },
         count: white_count as u8,
+        bucket: ((white_count - 1) / 4) as u8,
         outcome,
         label,
     })
@@ -380,8 +383,9 @@ impl Random {
 struct Parameters {
     input: Vec<f32>,
     hidden: Vec<f32>,
+    /// Per output bucket: side-to-move row, then opponent row.
     output: Vec<f32>,
-    bias: f32,
+    bias: Vec<f32>,
 }
 
 impl Parameters {
@@ -389,8 +393,8 @@ impl Parameters {
         Self {
             input: vec![0.0; INPUT_FEATURES * HIDDEN_SIZE],
             hidden: vec![0.0; HIDDEN_SIZE],
-            output: vec![0.0; 2 * HIDDEN_SIZE],
-            bias: 0.0,
+            output: vec![0.0; OUTPUT_BUCKETS * 2 * HIDDEN_SIZE],
+            bias: vec![0.0; OUTPUT_BUCKETS],
         }
     }
 
@@ -416,7 +420,8 @@ impl Parameters {
     #[inline(always)]
     fn forward(&self, row: &Row) -> ([[f32; HIDDEN_SIZE]; 2], f32) {
         let mut sums = [[0.0_f32; HIDDEN_SIZE]; 2];
-        let mut total = self.bias;
+        let bucket = usize::from(row.bucket);
+        let mut total = self.bias[bucket];
         for (side, sum) in sums.iter_mut().enumerate() {
             sum.copy_from_slice(&self.hidden);
             for &feature in &row.features[side][..usize::from(row.count)] {
@@ -426,8 +431,8 @@ impl Parameters {
                     *value += weight;
                 }
             }
-            let weights = &self.output[side * HIDDEN_SIZE..(side + 1) * HIDDEN_SIZE];
-            for (&value, &weight) in sum.iter().zip(weights) {
+            let start = (bucket * 2 + side) * HIDDEN_SIZE;
+            for (&value, &weight) in sum.iter().zip(&self.output[start..start + HIDDEN_SIZE]) {
                 total += value.clamp(0.0, 1.0) * weight;
             }
         }
@@ -465,12 +470,14 @@ impl Parameters {
                 &scale_i16(value, FLOAT_CP_SCALE * OUTPUT_SCALE as f32)?.to_le_bytes(),
             );
         }
-        let bias =
-            (f64::from(self.bias) * f64::from(FLOAT_CP_SCALE) * f64::from(CP_DIVISOR)).round();
-        if !bias.is_finite() || bias < f64::from(i32::MIN) || bias > f64::from(i32::MAX) {
-            return Err("output bias exceeds storage bounds".to_owned());
+        for &value in &self.bias {
+            let bias =
+                (f64::from(value) * f64::from(FLOAT_CP_SCALE) * f64::from(CP_DIVISOR)).round();
+            if !bias.is_finite() || bias < f64::from(i32::MIN) || bias > f64::from(i32::MAX) {
+                return Err("output bias exceeds storage bounds".to_owned());
+            }
+            payload.extend_from_slice(&(bias as i32).to_le_bytes());
         }
-        payload.extend_from_slice(&(bias as i32).to_le_bytes());
         let mut bytes = Vec::with_capacity(FILE_BYTES);
         bytes.extend_from_slice(&MAGIC);
         for field in [
@@ -481,7 +488,7 @@ impl Parameters {
             ACTIVATION_MAX as u32,
             OUTPUT_SCALE as u32,
             payload.len() as u32,
-            0,
+            OUTPUT_BUCKETS as u32,
         ] {
             bytes.extend_from_slice(&field.to_le_bytes());
         }
@@ -558,7 +565,7 @@ fn shard_gradient_impl(
     gradient.input.fill(0.0);
     gradient.hidden.fill(0.0);
     gradient.output.fill(0.0);
-    gradient.bias = 0.0;
+    gradient.bias.fill(0.0);
     let mut loss = 0.0_f64;
     let derivative_scale = 2.0 / batch as f32 * sigmoid_scale(k) * FLOAT_CP_SCALE;
     for row in rows {
@@ -571,12 +578,14 @@ fn shard_gradient_impl(
             continue;
         }
         let outer = derivative_scale * error * prediction * (1.0 - prediction);
-        gradient.bias += outer;
+        let bucket = usize::from(row.bucket);
+        gradient.bias[bucket] += outer;
         for (side, sums) in sums.iter().enumerate() {
-            let weights = &parameters.output[side * HIDDEN_SIZE..(side + 1) * HIDDEN_SIZE];
+            let start = (bucket * 2 + side) * HIDDEN_SIZE;
+            let weights = &parameters.output[start..start + HIDDEN_SIZE];
             let mut hidden_gradient = [0.0_f32; HIDDEN_SIZE];
             for (unit, &sum) in sums.iter().enumerate() {
-                gradient.output[side * HIDDEN_SIZE + unit] += outer * sum.clamp(0.0, 1.0);
+                gradient.output[start + unit] += outer * sum.clamp(0.0, 1.0);
                 if sum > 0.0 && sum < 1.0 {
                     hidden_gradient[unit] = outer * weights[unit];
                 }
@@ -890,12 +899,11 @@ fn run_epoch<'a>(
                                 step.update,
                                 OUTPUT_LIMIT,
                             );
-                            let bias_gradient = used.iter().map(|shard| shard.bias).sum::<f32>();
                             adam(
-                                std::slice::from_mut(&mut parameters.bias),
-                                std::slice::from_mut(&mut moment.bias),
-                                std::slice::from_mut(&mut velocity.bias),
-                                |_| bias_gradient,
+                                &mut parameters.bias,
+                                &mut moment.bias,
+                                &mut velocity.bias,
+                                |index| used.iter().map(|shard| shard.bias[index]).sum(),
                                 step.update,
                                 BIAS_LIMIT,
                             );
@@ -1236,18 +1244,19 @@ mod tests {
                 / refs.len() as f64
         };
         let feature = usize::from(rows[0].features[0][1]) * HIDDEN_SIZE + 3;
+        let bucket = usize::from(rows[0].bucket);
         for (name, index) in [
             ("input", feature),
             ("hidden", 3),
-            ("output", HIDDEN_SIZE + 9),
-            ("bias", 0),
+            ("output", (bucket * 2 + 1) * HIDDEN_SIZE + 9),
+            ("bias", bucket),
         ] {
             fn select<'p>(probe: &'p mut Parameters, name: &str, index: usize) -> &'p mut f32 {
                 match name {
                     "input" => &mut probe.input[index],
                     "hidden" => &mut probe.hidden[index],
                     "output" => &mut probe.output[index],
-                    _ => &mut probe.bias,
+                    _ => &mut probe.bias[index],
                 }
             }
             let mut probe = parameters.clone();
@@ -1261,7 +1270,7 @@ mod tests {
                 "input" => gradient.input[index],
                 "hidden" => gradient.hidden[index],
                 "output" => gradient.output[index],
-                _ => gradient.bias,
+                _ => gradient.bias[index],
             });
             assert!(
                 (numerical - analytic).abs() < 1e-3 * (1.0 + analytic.abs()),

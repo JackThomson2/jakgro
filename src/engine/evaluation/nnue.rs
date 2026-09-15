@@ -12,6 +12,7 @@
 //! bounded below the engine's mate region. It is not a terminal-position score.
 
 mod format;
+mod kernels;
 #[cfg(test)]
 mod tests;
 
@@ -94,30 +95,36 @@ impl Network {
         let bucket = position.buckets[color_index(perspective)];
         for (plane, &pieces) in position.pieces.iter().enumerate() {
             for square in BitBoard(pieces) {
-                self.add_feature(&mut sum, feature(bucket, perspective, plane, square), 1);
+                self.add_feature(&mut sum, feature(bucket, perspective, plane, square));
             }
         }
         sum
     }
 
     #[inline]
-    fn add_feature(&self, sum: &mut [i32; HIDDEN_SIZE], index: usize, sign: i32) {
-        let row = &self.input_weights[index * HIDDEN_SIZE..(index + 1) * HIDDEN_SIZE];
-        for (value, &weight) in sum.iter_mut().zip(row) {
-            *value += sign * i32::from(weight);
-        }
+    fn row(&self, index: usize) -> &[i16] {
+        &self.input_weights[index * HIDDEN_SIZE..(index + 1) * HIDDEN_SIZE]
+    }
+
+    #[inline]
+    fn add_feature(&self, sum: &mut [i32; HIDDEN_SIZE], index: usize) {
+        (kernels::kernels().add)(sum, self.row(index));
+    }
+
+    #[inline]
+    fn remove_feature(&self, sum: &mut [i32; HIDDEN_SIZE], index: usize) {
+        (kernels::kernels().sub)(sum, self.row(index));
     }
 
     fn output(&self, sums: &[[i32; HIDDEN_SIZE]; 2], side_to_move: Color) -> i32 {
+        let dot = kernels::kernels().dot;
         let mut numerator = self.output_bias;
         for (weights, color) in self
             .output_weights
             .iter()
             .zip([side_to_move, !side_to_move])
         {
-            for (&weight, &sum) in weights.iter().zip(&sums[color_index(color)]) {
-                numerator += i32::from(weight) * sum.clamp(0, ACTIVATION_MAX);
-            }
+            numerator += dot(weights, &sums[color_index(color)]);
         }
         (numerator / (ACTIVATION_MAX * OUTPUT_SCALE)).clamp(-MAX_SCORE, MAX_SCORE)
     }
@@ -154,10 +161,9 @@ impl Accumulator<'_> {
                 self.position.pieces.iter().zip(&next.pieces).enumerate()
             {
                 for square in BitBoard(before & !after) {
-                    self.network.add_feature(
+                    self.network.remove_feature(
                         &mut self.sums[index],
                         feature(bucket, perspective, plane, square),
-                        -1,
                     );
                 }
             }
@@ -168,7 +174,6 @@ impl Accumulator<'_> {
                     self.network.add_feature(
                         &mut self.sums[index],
                         feature(bucket, perspective, plane, square),
-                        1,
                     );
                 }
             }

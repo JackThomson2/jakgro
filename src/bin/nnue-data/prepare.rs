@@ -21,7 +21,7 @@ use jakgro::engine::nnue::{
     active_features,
 };
 
-use crate::{HEADER, canonical, comma, parse_sample, sha256};
+use crate::{HEADER, canonical, comma, is_terminal, parse_sample, sha256};
 
 #[derive(Debug)]
 pub struct Options {
@@ -168,8 +168,12 @@ struct Parsed {
 /// Lines per parallel batch; bounds the memory held between passes.
 const PARSE_BATCH_LINES: usize = 1 << 20;
 
-fn parse_line(line: &str) -> Result<Parsed, String> {
+/// Parses one labelled line; terminal positions yield `None`.
+fn parse_line(line: &str) -> Result<Option<Parsed>, String> {
     let sample = parse_sample(line)?;
+    if is_terminal(&sample.board) {
+        return Ok(None);
+    }
     let white = active_features(&sample.board, Color::White);
     let black = active_features(&sample.board, Color::Black);
     let key = canonical(&sample.board);
@@ -186,7 +190,7 @@ fn parse_line(line: &str) -> Result<Parsed, String> {
         comma(&white),
         comma(&black)
     );
-    Ok(Parsed {
+    Ok(Some(Parsed {
         identity: identity(&white, &black),
         key,
         white_to_move: sample.board.side_to_move() == Color::White,
@@ -195,11 +199,11 @@ fn parse_line(line: &str) -> Result<Parsed, String> {
         white,
         black,
         row,
-    })
+    }))
 }
 
 /// Parses a batch of numbered lines on every available thread, in order.
-fn parse_batch(batch: &[(usize, &str)]) -> Result<Vec<Parsed>, String> {
+fn parse_batch(batch: &[(usize, &str)]) -> Result<Vec<Option<Parsed>>, String> {
     let threads = std::thread::available_parallelism().map_or(1, |count| count.get());
     let chunk = batch.len().div_ceil(threads).max(1);
     std::thread::scope(|scope| {
@@ -270,6 +274,10 @@ fn process_split(
         }
         for parsed in parse_batch(&batch)? {
             stats.raw_rows += 1;
+            let Some(parsed) = parsed else {
+                *stats.dropped.entry("terminal_position").or_default() += 1;
+                continue;
+            };
             let reason = if keys.canonical.contains(&parsed.key) {
                 Some(("canonical_duplicate", deduplicate))
             } else if keys.identity.contains(&parsed.identity) {

@@ -153,6 +153,13 @@ struct Sample {
     teacher: Option<f64>,
 }
 
+/// Positions a static evaluation is not accountable for: decided, claimable
+/// draws and dead material. Self-play corpora contain a few, since the arbiter
+/// adjudicates only the standard insufficient-material cases.
+fn is_terminal(board: &Board) -> bool {
+    board.status() != GameStatus::Ongoing || board.halfmove_clock() >= 100 || dead_material(board)
+}
+
 fn parse_sample(line: &str) -> Result<Sample, String> {
     let fields = line.split(';').map(str::trim).collect::<Vec<_>>();
     if !(2..=3).contains(&fields.len()) {
@@ -161,12 +168,6 @@ fn parse_sample(line: &str) -> Result<Sample, String> {
     let board = fields[0]
         .parse::<Board>()
         .map_err(|_| "invalid FEN".to_owned())?;
-    if board.status() != GameStatus::Ongoing
-        || board.halfmove_clock() >= 100
-        || dead_material(&board)
-    {
-        return Err("terminal positions are not static-evaluation training samples".to_owned());
-    }
     let outcome = fields[1]
         .parse::<f64>()
         .map_err(|_| "invalid outcome".to_owned())?;
@@ -224,7 +225,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn terminal_and_dead_material_samples_are_rejected() {
+    fn terminal_and_dead_material_samples_are_recognized() {
         for fen in [
             "7k/6Q1/6K1/8/8/8/8/8 b - - 0 1",
             "7k/5K2/6Q1/8/8/8/8/8 b - - 0 1",
@@ -233,9 +234,11 @@ mod tests {
             "7k/8/8/8/8/8/8/K1B1B3 w - - 0 1",
             "4k3/8/5n2/8/8/8/2P5/4K3 w - - 100 70",
         ] {
-            assert!(parse_sample(&format!("{fen};0.5")).is_err(), "{fen}");
+            assert!(is_terminal(&fen.parse().unwrap()), "{fen}");
         }
-        assert!(parse_sample("7k/8/8/8/8/8/8/KNN5 w - - 0 1;0.5").is_ok());
+        assert!(!is_terminal(
+            &"7k/8/8/8/8/8/8/KNN5 w - - 0 1".parse().unwrap()
+        ));
     }
 
     const FEN: &str = "4k3/8/5n2/8/8/8/2P5/4K3 w - - 0 1";
@@ -260,7 +263,12 @@ mod tests {
             assert!(parse_sample(&format!("{FEN}{fields}")).is_err(), "{fields}");
         }
         assert!(parse_sample("invalid;1").is_err());
-        assert!(parse_sample("7k/8/8/8/8/8/8/K7 w - - 0 1;0.5").is_err());
+        // A bare-kings position parses; preparation drops it as terminal.
+        assert!(is_terminal(
+            &parse_sample("7k/8/8/8/8/8/8/K7 w - - 0 1;0.5")
+                .unwrap()
+                .board
+        ));
         let input = format!("{FEN};1\n{FEN};NaN\n");
         assert!(
             consume_all(input.as_bytes())

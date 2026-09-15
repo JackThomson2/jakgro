@@ -37,9 +37,6 @@ const SHARDS: usize = 16;
 const TRAIN_METRIC_ROWS: usize = 65_536;
 const MAX_PIECES: usize = 32;
 
-const HEADER: &str = "# jakgro-nnue-data-v1\t12288\t128\t255\t64";
-const COLUMNS: &str = "fen\tkey\tstm\toutcome\tteacher_cp\twhite\tblack";
-
 #[derive(Clone, Debug)]
 pub struct Options {
     pub epochs: usize,
@@ -194,10 +191,11 @@ fn read_rows(path: &Path, label_mix: f32, k: f32) -> Result<Vec<Row>, String> {
             .map_err(|error| error.to_string())?
             .ok_or_else(|| format!("{}: truncated header", path.display()))
     };
-    if header()? != HEADER {
+    let mut expected = crate::HEADER.lines();
+    if header()? != expected.next().unwrap_or_default() {
         return Err(format!("{}: unsupported feature schema", path.display()));
     }
-    if header()? != COLUMNS {
+    if header()? != expected.next().unwrap_or_default() {
         return Err(format!("{}: wrong dataset columns", path.display()));
     }
     let mut rows = Vec::new();

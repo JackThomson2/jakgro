@@ -4,10 +4,20 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// Deterministic arithmetic fixtures, not trained playing networks.
 pub fn network_bytes(score: i32, patterned: bool) -> Vec<u8> {
     const HIDDEN: usize = 128;
-    const INPUTS: usize = 12_288;
-    let mut bytes = Vec::with_capacity(3_146_548);
+    const INPUTS: usize = 6_144;
+    const PAYLOAD: usize = 2 * (HIDDEN + INPUTS * HIDDEN + 2 * HIDDEN) + 4;
+    let mut bytes = Vec::with_capacity(48 + PAYLOAD);
     bytes.extend_from_slice(b"JAKNNUE\0");
-    for value in [1_u32, 1, 12_288, 128, 255, 64, 3_146_500, 0] {
+    for value in [
+        1_u32,
+        1,
+        INPUTS as u32,
+        HIDDEN as u32,
+        255,
+        64,
+        PAYLOAD as u32,
+        0,
+    ] {
         bytes.extend_from_slice(&value.to_le_bytes());
     }
     bytes.extend_from_slice(&0_u64.to_le_bytes());

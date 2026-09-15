@@ -444,8 +444,8 @@ mod tests {
         )
         .unwrap();
         let text = fs::read_to_string(root.join("prepared/training.tsv")).unwrap();
-        assert!(text.starts_with(HEADER));
-        assert!(text.ends_with("\t0\t0.5\t-123\t1546,1860,2029,2300\t1621,1860,1970,2300\n"));
+        assert!(text.starts_with(HEADER.as_str()));
+        assert!(text.ends_with("\t0\t0.5\t-123\t781,1091,1258,1531\t850,1091,1205,1531\n"));
         assert!(summary.contains("\"training\": {\"raw_rows\": 1, \"rows\": 1, \"white_to_move\": 1, \"white_outcomes\": {\"0.0\": 0, \"0.5\": 1, \"1.0\": 0}, \"teacher_rows\": 1"));
         let hashes = verify_dataset(&root.join("prepared")).unwrap();
         assert_eq!(hashes.len(), 2);

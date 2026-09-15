@@ -47,7 +47,16 @@ fn zero_network() -> Network {
 fn encode(model: &Network) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(FILE_BYTES);
     bytes.extend_from_slice(b"JAKNNUE\0");
-    for value in [1_u32, 1, 12_288, 128, 255, 64, 3_146_500, 0] {
+    for value in [
+        1_u32,
+        1,
+        INPUT_FEATURES as u32,
+        HIDDEN_SIZE as u32,
+        255,
+        64,
+        (FILE_BYTES - HEADER_BYTES) as u32,
+        0,
+    ] {
         bytes.extend_from_slice(&value.to_le_bytes());
     }
     bytes.extend_from_slice(&0_u64.to_le_bytes());
@@ -61,7 +70,7 @@ fn encode(model: &Network) -> Vec<u8> {
         bytes.extend_from_slice(&value.to_le_bytes());
     }
     bytes.extend_from_slice(&model.output_bias.to_le_bytes());
-    assert_eq!(bytes.len(), 3_146_548);
+    assert_eq!(bytes.len(), FILE_BYTES);
     update_checksum(&mut bytes);
     bytes
 }
@@ -76,6 +85,7 @@ fn update_checksum(bytes: &mut [u8]) {
 }
 
 fn reference_features(board: &Board, perspective: Color) -> Vec<usize> {
+    let mirror = board.king(perspective).file() as usize >= 4;
     let orient = |square: Square| {
         let rank = square.rank() as usize;
         let rank = if perspective == Color::White {
@@ -83,10 +93,12 @@ fn reference_features(board: &Board, perspective: Color) -> Vec<usize> {
         } else {
             7 - rank
         };
-        rank * 8 + square.file() as usize
+        let file = square.file() as usize;
+        let file = if mirror { 7 - file } else { file };
+        rank * 8 + file
     };
     let king = orient(board.king(perspective));
-    let bucket = (king / 16) * 4 + (king % 8) / 2;
+    let bucket = (king / 16) * 2 + (king % 8) / 2;
     let mut features = Vec::new();
     for square in Square::ALL {
         let Some(piece) = board.piece_on(square) else {
@@ -184,12 +196,12 @@ fn mirror(board: &Board) -> Board {
 #[test]
 fn feature_and_file_contract_has_explicit_dimensions() {
     assert_eq!(FORMAT_VERSION, 1);
-    assert_eq!(INPUT_FEATURES, 12_288);
+    assert_eq!(INPUT_FEATURES, 6_144);
     assert_eq!(HIDDEN_SIZE, 128);
     assert_eq!(ACTIVATION_MAX, 255);
     assert_eq!(OUTPUT_SCALE, 64);
     assert_eq!(HEADER_BYTES, 48);
-    assert_eq!(FILE_BYTES, 3_146_548);
+    assert_eq!(FILE_BYTES, 1_573_684);
 }
 
 #[test]
@@ -197,11 +209,21 @@ fn feature_indices_fix_orientation_planes_and_buckets() {
     let board: Board = "4k3/8/5n2/8/8/8/2P5/4K3 w - - 0 1".parse().unwrap();
     assert_eq!(
         active_features(&board, Color::White),
-        [1546, 1860, 2029, 2300]
+        [781, 1091, 1258, 1531]
     );
     assert_eq!(
         active_features(&board, Color::Black),
-        [1621, 1860, 1970, 2300]
+        [850, 1091, 1205, 1531]
+    );
+    // The horizontal reflection of a position has the same features.
+    let reflected: Board = "3k4/8/2n5/8/8/8/5P2/3K4 w - - 0 1".parse().unwrap();
+    assert_eq!(
+        active_features(&reflected, Color::White),
+        active_features(&board, Color::White)
+    );
+    assert_eq!(
+        active_features(&reflected, Color::Black),
+        active_features(&board, Color::Black)
     );
     for perspective in [Color::White, Color::Black] {
         for king in Square::ALL {
@@ -210,10 +232,10 @@ fn feature_indices_fix_orientation_planes_and_buckets() {
             } else {
                 7 - king.rank() as usize
             };
-            assert_eq!(
-                super::king_bucket(king, perspective),
-                (rank / 2) * 4 + king.file() as usize / 2
-            );
+            let file = king.file() as usize;
+            let view = super::view(king, perspective);
+            assert_eq!(view.mirror, file >= 4);
+            assert_eq!(view.bucket, (rank / 2) * 2 + file.min(7 - file) / 2);
         }
     }
     let starting = Board::default();
@@ -336,7 +358,7 @@ fn every_promotion_and_underpromotion_updates_both_perspectives() {
 #[test]
 fn null_moves_swap_output_order_without_changing_sums() {
     let mut bytes = encode(&zero_network());
-    let row = 1546;
+    let row = 781;
     let input = HEADER_BYTES + 2 * HIDDEN_SIZE + 2 * row * HIDDEN_SIZE;
     bytes[input..input + 2].copy_from_slice(&255_i16.to_le_bytes());
     let output = HEADER_BYTES + 2 * (HIDDEN_SIZE + INPUT_FEATURES * HIDDEN_SIZE);

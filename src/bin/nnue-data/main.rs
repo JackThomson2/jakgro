@@ -7,12 +7,18 @@ mod train;
 
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::process::ExitCode;
+use std::sync::LazyLock;
 
 use cozy_chess::{BitBoard, Board, Color, GameStatus, Piece};
-use jakgro::engine::nnue::Network;
+use jakgro::engine::nnue::{ACTIVATION_MAX, HIDDEN_SIZE, INPUT_FEATURES, Network, OUTPUT_SCALE};
 
 const MAX_LINE_BYTES: u64 = 4096;
-const HEADER: &str = "# jakgro-nnue-data-v1\t12288\t128\t255\t64\nfen\tkey\tstm\toutcome\tteacher_cp\twhite\tblack\n";
+/// Dataset header naming the architecture the features were extracted for.
+static HEADER: LazyLock<String> = LazyLock::new(|| {
+    format!(
+        "# jakgro-nnue-data-v1\t{INPUT_FEATURES}\t{HIDDEN_SIZE}\t{ACTIVATION_MAX}\t{OUTPUT_SCALE}\nfen\tkey\tstm\toutcome\tteacher_cp\twhite\tblack\n"
+    )
+});
 
 fn main() -> ExitCode {
     let arguments: Vec<_> = std::env::args().skip(1).collect();

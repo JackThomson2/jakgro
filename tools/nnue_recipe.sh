@@ -29,7 +29,7 @@ NNUE_CORPUS_PROFILES=(75 0)
 NNUE_CORPUS_TEACHER_NET=$ART/teachers/hce64-230c5e3023c7.nnue
 # Semicolon-separated seed groups generated with the teacher (may be empty).
 IFS=';' read -r -a NNUE_CORPUS_TEACHER_SEED_GROUPS <<< \
-    "${NNUE_CORPUS_TEACHER_SEED_GROUPS_LIST:-}"
+    "${NNUE_CORPUS_TEACHER_SEED_GROUPS_LIST:-201 202 203 204 205 206 207 208;209 210 211 212 213 214 215 216}"
 
 # nnue_corpus_select TEACHER_NET points nnue_corpus at the handcrafted corpus
 # (empty argument) or at the corpus taught by that network.

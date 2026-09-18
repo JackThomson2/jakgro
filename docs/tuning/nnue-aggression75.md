@@ -82,8 +82,31 @@ fifty-move draw (+6 within noise; it flipped a knife-edge sacrifice fixture).
   table, and replaying it shuffled won queen endings into a threefold
   repetition; the default network now mates KQ v K from `4k3/8/8/8/8/8/3Q4/4K3`
   in 15 moves at 50 ms per move where it previously drew.
-- Accumulator adds, removes and the clipped dot product dispatch to AVX2 at
-  runtime when the CPU supports it; the arithmetic is unchanged.
+- The update and output kernels dispatch to AVX2 at runtime when the CPU
+  supports it; the arithmetic is unchanged.
+- Accumulators are 16-bit and every weight row is 64-byte aligned. The loader
+  proves no placement can overflow them (each unit's bias plus, per square, its
+  extreme weight over the twelve planes) and rejects a file it cannot prove;
+  the published network's bound is [-9636, 8340]. A perspective's update is
+  one fused pass (`source + adds - subs`, at most two of each per pass),
+  selected once per perspective rather than once per feature.
+- Each ply's state starts from whichever of itself and the state one ply up
+  shares more king views with the position and then differs in fewer features
+  (3.4 changed features per evaluation against 5.2 from the same ply alone).
+  Changed squares come from two masks over the board's own eight bitboards. A
+  perspective whose view neither state shares starts from the sums last seen
+  in that view when seventeen or more pieces remain, and is rebuilt otherwise.
+  Scores are bit-identical, so fixed-node trees are unchanged: median
+  fixed-node throughput on `tests/data/search-performance.epd` went from 3.06M
+  to 4.00M nodes per second on an Apple M2 Pro (1.30 times). Summed search time
+  at one million nodes per position fell 1.27 times on that suite and 1.17
+  times on eight bare endgames.
+- Tried and dropped: prefetching weight rows inside the evaluation (-1%; with
+  the whole table aliased into the first-level cache the ceiling was 2-4%), the
+  view cache without the piece-count gate (-3% in endgames), a grandparent as a
+  third starting state (3.2 against 3.4 changed features). An explicit 256-bit
+  `madd` output kernel was slower than the compiler's 128-bit one under
+  Rosetta's AVX2 translation and is untested on AVX2 hardware.
 
 ## Pipeline
 

@@ -6,10 +6,11 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use cozy_chess::{Board, Color, Move, Piece, Square};
 
+use super::kernels::Row;
 use super::{
-    ACTIVATION_MAX, Accumulator, FILE_BYTES, FORMAT_VERSION, HEADER_BYTES, HIDDEN_SIZE,
-    INPUT_FEATURES, LoadError, MAX_SCORE, Network, OUTPUT_BUCKETS, OUTPUT_SCALE, active_features,
-    output_bucket,
+    ACTIVATION_MAX, Accumulator, AccumulatorStack, FILE_BYTES, FORMAT_VERSION, HEADER_BYTES,
+    HIDDEN_SIZE, INPUT_FEATURES, LoadError, MAX_SCORE, Network, OUTPUT_BUCKETS, OUTPUT_SCALE,
+    active_features, output_bucket,
 };
 
 fn synthetic_network() -> &'static Network {
@@ -23,12 +24,12 @@ fn synthetic_network() -> &'static Network {
             seed
         };
         let model = Network {
-            hidden_bias: std::array::from_fn(|_| (next() % 401) as i16 - 80),
-            input_weights: (0..INPUT_FEATURES * HIDDEN_SIZE)
-                .map(|_| (next() % 65) as i16 - 32)
+            hidden_bias: Row(std::array::from_fn(|_| (next() % 401) as i16 - 80)),
+            input_weights: (0..INPUT_FEATURES)
+                .map(|_| Row(std::array::from_fn(|_| (next() % 65) as i16 - 32)))
                 .collect(),
             output_weights: std::array::from_fn(|_| {
-                std::array::from_fn(|_| std::array::from_fn(|_| (next() % 2049) as i16 - 1024))
+                std::array::from_fn(|_| Row(std::array::from_fn(|_| (next() % 2049) as i16 - 1024)))
             }),
             output_bias: std::array::from_fn(|bucket| -16_333 + 977 * bucket as i32),
         };
@@ -38,9 +39,9 @@ fn synthetic_network() -> &'static Network {
 
 fn zero_network() -> Network {
     Network {
-        hidden_bias: [0; HIDDEN_SIZE],
-        input_weights: vec![0; INPUT_FEATURES * HIDDEN_SIZE].into_boxed_slice(),
-        output_weights: [[[0; HIDDEN_SIZE]; 2]; OUTPUT_BUCKETS],
+        hidden_bias: Row([0; HIDDEN_SIZE]),
+        input_weights: vec![Row([0; HIDDEN_SIZE]); INPUT_FEATURES].into_boxed_slice(),
+        output_weights: [[Row([0; HIDDEN_SIZE]); 2]; OUTPUT_BUCKETS],
         output_bias: [0; OUTPUT_BUCKETS],
     }
 }
@@ -61,13 +62,10 @@ fn encode(model: &Network) -> Vec<u8> {
         bytes.extend_from_slice(&value.to_le_bytes());
     }
     bytes.extend_from_slice(&0_u64.to_le_bytes());
-    for &value in &model.hidden_bias {
-        bytes.extend_from_slice(&value.to_le_bytes());
-    }
-    for &value in &model.input_weights {
-        bytes.extend_from_slice(&value.to_le_bytes());
-    }
-    for &value in model.output_weights.iter().flatten().flatten() {
+    let rows = std::iter::once(&model.hidden_bias)
+        .chain(model.input_weights.iter())
+        .chain(model.output_weights.iter().flatten());
+    for &value in rows.flat_map(|row| row.iter()) {
         bytes.extend_from_slice(&value.to_le_bytes());
     }
     for &value in &model.output_bias {
@@ -129,7 +127,7 @@ fn reference(model: &Network, board: &Board) -> ([[i32; HIDDEN_SIZE]; 2], i32) {
             let total = i64::from(model.hidden_bias[unit])
                 + indices
                     .iter()
-                    .map(|&index| i64::from(model.input_weights[index * HIDDEN_SIZE + unit]))
+                    .map(|&index| i64::from(model.input_weights[index][unit]))
                     .sum::<i64>();
             i32::try_from(total).unwrap()
         })
@@ -156,7 +154,7 @@ fn assert_matches(model: &Network, board: &Board, accumulator: &Accumulator<'_>)
     for perspective in [Color::White, Color::Black] {
         assert_eq!(
             accumulator.values(perspective),
-            &sums[perspective as usize],
+            sums[perspective as usize],
             "{board}"
         );
         assert_eq!(
@@ -248,7 +246,10 @@ fn feature_indices_fix_orientation_planes_and_buckets() {
             let file = king.file() as usize;
             let view = super::view(king, perspective);
             assert_eq!(view.mirror, file >= 4);
-            assert_eq!(view.bucket, (rank / 2) * 2 + file.min(7 - file) / 2);
+            assert_eq!(
+                usize::from(view.bucket),
+                (rank / 2) * 2 + file.min(7 - file) / 2
+            );
         }
     }
     let starting = Board::default();
@@ -381,10 +382,10 @@ fn null_moves_swap_output_order_without_changing_sums() {
     let board: Board = "4k3/8/5n2/8/8/8/2P5/4K3 w - - 0 1".parse().unwrap();
     let null = board.null_move().unwrap();
     let mut accumulator = model.accumulator(&board);
-    let sums = accumulator.sums;
+    let sums = accumulator.state.sums;
     assert_eq!(accumulator.evaluate(), 10);
     accumulator.update(&null);
-    assert_eq!(accumulator.sums, sums);
+    assert_eq!(accumulator.state.sums, sums);
     assert_eq!(accumulator.evaluate(), 0);
     assert_matches(&model, &null, &accumulator);
 }
@@ -405,10 +406,10 @@ fn metadata_does_not_change_piece_only_features_or_scores() {
         let first: Board = first.parse().unwrap();
         let second: Board = second.parse().unwrap();
         let mut accumulator = model.accumulator(&first);
-        let sums = accumulator.sums;
+        let sums = accumulator.state.sums;
         let score = accumulator.evaluate();
         accumulator.update(&second);
-        assert_eq!(accumulator.sums, sums);
+        assert_eq!(accumulator.state.sums, sums);
         assert_eq!(accumulator.evaluate(), score);
     }
 }
@@ -448,6 +449,99 @@ fn incremental_playouts_siblings_and_clones_match_independent_reference() {
     }
 }
 
+/// Walks a small tree the way a search does: a child is evaluated one ply
+/// below its parent, siblings reuse a ply, and some nodes are never evaluated
+/// so the states above and beside a node are stale.
+fn walk(
+    model: &Network,
+    stack: &mut AccumulatorStack<'_>,
+    board: &Board,
+    ply: usize,
+    depth: usize,
+    seed: &mut u64,
+) {
+    *seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+    if (*seed >> 33) % 4 != 0 {
+        let (sums, score) = reference(model, board);
+        assert_eq!(stack.evaluate(board, ply), score, "{board}");
+        for perspective in [Color::White, Color::Black] {
+            assert_eq!(
+                stack.values(ply, perspective),
+                sums[perspective as usize],
+                "{board}"
+            );
+        }
+    }
+    if depth == 0 {
+        return;
+    }
+    let mut moves = Vec::new();
+    board.generate_moves(|batch| {
+        moves.extend(batch);
+        false
+    });
+    for offset in 0..moves.len().min(4) {
+        let chosen = moves[((*seed >> 20) as usize + offset * 7) % moves.len()];
+        let mut child = board.clone();
+        child.play_unchecked(chosen);
+        walk(model, stack, &child, ply + 1, depth - 1, seed);
+    }
+}
+
+#[test]
+fn stack_matches_independent_reference_over_search_shaped_walks() {
+    let model = synthetic_network();
+    for (fen, depth) in [
+        (
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            5,
+        ),
+        (
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+            5,
+        ),
+        // Bare kings cross king buckets and the mirror line at almost every
+        // move, so perspectives are rebuilt beside incremental ones.
+        ("8/5pk1/6p1/3R4/1p3P2/1P4P1/r5KP/8 w - - 0 40", 6),
+        ("8/2k5/8/3K4/8/8/1P4p1/8 b - - 0 1", 6),
+        ("r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 0 1", 5),
+    ] {
+        let board: Board = fen.parse().unwrap();
+        let mut stack = AccumulatorStack::new(model, 8);
+        let mut seed = 0x9e37_79b9_u64;
+        for _ in 0..3 {
+            walk(model, &mut stack, &board, 0, depth, &mut seed);
+        }
+    }
+}
+
+#[test]
+fn stack_shares_its_deepest_state_and_serves_unrelated_boards() {
+    let model = synthetic_network();
+    let mut stack = AccumulatorStack::new(model, 2);
+    let boards: Vec<Board> = [
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        "7k/8/8/8/8/8/8/K7 w - - 0 1",
+        "QQ5k/8/8/8/8/8/8/K7 b - - 0 1",
+        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+        "7k/8/8/8/8/8/8/K7 b - - 0 1",
+    ]
+    .iter()
+    .map(|fen| fen.parse().unwrap())
+    .collect();
+    for (turn, ply) in [0, 2, 1, 7, usize::MAX, 0, 2, 1, 1, 0]
+        .into_iter()
+        .enumerate()
+    {
+        let board = &boards[turn * 3 % boards.len()];
+        assert_eq!(
+            stack.evaluate(board, ply),
+            reference(model, board).1,
+            "{board}"
+        );
+    }
+}
+
 #[test]
 fn activation_clipping_and_negative_division_are_explicit() {
     let mut model = zero_network();
@@ -467,7 +561,7 @@ fn activation_clipping_and_negative_division_are_explicit() {
             .evaluate(&board),
         expected
     );
-    model.output_weights = [[[0; HIDDEN_SIZE]; 2]; OUTPUT_BUCKETS];
+    model.output_weights = [[Row([0; HIDDEN_SIZE]); 2]; OUTPUT_BUCKETS];
     for (bias, expected) in [
         (-16_319, 0),
         (-16_320, -1),
@@ -487,16 +581,20 @@ fn activation_clipping_and_negative_division_are_explicit() {
 
 #[test]
 fn extreme_weights_keep_unclipped_incremental_sums_and_bounded_output() {
-    for value in [i16::MIN, i16::MAX] {
+    // The largest uniform weights whose 64-square bound still fits an i16.
+    for (weight, bias) in [(511_i16, 63_i16), (-512, 0)] {
         let mut model = zero_network();
-        model.hidden_bias = [value; HIDDEN_SIZE];
-        model.input_weights.fill(value);
-        model.output_weights = [[[i16::MIN; HIDDEN_SIZE]; 2]; OUTPUT_BUCKETS];
+        model.hidden_bias = Row([bias; HIDDEN_SIZE]);
+        model.input_weights.fill(Row([weight; HIDDEN_SIZE]));
+        model.output_weights = [[Row([i16::MIN; HIDDEN_SIZE]); 2]; OUTPUT_BUCKETS];
         let model = Network::from_bytes(&encode(&model)).unwrap();
         let board = Board::default();
         let sparse: Board = "7k/8/8/8/8/8/8/K7 w - - 0 1".parse().unwrap();
         let mut accumulator = model.accumulator(&board);
-        assert_eq!(accumulator.values(Color::White)[0], 33 * i32::from(value));
+        assert_eq!(
+            accumulator.values(Color::White)[0],
+            i32::from(bias) + 32 * i32::from(weight)
+        );
         for position in [&sparse, &board, &sparse, &board] {
             accumulator.update(position);
             assert_matches(&model, position, &accumulator);
@@ -515,10 +613,42 @@ fn extreme_weights_keep_unclipped_incremental_sums_and_bounded_output() {
 }
 
 #[test]
+fn unprovable_accumulator_bounds_are_rejected_at_the_exact_boundary() {
+    // One unit of the last bucket; every square's extreme weight sits on a
+    // different plane, so the bound has to take the extreme over planes.
+    for sign in [1_i32, -1] {
+        let mut model = zero_network();
+        let limit = if sign == 1 { 32_767 } else { 32_768 };
+        let bucket = (super::KING_BUCKETS - 1) * super::PIECE_PLANES * 64;
+        for square in 0..64 {
+            let plane = square % super::PIECE_PLANES;
+            model.input_weights[bucket + plane * 64 + square][5] = (sign * 500) as i16;
+            // The opposite sign never helps this side of the bound.
+            model.input_weights[bucket + (plane + 1) % 12 * 64 + square][5] = (-sign * 9) as i16;
+        }
+        model.hidden_bias[5] = (sign * (limit - 64 * 500)) as i16;
+        assert!(Network::from_bytes(&encode(&model)).is_ok());
+        model.hidden_bias[5] += sign as i16;
+        assert!(matches!(
+            Network::from_bytes(&encode(&model)),
+            Err(LoadError::AccumulatorOverflow)
+        ));
+        // A lone weight outside the bound is enough, whatever the other rows hold.
+        let mut model = zero_network();
+        model.input_weights[0][HIDDEN_SIZE - 1] = (sign * 32_767) as i16;
+        model.hidden_bias[HIDDEN_SIZE - 1] = (sign * 2) as i16;
+        assert!(matches!(
+            Network::from_bytes(&encode(&model)),
+            Err(LoadError::AccumulatorOverflow)
+        ));
+    }
+}
+
+#[test]
 fn unsafe_output_bounds_are_rejected_at_the_exact_boundary() {
     let mut model = zero_network();
     // Only the last bucket carries extreme weights: the bound is per bucket.
-    model.output_weights[OUTPUT_BUCKETS - 1] = [[i16::MIN; HIDDEN_SIZE]; 2];
+    model.output_weights[OUTPUT_BUCKETS - 1] = [Row([i16::MIN; HIDDEN_SIZE]); 2];
     let contribution = 256_i64 * 255 * 32_768;
     let allowed_bias = (i64::from(i32::MAX) - contribution) as i32;
     for sign in [-1, 1] {
@@ -530,7 +660,7 @@ fn unsafe_output_bounds_are_rejected_at_the_exact_boundary() {
             Err(LoadError::OutputOverflow)
         ));
     }
-    model.output_weights = [[[0; HIDDEN_SIZE]; 2]; OUTPUT_BUCKETS];
+    model.output_weights = [[Row([0; HIDDEN_SIZE]); 2]; OUTPUT_BUCKETS];
     model.output_bias[0] = i32::MIN;
     assert!(matches!(
         Network::from_bytes(&encode(&model)),

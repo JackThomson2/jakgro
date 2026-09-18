@@ -8,7 +8,6 @@ use crate::engine::nnue_test_support::network_bytes;
 fn lazy_rows_match_refresh_after_skipped_parents_siblings_and_null_moves() {
     let network = Network::from_bytes(&network_bytes(0, true)).unwrap();
     let mut evaluator = NeuralEvaluator::new(&network);
-    assert!(evaluator.rows.iter().all(Option::is_none));
     let mut board = Board::default();
     for turn in 0..192 {
         let ply = [0, 7, 3, MAX_PLY, 7, 1, 64][turn % 7];
@@ -17,10 +16,12 @@ fn lazy_rows_match_refresh_after_skipped_parents_siblings_and_null_moves() {
             network.evaluate(&board),
             "{board}"
         );
-        let row = evaluator.rows[ply as usize].as_ref().unwrap();
         let reference = network.accumulator(&board);
         for side in [Color::White, Color::Black] {
-            assert_eq!(row.values(side), reference.values(side));
+            assert_eq!(
+                evaluator.stack.values(ply as usize, side),
+                reference.values(side)
+            );
         }
         if let Some(null) = board.null_move() {
             assert_eq!(evaluator.evaluate(&null, ply), network.evaluate(&null));
@@ -80,13 +81,9 @@ fn independent_workers_share_only_the_immutable_network() {
     let board = Board::default();
     let other: Board = "4k3/8/8/8/8/8/4P3/4K3 b - - 0 1".parse().unwrap();
     first.evaluate(&board, 3);
-    assert!(second.rows.iter().all(Option::is_none));
-    let before = *first.rows[3].as_ref().unwrap().values(Color::White);
+    let before = first.stack.values(3, Color::White);
     second.evaluate(&other, 3);
-    assert_eq!(
-        first.rows[3].as_ref().unwrap().values(Color::White),
-        &before
-    );
+    assert_eq!(first.stack.values(3, Color::White), before);
     assert_eq!(first.evaluate(&board, 3), network.evaluate(&board));
     assert_eq!(second.evaluate(&other, 3), network.evaluate(&other));
 }

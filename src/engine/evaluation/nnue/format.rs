@@ -4,7 +4,11 @@ use std::fs::File;
 use std::io::{self, Read};
 use std::path::Path;
 
-use super::{ACTIVATION_MAX, HIDDEN_SIZE, INPUT_FEATURES, Network, OUTPUT_BUCKETS, OUTPUT_SCALE};
+use super::kernels::Row;
+use super::{
+    ACTIVATION_MAX, HIDDEN_SIZE, INPUT_FEATURES, Network, OUTPUT_BUCKETS, OUTPUT_SCALE,
+    PIECE_PLANES,
+};
 
 /// Magic bytes of a Jakgro network; this is not a Stockfish network format.
 pub const MAGIC: [u8; 8] = *b"JAKNNUE\0";
@@ -34,6 +38,8 @@ pub enum LoadError {
     Checksum,
     /// Output arithmetic cannot be proven safe in signed 32-bit integers.
     OutputOverflow,
+    /// A perspective's sums cannot be proven to fit signed 16-bit integers.
+    AccumulatorOverflow,
     /// The fixed-size allocation failed.
     Allocation,
     /// The stream contains bytes after the complete model.
@@ -52,6 +58,9 @@ impl Display for LoadError {
             Self::Checksum => formatter.write_str("NNUE payload checksum mismatch"),
             Self::OutputOverflow => {
                 formatter.write_str("NNUE output arithmetic exceeds i32 bounds")
+            }
+            Self::AccumulatorOverflow => {
+                formatter.write_str("NNUE accumulator sums exceed i16 bounds")
             }
             Self::Allocation => formatter.write_str("unable to allocate the fixed NNUE model"),
             Self::TrailingData => formatter.write_str("trailing data after NNUE model"),
@@ -166,14 +175,14 @@ fn decode(header: &[u8; HEADER_BYTES], payload: &[u8]) -> Result<Network, LoadEr
     // hidden biases are signed little-endian i16.
     let output_start = 2 * (HIDDEN_SIZE + INPUT_FEATURES * HIDDEN_SIZE);
     let bias_start = output_start + 2 * OUTPUT_BUCKETS * 2 * HIDDEN_SIZE;
-    let output_weights: [[[i16; HIDDEN_SIZE]; 2]; OUTPUT_BUCKETS] = std::array::from_fn(|bucket| {
+    let output_weights: [[Row; 2]; OUTPUT_BUCKETS] = std::array::from_fn(|bucket| {
         std::array::from_fn(|side| {
-            std::array::from_fn(|unit| {
+            Row(std::array::from_fn(|unit| {
                 read_i16(
                     payload,
                     output_start + 2 * ((bucket * 2 + side) * HIDDEN_SIZE + unit),
                 )
-            })
+            }))
         })
     });
     let output_bias: [i32; OUTPUT_BUCKETS] = std::array::from_fn(|bucket| {
@@ -185,30 +194,61 @@ fn decode(header: &[u8; HEADER_BYTES], payload: &[u8]) -> Result<Network, LoadEr
             + i64::from(ACTIVATION_MAX)
                 * weights
                     .iter()
-                    .flatten()
+                    .flat_map(|row| row.iter())
                     .map(|&weight| i64::from(weight).abs())
                     .sum::<i64>();
         if bound > i64::from(i32::MAX) {
             return Err(LoadError::OutputOverflow);
         }
     }
-    // A board occupies at most 64 squares. With i16 weights and hidden bias,
-    // every unclipped sum is bounded by 65 * 32768, well within i32.
-    let hidden_bias = std::array::from_fn(|unit| read_i16(payload, 2 * unit));
+    let hidden_bias = Row(std::array::from_fn(|unit| read_i16(payload, 2 * unit)));
     let mut input_weights = Vec::new();
     input_weights
-        .try_reserve_exact(INPUT_FEATURES * HIDDEN_SIZE)
+        .try_reserve_exact(INPUT_FEATURES)
         .map_err(|_| LoadError::Allocation)?;
     input_weights.extend(
         payload[2 * HIDDEN_SIZE..output_start]
-            .chunks_exact(2)
-            .map(|bytes| i16::from_le_bytes([bytes[0], bytes[1]])),
+            .chunks_exact(2 * HIDDEN_SIZE)
+            .map(|row| Row(std::array::from_fn(|unit| read_i16(row, 2 * unit)))),
     );
+    if !sums_fit_i16(&hidden_bias, &input_weights) {
+        return Err(LoadError::AccumulatorOverflow);
+    }
     Ok(Network {
         hidden_bias,
         input_weights: input_weights.into_boxed_slice(),
         output_weights,
         output_bias,
+    })
+}
+
+/// Proves that no placement's sums leave the 16-bit accumulators.
+///
+/// A perspective sees one king bucket, and in it at most one feature on each
+/// of its 64 squares. Taking every square's largest and smallest weight over
+/// the twelve planes therefore bounds each unit's sum for any board at all,
+/// legal or not. Trained networks sit far inside the bound; a file outside it
+/// is rejected rather than evaluated in wider, slower arithmetic.
+fn sums_fit_i16(hidden_bias: &Row, input_weights: &[Row]) -> bool {
+    input_weights.chunks_exact(PIECE_PLANES * 64).all(|bucket| {
+        let mut highest = hidden_bias.map(i32::from);
+        let mut lowest = highest;
+        for square in 0..64 {
+            let mut most = [0_i16; HIDDEN_SIZE];
+            let mut least = [0_i16; HIDDEN_SIZE];
+            for plane in bucket.chunks_exact(64) {
+                for (unit, &weight) in plane[square].iter().enumerate() {
+                    most[unit] = most[unit].max(weight);
+                    least[unit] = least[unit].min(weight);
+                }
+            }
+            for unit in 0..HIDDEN_SIZE {
+                highest[unit] += i32::from(most[unit]);
+                lowest[unit] += i32::from(least[unit]);
+            }
+        }
+        highest.iter().all(|&sum| sum <= i32::from(i16::MAX))
+            && lowest.iter().all(|&sum| sum >= i32::from(i16::MIN))
     })
 }
 

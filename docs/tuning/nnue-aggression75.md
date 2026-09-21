@@ -46,11 +46,15 @@ result against the frozen handcrafted engine at commit `5c242b7`, measured by
 
 \* re-measured over 2048 games; the 512-game figure was 1.009.
 
-The published network (`nets/jakgro.nnue`, SHA-256
-`b544ba91fd4caf068a544864047fedcbdae98b6aeea37b6edebb0e485b298eca`) is run 42.
-At 50 ms per move over 1024 games it scored 71.8%, +163 Elo [146, 180], against
-the same baseline (run 26 scored +143 [127, 160], run 38 +160 [145, 176] under
-the same clock).
+The run-42 network (SHA-256
+`b544ba91fd4caf068a544864047fedcbdae98b6aeea37b6edebb0e485b298eca`) was the
+last published 128-unit clipped-ReLU network. At 50 ms per move over 1024
+games it scored 71.8%, +163 Elo [146, 180], against the same baseline (run 26
+scored +143 [127, 160], run 38 +160 [145, 176] under the same clock). The
+architecture has since moved to a 512-unit feature transformer with squared
+clipped-ReLU activations (format version 3, below); its network is trained
+separately, and until it lands `nets/jakgro.nnue` is a placeholder trained
+for two epochs on the refit-pilot smoke corpus, with no strength claim.
 
 The output buckets did not move the fixed-node result but lowered the
 development label loss by 2% and were kept; the piece-count bucket lets the
@@ -74,22 +78,33 @@ fifty-move draw (+6 within noise; it flipped a knife-edge sacrifice fixture).
 - Features are colored piece-square pairs under eight 2x2 king buckets on a
   file-mirrored half board (6144 inputs), so a position and its horizontal
   reflection share weights. One of eight output layers is selected by the
-  number of pieces on the board (`(pieces - 1) / 4`); network files are format
-  version 2, and a version-1 network converts exactly by replicating its
-  single output layer.
+  number of pieces on the board (`(pieces - 1) / 4`). Network files are format
+  version 3: a 512-unit feature transformer, squared clipped-ReLU activations
+  (`clamp(sum, 0, 255)^2`), output weights quantized by 64 and bounded to
+  `-127..=127`, an `i32` output bias in units of `64 * 255 * 255`, and a score
+  of `(numerator * 400) / (64 * 255 * 255)` truncated toward zero; the file is
+  6,308,944 bytes. Version 2 files (128 units, clipped ReLU) are rejected.
+- Prepared datasets name only the feature contract (`# jakgro-nnue-data-v2`,
+  6144 features, feature set 1); version 1 headers, which also recorded the
+  writer's hidden width, activation ceiling and output scale, still load, since
+  rows never depended on those fields.
 - Iterative deepening stops on a mate score only once the depth covers the
   mate distance. A shallow iteration could inherit a longer mate from the
   table, and replaying it shuffled won queen endings into a threefold
   repetition; the default network now mates KQ v K from `4k3/8/8/8/8/8/3Q4/4K3`
   in 15 moves at 50 ms per move where it previously drew.
 - The update and output kernels dispatch to AVX2 at runtime when the CPU
-  supports it; the arithmetic is unchanged.
-- Accumulators are 16-bit and every weight row is 64-byte aligned. The loader
-  proves no placement can overflow them (each unit's bias plus, per square, its
+  supports it; the arithmetic is unchanged. The output kernel squares each
+  clipped activation, forms the 16-bit product `weight * activation`, and sums
+  products in 64-unit `i32` chunks into an `i64`; the weight bound makes every
+  step exact by construction.
+- Accumulators are 16-bit and every weight row is 64-byte aligned (1 KiB per
+  row at 512 units; 6 MiB of feature-transformer weights). The loader proves
+  no placement can overflow them (each unit's bias plus, per square, its
   extreme weight over the twelve planes) and rejects a file it cannot prove;
-  the published network's bound is [-9636, 8340]. A perspective's update is
-  one fused pass (`source + adds - subs`, at most two of each per pass),
-  selected once per perspective rather than once per feature.
+  the run-42 network's bound was [-9636, 8340]. A perspective's update is one
+  fused pass (`source + adds - subs`, at most two of each per pass), selected
+  once per perspective rather than once per feature.
 - Each ply's state starts from whichever of itself and the state one ply up
   shares more king views with the position and then differs in fewer features
   (3.4 changed features per evaluation against 5.2 from the same ply alone).

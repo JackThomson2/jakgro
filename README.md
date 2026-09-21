@@ -300,13 +300,13 @@ Both are behind the `tuning` feature and are not built into the shipped engine.
 The default static evaluation is a quantized network embedded in the
 executable (`nets/jakgro.nnue`, provenance in `nets/jakgro.report.json`):
 colored piece-square features under eight king buckets on a file-mirrored half
-board, a shared 128-unit feature transformer with clipped-ReLU activations and
-a side-to-move-relative output in centipawns from one of eight layers selected
-by the piece count. Search, terminal handling and
-the `Aggression` policy are unchanged; only `static_score` is routed, and the
-sacrifice verification and attacking preferences still read the handcrafted
-feature snapshots. The handcrafted evaluator remains available, and another
-network can be loaded from a file:
+board, a shared 512-unit feature transformer with squared clipped-ReLU
+activations and a side-to-move-relative output in centipawns from one of eight
+layers selected by the piece count (format version 3, 6,308,944 bytes). Search,
+terminal handling and the `Aggression` policy are unchanged; only
+`static_score` is routed, and the sacrifice verification and attacking
+preferences still read the handcrafted feature snapshots. The handcrafted
+evaluator remains available, and another network can be loaded from a file:
 
 ```text
 setoption name Use NNUE value false      # handcrafted evaluation
@@ -315,12 +315,15 @@ setoption name EvalFile value <embedded>  # back to the built-in network
 ```
 
 A rejected file is reported as `info string EvalFile rejected: ...` and leaves
-the previous configuration in place. The published network measured +147 Elo
-[136, 158] over the handcrafted evaluator at Aggression 75 in 2048 paired
-50,000-node games, and +163 [146, 180] in 1024 games at 50 ms per move, while
-searching about 1.3 times as many nodes per second; the Aggression 75 versus 0
-forcing-move ratio is kept (1.08 against the handcrafted 1.06). The series is
-recorded in [`docs/tuning/nnue-aggression75.md`](docs/tuning/nnue-aggression75.md).
+the previous configuration in place. The last published 128-unit clipped-ReLU
+network measured +147 Elo [136, 158] over the handcrafted evaluator at
+Aggression 75 in 2048 paired 50,000-node games, and +163 [146, 180] in 1024
+games at 50 ms per move, while searching about 1.3 times as many nodes per
+second; the Aggression 75 versus 0 forcing-move ratio is kept (1.08 against the
+handcrafted 1.06). The series is recorded in
+[`docs/tuning/nnue-aggression75.md`](docs/tuning/nnue-aggression75.md); the
+512-unit network is trained separately, and until it lands `nets/jakgro.nnue`
+is a placeholder trained for two epochs on the refit-pilot smoke corpus.
 
 Networks are produced by the tuning-only `nnue-data` helper, entirely on CPU
 and without Python numeric dependencies:

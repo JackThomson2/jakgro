@@ -57,8 +57,8 @@ const LMP_DEPTH_SCALE: usize = 3;
 const LMP_MAX_DEPTH: u32 = 8;
 const NULL_MOVE_MIN_DEPTH: u32 = 4;
 const NULL_MOVE_RULE_FIFTY_LIMIT: u8 = 99;
-const STATIC_PRUNING_MAX_DEPTH: u32 = 4;
-const QUIET_FUTILITY_MAX_DEPTH: u32 = 2;
+const STATIC_PRUNING_MAX_DEPTH: u32 = 8;
+const QUIET_FUTILITY_MAX_DEPTH: u32 = 6;
 /// Swap-list score below which a quiescence capture is not searched.
 const QUIESCENCE_SEE_PRUNE_THRESHOLD: Score = 0;
 /// Margin a quiescence capture must be able to raise the stand-pat score over
@@ -74,8 +74,8 @@ const _: () = assert!(
 const REVERSE_FUTILITY_MAX_DEPTH: u32 = 7;
 const REVERSE_FUTILITY_BASE_MARGIN: Score = 0;
 const REVERSE_FUTILITY_DEPTH_MARGIN: Score = 80;
-const QUIET_FUTILITY_BASE_MARGIN: Score = 120;
-const QUIET_FUTILITY_DEPTH_MARGIN: Score = 140;
+const QUIET_FUTILITY_BASE_MARGIN: Score = 100;
+const QUIET_FUTILITY_DEPTH_MARGIN: Score = 100;
 /// Narrows the reverse-futility margin when the side to move is improving.
 ///
 /// Reverse futility assumes a static evaluation far above beta will hold. That
@@ -1523,16 +1523,6 @@ fn null_move_material_ok(board: &Board) -> bool {
     .len();
     !heavy.is_empty() || minors >= 2
 }
-fn static_pruning_material_ok(board: &Board) -> bool {
-    [Color::White, Color::Black].into_iter().all(|color| {
-        let heavy =
-            board.colored_pieces(color, Piece::Rook) | board.colored_pieces(color, Piece::Queen);
-        let minors = (board.colored_pieces(color, Piece::Knight)
-            | board.colored_pieces(color, Piece::Bishop))
-        .len();
-        !heavy.is_empty() || minors >= 2
-    })
-}
 
 fn static_pruning_allowed(
     board: &Board,
@@ -1549,7 +1539,6 @@ fn static_pruning_allowed(
         && alpha.abs() < MATE_THRESHOLD
         && beta.abs() < MATE_THRESHOLD
         && board.halfmove_clock() < STATIC_PRUNING_RULE_FIFTY_LIMIT
-        && static_pruning_material_ok(board)
 }
 
 /// Reports whether reverse futility may be considered at this node.
@@ -1576,7 +1565,6 @@ fn reverse_futility_allowed(
         && alpha.abs() < MATE_THRESHOLD
         && beta.abs() < MATE_THRESHOLD
         && board.halfmove_clock() < STATIC_PRUNING_RULE_FIFTY_LIMIT
-        && static_pruning_material_ok(board)
 }
 
 fn reverse_futility_cutoff(

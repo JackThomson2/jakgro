@@ -3762,27 +3762,11 @@ fn negamax(
     } else {
         depth
     };
-    // Every interior node outside check now knows what it is worth statically.
-    //
-    // The value was previously computed only where a pruning rule was about to
-    // consult it, which is at most depth four and never on the principal
-    // variation. That left the improving signal undefined almost everywhere and
-    // capped reverse futility at a depth it can barely serve. Interior nodes are
-    // a very small share of this tree — quiescence is about 97% of it — and most
-    // probes hit a stored value, so the cost is far below what the signal is
-    // worth.
-    //
-    // Which nodes may *act* on it is a separate question, and
-    // `static_pruning_allowed` still answers it. This commit changes
-    // availability alone and no search decision with it.
-    //
-    // That includes the improving signal, which is deliberately still derived
-    // from the narrower set. Widening it is a real change of policy rather than
-    // of availability: it decides the move-count limit up to depth eight, where
-    // an undefined signal currently counts as improving and doubles the limit.
-    // Feeding it the wider set once turned move-count pruning up enough that
-    // Aggression 100 stopped playing the knight investment the acceptance
-    // contract requires, so it belongs in its own patch with its own match.
+    // Every interior node outside check knows what it is worth statically, in
+    // every search mode: reverse futility, the null-move guard, the improving
+    // signal and the table's stored evaluation all read it, and most probes hit
+    // a stored value so the cost is small. Which nodes may *prune* on it is a
+    // separate question that `static_pruning_allowed` answers.
     let static_evaluation = if !in_check {
         Some(
             hash_entry

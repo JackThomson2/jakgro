@@ -431,18 +431,33 @@ impl MoveFacts {
             let enemy_king = board.king(!board.side_to_move());
             get_king_moves(enemy_king) | enemy_king.bitboard()
         });
-        let king_zone_move = king_zone.has(self.chess_move.to);
+        let attacking_pawn_push =
+            self.attacker == Piece::Pawn && is_attacking_pawn_push(board, self.chess_move);
+        self.complete(gives_check, attacking_pawn_push, king_zone, see)
+    }
+
+    /// Assembles metadata around the facts that took work to establish.
+    ///
+    /// Check detection and the pawn-push classification are the expensive
+    /// parts; everything else is a comparison or a bitboard test on values
+    /// already in hand.
+    fn complete(
+        self,
+        gives_check: bool,
+        attacking_pawn_push: bool,
+        king_zone: BitBoard,
+        see: Option<Score>,
+    ) -> MoveMetadata {
         MoveMetadata {
             chess_move: self.chess_move,
             attacker: self.attacker,
             captured: self.captured,
             gives_check,
-            attacking_pawn_push: self.attacker == Piece::Pawn
-                && is_attacking_pawn_push(board, self.chess_move),
+            attacking_pawn_push,
             castling: self.attacker == Piece::King
                 && (self.chess_move.from.file() as i32 - self.chess_move.to.file() as i32).abs()
                     > 1,
-            king_zone_move,
+            king_zone_move: king_zone.has(self.chess_move.to),
             see,
         }
     }
@@ -517,10 +532,32 @@ struct PreparedMove {
     root_complexity: Score,
 }
 
+#[cfg(test)]
 #[derive(Debug)]
 struct SearchMove {
     metadata: MoveMetadata,
     order_score: i64,
+}
+
+/// A quiet move staged for emission, holding only what its ordering needed.
+///
+/// Check detection and the pawn-push classification decide the order score,
+/// so they are settled when the move is generated. The remaining metadata is
+/// completed only when the move is emitted, which most staged quiets never
+/// are: a cutoff usually arrives before the quiet stage runs dry.
+#[derive(Clone, Copy, Debug)]
+struct QuietMove {
+    facts: MoveFacts,
+    gives_check: bool,
+    attacking_pawn_push: bool,
+    order_score: i64,
+}
+
+impl QuietMove {
+    fn metadata(self, king_zone: BitBoard) -> MoveMetadata {
+        self.facts
+            .complete(self.gives_check, self.attacking_pawn_push, king_zone, None)
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -545,7 +582,7 @@ impl PickerMove {
 struct MovePickerStorage {
     promotions: Vec<PickerMove>,
     good_captures: Vec<PickerMove>,
-    quiets: Vec<SearchMove>,
+    quiets: Vec<QuietMove>,
     bad_captures: Vec<PickerMove>,
     failed_quiets: Vec<MoveMetadata>,
     failed_captures: Vec<MoveMetadata>,
@@ -608,14 +645,14 @@ impl MovePickerMode {
         }
     }
 
-    fn accepts_quiet(self, metadata: MoveMetadata) -> bool {
+    fn accepts_quiet(self, gives_check: bool) -> bool {
         match self {
             Self::Main => true,
             Self::Quiescence { in_check: true, .. } => true,
             Self::Quiescence {
                 include_quiet_checks,
                 ..
-            } => include_quiet_checks && metadata.gives_check,
+            } => include_quiet_checks && gives_check,
         }
     }
 }
@@ -639,6 +676,8 @@ struct MovePicker<'a> {
     previous: Option<HistoryMove>,
     evaluation: EvaluationConfig,
     mode: MovePickerMode,
+    /// The node's check masks, settled once quiet generation needs them.
+    masks: Option<CheckMasks>,
     stage: MovePickerStage,
     stage_index: usize,
     emitted: usize,
@@ -666,6 +705,7 @@ impl<'a> MovePicker<'a> {
             previous,
             evaluation,
             mode,
+            masks: None,
             stage: MovePickerStage::Preferred,
             stage_index: 0,
             emitted: 0,
@@ -736,10 +776,13 @@ impl<'a> MovePicker<'a> {
                     self.enter(MovePickerStage::Quiets);
                 }
                 MovePickerStage::Quiets => {
-                    if let Some(candidate) = self.storage.quiets.get(self.stage_index) {
-                        let metadata = candidate.metadata;
+                    if let Some(candidate) = self.storage.quiets.get(self.stage_index).copied() {
                         self.stage_index += 1;
-                        return Some(self.emit(metadata));
+                        let king_zone = self
+                            .masks
+                            .expect("quiet generation settles the check masks")
+                            .king_zone;
+                        return Some(self.emit(candidate.metadata(king_zone)));
                     }
                     self.enter(MovePickerStage::SortBadCaptures);
                 }
@@ -907,7 +950,11 @@ impl<'a> MovePicker<'a> {
         let preferred = self.preferred;
         let picked_killers = self.picked_killers;
         let mode = self.mode;
-        let masks = CheckMasks::for_board(board);
+        let evaluation = self.evaluation;
+        let previous = self.previous;
+        let killers = ordering.killers(self.ply);
+        let color = board.side_to_move();
+        let masks = *self.masks.insert(CheckMasks::for_board(board));
         let quiets = &mut self.storage.quiets;
         #[cfg(test)]
         let work = &mut self.work;
@@ -922,56 +969,68 @@ impl<'a> MovePicker<'a> {
                 include_quiet_checks: true,
             }
         );
-        let enemies = board.colors(!board.side_to_move());
+        let enemies = board.colors(!color);
         let pawn_tacticals = {
             let mut targets = enemies | Rank::First.bitboard() | Rank::Eighth.bitboard();
             if let Some(file) = board.en_passant() {
-                targets |=
-                    Square::new(file, Rank::Sixth.relative_to(board.side_to_move())).bitboard();
+                targets |= Square::new(file, Rank::Sixth.relative_to(color)).bitboard();
             }
             targets
         };
         let mut targets = [!enemies; Piece::NUM];
         targets[Piece::Pawn as usize] = !pawn_tacticals;
         board.generate_moves_for_targets(BitBoard::FULL, &targets, |mut piece_moves| {
+            let piece = piece_moves.piece;
             if quiet_checks_only
-                && piece_moves.piece != Piece::King
+                && piece != Piece::King
                 && !masks.discovery_candidates.has(piece_moves.from)
             {
-                piece_moves.to &= masks.direct[piece_moves.piece as usize];
+                piece_moves.to &= masks.direct[piece as usize];
             }
             for chess_move in piece_moves {
                 if preferred == Some(chess_move) || picked_killers.contains(&Some(chess_move)) {
                     continue;
                 }
-                let facts = MoveFacts {
-                    chess_move,
-                    attacker: piece_moves.piece,
-                    captured: None,
-                };
                 #[cfg(test)]
                 {
                     work.check_detections += 1;
                 }
-                let metadata = facts.search_metadata_with_masks(board, None, Some(masks));
-                if mode.accepts_quiet(metadata) {
-                    quiets.push(SearchMove {
-                        metadata,
-                        order_score: 0,
-                    });
+                // A quiet never captures, so it cannot be an en passant capture.
+                let gives_check = masks.may_give_check(chess_move, piece, false)
+                    && move_gives_check(board, chess_move, piece);
+                if !mode.accepts_quiet(gives_check) {
+                    continue;
                 }
+                let attacking_pawn_push =
+                    piece == Piece::Pawn && is_attacking_pawn_push(board, chess_move);
+                let history = ordering.quiet_history_score_of(
+                    color,
+                    chess_move,
+                    HistoryMove {
+                        piece,
+                        to: chess_move.to,
+                    },
+                    previous,
+                );
+                let forcing = forcing_order_bonus(gives_check, attacking_pawn_push, evaluation);
+                quiets.push(QuietMove {
+                    facts: MoveFacts {
+                        chess_move,
+                        attacker: piece,
+                        captured: None,
+                    },
+                    gives_check,
+                    attacking_pawn_push,
+                    order_score: quiet_rank(chess_move, i64::from(history), forcing, killers),
+                });
             }
             false
         });
-        order_search_moves_in_place(
-            board,
-            quiets,
-            None,
-            self.ply,
-            self.previous,
-            ordering,
-            self.evaluation,
-        );
+        quiets.sort_unstable_by(|left, right| {
+            right.order_score.cmp(&left.order_score).then_with(|| {
+                move_key(left.facts.chess_move).cmp(&move_key(right.facts.chess_move))
+            })
+        });
         #[cfg(test)]
         {
             self.work.quiet_sorts += 1;
@@ -1276,12 +1335,31 @@ impl MoveOrdering {
         chess_move: Move,
         previous: Option<HistoryMove>,
     ) -> i32 {
-        let butterfly = self.history_score(board.side_to_move(), chess_move);
+        self.quiet_history_score_of(
+            board.side_to_move(),
+            chess_move,
+            HistoryMove::from_board(board, chess_move),
+            previous,
+        )
+    }
+
+    /// The history of `chess_move`, played by `color` as `current`, after
+    /// `previous`.
+    ///
+    /// Callers that already know the moving piece build `current` directly
+    /// instead of looking it up on the board again.
+    fn quiet_history_score_of(
+        &self,
+        color: Color,
+        chess_move: Move,
+        current: HistoryMove,
+        previous: Option<HistoryMove>,
+    ) -> i32 {
+        let butterfly = self.history_score(color, chess_move);
         let Some(previous) = previous else {
             return butterfly;
         };
-        let continuation =
-            self.continuation_score(previous, HistoryMove::from_board(board, chess_move));
+        let continuation = self.continuation_score(previous, current);
         if butterfly == 0 || butterfly.signum() != continuation.signum() {
             return butterfly;
         }
@@ -4810,6 +4888,7 @@ fn order_prepared_moves_in_place(
     });
 }
 
+#[cfg(test)]
 #[allow(clippy::too_many_arguments)]
 fn order_search_moves_in_place(
     board: &Board,
@@ -4964,19 +5043,25 @@ fn quiet_order_score(
 ) -> i64 {
     let chess_move = metadata.chess_move;
     let history = i64::from(ordering.quiet_history_score(board, chess_move, previous));
-    let forcing = forcing_order_bonus(metadata, evaluation);
+    let forcing = forcing_order_bonus(
+        metadata.gives_check,
+        metadata.attacking_pawn_push,
+        evaluation,
+    );
+    quiet_rank(chess_move, history, forcing, ordering.killers(ply))
+}
+
+/// Ranks a quiet move from its history, forcing bonus and killer status.
+fn quiet_rank(chess_move: Move, history: i64, forcing: i64, killers: [Option<Move>; 2]) -> i64 {
     if forcing > 0 {
         return 2_000_000 + history + forcing;
     }
-
-    let killers = ordering.killers(ply);
     if killers[0] == Some(chess_move) {
         return 3_000_000;
     }
     if killers[1] == Some(chess_move) {
         return 2_900_000;
     }
-
     2_000_000 + history
 }
 
@@ -5029,15 +5114,19 @@ fn total_non_pawn_material(board: &Board) -> Score {
         .sum()
 }
 
-fn forcing_order_bonus(metadata: MoveMetadata, evaluation: EvaluationConfig) -> i64 {
+fn forcing_order_bonus(
+    gives_check: bool,
+    attacking_pawn_push: bool,
+    evaluation: EvaluationConfig,
+) -> i64 {
     let aggression = i64::from(evaluation.aggression());
     if aggression == 0 {
         return 0;
     }
-    if metadata.gives_check {
+    if gives_check {
         return 800_000 + aggression * 3_000;
     }
-    if metadata.attacking_pawn_push {
+    if attacking_pawn_push {
         return aggression * 1_500;
     }
     0

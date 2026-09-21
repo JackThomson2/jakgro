@@ -346,6 +346,11 @@ pub fn json_string(text: &str) -> String {
     escaped
 }
 
+/// JSON description of the feature contract a prepared dataset depends on.
+pub fn feature_json() -> String {
+    format!("{{\"features\": {INPUT_FEATURES}, \"feature_set\": {FEATURE_SET}}}")
+}
+
 /// JSON description of the fixed network architecture a training run exports.
 pub fn architecture_json() -> String {
     format!(
@@ -414,8 +419,8 @@ pub fn prepare(options: &Options) -> Result<String, String> {
     }
     let mut checksums = String::new();
     let mut manifest = format!(
-        "{{\n  \"schema_version\": 2,\n  \"architecture\": {},\n  \"helper_sha256\": \"{helper}\",\n  \"deduplicate\": {},\n  \"drop_development_overlap\": {},\n  \"split_policy\": \"Reject canonical and feature-identical overlap, including turn changes and colour/rank mirrors; not a game/family independence certificate.\",\n  \"splits\": {{\n",
-        architecture_json(),
+        "{{\n  \"schema_version\": 3,\n  \"features\": {},\n  \"helper_sha256\": \"{helper}\",\n  \"deduplicate\": {},\n  \"drop_development_overlap\": {},\n  \"split_policy\": \"Reject canonical and feature-identical overlap, including turn changes and colour/rank mirrors; not a game/family independence certificate.\",\n  \"splits\": {{\n",
+        feature_json(),
         options.deduplicate,
         options.drop_overlap
     );

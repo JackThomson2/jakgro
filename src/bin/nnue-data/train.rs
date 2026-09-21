@@ -186,20 +186,28 @@ fn sigmoid(score: f32, k: f32) -> f32 {
 
 /// Loads a prepared split, parsing line chunks on every thread.
 ///
-/// Every row's stored features are recomputed from its FEN with the engine's
+/// The schema line must name this feature contract (see
+/// [`crate::schema_accepted`]) and the column line must match exactly. Every
+/// row's stored features are then recomputed from its FEN with the engine's
 /// own mapping, so a dataset prepared by another feature set is rejected here
 /// rather than trusted.
 fn read_rows(path: &Path, label_mix: f32, k: f32, threads: usize) -> Result<Vec<Row>, String> {
     let bytes = fs::read(path).map_err(|error| format!("{}: {error}", path.display()))?;
     let mut offset = 0;
-    for expected in crate::HEADER.lines() {
+    for line in 0..2 {
         let end = bytes[offset..]
             .iter()
             .position(|&byte| byte == b'\n')
             .map(|end| offset + end)
             .ok_or_else(|| format!("{}: truncated header", path.display()))?;
-        if &bytes[offset..end] != expected.as_bytes() {
-            let what = if offset == 0 {
+        let text = std::str::from_utf8(&bytes[offset..end]).unwrap_or_default();
+        let accepted = if line == 0 {
+            crate::schema_accepted(text)
+        } else {
+            text == crate::COLUMNS
+        };
+        if !accepted {
+            let what = if line == 0 {
                 "unsupported feature schema"
             } else {
                 "wrong dataset columns"

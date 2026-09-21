@@ -10,15 +10,37 @@ use std::process::ExitCode;
 use std::sync::LazyLock;
 
 use cozy_chess::{BitBoard, Board, Color, GameStatus, Piece};
-use jakgro::engine::nnue::{ACTIVATION_MAX, HIDDEN_SIZE, INPUT_FEATURES, Network, OUTPUT_SCALE};
+use jakgro::engine::nnue::{FEATURE_SET, INPUT_FEATURES, Network};
 
 const MAX_LINE_BYTES: u64 = 4096;
-/// Dataset header naming the architecture the features were extracted for.
-static HEADER: LazyLock<String> = LazyLock::new(|| {
-    format!(
-        "# jakgro-nnue-data-v1\t{INPUT_FEATURES}\t{HIDDEN_SIZE}\t{ACTIVATION_MAX}\t{OUTPUT_SCALE}\nfen\tkey\tstm\toutcome\tteacher_cp\twhite\tblack\n"
-    )
-});
+/// Dataset schema line: the feature contract the rows were extracted for.
+///
+/// Rows hold feature indices, which depend on the feature count and the
+/// feature-set version and on nothing else about the network, so a change of
+/// hidden width or activation never invalidates a corpus.
+static SCHEMA: LazyLock<String> =
+    LazyLock::new(|| format!("# jakgro-nnue-data-v2\t{INPUT_FEATURES}\t{FEATURE_SET}"));
+/// Column names of a prepared row.
+const COLUMNS: &str = "fen\tkey\tstm\toutcome\tteacher_cp\twhite\tblack";
+/// The two header lines written before the rows of a prepared split.
+static HEADER: LazyLock<String> = LazyLock::new(|| format!("{}\n{COLUMNS}\n", *SCHEMA));
+
+/// Whether a prepared split's schema line describes this feature contract.
+///
+/// Version 1 lines also recorded the hidden width, activation ceiling and
+/// output scale of the helper that wrote them (`v1`, features, hidden,
+/// activation, output scale). Rows never depended on those three fields, so
+/// a version 1 dataset with this feature count stays loadable and only the
+/// feature count is checked.
+fn schema_accepted(line: &str) -> bool {
+    if line == SCHEMA.as_str() {
+        return true;
+    }
+    let mut fields = line.split('\t');
+    fields.next() == Some("# jakgro-nnue-data-v1")
+        && fields.next() == Some(INPUT_FEATURES.to_string().as_str())
+        && fields.count() == 3
+}
 
 fn main() -> ExitCode {
     let arguments: Vec<_> = std::env::args().skip(1).collect();
@@ -239,6 +261,28 @@ mod tests {
         assert!(!is_terminal(
             &"7k/8/8/8/8/8/8/KNN5 w - - 0 1".parse().unwrap()
         ));
+    }
+
+    #[test]
+    fn schema_lines_name_the_feature_contract_and_accept_version_one_datasets() {
+        assert_eq!(*SCHEMA, "# jakgro-nnue-data-v2\t6144\t1");
+        assert!(HEADER.starts_with(&format!("{}\n{COLUMNS}\n", *SCHEMA)));
+        assert!(schema_accepted(&SCHEMA));
+        // Version 1 headers carried the writer's hidden width, activation
+        // ceiling and output scale; rows never depended on them.
+        assert!(schema_accepted("# jakgro-nnue-data-v1\t6144\t128\t255\t64"));
+        assert!(schema_accepted("# jakgro-nnue-data-v1\t6144\t512\t255\t64"));
+        for rejected in [
+            "# jakgro-nnue-data-v1\t12288\t128\t255\t64",
+            "# jakgro-nnue-data-v1\t6144",
+            "# jakgro-nnue-data-v1\t6144\t128\t255",
+            "# jakgro-nnue-data-v2\t6144\t2",
+            "# jakgro-nnue-data-v2\t6144\t1\t512",
+            "# jakgro-nnue-data-v3\t6144\t1",
+            "",
+        ] {
+            assert!(!schema_accepted(rejected), "{rejected:?}");
+        }
     }
 
     const FEN: &str = "4k3/8/5n2/8/8/8/2P5/4K3 w - - 0 1";

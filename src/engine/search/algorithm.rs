@@ -3753,7 +3753,7 @@ fn negamax(
         } else {
             None
         };
-    let improving = context.record_static_evaluation(ply, in_check, pruning_evaluation);
+    let improving = context.record_static_evaluation(ply, in_check, static_evaluation);
     if reverse_futility_allowed(board, depth, alpha, beta, pv_node, context.mode)
         && static_evaluation.is_some_and(|evaluation| {
             reverse_futility_cutoff(

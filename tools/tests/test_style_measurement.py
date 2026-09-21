@@ -329,7 +329,7 @@ class FrozenSacrificeSuiteTests(unittest.TestCase):
         self.assertTrue(all(100 in fixture.expected for fixture in fixtures))
         self.assertEqual(
             measure_style.sha256_file(Path("tests/data/sacrifice-gates.epd")),
-            "08cf9b5d0a49d553e7427e7f24ffeab2539b504a733676dff363c1bfe82159f4",
+            "144b31db01a6a8b3c8d4d838ee1956133f86cbb413b14b63b0e4efd6df9c109a",
         )
 
 

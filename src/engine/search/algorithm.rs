@@ -5198,9 +5198,6 @@ mod tests {
             )
             .unwrap();
             assert_eq!(result.score, 137, "stand pat uses NNUE in {mode:?}");
-            if matches!(mode, super::SearchMode::NullProbe) {
-                assert_eq!(context.telemetry.tt_probes, 0);
-            }
         }
     }
 
@@ -5221,7 +5218,7 @@ mod tests {
         let result = super::verified_null_move_cutoff(
             board,
             &mut history,
-            4,
+            super::NULL_VERIFICATION_MIN_DEPTH,
             1,
             0,
             -201,
@@ -5400,14 +5397,6 @@ mod tests {
                 super::SearchMode::Normal,
                 super::NodeResult {
                     score: super::NEG_INFINITY,
-                    path_dependent: false,
-                },
-            ),
-            (
-                "null probe",
-                super::SearchMode::NullProbe,
-                super::NodeResult {
-                    score: 12,
                     path_dependent: false,
                 },
             ),
@@ -6024,7 +6013,7 @@ mod tests {
         let board = cozy_chess::Board::default();
         assert!(super::static_pruning_allowed(
             &board,
-            4,
+            super::STATIC_PRUNING_MAX_DEPTH,
             0,
             1,
             false,
@@ -6032,7 +6021,7 @@ mod tests {
         ));
         assert!(!super::static_pruning_allowed(
             &board,
-            5,
+            super::STATIC_PRUNING_MAX_DEPTH + 1,
             0,
             1,
             false,
@@ -6066,8 +6055,9 @@ mod tests {
             false,
             super::SearchMode::Normal,
         ));
+        // Sparse material no longer switches the rules off: endgames prune too.
         let pawn_ending = "6k1/5ppp/8/8/6P1/8/5P1P/6K1 w - - 0 1".parse().unwrap();
-        assert!(!super::static_pruning_allowed(
+        assert!(super::static_pruning_allowed(
             &pawn_ending,
             4,
             0,
@@ -6697,7 +6687,7 @@ mod tests {
         assert_eq!(
             super::null_move_block(
                 rich.board(),
-                3,
+                super::NULL_MOVE_MIN_DEPTH - 1,
                 rich_static,
                 false,
                 rich_static,
@@ -6742,10 +6732,14 @@ mod tests {
 
     #[test]
     fn null_move_reduction_is_bounded_by_remaining_depth() {
-        assert_eq!(super::null_move_reduction(1), 0);
-        assert_eq!(super::null_move_reduction(4), 3);
-        assert_eq!(super::null_move_reduction(8), 4);
-        assert_eq!(super::null_move_reduction(20), 7);
+        assert_eq!(super::null_move_reduction(1, 0, 0), 0);
+        assert_eq!(super::null_move_reduction(4, 0, 0), 3);
+        assert_eq!(super::null_move_reduction(8, 0, 0), 5);
+        assert_eq!(super::null_move_reduction(20, 0, 0), 9);
+        // Every 200 cp of static excess over beta buys one more ply, up to three.
+        assert_eq!(super::null_move_reduction(20, 400, 0), 11);
+        assert_eq!(super::null_move_reduction(20, 2_000, 0), 12);
+        assert_eq!(super::null_move_reduction(4, 2_000, 0), 3);
     }
 
     #[test]
@@ -6785,9 +6779,9 @@ mod tests {
             )
             .is_none()
         );
-        assert!(!super::SearchMode::NullProbe.reads_tt());
-        assert!(!super::SearchMode::NullProbe.writes_tt());
-        assert!(!super::SearchMode::NullProbe.updates_ordering());
+        assert!(super::SearchMode::NullProbe.reads_tt());
+        assert!(super::SearchMode::NullProbe.writes_tt());
+        assert!(super::SearchMode::NullProbe.updates_ordering());
         assert!(!super::SearchMode::NullProbe.allows_null());
         assert!(super::SearchMode::Verification.tracks_legal_draws());
         assert!(super::SearchMode::Verification.writes_tt());
@@ -6822,26 +6816,26 @@ mod tests {
         let metadata = super::MoveMetadata::classify(position.board(), quiet_move);
 
         assert_eq!(
-            super::late_move_reduction(3, 3, metadata, false, false, false, 0),
+            super::late_move_reduction(3, 3, metadata, false, false, false, true, 0),
             1,
         );
         assert_eq!(
-            super::late_move_reduction(6, 7, metadata, false, false, false, 0),
+            super::late_move_reduction(6, 7, metadata, false, false, false, true, 0),
             2,
         );
         assert_eq!(
-            super::late_move_reduction(8, 12, metadata, false, false, false, 0),
+            super::late_move_reduction(8, 12, metadata, false, false, false, true, 0),
             2,
         );
         // Unlike the previous fixed ladder, the reduction keeps growing with
         // depth rather than saturating at three plies.
         assert!(
-            super::late_move_reduction(24, 12, metadata, false, false, false, 0)
-                > super::late_move_reduction(8, 12, metadata, false, false, false, 0),
+            super::late_move_reduction(24, 12, metadata, false, false, false, true, 0)
+                > super::late_move_reduction(8, 12, metadata, false, false, false, true, 0),
         );
         assert!(
-            super::late_move_reduction(16, 32, metadata, false, false, false, 0)
-                > super::late_move_reduction(16, 5, metadata, false, false, false, 0),
+            super::late_move_reduction(16, 32, metadata, false, false, false, true, 0)
+                > super::late_move_reduction(16, 5, metadata, false, false, false, true, 0),
         );
         assert_eq!(
             super::late_move_reduction(
@@ -6851,6 +6845,7 @@ mod tests {
                 false,
                 false,
                 false,
+                true,
                 super::LMR_HISTORY_THRESHOLD,
             ),
             1,
@@ -6863,28 +6858,29 @@ mod tests {
                 false,
                 false,
                 false,
+                true,
                 -super::LMR_HISTORY_THRESHOLD,
             ),
             3,
         );
         assert_eq!(
-            super::late_move_reduction(2, 3, metadata, false, false, false, 0),
+            super::late_move_reduction(2, 3, metadata, false, false, false, true, 0),
             0,
         );
         assert_eq!(
-            super::late_move_reduction(3, 2, metadata, false, false, false, 0),
+            super::late_move_reduction(3, 2, metadata, false, false, false, true, 0),
             0,
         );
         assert_eq!(
-            super::late_move_reduction(3, 3, metadata, true, false, false, 0),
+            super::late_move_reduction(3, 3, metadata, true, false, false, true, 0),
             0,
         );
         assert_eq!(
-            super::late_move_reduction(3, 3, metadata, false, true, false, 0),
+            super::late_move_reduction(3, 3, metadata, false, true, false, true, 0),
             0,
         );
         assert_eq!(
-            super::late_move_reduction(6, 7, metadata, false, false, true, 0),
+            super::late_move_reduction(6, 7, metadata, false, false, true, true, 0),
             1,
         );
 
@@ -6903,11 +6899,11 @@ mod tests {
             },
         ] {
             assert_eq!(
-                super::late_move_reduction(6, 7, forcing, false, false, false, 0),
+                super::late_move_reduction(6, 7, forcing, false, false, false, true, 0),
                 0,
             );
             assert_eq!(
-                super::late_move_reduction(6, 7, forcing, false, false, true, 0),
+                super::late_move_reduction(6, 7, forcing, false, false, true, true, 0),
                 0,
             );
         }
@@ -6917,7 +6913,7 @@ mod tests {
             ..metadata
         };
         assert_eq!(
-            super::late_move_reduction(6, 7, capture, false, false, false, 0),
+            super::late_move_reduction(6, 7, capture, false, false, false, true, 0),
             0,
         );
 
@@ -6926,20 +6922,20 @@ mod tests {
             ..metadata
         };
         assert_eq!(
-            super::late_move_reduction(6, 7, attacking_push, true, false, false, 0),
+            super::late_move_reduction(6, 7, attacking_push, true, false, false, true, 0),
             0,
         );
         assert_eq!(
-            super::late_move_reduction(6, 7, attacking_push, false, false, false, 0),
+            super::late_move_reduction(6, 7, attacking_push, false, false, false, true, 0),
             2,
         );
 
         assert_eq!(
-            super::late_move_reduction(1, usize::MAX, metadata, false, false, false, 0),
+            super::late_move_reduction(1, usize::MAX, metadata, false, false, false, true, 0),
             0,
         );
         assert_eq!(
-            super::late_move_reduction(2, 5, metadata, false, false, false, 0),
+            super::late_move_reduction(2, 5, metadata, false, false, false, true, 0),
             0,
         );
         {
@@ -6952,6 +6948,7 @@ mod tests {
                     false,
                     false,
                     false,
+                    true,
                     0,
                 ),
                 1,
@@ -6964,6 +6961,7 @@ mod tests {
                     false,
                     false,
                     false,
+                    true,
                     super::LMR_HISTORY_THRESHOLD,
                 ),
                 0,
@@ -6976,6 +6974,7 @@ mod tests {
                     true,
                     false,
                     false,
+                    true,
                     0,
                 ),
                 0,
@@ -6988,6 +6987,7 @@ mod tests {
                     false,
                     true,
                     false,
+                    true,
                     0,
                 ),
                 0,
@@ -6999,6 +6999,7 @@ mod tests {
                     metadata,
                     false,
                     false,
+                    true,
                     true,
                     0,
                 ),
@@ -7022,10 +7023,10 @@ mod tests {
                     super::HISTORY_MAX,
                 ] {
                     let scout = super::late_move_reduction(
-                        depth, index, metadata, false, false, false, history,
+                        depth, index, metadata, false, false, false, true, history,
                     );
                     let pv = super::late_move_reduction(
-                        depth, index, metadata, false, false, true, history,
+                        depth, index, metadata, false, false, true, true, history,
                     );
                     assert!(pv <= scout);
                     assert!(scout - pv <= 1);
@@ -7035,7 +7036,7 @@ mod tests {
             }
         }
         assert_eq!(
-            super::late_move_reduction(6, 7, metadata, false, false, true, 0),
+            super::late_move_reduction(6, 7, metadata, false, false, true, true, 0),
             1,
         );
         assert_eq!(
@@ -7045,6 +7046,7 @@ mod tests {
                 metadata,
                 false,
                 false,
+                true,
                 true,
                 super::LMR_HISTORY_THRESHOLD,
             ),
@@ -7058,6 +7060,7 @@ mod tests {
                     metadata,
                     protected,
                     in_check,
+                    true,
                     true,
                     -super::HISTORY_MAX,
                 ),
@@ -7117,19 +7120,6 @@ mod tests {
             75,
             super::SearchMode::Normal
         ));
-        // The mode guard is what keeps null verification agreeing with a search
-        // that has pruning disabled, so every non-normal mode is pinned.
-        for mode in [
-            super::SearchMode::NullProbe,
-            super::SearchMode::Verification,
-        ] {
-            assert!(
-                !super::should_prune_late_move(
-                    2, late, quiet, false, false, false, 0, false, 75, mode
-                ),
-                "{mode:?} must not prune",
-            );
-        }
         // Move-count pruning applies at exactly its maximum depth and stops one
         // ply deeper, so both sides of that boundary are pinned.
         assert!(super::should_prune_late_move(

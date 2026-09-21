@@ -1734,7 +1734,9 @@ fn verified_null_move_cutoff(
     context.mode = probe_mode;
     // The probe searches the null board, so it must probe and store under that
     // board's key rather than the parent's.
-    history.push_key(repetition_key(&null_board));
+    let null_key = repetition_key(&null_board);
+    context.table.prefetch(null_key);
+    history.push_key(null_key);
     let probe = negamax(
         &null_board,
         history,
@@ -2854,6 +2856,7 @@ fn search_root_styled(
         let mut child = board.clone();
         child.play_unchecked(seed.chess_move);
         let child_key = repetition_key(&child);
+        context.table.prefetch(child_key);
         let verification_alpha = threshold.saturating_sub(1).max(NEG_INFINITY);
         let verification_beta = objective.score.saturating_add(1).min(POS_INFINITY);
         history.push_key(child_key);
@@ -3986,6 +3989,7 @@ fn negamax(
         let mut child = board.clone();
         child.play_unchecked_with_piece(chess_move, metadata.attacker);
         let child_key = repetition_key(&child);
+        context.table.prefetch(child_key);
         history.push_key(child_key);
         let first_window = if index == 0 {
             (-beta, -alpha)
@@ -4296,6 +4300,7 @@ fn quiescence(
         let mut child = board.clone();
         child.play_unchecked_with_piece(chess_move, metadata.attacker);
         let child_key = repetition_key(&child);
+        context.table.prefetch(child_key);
         history.push_key(child_key);
         let child_result = quiescence(
             &child,

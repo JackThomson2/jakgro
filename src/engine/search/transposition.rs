@@ -322,6 +322,27 @@ impl TranspositionTable {
             None,
         );
     }
+
+    /// Starts pulling the bucket a key selects into cache.
+    ///
+    /// A probe is one dependent load from a table far larger than any cache,
+    /// so it stalls for a memory round trip unless the line is already on its
+    /// way. Issuing the hint as soon as a child's key is known lets the move
+    /// bookkeeping and node entry overlap that latency. A hint never faults and
+    /// changes no state, so it is safe to issue for a key that is never probed.
+    #[inline(always)]
+    pub(super) fn prefetch(&self, key: u64) {
+        #[cfg(target_arch = "x86_64")]
+        {
+            use std::arch::x86_64::{_MM_HINT_T0, _mm_prefetch};
+            let bucket: *const Bucket = &self.buckets[self.index(key)];
+            // SAFETY: SSE is part of the x86_64 baseline and the pointer lies
+            // inside the table; a prefetch reads nothing and cannot fault.
+            unsafe { _mm_prefetch(bucket.cast::<i8>(), _MM_HINT_T0) };
+        }
+        #[cfg(not(target_arch = "x86_64"))]
+        let _ = key;
+    }
     #[inline(always)]
     pub(super) fn probe_key(&self, key: u64, halfmove_clock: u8) -> Option<Entry> {
         let mixed = mixed_key(key, halfmove_clock);

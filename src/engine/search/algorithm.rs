@@ -55,6 +55,8 @@ const LMP_BASE: usize = 6;
 const LMP_DEPTH_SCALE: usize = 3;
 /// Deepest node at which move-count pruning is considered.
 const LMP_MAX_DEPTH: u32 = 8;
+/// Shallowest node reduced by one ply when the table holds no move for it.
+const IIR_MIN_DEPTH: u32 = 4;
 const NULL_MOVE_MIN_DEPTH: u32 = 3;
 /// Shallowest depth at which a null-move fail-high is verified by re-search.
 const NULL_VERIFICATION_MIN_DEPTH: u32 = 12;
@@ -3743,6 +3745,14 @@ fn negamax(
 
     let in_check = !board.checkers().is_empty();
     let pv_node = beta.saturating_sub(alpha) > 1;
+    // Internal iterative reduction: a deep node the table has never seen is
+    // searched one ply shallower; the shallower search seeds the hash move the
+    // next visit orders by.
+    let depth = if depth >= IIR_MIN_DEPTH && hash_move.is_none() && !in_check {
+        depth - 1
+    } else {
+        depth
+    };
     // Every interior node outside check now knows what it is worth statically.
     //
     // The value was previously computed only where a pruning rule was about to

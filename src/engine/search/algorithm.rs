@@ -60,7 +60,10 @@ const NULL_MOVE_RULE_FIFTY_LIMIT: u8 = 99;
 const STATIC_PRUNING_MAX_DEPTH: u32 = 4;
 const QUIET_FUTILITY_MAX_DEPTH: u32 = 2;
 /// Swap-list score below which a quiescence capture is not searched.
-const QUIESCENCE_SEE_PRUNE_THRESHOLD: Score = -25;
+const QUIESCENCE_SEE_PRUNE_THRESHOLD: Score = 0;
+/// Margin a quiescence capture must be able to raise the stand-pat score over
+/// alpha by, counting the captured piece, before it is searched.
+const QUIESCENCE_DELTA_MARGIN: Score = 120;
 const STATIC_PRUNING_RULE_FIFTY_LIMIT: u8 = 80;
 const _: () = assert!(
     STATIC_PRUNING_RULE_FIFTY_LIMIT >= RULE_FIFTY_EXACT_HORIZON
@@ -1149,6 +1152,20 @@ fn should_prune_quiescence_capture(
         && metadata
             .see
             .is_some_and(|see| see < QUIESCENCE_SEE_PRUNE_THRESHOLD)
+}
+
+/// Reports whether a capture cannot raise the stand-pat score to alpha even if
+/// it wins the captured piece outright.
+///
+/// Checks and promotions are exempt: a check may lead to mate and a promotion
+/// gains more than the captured piece.
+fn quiescence_delta_prunes(metadata: MoveMetadata, stand_pat: Score, alpha: Score) -> bool {
+    let Some(captured) = metadata.captured else {
+        return false;
+    };
+    !metadata.gives_check
+        && metadata.chess_move.promotion.is_none()
+        && stand_pat.saturating_add(piece_value(captured) + QUIESCENCE_DELTA_MARGIN) <= alpha
 }
 
 const HISTORY_MAX: i32 = 16_384;
@@ -4195,7 +4212,10 @@ fn quiescence(
         debug_assert!(
             in_check || metadata.is_tactical() || (metadata.is_quiet() && metadata.gives_check)
         );
-        if should_prune_quiescence_capture(metadata, in_check, recapture_square) {
+        if should_prune_quiescence_capture(metadata, in_check, recapture_square)
+            || stand_pat
+                .is_some_and(|stand_pat| quiescence_delta_prunes(metadata, stand_pat, alpha))
+        {
             context.telemetry.quiescence_pruned_captures += 1;
             if horizon {
                 context.telemetry.horizon_quiescence_pruned_captures += 1;
@@ -4203,8 +4223,9 @@ fn quiescence(
             continue;
         }
         let chess_move = metadata.chess_move;
-        let uses_quiet_check = !in_check && metadata.is_quiet() && metadata.gives_check;
-        let next_check_budget = check_budget.saturating_sub(u8::from(uses_quiet_check));
+        // Quiet checks are generated only in the first `check_budget` plies of
+        // quiescence; deeper plies settle captures alone.
+        let next_check_budget = check_budget.saturating_sub(1);
         let mut child = board.clone();
         child.play_unchecked_with_piece(chess_move, metadata.attacker);
         let child_key = repetition_key(&child);

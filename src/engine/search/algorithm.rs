@@ -1443,15 +1443,15 @@ impl SearchMode {
     }
 
     const fn reads_tt(self) -> bool {
-        !matches!(self, Self::NullProbe)
+        true
     }
 
     const fn writes_tt(self) -> bool {
-        !matches!(self, Self::NullProbe)
+        true
     }
 
     const fn updates_ordering(self) -> bool {
-        matches!(self, Self::Normal)
+        true
     }
 
     const fn allows_null(self) -> bool {
@@ -1547,8 +1547,8 @@ fn static_pruning_allowed(
     pv_node: bool,
     mode: SearchMode,
 ) -> bool {
-    matches!(mode, SearchMode::Normal)
-        && depth <= STATIC_PRUNING_MAX_DEPTH
+    let _ = mode;
+    depth <= STATIC_PRUNING_MAX_DEPTH
         && !pv_node
         && board.checkers().is_empty()
         && alpha.abs() < MATE_THRESHOLD
@@ -1573,8 +1573,8 @@ fn reverse_futility_allowed(
     pv_node: bool,
     mode: SearchMode,
 ) -> bool {
-    matches!(mode, SearchMode::Normal)
-        && depth <= REVERSE_FUTILITY_MAX_DEPTH
+    let _ = mode;
+    depth <= REVERSE_FUTILITY_MAX_DEPTH
         && !pv_node
         && board.checkers().is_empty()
         && alpha.abs() < MATE_THRESHOLD
@@ -1666,8 +1666,8 @@ fn should_prune_late_move(
     aggression: u8,
     mode: SearchMode,
 ) -> bool {
-    if !matches!(mode, SearchMode::Normal)
-        || depth > LMP_MAX_DEPTH
+    let _ = mode;
+    if depth > LMP_MAX_DEPTH
         || move_index == 0
         || protected
         || in_check
@@ -1723,6 +1723,9 @@ fn verified_null_move_cutoff(
     let verification_depth = depth.saturating_sub(reduction);
     let original_mode = context.mode;
     context.mode = probe_mode;
+    // The probe searches the null board, so it must probe and store under that
+    // board's key rather than the parent's.
+    history.push_key(repetition_key(&null_board));
     let probe = negamax(
         &null_board,
         history,
@@ -1735,6 +1738,7 @@ fn verified_null_move_cutoff(
         &[],
         context,
     );
+    history.pop();
     context.mode = original_mode;
     let probe = probe?;
     if -probe.score < beta {
@@ -3751,7 +3755,7 @@ fn negamax(
     // Feeding it the wider set once turned move-count pruning up enough that
     // Aggression 100 stopped playing the knight investment the acceptance
     // contract requires, so it belongs in its own patch with its own match.
-    let static_evaluation = if matches!(context.mode, SearchMode::Normal) && !in_check {
+    let static_evaluation = if !in_check {
         Some(
             hash_entry
                 .and_then(Entry::static_evaluation)

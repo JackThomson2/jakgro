@@ -102,8 +102,13 @@ struct Slot {
     data: AtomicU64,
 }
 
-/// A bucket decoded for a replacement decision.
-type DecodedBucket = [Option<Entry>; BUCKET_SIZE];
+/// The payload words of one bucket, read once for a replacement decision.
+type BucketWords = [u64; BUCKET_SIZE];
+
+/// Selects the move field of a packed word.
+const MOVE_FIELD: u64 = 0xffff << MOVE_SHIFT;
+/// Selects the generation field of a packed word.
+const GENERATION_FIELD: u64 = (GENERATION_MASK as u64) << GENERATION_SHIFT;
 
 const _: () = assert!(
     size_of::<Bucket>() == 64 && align_of::<Bucket>() == 64,
@@ -158,22 +163,41 @@ const fn decode_bound(bits: u64) -> Bound {
     }
 }
 
+/// Reads the depth field of a packed word.
+#[inline(always)]
+fn packed_depth(data: u64) -> u8 {
+    (data >> DEPTH_SHIFT) as u8
+}
+
+/// Reads the generation field of a packed word.
+#[inline(always)]
+fn packed_generation(data: u64) -> u8 {
+    (data >> GENERATION_SHIFT) as u8 & GENERATION_MASK
+}
+
+/// Reports whether a packed word carries an exact bound.
+#[inline(always)]
+fn packed_is_exact(data: u64) -> bool {
+    data >> BOUND_SHIFT == encode_bound(Bound::Exact)
+}
+
 impl Slot {
-    /// Returns the payload this slot holds and whether it belongs to `mixed`.
+    /// Returns the verification and payload words this slot holds.
     ///
-    /// One pair of loads answers both questions, so a replacement decision and
-    /// an identity test never disagree about what the slot contained.
-    fn snapshot(&self, mixed: u64) -> (Option<Entry>, bool) {
-        let verify = self.verify.load(Ordering::Relaxed);
-        let data = self.data.load(Ordering::Relaxed);
-        (Entry::decode(data), verify ^ data == mixed && data != 0)
+    /// One pair of loads answers every question a store asks, so a replacement
+    /// decision and an identity test never disagree about what the slot held.
+    #[inline(always)]
+    fn load(&self) -> (u64, u64) {
+        (
+            self.verify.load(Ordering::Relaxed),
+            self.data.load(Ordering::Relaxed),
+        )
     }
 
     /// Returns the payload this slot holds for `mixed`, when it holds one.
     #[inline(always)]
     fn load_verified(&self, mixed: u64) -> Option<Entry> {
-        let verify = self.verify.load(Ordering::Relaxed);
-        let data = self.data.load(Ordering::Relaxed);
+        let (verify, data) = self.load();
         if verify ^ data == mixed && data != 0 {
             Entry::decode(data)
         } else {
@@ -181,8 +205,7 @@ impl Slot {
         }
     }
 
-    fn store(&self, mixed: u64, entry: Entry) {
-        let data = entry.encode();
+    fn store(&self, mixed: u64, data: u64) {
         self.verify.store(mixed ^ data, Ordering::Relaxed);
         self.data.store(data, Ordering::Relaxed);
     }
@@ -394,47 +417,56 @@ impl TranspositionTable {
     /// writer can at worst cost this entry its slot or overwrite one this call
     /// chose to keep. Neither outcome can produce an unverifiable slot, because a
     /// slot is only ever written as a complete pair.
+    ///
+    /// The decision reads only the depth, generation and bound fields of the
+    /// packed words; nothing is decoded, and the slot that already holds this
+    /// exact payload is left untouched.
     fn store_entry(&self, key: u64, mixed: u64, candidate: Entry) {
         let generation = self.generation();
         let bucket = &self.buckets[self.index(key)];
-        let mut decoded: DecodedBucket = [None; BUCKET_SIZE];
+        let mut words: BucketWords = [0; BUCKET_SIZE];
         let mut matching = None;
         for (index, slot) in bucket.0.iter().enumerate() {
-            let (entry, verified) = slot.snapshot(mixed);
-            decoded[index] = entry;
-            if verified && matching.is_none() {
-                matching = entry.map(|entry| (index, entry));
+            let (verify, data) = slot.load();
+            words[index] = data;
+            if matching.is_none() && data != 0 && verify ^ data == mixed {
+                matching = Some(index);
             }
         }
+        let data = candidate.encode();
 
-        if let Some((index, existing)) = matching {
-            if existing.depth > candidate.depth && existing.bound == Bound::Exact {
-                let mut refreshed = existing;
-                refreshed.generation = generation;
-                if refreshed.best_move.is_none() {
-                    refreshed.best_move = candidate.best_move;
+        if let Some(index) = matching {
+            let existing = words[index];
+            if existing == data {
+                return;
+            }
+            if packed_depth(existing) > candidate.depth && packed_is_exact(existing) {
+                let mut refreshed =
+                    existing & !GENERATION_FIELD | u64::from(generation) << GENERATION_SHIFT;
+                if existing & MOVE_FIELD == 0 {
+                    refreshed |= data & MOVE_FIELD;
                 }
                 bucket.0[index].store(mixed, refreshed);
                 return;
             }
-            bucket.0[index].store(mixed, candidate);
+            bucket.0[index].store(mixed, data);
             return;
         }
 
-        if let Some(empty) = decoded.iter().position(Option::is_none) {
-            bucket.0[empty].store(mixed, candidate);
+        if let Some(empty) = words.iter().position(|&word| word == 0) {
+            bucket.0[empty].store(mixed, data);
             return;
         }
 
-        let replacement = replacement_index(&decoded, generation);
-        let existing = decoded[replacement].expect("a full bucket has a replacement entry");
-        if existing.generation == generation
+        let replacement = replacement_index(&words, generation);
+        let existing = words[replacement];
+        if packed_generation(existing) == generation
             && candidate.bound != Bound::Exact
-            && (existing.bound == Bound::Exact || existing.depth > candidate.depth)
+            && (packed_is_exact(existing) || packed_depth(existing) > candidate.depth)
         {
             return;
         }
-        bucket.0[replacement].store(mixed, candidate);
+        bucket.0[replacement].store(mixed, data);
     }
 
     pub(super) fn write_principal_variation(
@@ -488,38 +520,34 @@ impl TranspositionTable {
 /// Selects the slot a new entry should take in a full bucket.
 ///
 /// Entries from an earlier generation go first, oldest and least valuable
-/// before newer ones. Generations wrap inside a narrow field, so age is
+/// before newer ones; among equals the last wins. When every entry is current,
+/// the shallowest inexact entry goes, then the shallowest exact one; among
+/// equals the first wins. Generations wrap inside a narrow field, so age is
 /// measured as a modular distance rather than a difference.
-fn replacement_index(bucket: &DecodedBucket, generation: u8) -> usize {
-    if let Some((index, _)) = bucket
-        .iter()
-        .enumerate()
-        .filter_map(|(index, entry)| entry.map(|entry| (index, entry)))
-        .filter(|(_, entry)| entry.generation != generation)
-        .max_by_key(|(_, entry)| {
-            (
-                generation.wrapping_sub(entry.generation) & GENERATION_MASK,
-                entry.bound != Bound::Exact,
-                u32::MAX - entry.depth(),
-            )
-        })
-    {
-        return index;
+///
+/// Both orderings are folded into one integer per word so the whole decision
+/// is a handful of shifts and compares over the packed bits.
+fn replacement_index(bucket: &BucketWords, generation: u8) -> usize {
+    let mut stale: Option<(usize, u32)> = None;
+    let mut current: Option<(usize, u32)> = None;
+    for (index, &data) in bucket.iter().enumerate() {
+        let depth = u32::from(packed_depth(data));
+        let exact = packed_is_exact(data);
+        let age = u32::from(generation.wrapping_sub(packed_generation(data)) & GENERATION_MASK);
+        if age != 0 {
+            let rank = age << 9 | u32::from(!exact) << 8 | (u32::from(u8::MAX) - depth);
+            if stale.is_none_or(|(_, best)| rank >= best) {
+                stale = Some((index, rank));
+            }
+        } else {
+            let rank = u32::from(exact) << 8 | depth;
+            if current.is_none_or(|(_, best)| rank < best) {
+                current = Some((index, rank));
+            }
+        }
     }
-
-    bucket
-        .iter()
-        .enumerate()
-        .filter_map(|(index, entry)| entry.map(|entry| (index, entry)))
-        .filter(|(_, entry)| entry.bound != Bound::Exact)
-        .min_by_key(|(_, entry)| entry.depth)
-        .or_else(|| {
-            bucket
-                .iter()
-                .enumerate()
-                .filter_map(|(index, entry)| entry.map(|entry| (index, entry)))
-                .min_by_key(|(_, entry)| entry.depth)
-        })
+    stale
+        .or(current)
         .map(|(index, _)| index)
         .expect("a full bucket has an occupied entry")
 }
@@ -813,10 +841,10 @@ mod tests {
     #[test]
     fn replacement_measures_age_across_a_generation_wrap() {
         let bucket = [
-            Some(synthetic_entry(8, Bound::Exact, 1)),
-            Some(synthetic_entry(8, Bound::Exact, super::GENERATION_MASK)),
-            Some(synthetic_entry(8, Bound::Exact, 0)),
-            Some(synthetic_entry(8, Bound::Exact, 2)),
+            synthetic_entry(8, Bound::Exact, 1).encode(),
+            synthetic_entry(8, Bound::Exact, super::GENERATION_MASK).encode(),
+            synthetic_entry(8, Bound::Exact, 0).encode(),
+            synthetic_entry(8, Bound::Exact, 2).encode(),
         ];
 
         assert_eq!(

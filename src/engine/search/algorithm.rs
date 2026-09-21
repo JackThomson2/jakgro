@@ -55,7 +55,9 @@ const LMP_BASE: usize = 6;
 const LMP_DEPTH_SCALE: usize = 3;
 /// Deepest node at which move-count pruning is considered.
 const LMP_MAX_DEPTH: u32 = 8;
-const NULL_MOVE_MIN_DEPTH: u32 = 4;
+const NULL_MOVE_MIN_DEPTH: u32 = 3;
+/// Shallowest depth at which a null-move fail-high is verified by re-search.
+const NULL_VERIFICATION_MIN_DEPTH: u32 = 12;
 const NULL_MOVE_RULE_FIFTY_LIMIT: u8 = 99;
 const STATIC_PRUNING_MAX_DEPTH: u32 = 8;
 const QUIET_FUTILITY_MAX_DEPTH: u32 = 6;
@@ -1684,8 +1686,9 @@ fn should_prune_late_move(
     move_index >= late_move_pruning_limit(depth, improving)
 }
 
-fn null_move_reduction(depth: u32) -> u32 {
-    (2 + depth / 4).min(depth.saturating_sub(1))
+fn null_move_reduction(depth: u32, static_evaluation: Score, beta: Score) -> u32 {
+    let excess = (static_evaluation.saturating_sub(beta) / 200).clamp(0, 3) as u32;
+    (3 + depth / 3 + excess).min(depth.saturating_sub(1))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1718,7 +1721,7 @@ fn verified_null_move_cutoff(
 
     context.telemetry.null_move_attempts += 1;
     let (probe_mode, verification_mode) = null_search_modes();
-    let reduction = null_move_reduction(depth);
+    let reduction = null_move_reduction(depth, static_evaluation, beta);
     let null_depth = depth.saturating_sub(reduction).saturating_sub(1);
     let verification_depth = depth.saturating_sub(reduction);
     let original_mode = context.mode;
@@ -1746,6 +1749,12 @@ fn verified_null_move_cutoff(
     }
 
     context.telemetry.null_move_fail_highs += 1;
+    if depth < NULL_VERIFICATION_MIN_DEPTH {
+        return Ok(Some(NodeResult {
+            score: beta,
+            path_dependent: false,
+        }));
+    }
     context.telemetry.null_move_verifications += 1;
     context.mode = verification_mode;
     let verification = negamax(

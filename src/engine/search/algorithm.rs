@@ -57,6 +57,10 @@ const LMP_DEPTH_SCALE: usize = 3;
 const LMP_MAX_DEPTH: u32 = 8;
 /// Shallowest node reduced by one ply when the table holds no move for it.
 const IIR_MIN_DEPTH: u32 = 4;
+/// Shallowest node at which the hash move is tested for singularity.
+const SINGULAR_MIN_DEPTH: u32 = 4;
+/// Margin per ply of depth below the hash score a singular probe must fail.
+const SINGULAR_MARGIN: Score = 2;
 const NULL_MOVE_MIN_DEPTH: u32 = 3;
 /// Shallowest depth at which a null-move fail-high is verified by re-search.
 const NULL_VERIFICATION_MIN_DEPTH: u32 = 12;
@@ -1813,6 +1817,8 @@ struct SearchContext<'a> {
     pv: Vec<Vec<Move>>,
     hash_pv_depths: Vec<Option<u32>>,
     static_evaluations: Vec<Option<Score>>,
+    /// Move the node at each ply must skip, set by a singular-extension probe.
+    excluded_moves: Vec<Option<Move>>,
     picker_storage: Vec<MovePickerStorage>,
     ordering: MoveOrdering,
     neural: Option<NeuralEvaluator<'a>>,
@@ -1865,6 +1871,7 @@ impl<'a> SearchContext<'a> {
                 .collect(),
             hash_pv_depths: vec![None; MAX_PLY as usize + 1],
             static_evaluations: vec![None; MAX_PLY as usize + 1],
+            excluded_moves: vec![None; MAX_PLY as usize + 1],
             picker_storage: (0..=MAX_PLY)
                 .map(|_| MovePickerStorage::with_typical_capacity())
                 .collect(),
@@ -2425,6 +2432,7 @@ fn run_worker(
             .collect(),
         hash_pv_depths: vec![None; MAX_PLY as usize + 1],
         static_evaluations: vec![None; MAX_PLY as usize + 1],
+        excluded_moves: vec![None; MAX_PLY as usize + 1],
         picker_storage: (0..=MAX_PLY)
             .map(|_| MovePickerStorage::with_typical_capacity())
             .collect(),
@@ -3678,6 +3686,7 @@ fn negamax(
 
     context.clear_pv(ply);
     context.visit_node()?;
+    let excluded = context.excluded_moves[ply.min(MAX_PLY) as usize].take();
     if draw_state_pending(board, history, context.mode) || ply >= MAX_PLY {
         if let Some(result) = terminal_score_for_mode(
             board,
@@ -3721,7 +3730,7 @@ fn negamax(
     }
 
     let alpha_original = alpha;
-    if let Some(entry) = hash_entry.filter(|entry| entry.depth() >= depth) {
+    if let Some(entry) = hash_entry.filter(|entry| excluded.is_none() && entry.depth() >= depth) {
         let score = entry.score_at_ply(ply);
         let cutoff = match entry.bound() {
             Bound::Exact => true,
@@ -3814,18 +3823,20 @@ fn negamax(
             path_dependent: false,
         });
     }
-    if let Some(result) = verified_null_move_cutoff(
-        board,
-        history,
-        depth,
-        ply,
-        extensions_used,
-        alpha,
-        beta,
-        static_evaluation,
-        previous_move,
-        context,
-    )? {
+    if excluded.is_none()
+        && let Some(result) = verified_null_move_cutoff(
+            board,
+            history,
+            depth,
+            ply,
+            extensions_used,
+            alpha,
+            beta,
+            static_evaluation,
+            previous_move,
+            context,
+        )?
+    {
         if hash_move.is_none()
             && let Some(terminal) = terminal_without_legal_moves(board, history, ply, context)
         {
@@ -3833,6 +3844,47 @@ fn negamax(
         }
         context.telemetry.null_move_cutoffs += 1;
         return Ok(result);
+    }
+
+    // Singular extension: when the hash move is the only move that holds the
+    // hash score, a reduced search excluding it fails low by a margin, and the
+    // hash move is then searched one ply deeper. When even that search fails
+    // high at a non-PV node, several moves beat beta and the node is cut.
+    let mut singular_move = None;
+    if excluded.is_none()
+        && depth >= SINGULAR_MIN_DEPTH
+        && !in_check
+        && let Some(entry) = hash_entry
+        && let Some(tt_move) = hash_move
+        && entry.depth() + 3 >= depth
+        && entry.bound() != Bound::Upper
+        && entry.score_at_ply(ply).abs() < MATE_THRESHOLD
+    {
+        let singular_beta = entry.score_at_ply(ply) - SINGULAR_MARGIN * depth as Score;
+        context.excluded_moves[ply.min(MAX_PLY) as usize] = Some(tt_move);
+        let probe = negamax(
+            board,
+            history,
+            (depth - 1) / 2,
+            ply,
+            extensions_used,
+            singular_beta - 1,
+            singular_beta,
+            previous_move,
+            &[],
+            context,
+        );
+        context.excluded_moves[ply.min(MAX_PLY) as usize] = None;
+        context.clear_pv(ply);
+        let probe = probe?;
+        if probe.score < singular_beta {
+            singular_move = Some(tt_move);
+        } else if !pv_node && singular_beta >= beta {
+            return Ok(NodeResult {
+                score: singular_beta,
+                path_dependent: false,
+            });
+        }
     }
 
     let preferred = previous_pv.first().copied().or(hash_move);
@@ -3873,6 +3925,9 @@ fn negamax(
         .or_else(|| picker.next(&context.ordering))
     {
         let chess_move = metadata.chess_move;
+        if Some(chess_move) == excluded {
+            continue;
+        }
         let current_move = HistoryMove::from_board(board, chess_move);
         let expected_child_pv = if preferred == Some(chess_move) {
             previous_pv.get(1..).unwrap_or_default()
@@ -3953,6 +4008,7 @@ fn negamax(
         } else {
             (-alpha - 1, -alpha)
         };
+        let child_depth = child_depth + u32::from(singular_move == Some(chess_move));
         let mut child_result = negamax(
             &child,
             history,
@@ -4064,7 +4120,7 @@ fn negamax(
         picker.record_failed_capture(metadata);
     }
 
-    if context.mode.writes_tt() && !best.path_dependent {
+    if context.mode.writes_tt() && !best.path_dependent && excluded.is_none() {
         let bound = if best.score <= alpha_original {
             Bound::Upper
         } else if best.score >= beta {

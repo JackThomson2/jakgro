@@ -1077,6 +1077,7 @@ fn late_move_pruning_limit(depth: u32, improving: bool) -> usize {
     if improving { base * 2 } else { base }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn late_move_reduction(
     child_depth: u32,
     move_index: usize,
@@ -1084,13 +1085,14 @@ fn late_move_reduction(
     protected: bool,
     in_check: bool,
     pv_node: bool,
+    improving: bool,
     history_score: i32,
 ) -> u32 {
     let shallow_candidate =
         child_depth == LMR_SHALLOW_CHILD_DEPTH && move_index >= LMR_SHALLOW_MOVE_INDEX;
     let regular_candidate = child_depth >= LMR_MIN_CHILD_DEPTH && move_index >= LMR_MIN_MOVE_INDEX;
     if (!shallow_candidate && !regular_candidate)
-        || !metadata.is_quiet()
+        || metadata.chess_move.promotion.is_some()
         || metadata.gives_check
         || metadata.castling
         || metadata.king_zone_move
@@ -1102,13 +1104,26 @@ fn late_move_reduction(
 
     let depth_row = (child_depth as usize).min(LMR_DEPTH_ENTRIES - 1);
     let index_column = move_index.min(LMR_INDEX_ENTRIES - 1);
-    let mut reduction = u32::from(LMR_TABLE[depth_row][index_column]).max(1);
+    let mut reduction = u32::from(LMR_TABLE[depth_row][index_column]);
+    if metadata.is_quiet() {
+        reduction = reduction.max(1);
+        if history_score >= LMR_HISTORY_THRESHOLD {
+            reduction = reduction.saturating_sub(1);
+        } else if history_score <= -LMR_HISTORY_THRESHOLD {
+            reduction = reduction.saturating_add(1);
+        }
+    } else {
+        // A late capture the swap list does not favour is reduced one ply less
+        // than a quiet move in the same slot; a winning capture is not reduced.
+        if metadata.see.is_none_or(|see| see >= 0) {
+            return 0;
+        }
+        reduction = reduction.saturating_sub(1);
+    }
     if pv_node {
         reduction = reduction.saturating_sub(1);
     }
-    if history_score >= LMR_HISTORY_THRESHOLD {
-        reduction = reduction.saturating_sub(1);
-    } else if history_score <= -LMR_HISTORY_THRESHOLD {
+    if !improving {
         reduction = reduction.saturating_add(1);
     }
     let minimum_remaining_depth = if shallow_candidate { 1 } else { 2 };
@@ -3897,6 +3912,7 @@ fn negamax(
             protected,
             in_check,
             pv_node,
+            improving,
             history_score,
         );
         if reduction > 0 {

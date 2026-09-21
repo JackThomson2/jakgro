@@ -1,5 +1,5 @@
 use std::fmt::{self, Display, Formatter};
-use std::mem::size_of;
+use std::mem::{align_of, size_of};
 use std::sync::atomic::{AtomicU8, AtomicU16, AtomicU64, Ordering};
 
 use cozy_chess::{Board, Move, Piece, Square};
@@ -19,7 +19,14 @@ const BUCKET_SIZE: usize = 4;
 /// score can depend on the rule-fifty horizon: static pruning stops here, null
 /// pruning stops at ninety-nine, and a draw is claimed at one hundred.
 pub(super) const RULE_FIFTY_EXACT_HORIZON: u8 = 80;
-type Bucket = [Slot; BUCKET_SIZE];
+/// The slots one key selects, pinned to a cache line.
+///
+/// The alignment is part of the design rather than a property of whichever
+/// allocator happens to be linked: a probe or store touches exactly one line,
+/// and a prefetch of the bucket's address brings in every slot.
+#[derive(Debug, Default)]
+#[repr(align(64))]
+struct Bucket([Slot; BUCKET_SIZE]);
 
 /// Maps a halfmove clock onto the class that keys its transposition entries.
 fn clock_class(halfmove_clock: u8) -> u8 {
@@ -99,7 +106,7 @@ struct Slot {
 type DecodedBucket = [Option<Entry>; BUCKET_SIZE];
 
 const _: () = assert!(
-    size_of::<Bucket>() == 64,
+    size_of::<Bucket>() == 64 && align_of::<Bucket>() == 64,
     "a bucket must occupy exactly one cache line",
 );
 
@@ -347,7 +354,7 @@ impl TranspositionTable {
     pub(super) fn probe_key(&self, key: u64, halfmove_clock: u8) -> Option<Entry> {
         let mixed = mixed_key(key, halfmove_clock);
         let bucket = &self.buckets[self.index(key)];
-        for slot in bucket {
+        for slot in &bucket.0 {
             if let Some(entry) = slot.load_verified(mixed) {
                 return Some(entry);
             }
@@ -392,7 +399,7 @@ impl TranspositionTable {
         let bucket = &self.buckets[self.index(key)];
         let mut decoded: DecodedBucket = [None; BUCKET_SIZE];
         let mut matching = None;
-        for (index, slot) in bucket.iter().enumerate() {
+        for (index, slot) in bucket.0.iter().enumerate() {
             let (entry, verified) = slot.snapshot(mixed);
             decoded[index] = entry;
             if verified && matching.is_none() {
@@ -407,15 +414,15 @@ impl TranspositionTable {
                 if refreshed.best_move.is_none() {
                     refreshed.best_move = candidate.best_move;
                 }
-                bucket[index].store(mixed, refreshed);
+                bucket.0[index].store(mixed, refreshed);
                 return;
             }
-            bucket[index].store(mixed, candidate);
+            bucket.0[index].store(mixed, candidate);
             return;
         }
 
         if let Some(empty) = decoded.iter().position(Option::is_none) {
-            bucket[empty].store(mixed, candidate);
+            bucket.0[empty].store(mixed, candidate);
             return;
         }
 
@@ -427,7 +434,7 @@ impl TranspositionTable {
         {
             return;
         }
-        bucket[replacement].store(mixed, candidate);
+        bucket.0[replacement].store(mixed, candidate);
     }
 
     pub(super) fn write_principal_variation(
@@ -468,7 +475,7 @@ impl TranspositionTable {
     }
 
     fn discard_entries(&self) {
-        for slot in self.buckets.iter().flatten() {
+        for slot in self.buckets.iter().flat_map(|bucket| &bucket.0) {
             slot.clear();
         }
     }
@@ -658,6 +665,7 @@ mod tests {
         // without its matching verification word.
         let bucket = &table.buckets[table.index(key)];
         let slot = bucket
+            .0
             .iter()
             .find(|slot| slot.load_verified(super::mixed_key(key, 0)).is_some())
             .expect("the stored entry occupies a slot");

@@ -1571,8 +1571,8 @@ fn static_pruning_allowed(
 /// function decide which *moves* to skip and are bounded by their own shallow
 /// limits; reverse futility decides whether to search the node at all, and is
 /// the one rule that pays for looking deeper. Sharing one bound would mean
-/// extending its reach also switched move-count pruning on at depths five and
-/// above, which is a different change with a different risk.
+/// extending its reach also moved the move-count and futility ceilings, which
+/// is a different change with a different risk.
 fn reverse_futility_allowed(
     board: &Board,
     depth: u32,
@@ -1781,7 +1781,7 @@ fn verified_null_move_cutoff(
     if verification.score >= beta {
         return Ok(Some(NodeResult {
             score: beta,
-            path_dependent: false,
+            path_dependent: verification.path_dependent,
         }));
     }
     Ok(None)

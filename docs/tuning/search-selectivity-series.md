@@ -2,7 +2,7 @@
 
 ## Verdict
 
-Seven search patches landed out of fourteen measured. Measured head against
+Eight search patches landed out of eighteen measured (one of them, the improving signal, as a neutral simplification). Measured head against
 the shipped base (`878e369`, the 192-group network) over 4096 colour-reversed
 games at a fixed 50 ms per move, the series is worth **+70.4 Elo [63.8,
 77.1]** at Aggression 75, accepting H1 with no faults. A clocked channel at

@@ -7,16 +7,19 @@ use std::path::Path;
 use super::kernels::Row;
 use super::{
     ACTIVATION_MAX, HIDDEN_SIZE, INPUT_FEATURES, Network, OUTPUT_BUCKETS, OUTPUT_SCALE,
-    PIECE_PLANES,
+    OUTPUT_WEIGHT_LIMIT, PIECE_PLANES,
 };
 
 /// Magic bytes of a Jakgro network; this is not a Stockfish network format.
 pub const MAGIC: [u8; 8] = *b"JAKNNUE\0";
 /// Version of the fixed feature mapping, tensor layout and quantization.
-pub const FORMAT_VERSION: u32 = 2;
+pub const FORMAT_VERSION: u32 = 3;
 /// Fixed little-endian header size, including the payload checksum.
 pub const HEADER_BYTES: usize = 48;
-const FEATURE_SET: u32 = 1;
+/// Version of the feature mapping alone: which row each piece placement
+/// selects. Prepared datasets depend on it and on [`INPUT_FEATURES`], not on
+/// the hidden width or the activation.
+pub const FEATURE_SET: u32 = 1;
 const PAYLOAD_BYTES: usize = 2
     * (HIDDEN_SIZE + INPUT_FEATURES * HIDDEN_SIZE + OUTPUT_BUCKETS * 2 * HIDDEN_SIZE)
     + 4 * OUTPUT_BUCKETS;
@@ -36,7 +39,7 @@ pub enum LoadError {
     Header(&'static str),
     /// The payload's FNV-1a checksum does not match its header.
     Checksum,
-    /// Output arithmetic cannot be proven safe in signed 32-bit integers.
+    /// An output weight lies outside `-OUTPUT_WEIGHT_LIMIT..=OUTPUT_WEIGHT_LIMIT`.
     OutputOverflow,
     /// A perspective's sums cannot be proven to fit signed 16-bit integers.
     AccumulatorOverflow,
@@ -56,9 +59,10 @@ impl Display for LoadError {
             }
             Self::Header(field) => write!(formatter, "unsupported NNUE header: {field}"),
             Self::Checksum => formatter.write_str("NNUE payload checksum mismatch"),
-            Self::OutputOverflow => {
-                formatter.write_str("NNUE output arithmetic exceeds i32 bounds")
-            }
+            Self::OutputOverflow => write!(
+                formatter,
+                "NNUE output weight outside -{OUTPUT_WEIGHT_LIMIT}..={OUTPUT_WEIGHT_LIMIT}"
+            ),
             Self::AccumulatorOverflow => {
                 formatter.write_str("NNUE accumulator sums exceed i16 bounds")
             }
@@ -189,17 +193,15 @@ fn decode(header: &[u8; HEADER_BYTES], payload: &[u8]) -> Result<Network, LoadEr
         let offset = bias_start + 4 * bucket;
         i32::from_le_bytes(payload[offset..offset + 4].try_into().unwrap())
     });
-    for (weights, &bias) in output_weights.iter().zip(&output_bias) {
-        let bound = i64::from(bias).abs()
-            + i64::from(ACTIVATION_MAX)
-                * weights
-                    .iter()
-                    .flat_map(|row| row.iter())
-                    .map(|&weight| i64::from(weight).abs())
-                    .sum::<i64>();
-        if bound > i64::from(i32::MAX) {
-            return Err(LoadError::OutputOverflow);
-        }
+    // Bounding every output weight bounds every product `weight * a * a` and
+    // every 64-unit partial sum, whatever the bias; see `OUTPUT_WEIGHT_LIMIT`.
+    if output_weights
+        .iter()
+        .flatten()
+        .flat_map(|row| row.iter())
+        .any(|&weight| !(-OUTPUT_WEIGHT_LIMIT..=OUTPUT_WEIGHT_LIMIT).contains(&weight))
+    {
+        return Err(LoadError::OutputOverflow);
     }
     let hidden_bias = Row(std::array::from_fn(|unit| read_i16(payload, 2 * unit)));
     let mut input_weights = Vec::new();

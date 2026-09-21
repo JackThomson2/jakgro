@@ -17,8 +17,8 @@ use std::path::{Path, PathBuf};
 
 use cozy_chess::Color;
 use jakgro::engine::nnue::{
-    ACTIVATION_MAX, HIDDEN_SIZE, INPUT_FEATURES, KING_BUCKETS, OUTPUT_SCALE, PIECE_PLANES,
-    active_features,
+    ACTIVATION_MAX, FEATURE_SET, FORMAT_VERSION, HIDDEN_SIZE, INPUT_FEATURES, KING_BUCKETS,
+    OUTPUT_SCALE, OUTPUT_WEIGHT_LIMIT, PIECE_PLANES, SCORE_SCALE, active_features,
 };
 
 use crate::{HEADER, canonical, comma, is_terminal, parse_sample, sha256};
@@ -346,10 +346,10 @@ pub fn json_string(text: &str) -> String {
     escaped
 }
 
-/// JSON description of the fixed architecture shared by every artifact.
+/// JSON description of the fixed network architecture a training run exports.
 pub fn architecture_json() -> String {
     format!(
-        "{{\"version\": 1, \"features\": {INPUT_FEATURES}, \"hidden\": {HIDDEN_SIZE}, \"activation\": {ACTIVATION_MAX}, \"output_scale\": {OUTPUT_SCALE}}}"
+        "{{\"format_version\": {FORMAT_VERSION}, \"features\": {INPUT_FEATURES}, \"feature_set\": {FEATURE_SET}, \"hidden\": {HIDDEN_SIZE}, \"activation\": \"squared clipped ReLU\", \"activation_max\": {ACTIVATION_MAX}, \"output_scale\": {OUTPUT_SCALE}, \"output_weight_limit\": {OUTPUT_WEIGHT_LIMIT}, \"score_scale\": {SCORE_SCALE}}}"
     )
 }
 

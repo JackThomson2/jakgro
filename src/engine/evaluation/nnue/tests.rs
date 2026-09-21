@@ -8,9 +8,9 @@ use cozy_chess::{Board, Color, Move, Piece, Square};
 
 use super::kernels::Row;
 use super::{
-    ACTIVATION_MAX, Accumulator, AccumulatorStack, FILE_BYTES, FORMAT_VERSION, HEADER_BYTES,
-    HIDDEN_SIZE, INPUT_FEATURES, LoadError, MAX_SCORE, Network, OUTPUT_BUCKETS, OUTPUT_SCALE,
-    active_features, output_bucket,
+    ACTIVATION_MAX, Accumulator, AccumulatorStack, FEATURE_SET, FILE_BYTES, FORMAT_VERSION,
+    HEADER_BYTES, HIDDEN_SIZE, INPUT_FEATURES, LoadError, MAX_SCORE, Network, OUTPUT_BUCKETS,
+    OUTPUT_SCALE, OUTPUT_UNIT, OUTPUT_WEIGHT_LIMIT, SCORE_SCALE, active_features, output_bucket,
 };
 
 fn synthetic_network() -> &'static Network {
@@ -29,7 +29,7 @@ fn synthetic_network() -> &'static Network {
                 .map(|_| Row(std::array::from_fn(|_| (next() % 65) as i16 - 32)))
                 .collect(),
             output_weights: std::array::from_fn(|_| {
-                std::array::from_fn(|_| Row(std::array::from_fn(|_| (next() % 2049) as i16 - 1024)))
+                std::array::from_fn(|_| Row(std::array::from_fn(|_| (next() % 255) as i16 - 127)))
             }),
             output_bias: std::array::from_fn(|bucket| -16_333 + 977 * bucket as i32),
         };
@@ -50,7 +50,7 @@ fn encode(model: &Network) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(FILE_BYTES);
     bytes.extend_from_slice(b"JAKNNUE\0");
     for value in [
-        2_u32,
+        3_u32,
         1,
         INPUT_FEATURES as u32,
         HIDDEN_SIZE as u32,
@@ -120,6 +120,9 @@ fn reference_features(board: &Board, perspective: Color) -> Vec<usize> {
     features
 }
 
+/// The independent scalar model: exact sums, then the squared clipped
+/// activations dotted with the output weights in 64-bit arithmetic, scaled by
+/// 400 and divided by 64 * 255 * 255 with truncation toward zero.
 fn reference(model: &Network, board: &Board) -> ([[i32; HIDDEN_SIZE]; 2], i32) {
     let sums = [Color::White, Color::Black].map(|perspective| {
         let indices = reference_features(board, perspective);
@@ -142,10 +145,11 @@ fn reference(model: &Network, board: &Board) -> ([[i32; HIDDEN_SIZE]; 2], i32) {
             .iter()
             .zip(&sums[side as usize])
         {
-            numerator += i64::from(weight) * i64::from(sum.clamp(0, 255));
+            let activation = i64::from(sum.clamp(0, 255));
+            numerator += i64::from(weight) * activation * activation;
         }
     }
-    let score = (numerator / 16_320).clamp(-16_000, 16_000) as i32;
+    let score = (numerator * 400 / 4_161_600).clamp(-16_000, 16_000) as i32;
     (sums, score)
 }
 
@@ -200,12 +204,19 @@ fn mirror(board: &Board) -> Board {
 
 #[test]
 fn feature_and_file_contract_has_explicit_dimensions() {
-    assert_eq!(FORMAT_VERSION, 2);
+    assert_eq!(FORMAT_VERSION, 3);
+    assert_eq!(FEATURE_SET, 1);
     assert_eq!(OUTPUT_BUCKETS, 8);
     assert_eq!(INPUT_FEATURES, 6_144);
-    assert_eq!(HIDDEN_SIZE, 128);
+    assert_eq!(HIDDEN_SIZE, 512);
     assert_eq!(ACTIVATION_MAX, 255);
     assert_eq!(OUTPUT_SCALE, 64);
+    assert_eq!(OUTPUT_WEIGHT_LIMIT, 127);
+    assert_eq!(SCORE_SCALE, 400);
+    assert_eq!(OUTPUT_UNIT, 4_161_600);
+    // One centipawn of output bias is exactly this many numerator units.
+    assert_eq!(OUTPUT_UNIT / SCORE_SCALE, 10_404);
+    assert_eq!(OUTPUT_UNIT % SCORE_SCALE, 0);
     assert_eq!(HEADER_BYTES, 48);
     assert_eq!(
         FILE_BYTES,
@@ -213,6 +224,7 @@ fn feature_and_file_contract_has_explicit_dimensions() {
             + 2 * (HIDDEN_SIZE + INPUT_FEATURES * HIDDEN_SIZE + OUTPUT_BUCKETS * 2 * HIDDEN_SIZE)
             + 4 * OUTPUT_BUCKETS
     );
+    assert_eq!(FILE_BYTES, 6_308_944);
 }
 
 #[test]
@@ -372,18 +384,22 @@ fn every_promotion_and_underpromotion_updates_both_perspectives() {
 #[test]
 fn null_moves_swap_output_order_without_changing_sums() {
     let mut bytes = encode(&zero_network());
+    // White's c2 pawn drives one unit to 204, below the clip; its squared
+    // activation times a weight of 3 is exactly twelve centipawns:
+    // 3 * 204 * 204 * 400 / 4_161_600 = 12.
     let row = 781;
     let input = HEADER_BYTES + 2 * HIDDEN_SIZE + 2 * row * HIDDEN_SIZE;
-    bytes[input..input + 2].copy_from_slice(&255_i16.to_le_bytes());
+    bytes[input..input + 2].copy_from_slice(&204_i16.to_le_bytes());
     let output = HEADER_BYTES + 2 * (HIDDEN_SIZE + INPUT_FEATURES * HIDDEN_SIZE);
-    bytes[output..output + 2].copy_from_slice(&640_i16.to_le_bytes());
+    bytes[output..output + 2].copy_from_slice(&3_i16.to_le_bytes());
     update_checksum(&mut bytes);
     let model = Network::from_bytes(&bytes).unwrap();
     let board: Board = "4k3/8/5n2/8/8/8/2P5/4K3 w - - 0 1".parse().unwrap();
     let null = board.null_move().unwrap();
     let mut accumulator = model.accumulator(&board);
     let sums = accumulator.state.sums;
-    assert_eq!(accumulator.evaluate(), 10);
+    assert_eq!(accumulator.values(Color::White)[0], 204);
+    assert_eq!(accumulator.evaluate(), 12);
     accumulator.update(&null);
     assert_eq!(accumulator.state.sums, sums);
     assert_eq!(accumulator.evaluate(), 0);
@@ -543,31 +559,41 @@ fn stack_shares_its_deepest_state_and_serves_unrelated_boards() {
 }
 
 #[test]
-fn activation_clipping_and_negative_division_are_explicit() {
+fn activation_clipping_squaring_and_negative_division_are_explicit() {
     let mut model = zero_network();
-    model.hidden_bias[..4].copy_from_slice(&[-5, 100, 255, 300]);
+    model.hidden_bias[..4].copy_from_slice(&[-5, 102, 255, 300]);
     let board = Board::default();
     let bucket = output_bucket(&board);
     assert_eq!(bucket, 7);
-    model.output_weights[bucket][0][..4].copy_from_slice(&[64, 64, -64, 64]);
+    // -5 clips to zero whatever its weight, 300 clips to 255 and cancels the
+    // 255 unit, and 102^2 = 10_404 numerator units is exactly one centipawn
+    // (a linear activation would truncate 102 * 400 / 4_161_600 to zero).
+    model.output_weights[bucket][0][..4].copy_from_slice(&[127, 1, -1, 1]);
     assert_eq!(
         model.accumulator(&board).values(Color::White)[..4],
-        [-5, 100, 255, 300]
+        [-5, 102, 255, 300]
     );
-    let expected = (100 * 64 - 255 * 64 + 255 * 64) / 16_320;
     assert_eq!(
         Network::from_bytes(&encode(&model))
             .unwrap()
             .evaluate(&board),
-        expected
+        1
+    );
+    // The same unit at 204 squares to four centipawns, not two.
+    model.hidden_bias[1] = 204;
+    assert_eq!(
+        Network::from_bytes(&encode(&model))
+            .unwrap()
+            .evaluate(&board),
+        4
     );
     model.output_weights = [[Row([0; HIDDEN_SIZE]); 2]; OUTPUT_BUCKETS];
     for (bias, expected) in [
-        (-16_319, 0),
-        (-16_320, -1),
-        (-16_321, -1),
-        (16_319, 0),
-        (16_320, 1),
+        (-10_403, 0),
+        (-10_404, -1),
+        (-10_405, -1),
+        (10_403, 0),
+        (10_404, 1),
     ] {
         model.output_bias[bucket] = bias;
         assert_eq!(
@@ -586,7 +612,7 @@ fn extreme_weights_keep_unclipped_incremental_sums_and_bounded_output() {
         let mut model = zero_network();
         model.hidden_bias = Row([bias; HIDDEN_SIZE]);
         model.input_weights.fill(Row([weight; HIDDEN_SIZE]));
-        model.output_weights = [[Row([i16::MIN; HIDDEN_SIZE]); 2]; OUTPUT_BUCKETS];
+        model.output_weights = [[Row([-OUTPUT_WEIGHT_LIMIT; HIDDEN_SIZE]); 2]; OUTPUT_BUCKETS];
         let model = Network::from_bytes(&encode(&model)).unwrap();
         let board = Board::default();
         let sparse: Board = "7k/8/8/8/8/8/8/K7 w - - 0 1".parse().unwrap();
@@ -601,7 +627,11 @@ fn extreme_weights_keep_unclipped_incremental_sums_and_bounded_output() {
         }
     }
     let mut model = zero_network();
-    for (bias, expected) in [(i32::MAX, MAX_SCORE), (-i32::MAX, -MAX_SCORE)] {
+    for (bias, expected) in [
+        (i32::MAX, MAX_SCORE),
+        (-i32::MAX, -MAX_SCORE),
+        (i32::MIN, -MAX_SCORE),
+    ] {
         model.output_bias = [bias; OUTPUT_BUCKETS];
         assert_eq!(
             Network::from_bytes(&encode(&model))
@@ -645,27 +675,22 @@ fn unprovable_accumulator_bounds_are_rejected_at_the_exact_boundary() {
 }
 
 #[test]
-fn unsafe_output_bounds_are_rejected_at_the_exact_boundary() {
-    let mut model = zero_network();
-    // Only the last bucket carries extreme weights: the bound is per bucket.
-    model.output_weights[OUTPUT_BUCKETS - 1] = [Row([i16::MIN; HIDDEN_SIZE]); 2];
-    let contribution = 256_i64 * 255 * 32_768;
-    let allowed_bias = (i64::from(i32::MAX) - contribution) as i32;
-    for sign in [-1, 1] {
-        model.output_bias[OUTPUT_BUCKETS - 1] = sign * allowed_bias;
+fn output_weights_beyond_the_limit_are_rejected_at_the_exact_boundary() {
+    for sign in [1_i16, -1] {
+        let mut model = zero_network();
+        // A single weight in one row of one bucket decides it; the bias is
+        // free to take any value.
+        model.output_bias = [i32::MIN; OUTPUT_BUCKETS];
+        model.output_bias[OUTPUT_BUCKETS - 1] = i32::MAX;
+        model.output_weights[OUTPUT_BUCKETS - 1][1][HIDDEN_SIZE - 1] = sign * OUTPUT_WEIGHT_LIMIT;
         assert!(Network::from_bytes(&encode(&model)).is_ok());
-        model.output_bias[OUTPUT_BUCKETS - 1] = sign * (allowed_bias + 1);
+        model.output_weights[OUTPUT_BUCKETS - 1][1][HIDDEN_SIZE - 1] =
+            sign * (OUTPUT_WEIGHT_LIMIT + 1);
         assert!(matches!(
             Network::from_bytes(&encode(&model)),
             Err(LoadError::OutputOverflow)
         ));
     }
-    model.output_weights = [[Row([0; HIDDEN_SIZE]); 2]; OUTPUT_BUCKETS];
-    model.output_bias[0] = i32::MIN;
-    assert!(matches!(
-        Network::from_bytes(&encode(&model)),
-        Err(LoadError::OutputOverflow)
-    ));
 }
 
 #[test]
@@ -725,8 +750,10 @@ fn truncated_trailing_and_corrupted_models_are_rejected() {
 #[test]
 fn checksum_rejects_a_weight_change_even_when_dimensions_match() {
     let mut bytes = encode(synthetic_network());
-    let output = HEADER_BYTES + 2 * (HIDDEN_SIZE + INPUT_FEATURES * HIDDEN_SIZE);
-    bytes[output] ^= 1;
+    // The first input row: a one-unit change there stays far inside every
+    // bound, so only the checksum can object.
+    let input = HEADER_BYTES + 2 * HIDDEN_SIZE;
+    bytes[input] ^= 1;
     assert!(matches!(
         Network::from_bytes(&bytes),
         Err(LoadError::Checksum)

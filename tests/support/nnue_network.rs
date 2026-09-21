@@ -2,15 +2,21 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Deterministic arithmetic fixtures, not trained playing networks.
+///
+/// The unpatterned network has zero weights and an output bias of `score`
+/// centipawns: 10_404 numerator units per centipawn, since the score is
+/// `numerator * 400 / (64 * 255 * 255)`. Its evaluation is `score` from any
+/// position and either side. The patterned network adds small input weights
+/// and output weights across the admitted `-127..=127` range.
 pub fn network_bytes(score: i32, patterned: bool) -> Vec<u8> {
-    const HIDDEN: usize = 128;
+    const HIDDEN: usize = 512;
     const INPUTS: usize = 6_144;
     const BUCKETS: usize = 8;
     const PAYLOAD: usize = 2 * (HIDDEN + INPUTS * HIDDEN + BUCKETS * 2 * HIDDEN) + 4 * BUCKETS;
     let mut bytes = Vec::with_capacity(48 + PAYLOAD);
     bytes.extend_from_slice(b"JAKNNUE\0");
     for value in [
-        2_u32,
+        3_u32,
         1,
         INPUTS as u32,
         HIDDEN as u32,
@@ -36,7 +42,7 @@ pub fn network_bytes(score: i32, patterned: bool) -> Vec<u8> {
     for _ in 0..BUCKETS {
         for index in 0..2 * HIDDEN {
             let weight = if patterned {
-                ((index * 71 + 13) % 1025) as i16 - 512
+                ((index * 71 + 13) % 255) as i16 - 127
             } else {
                 0
             };
@@ -44,7 +50,7 @@ pub fn network_bytes(score: i32, patterned: bool) -> Vec<u8> {
         }
     }
     for _ in 0..BUCKETS {
-        bytes.extend_from_slice(&(score * 16_320).to_le_bytes());
+        bytes.extend_from_slice(&(score * 10_404).to_le_bytes());
     }
     let mut checksum = 14_695_981_039_346_656_037_u64;
     for &byte in &bytes[48..] {

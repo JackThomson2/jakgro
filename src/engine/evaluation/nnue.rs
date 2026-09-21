@@ -11,10 +11,12 @@
 //! The output concatenates the side-to-move accumulator before its opponent's.
 //!
 //! Accumulators contain unclipped integer sums in 16 bits; the loader proves
-//! that no placement can overflow them. Inference clips each activation
-//! to 0..=255, computes an integer dot product, and divides by 255 * 64 with
-//! truncation toward zero. The result is side-to-move-relative centipawns,
-//! bounded below the engine's mate region. It is not a terminal-position score.
+//! that no placement can overflow them. Inference clips each activation to
+//! 0..=255 and squares it (squared clipped ReLU), computes an integer dot
+//! product with output weights bounded to -127..=127, scales by 400 and
+//! divides by 64 * 255 * 255 with truncation toward zero. The result is
+//! side-to-move-relative centipawns, bounded below the engine's mate region.
+//! It is not a terminal-position score.
 
 mod format;
 mod kernels;
@@ -25,7 +27,7 @@ use std::fmt;
 
 use cozy_chess::{BitBoard, Board, Color, Piece, Square};
 
-pub use format::{FILE_BYTES, FORMAT_VERSION, HEADER_BYTES, LoadError, MAGIC};
+pub use format::{FEATURE_SET, FILE_BYTES, FORMAT_VERSION, HEADER_BYTES, LoadError, MAGIC};
 use kernels::Row;
 
 /// Number of 2x2 king buckets on the oriented, file-mirrored half board.
@@ -35,11 +37,23 @@ pub const PIECE_PLANES: usize = 12;
 /// Number of feature-transformer rows.
 pub const INPUT_FEATURES: usize = KING_BUCKETS * PIECE_PLANES * 64;
 /// Width of each perspective's shared feature transformer.
-pub const HIDDEN_SIZE: usize = 128;
+pub const HIDDEN_SIZE: usize = 512;
 /// Integer clipped-ReLU ceiling, and feature-transformer quantization scale.
 pub const ACTIVATION_MAX: i32 = 255;
-/// Quantization scale for centipawn-valued output weights.
+/// Quantization scale of the output weights: `round(weight * 64)`.
 pub const OUTPUT_SCALE: i32 = 64;
+/// Largest output weight magnitude a file may hold.
+///
+/// With activations at most 255, every product `weight * a * a` stays below
+/// `127 * 255 * 255 < 2^31`, and `weight * a` fits an `i16`, so both an `i32`
+/// kernel and a 16-bit multiply-add SIMD path evaluate the same network.
+pub const OUTPUT_WEIGHT_LIMIT: i16 = 127;
+/// Centipawns per unit of float output; the trainer's score is
+/// `400 * (sum of weight * activation^2 + bias)`.
+pub const SCORE_SCALE: i32 = 400;
+/// Numerator units per unit of float output: the output bias is stored as
+/// `round(bias * OUTPUT_UNIT)` and the numerator is divided by it.
+pub const OUTPUT_UNIT: i32 = OUTPUT_SCALE * ACTIVATION_MAX * ACTIVATION_MAX;
 /// Output layers selected by piece count: `(pieces - 1) / 4` for 2..=32 pieces.
 pub const OUTPUT_BUCKETS: usize = 8;
 /// Largest absolute nonterminal score returned by this backend.
@@ -197,12 +211,15 @@ impl Network {
     fn output(&self, state: &State) -> i32 {
         let position = &state.position;
         let ours = color_index(position.side_to_move);
-        let numerator = self.output_bias[position.output_bucket]
+        let numerator = i64::from(self.output_bias[position.output_bucket])
             + kernels::output(
                 &self.output_weights[position.output_bucket],
                 [&state.sums[ours], &state.sums[1 - ours]],
             );
-        (numerator / (ACTIVATION_MAX * OUTPUT_SCALE)).clamp(-MAX_SCORE, MAX_SCORE)
+        // Every term is bounded: the numerator by 2 * HIDDEN_SIZE * 127 *
+        // 255 * 255 plus an i32 bias, so the product fits an i64 comfortably.
+        let score = numerator * i64::from(SCORE_SCALE) / i64::from(OUTPUT_UNIT);
+        score.clamp(-i64::from(MAX_SCORE), i64::from(MAX_SCORE)) as i32
     }
 }
 

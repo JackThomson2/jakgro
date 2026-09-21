@@ -8,7 +8,7 @@
 
 use std::ops::{Deref, DerefMut};
 
-use super::{ACTIVATION_MAX, HIDDEN_SIZE};
+use super::{ACTIVATION_MAX, HIDDEN_SIZE, OUTPUT_WEIGHT_LIMIT};
 
 /// One hidden-width vector: a feature's weights or a perspective's sums.
 ///
@@ -56,9 +56,14 @@ pub(super) fn apply(
     apply_impl(weights, target, source, adds, subs);
 }
 
-/// The output numerator without its bias: both clipped perspectives dotted
-/// with their weights. The loader proves the total fits an `i32`.
-pub(super) fn output(weights: &[Row; 2], sums: [&Row; 2]) -> i32 {
+/// The output numerator without its bias: both perspectives' squared clipped
+/// activations dotted with their weights.
+///
+/// Requires every weight within `-OUTPUT_WEIGHT_LIMIT..=OUTPUT_WEIGHT_LIMIT`,
+/// which the loader enforces: then `weight * a` fits an `i16`, and a chunk of
+/// [`OUTPUT_CHUNK`] products fits an `i32`, so the sum is exact by
+/// construction rather than by any property of the trained values.
+pub(super) fn output(weights: &[Row; 2], sums: [&Row; 2]) -> i64 {
     #[cfg(target_arch = "x86_64")]
     if is_x86_feature_detected!("avx2") {
         // SAFETY: as in `apply`.
@@ -66,6 +71,19 @@ pub(super) fn output(weights: &[Row; 2], sums: [&Row; 2]) -> i32 {
     }
     output_impl(weights, sums)
 }
+
+/// Units whose products one `i32` accumulates before spilling into the `i64`
+/// total: `64 * 127 * 255 * 255 < 2^31`.
+const OUTPUT_CHUNK: usize = 64;
+const _: () = assert!(HIDDEN_SIZE % OUTPUT_CHUNK == 0);
+const _: () = assert!(
+    OUTPUT_CHUNK as i64
+        * OUTPUT_WEIGHT_LIMIT as i64
+        * ACTIVATION_MAX as i64
+        * ACTIVATION_MAX as i64
+        <= i32::MAX as i64
+);
+const _: () = assert!(OUTPUT_WEIGHT_LIMIT as i32 * ACTIVATION_MAX <= i16::MAX as i32);
 
 /// One pass adds at most two rows and subtracts at most two. Ordinary moves
 /// change two to four features of a perspective, which is one pass. A rebuild
@@ -153,11 +171,23 @@ fn combine<const ADDS: usize, const SUBS: usize>(
 }
 
 #[inline(always)]
-fn output_impl(weights: &[Row; 2], sums: [&Row; 2]) -> i32 {
-    let mut total = 0;
+fn output_impl(weights: &[Row; 2], sums: [&Row; 2]) -> i64 {
+    let mut total = 0_i64;
     for (weights, sums) in weights.iter().zip(sums) {
-        for (&weight, &sum) in weights.0.iter().zip(&sums.0) {
-            total += i32::from(weight) * i32::from(sum.clamp(0, ACTIVATION_MAX as i16));
+        for (weights, sums) in weights
+            .0
+            .chunks_exact(OUTPUT_CHUNK)
+            .zip(sums.0.chunks_exact(OUTPUT_CHUNK))
+        {
+            let mut chunk = 0_i32;
+            for (&weight, &sum) in weights.iter().zip(sums) {
+                let activation = sum.clamp(0, ACTIVATION_MAX as i16);
+                // `weight * activation` is at most 127 * 255 in magnitude, so
+                // the 16-bit product is exact and the 32-bit sum of 64
+                // products of it with another activation cannot overflow.
+                chunk += i32::from(weight * activation) * i32::from(activation);
+            }
+            total += i64::from(chunk);
         }
     }
     total
@@ -179,7 +209,7 @@ mod avx2 {
     }
 
     #[target_feature(enable = "avx2")]
-    pub(super) unsafe fn output(weights: &[Row; 2], sums: [&Row; 2]) -> i32 {
+    pub(super) unsafe fn output(weights: &[Row; 2], sums: [&Row; 2]) -> i64 {
         output_impl(weights, sums)
     }
 }
@@ -236,12 +266,12 @@ mod tests {
     }
 
     #[test]
-    fn output_clips_each_activation_before_the_signed_product() {
+    fn output_squares_each_clipped_activation_before_the_signed_product() {
+        // Weights span the whole admitted range; sums run from far below the
+        // clip to far above it, so both clips and the square are exercised.
         let weights = [
-            Row(std::array::from_fn(|unit| {
-                (unit as i32 * 509 - 32_000) as i16
-            })),
-            Row([i16::MIN; HIDDEN_SIZE]),
+            Row(std::array::from_fn(|unit| (unit as i16 * 37) % 255 - 127)),
+            Row(std::array::from_fn(|unit| [127, -127][unit % 2])),
         ];
         let sums = [
             Row(std::array::from_fn(|unit| (unit as i16 * 7) - 300)),
@@ -251,8 +281,22 @@ mod tests {
             .iter()
             .zip(&sums)
             .flat_map(|(weights, sums)| weights.0.iter().zip(&sums.0))
-            .map(|(&weight, &sum)| i64::from(weight) * i64::from(sum.clamp(0, 255)))
+            .map(|(&weight, &sum)| {
+                let activation = i64::from(sum.clamp(0, 255));
+                i64::from(weight) * activation * activation
+            })
             .sum();
-        assert_eq!(i64::from(output(&weights, [&sums[0], &sums[1]])), expected);
+        assert_eq!(output(&weights, [&sums[0], &sums[1]]), expected);
+    }
+
+    #[test]
+    fn output_extremes_exceed_i32_without_overflowing() {
+        let saturated = Row([i16::MAX; HIDDEN_SIZE]);
+        for weight in [OUTPUT_WEIGHT_LIMIT, -OUTPUT_WEIGHT_LIMIT] {
+            let weights = [Row([weight; HIDDEN_SIZE]); 2];
+            let expected = 2 * HIDDEN_SIZE as i64 * i64::from(weight) * 255 * 255;
+            assert!(expected.abs() > i64::from(i32::MAX));
+            assert_eq!(output(&weights, [&saturated, &saturated]), expected);
+        }
     }
 }

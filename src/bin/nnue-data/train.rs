@@ -1,13 +1,15 @@
 //! Multi-threaded CPU trainer for the fixed Jakgro NNUE architecture.
 //!
-//! The float model mirrors the Python reference exactly: unclipped sums are
-//! `hidden + Σ input[feature]`, activations clip to `0..=1`, the score is
-//! `400 * (Σ output · activation + bias)` centipawns, and the loss is the mean
-//! squared error between the sigmoid of that score and a label mixing the game
-//! outcome with the teacher's own sigmoid. Full-parameter Adam runs over
-//! seeded minibatches; the exported integers are the same quantization the
-//! Python exporter used, and every published epoch is re-read through the
-//! engine's own [`Network`] loader for its integer metrics.
+//! The float model mirrors the engine's integer one exactly: unclipped sums
+//! are `hidden + Σ input[feature]`, activations clip to `0..=1` and are
+//! squared, the score is `400 * (Σ output · activation² + bias)` centipawns,
+//! and the loss is the mean squared error between the sigmoid of that score
+//! and a label mixing the game outcome with the teacher's own sigmoid.
+//! Full-parameter Adam runs over seeded minibatches; the exported integers
+//! are the engine's quantization (feature transformer times 255, output
+//! weights times 64, output bias times 64 * 255 * 255), and every published
+//! epoch is re-read through the engine's own [`Network`] loader for its
+//! integer metrics.
 //!
 //! Determinism does not depend on the thread count: a minibatch is split into
 //! a fixed number of shards whose partial gradients are reduced in shard
@@ -23,14 +25,13 @@ use std::time::Instant;
 use crate::{prepare, sha256};
 use cozy_chess::Board;
 use jakgro::engine::nnue::{
-    ACTIVATION_MAX, FILE_BYTES, FORMAT_VERSION, HEADER_BYTES, HIDDEN_SIZE, INPUT_FEATURES, MAGIC,
-    MAX_SCORE, Network, OUTPUT_BUCKETS, OUTPUT_SCALE, active_features,
+    ACTIVATION_MAX, FEATURE_SET, FILE_BYTES, FORMAT_VERSION, HEADER_BYTES, HIDDEN_SIZE,
+    INPUT_FEATURES, MAGIC, MAX_SCORE, Network, OUTPUT_BUCKETS, OUTPUT_SCALE, OUTPUT_UNIT,
+    OUTPUT_WEIGHT_LIMIT, SCORE_SCALE, active_features,
 };
 
-/// Centipawns per unit of float output, shared with the Python reference.
-const FLOAT_CP_SCALE: f32 = 400.0;
-/// Integer output divisor, `ACTIVATION_MAX * OUTPUT_SCALE`.
-const CP_DIVISOR: i32 = ACTIVATION_MAX * OUTPUT_SCALE;
+/// Centipawns per unit of float output.
+const FLOAT_CP_SCALE: f32 = SCORE_SCALE as f32;
 /// Fixed minibatch shard count; partial gradients reduce in this order.
 const SHARDS: usize = 16;
 /// Largest training subsample scored per epoch for the improvement rule.
@@ -433,7 +434,8 @@ impl Parameters {
             }
             let start = (bucket * 2 + side) * HIDDEN_SIZE;
             for (&value, &weight) in sum.iter().zip(&self.output[start..start + HIDDEN_SIZE]) {
-                total += value.clamp(0.0, 1.0) * weight;
+                let activation = value.clamp(0.0, 1.0);
+                total += activation * activation * weight;
             }
         }
         (sums, FLOAT_CP_SCALE * total)
@@ -466,13 +468,10 @@ impl Parameters {
             }
         }
         for &value in &self.output {
-            payload.extend_from_slice(
-                &scale_i16(value, FLOAT_CP_SCALE * OUTPUT_SCALE as f32)?.to_le_bytes(),
-            );
+            payload.extend_from_slice(&scale_i16(value, OUTPUT_SCALE as f32)?.to_le_bytes());
         }
         for &value in &self.bias {
-            let bias =
-                (f64::from(value) * f64::from(FLOAT_CP_SCALE) * f64::from(CP_DIVISOR)).round();
+            let bias = (f64::from(value) * f64::from(OUTPUT_UNIT)).round();
             if !bias.is_finite() || bias < f64::from(i32::MIN) || bias > f64::from(i32::MAX) {
                 return Err("output bias exceeds storage bounds".to_owned());
             }
@@ -482,7 +481,7 @@ impl Parameters {
         bytes.extend_from_slice(&MAGIC);
         for field in [
             FORMAT_VERSION,
-            1,
+            FEATURE_SET,
             INPUT_FEATURES as u32,
             HIDDEN_SIZE as u32,
             ACTIVATION_MAX as u32,
@@ -585,9 +584,12 @@ fn shard_gradient_impl(
             let weights = &parameters.output[start..start + HIDDEN_SIZE];
             let mut hidden_gradient = [0.0_f32; HIDDEN_SIZE];
             for (unit, &sum) in sums.iter().enumerate() {
-                gradient.output[start + unit] += outer * sum.clamp(0.0, 1.0);
+                let activation = sum.clamp(0.0, 1.0);
+                gradient.output[start + unit] += outer * activation * activation;
+                // d(activation²)/d(sum) is 2 * activation inside the clip and
+                // zero outside it.
                 if sum > 0.0 && sum < 1.0 {
-                    hidden_gradient[unit] = outer * weights[unit];
+                    hidden_gradient[unit] = outer * 2.0 * activation * weights[unit];
                 }
             }
             for (value, &delta) in gradient.hidden.iter_mut().zip(&hidden_gradient) {
@@ -678,9 +680,10 @@ struct AdamUpdate {
 }
 
 /// Largest float magnitudes the i16/i32 export can represent per tensor.
+/// Output weights stop at the loader's bound, not at `i16::MAX`.
 const INPUT_LIMIT: f32 = i16::MAX as f32 / ACTIVATION_MAX as f32;
-const OUTPUT_LIMIT: f32 = i16::MAX as f32 / (FLOAT_CP_SCALE * OUTPUT_SCALE as f32);
-const BIAS_LIMIT: f32 = i32::MAX as f32 / (FLOAT_CP_SCALE * CP_DIVISOR as f32);
+const OUTPUT_LIMIT: f32 = OUTPUT_WEIGHT_LIMIT as f32 / OUTPUT_SCALE as f32;
+const BIAS_LIMIT: f32 = i32::MAX as f32 / OUTPUT_UNIT as f32;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Metrics {
@@ -1118,7 +1121,7 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
         .join(", ");
     let selected_json = history[selected - 1].json();
     let mut report = String::from("{\n");
-    let _ = writeln!(report, "  \"schema_version\": 3,");
+    let _ = writeln!(report, "  \"schema_version\": 4,");
     let _ = writeln!(
         report,
         "  \"architecture\": {},",

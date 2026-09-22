@@ -4,7 +4,7 @@ use cozy_chess::Color;
 
 use super::SearchLimits;
 
-const DEFAULT_MOVES_TO_GO: u32 = 30;
+const DEFAULT_MOVES_TO_GO: u32 = 15;
 const MIN_RESERVE: Duration = Duration::from_millis(5);
 const MAX_RESERVE: Duration = Duration::from_millis(100);
 const HARD_TIME_MULTIPLIER: u32 = 3;

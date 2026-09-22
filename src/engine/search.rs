@@ -1357,9 +1357,9 @@ mod tests {
 
     /// A parallel search must respect the node budget for the search as a whole.
     ///
-    /// Each searcher refreshes the shared total only on its polling cadence, so
-    /// the budget can be overshot by less than one interval per searcher rather
-    /// than by a whole searcher's worth of work.
+    /// Each searcher publishes and observes the shared total only on its polling
+    /// cadence, so the budget can be overshot by less than two intervals per
+    /// searcher rather than by a whole searcher's worth of work.
     #[test]
     fn a_parallel_node_limit_bounds_the_whole_search() {
         const THREADS: usize = 4;
@@ -1383,7 +1383,7 @@ mod tests {
         );
 
         let nodes = result.info().map_or(0, SearchInfo::nodes);
-        let allowance = super::algorithm::CONTROL_POLL_INTERVAL_NODES * THREADS as u64;
+        let allowance = 2 * super::algorithm::CONTROL_POLL_INTERVAL_NODES * THREADS as u64;
         assert!(
             nodes <= LIMIT + allowance,
             "{nodes} nodes exceeded {LIMIT} by more than {allowance}",

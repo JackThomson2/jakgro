@@ -1879,6 +1879,13 @@ struct SearchContext<'a> {
     nodes: u64,
     /// Local nodes already folded into the shared counter.
     published_nodes: u64,
+    /// The shared total as this searcher last observed it, including its own
+    /// published nodes.
+    ///
+    /// The counter every searcher writes is read only while publishing, so
+    /// between polls no node of a parallel search touches a cache line another
+    /// searcher writes.
+    observed_total: u64,
     stats: &'a SearchStats,
     /// Whether this searcher stops when the main searcher finishes.
     helper: bool,
@@ -1941,6 +1948,7 @@ impl<'a> SearchContext<'a> {
             node_limit: None,
             nodes: 0,
             published_nodes: 0,
+            observed_total: 0,
             stats,
             helper: false,
             shared_node_budget: false,
@@ -1970,14 +1978,14 @@ impl SearchContext<'_> {
     }
 
     fn visit_node(&mut self) -> Result<(), Aborted> {
-        if self.node_limit_reached() {
-            return Err(Aborted);
-        }
         if should_poll_control(self.nodes) {
             if self.control_stop_requested() {
                 return Err(Aborted);
             }
             self.publish_nodes();
+        }
+        if self.node_limit_reached() {
+            return Err(Aborted);
         }
         self.nodes += 1;
         match self.mode {
@@ -1989,25 +1997,42 @@ impl SearchContext<'_> {
     }
 
     /// Folds nodes counted since the last publication into the shared total.
+    ///
+    /// The addition hands back what the others had contributed, so the same
+    /// operation refreshes this searcher's view of the shared total: the line
+    /// every searcher writes is touched once per poll, never once per node.
     fn publish_nodes(&mut self) {
         let unpublished = self.nodes.saturating_sub(self.published_nodes);
-        if unpublished == 0 {
-            return;
-        }
-        self.stats.nodes.fetch_add(unpublished, Ordering::Relaxed);
+        let published_before = if unpublished == 0 {
+            self.stats.nodes()
+        } else {
+            self.stats.nodes.fetch_add(unpublished, Ordering::Relaxed)
+        };
         self.published_nodes = self.nodes;
+        self.observed_total = published_before.saturating_add(unpublished);
     }
 
-    /// Returns the nodes every searcher in this search has counted.
+    /// Returns the nodes every searcher in this search has counted so far.
     ///
     /// This searcher's own unpublished nodes are added to what the others have
     /// already contributed, so the total never counts a node twice and never
-    /// omits work this searcher has done since it last published.
+    /// omits work this searcher has done since it last published. It reads the
+    /// shared counter, so it belongs to reporting rather than to the node loop.
     fn total_nodes(&self) -> u64 {
         self.stats
             .nodes()
             .saturating_sub(self.published_nodes)
             .saturating_add(self.nodes)
+    }
+
+    /// Returns the nodes this searcher counts against a budget shared by all.
+    ///
+    /// The shared total is the one observed at this searcher's last
+    /// publication, so the other searchers' newer work goes unseen until the
+    /// next poll; the polling interval bounds how much.
+    fn budgeted_nodes(&self) -> u64 {
+        self.observed_total
+            .saturating_add(self.nodes.saturating_sub(self.published_nodes))
     }
 
     fn should_stop(&self) -> bool {
@@ -2024,21 +2049,25 @@ impl SearchContext<'_> {
     ///
     /// A lone searcher measures its own nodes, which keeps a fixed-node search
     /// exact. With helpers running the budget belongs to the search as a whole,
-    /// so the shared total is what bounds it; that total is only refreshed on the
-    /// polling cadence, so the limit can be overshot by less than one interval
-    /// per searcher.
+    /// so the shared total is what bounds it. Every searcher publishes and
+    /// observes that total only on the polling cadence, so the limit can be
+    /// overshot by less than two intervals per searcher: the work the others
+    /// have not yet published, and the publications this searcher has not yet
+    /// observed.
     ///
     /// A non-zero budget cannot end the reporting searcher's first iteration, so
     /// a fixed-node search always returns a searched move. A budget of zero asks
     /// for no work at all and is honoured exactly.
     fn node_limit_reached(&self) -> bool {
+        let Some(limit) = self.node_limit else {
+            return false;
+        };
         let counted = if self.shared_node_budget {
-            self.total_nodes()
+            self.budgeted_nodes()
         } else {
             self.nodes
         };
-        self.node_limit
-            .is_some_and(|limit| counted >= limit && (limit == 0 || !self.first_iteration_pending))
+        counted >= limit && (limit == 0 || !self.first_iteration_pending)
     }
 
     fn clear_pv(&mut self, ply: u32) {
@@ -2199,7 +2228,12 @@ fn rotated_root_moves(moves: &[Move], rotation: usize) -> Vec<Move> {
 ///
 /// A searcher counts its own nodes locally and folds them in on the same cadence
 /// it polls for cancellation, which keeps the shared counter off the hot path.
+/// The counter is the one word of a search that every searcher writes, so it is
+/// aligned onto a cache line of its own: the rest of the shared search is read
+/// by every searcher and must not be invalidated by each publication. The
+/// alignment covers the widest line in common use.
 #[derive(Debug, Default)]
+#[repr(align(128))]
 struct SearchStats {
     nodes: AtomicU64,
     helpers_released: AtomicBool,
@@ -2499,6 +2533,7 @@ fn run_worker(
         node_limit: shared.limits.nodes,
         nodes: 0,
         published_nodes: 0,
+        observed_total: 0,
         stats: &shared.stats,
         helper: !role.is_main(),
         shared_node_budget: shared.threads > 1,
@@ -6660,6 +6695,57 @@ mod tests {
         assert!(super::should_poll_control(interval));
         assert!(!super::should_poll_control(interval + 1));
         assert!(super::should_poll_control(interval * 2));
+    }
+    /// A shared budget is measured against the total seen at the last poll.
+    ///
+    /// Between polls a searcher must not read the counter every searcher
+    /// writes, so work the others publish meanwhile stays unseen until this
+    /// searcher next publishes; its own nodes are always counted exactly.
+    #[test]
+    fn a_shared_budget_observes_the_others_only_when_publishing() {
+        use std::sync::atomic::Ordering;
+
+        let table = super::TranspositionTable::new(1).unwrap();
+        let control = super::SearchControl::new();
+        let stats = super::SearchStats::default();
+        let mut context = super::SearchContext::for_test_with_stats(
+            &table,
+            &control,
+            super::SearchMode::Normal,
+            &stats,
+        );
+        context.shared_node_budget = true;
+        context.first_iteration_pending = false;
+        context.node_limit = Some(super::CONTROL_POLL_INTERVAL_NODES + 8);
+
+        // The first node polls, so the others' work is observed at once.
+        stats.nodes.fetch_add(4, Ordering::Relaxed);
+        assert!(context.visit_node().is_ok());
+        assert_eq!(context.budgeted_nodes(), 5);
+
+        // Work published between polls is not seen; own nodes still count.
+        stats.nodes.fetch_add(100, Ordering::Relaxed);
+        for _ in 1..super::CONTROL_POLL_INTERVAL_NODES {
+            assert!(context.visit_node().is_ok());
+        }
+        assert_eq!(
+            context.budgeted_nodes(),
+            super::CONTROL_POLL_INTERVAL_NODES + 4
+        );
+        assert!(!context.node_limit_reached());
+
+        // The next poll publishes this searcher's nodes and observes theirs.
+        assert!(context.visit_node().is_err());
+        assert_eq!(
+            stats.nodes(),
+            super::CONTROL_POLL_INTERVAL_NODES + 104,
+            "the poll must fold every local node into the shared counter",
+        );
+        assert_eq!(
+            context.budgeted_nodes(),
+            super::CONTROL_POLL_INTERVAL_NODES + 104
+        );
+        assert!(context.node_limit_reached());
     }
     #[test]
     fn iteration_forecasts_respect_soft_and_hard_windows() {

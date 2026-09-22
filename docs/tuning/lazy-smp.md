@@ -63,10 +63,14 @@ More than one thread is not reproducible move for move. The tree the helpers
 explore depends on how their timing interleaves, so the selected move and score
 may differ between runs of the same position at the same limit. This is inherent
 to lazy SMP and is not a defect. With helpers running, the node limit bounds the
-search as a whole rather than one searcher, and because the shared total refreshes
-on the existing polling cadence it can be overshot by less than one interval per
-searcher. A fixed-node comparison across different thread counts is therefore not
-a like-for-like measurement, and strength must be measured at equal time.
+search as a whole rather than one searcher. Each searcher publishes its own
+nodes and observes the shared total only on the existing polling cadence, so
+between polls no node of a parallel search reads a cache line another searcher
+writes, and the limit can be overshot by less than two intervals per searcher:
+the work the others have not yet published, and the publications this searcher
+has not yet observed. A fixed-node comparison across different thread counts is
+therefore not a like-for-like measurement, and strength must be measured at
+equal time.
 
 ## Measurement protocol
 

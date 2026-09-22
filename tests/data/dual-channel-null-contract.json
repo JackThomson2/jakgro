@@ -22,7 +22,7 @@
     },
     {
       "path": "tests/data/personality.epd",
-      "sha256": "05f8710df3d77581cba6f9b6d404f090d7b6fded6f8698347316dc67ba8cbd20",
+      "sha256": "52690c99fae226f8b6f12d8c00468fdda14ff4445bab9e6867517a57efbccc5a",
       "records": 18,
       "kind": "legacy-personality"
     },

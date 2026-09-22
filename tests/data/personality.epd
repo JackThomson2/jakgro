@@ -9,7 +9,7 @@ r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8 ; id open-k
 2kr3r/pppq1ppp/2n1bn2/3p4/3P4/2P1PN2/PP1N1PPP/R2Q1RK1 w - - 0 10 ; id opposite-castle-storm ; category pawn-storm ; nodes 20000 ; bm0 h2h3 ; bm100 b2b4
 4k3/8/8/3q4/8/3Q4/8/4K3 w - - 0 1 ; id hanging-queen-safety ; category safety ; nodes 20000 ; bm0 d3d5 ; bm100 d3d5
 6k1/5ppp/8/7Q/2B5/8/5PPP/6K1 w - - 0 1 ; id forcing-mate-safety ; category safety ; nodes 20000 ; bm0 h5f7 ; bm100 h5f7
-5r1r/6k1/1p2p2p/2n4R/p1Pp2PR/P2B1P2/1PK3P1/8 w - - 7 28 ; id rook-lift-pawn-storm ; category pawn-storm ; nodes 20000 ; bm0 g4g5 ; bm100 g4g5
+5r1r/6k1/1p2p2p/2n4R/p1Pp2PR/P2B1P2/1PK3P1/8 w - - 7 28 ; id rook-lift-pawn-storm ; category pawn-storm ; nodes 20000 ; bm0 c2d2 ; bm100 g4g5
 r3r1k1/ppp2ppp/2n2n2/3q4/8/2N2N2/PPPQ1PPP/R3R1K1 w - - 0 15 ; id central-queen-safety ; category safety ; nodes 20000 ; bm0 c3d5 ; bm100 c3d5
 r2bkr2/1p3qp1/2ppb1Rp/p3p2P/2P1P3/2NPB3/PR3P2/3QK3 w q - 2 23 ; id rook-b7-investment ; category sacrifice ; nodes 20000 ; bm0 c4c5 ; bm100 b2b7
 r1bqr1k1/1p4p1/p3pp1p/1Pp1B3/P1P1p2P/2P3P1/4PPK1/R3Q2R w - - 0 14 ; id unsupported-bishop-f6 ; category anti-sacrifice ; nodes 20000 ; bm0 e5f4 ; bm100 e5f4

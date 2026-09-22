@@ -159,13 +159,18 @@ impl IterationStability {
 #[derive(Clone, Debug)]
 struct RepetitionTracker {
     keys: Vec<u64>,
+    /// Index of the root position's key; every later key belongs to the search.
+    root: usize,
 }
 
 impl RepetitionTracker {
     fn new(history: &[u64]) -> Self {
         let mut keys = Vec::with_capacity(history.len() + MAX_PLY as usize);
         keys.extend_from_slice(history);
-        Self { keys }
+        Self {
+            keys,
+            root: history.len().saturating_sub(1),
+        }
     }
 
     #[inline(always)]
@@ -194,6 +199,7 @@ impl RepetitionTracker {
     /// window only every second entry can match, since the key covers the side to
     /// move, so the scan strides two plies at a time. Counting stops at three
     /// because every caller only asks whether the threefold claim is available.
+    #[cfg(test)]
     fn occurrences(&self, halfmove_clock: u8) -> usize {
         let key = self.current_key();
         let window = usize::from(halfmove_clock).min(self.keys.len() - 1);
@@ -211,6 +217,42 @@ impl RepetitionTracker {
             }
         }
         count
+    }
+
+    /// Reports whether the current position is a draw by repetition.
+    ///
+    /// A position that already occurred inside the search, strictly after the
+    /// root, is a draw the first time it recurs: the line between the two
+    /// occurrences is one both sides were content to play, so either can repeat
+    /// it until the claim is available, and searching the cycle a second time
+    /// would only spend nodes to reach the same score. An occurrence in the
+    /// game's history is different, because the opponent has already deviated
+    /// from it once; there the threefold claim itself is required, which is
+    /// two earlier occurrences.
+    ///
+    /// The scan walks back at most `halfmove_clock` plies because an
+    /// irreversible move ends every repetition window, and strides two plies at
+    /// a time because the key covers the side to move.
+    fn repetition_draw(&self, halfmove_clock: u8) -> bool {
+        let key = self.current_key();
+        let window = usize::from(halfmove_clock).min(self.keys.len() - 1);
+        let mut earlier = 0;
+        let mut index = self.keys.len() - 1;
+        let mut remaining = window;
+        while remaining >= 2 {
+            index -= 2;
+            remaining -= 2;
+            if self.keys[index] == key {
+                if index > self.root {
+                    return true;
+                }
+                earlier += 1;
+                if earlier >= 2 {
+                    return true;
+                }
+            }
+        }
+        false
     }
 }
 
@@ -4540,7 +4582,7 @@ fn terminal_score_for_mode(
             path_dependent: false,
         });
     }
-    if mode.tracks_legal_draws() && history.occurrences(board.halfmove_clock()) >= 3 {
+    if mode.tracks_legal_draws() && history.repetition_draw(board.halfmove_clock()) {
         return Some(TerminalResult {
             score: 0,
             path_dependent: true,
@@ -4557,7 +4599,7 @@ fn terminal_score_for_mode(
 
 fn draw_state_pending(board: &Board, history: &RepetitionTracker, mode: SearchMode) -> bool {
     (mode.tracks_legal_draws()
-        && (history.occurrences(board.halfmove_clock()) >= 3 || board.halfmove_clock() >= 100))
+        && (history.repetition_draw(board.halfmove_clock()) || board.halfmove_clock() >= 100))
         || is_dead_material(board)
 }
 

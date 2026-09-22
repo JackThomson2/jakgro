@@ -50,6 +50,9 @@ pub struct Options {
     pub label_mix: f32,
     pub k: f32,
     pub threads: usize,
+    /// An exported network whose weights the run starts from, instead of the
+    /// seeded random initialization.
+    pub init_network: Option<PathBuf>,
 }
 
 impl Options {
@@ -97,6 +100,7 @@ impl Options {
                 "--threads",
                 thread::available_parallelism().map_or(1, |count| count.get().min(32)),
             )?,
+            init_network: values.get("--init-network").map(PathBuf::from),
         };
         for key in values.keys() {
             if ![
@@ -111,6 +115,7 @@ impl Options {
                 "--lambda",
                 "--k",
                 "--threads",
+                "--init-network",
             ]
             .contains(key)
             {
@@ -423,6 +428,49 @@ impl Parameters {
             *value = random.normal(0.01);
         }
         parameters
+    }
+
+    /// Recovers float parameters from an exported network, so a run can
+    /// continue that network's training on another corpus.
+    ///
+    /// The inverse of `quantize`: every weight is divided by the scale it was
+    /// rounded with, so the recovered parameters differ from the ones that
+    /// were exported by at most half a quantization step. The engine's loader
+    /// is the authority on whether the bytes are a network at all.
+    fn dequantize(bytes: &[u8]) -> Result<Self, String> {
+        Network::from_bytes(bytes).map_err(|error| format!("initial network rejected: {error}"))?;
+        let payload = &bytes[HEADER_BYTES..];
+        let read_i16 = |offset: usize| i16::from_le_bytes([payload[offset], payload[offset + 1]]);
+        let activation = ACTIVATION_MAX as f32;
+        let mut parameters = Self::zeros();
+        for (unit, value) in parameters.hidden.iter_mut().enumerate() {
+            *value = f32::from(read_i16(2 * unit)) / activation;
+        }
+        let input_start = 2 * HIDDEN_SIZE;
+        for (index, value) in parameters.input.iter_mut().enumerate() {
+            *value = f32::from(read_i16(input_start + 2 * index)) / activation;
+        }
+        let output_start = input_start + 2 * INPUT_FEATURES * HIDDEN_SIZE;
+        for (index, value) in parameters.output.iter_mut().enumerate() {
+            *value = f32::from(read_i16(output_start + 2 * index)) / OUTPUT_SCALE as f32;
+        }
+        let bias_start = output_start + 2 * OUTPUT_BUCKETS * 2 * HIDDEN_SIZE;
+        for (bucket, value) in parameters.bias.iter_mut().enumerate() {
+            let offset = bias_start + 4 * bucket;
+            let bias = i32::from_le_bytes(payload[offset..offset + 4].try_into().unwrap());
+            *value = bias as f32 / OUTPUT_UNIT as f32;
+        }
+        Ok(parameters)
+    }
+
+    /// Marks every feature whose row carries weight, so a row an initial
+    /// network learned is kept although this corpus never shows the feature.
+    fn extend_support(&self, support: &mut [bool]) {
+        for (feature, row) in self.input.chunks(HIDDEN_SIZE).enumerate() {
+            if row.iter().any(|&weight| weight != 0.0) {
+                support[feature] = true;
+            }
+        }
     }
 
     /// Unclipped sums, activations and the raw float score of one row.
@@ -1034,7 +1082,19 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
         }
     }
     let training_sample = subsample(&training, TRAIN_METRIC_ROWS);
-    let mut parameters = Parameters::initialize(&support, options.seed);
+    let initial_bytes = options
+        .init_network
+        .as_ref()
+        .map(|path| fs::read(path).map_err(|error| format!("{}: {error}", path.to_string_lossy())))
+        .transpose()?;
+    let mut parameters = match &initial_bytes {
+        Some(bytes) => {
+            let parameters = Parameters::dequantize(bytes)?;
+            parameters.extend_support(&mut support);
+            parameters
+        }
+        None => Parameters::initialize(&support, options.seed),
+    };
     let mut moment = Parameters::zeros();
     let mut velocity = Parameters::zeros();
     let mut shards = (0..SHARDS).map(|_| Parameters::zeros()).collect::<Vec<_>>();
@@ -1099,7 +1159,17 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
             development: development_metric,
         };
         println!("{}", record.json());
-        if training_metric.label_mse < initial_training.label_mse
+        // A fresh run must first beat its random initialization on the
+        // training sample, which rules out a diverged model; a continued run
+        // starts from a network that already fits its corpus, so it must
+        // instead beat that network where the epoch is selected, on the
+        // development split.
+        let improves_initial = if initial_bytes.is_some() {
+            development_metric.label_mse < initial_development.label_mse
+        } else {
+            training_metric.label_mse < initial_training.label_mse
+        };
+        if improves_initial
             && best
                 .as_ref()
                 .is_none_or(|(_, metrics, _)| development_metric.label_mse < metrics.label_mse)
@@ -1109,8 +1179,11 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
         history.push(record);
         rate *= options.rate_decay;
     }
-    let (selected, _, bytes) =
-        best.ok_or("no trained integer model improved training loss; no artifact exported")?;
+    let (selected, _, bytes) = best.ok_or(if initial_bytes.is_some() {
+        "no trained integer model improved the initial network's development loss; no artifact exported"
+    } else {
+        "no trained integer model improved training loss; no artifact exported"
+    })?;
     // Inputs are re-verified after the run so the report never binds a corpus
     // that changed underneath it.
     if prepare::verify_dataset(data)? != input_hashes {
@@ -1155,11 +1228,15 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
     );
     let _ = writeln!(
         report,
-        "  \"inputs\": {{\"data_dir\": {}, \"helper_sha256\": \"{}\", \"training_checksum\": \"{}\", \"development_checksum\": \"{}\"}},",
+        "  \"inputs\": {{\"data_dir\": {}, \"helper_sha256\": \"{}\", \"training_checksum\": \"{}\", \"development_checksum\": \"{}\", \"initial_network_sha256\": {}}},",
         prepare::json_string(&data.to_string_lossy()),
         prepare::helper_sha256()?,
         input_hashes["training.tsv"],
-        input_hashes["development.tsv"]
+        input_hashes["development.tsv"],
+        initial_bytes.as_deref().map_or_else(
+            || "null".to_owned(),
+            |bytes| format!("\"{}\"", sha256::hex(bytes))
+        )
     );
     let _ = writeln!(report, "  \"network_sha256\": \"{}\",", sha256::hex(&bytes));
     let _ = writeln!(
@@ -1308,5 +1385,33 @@ mod tests {
         let mut leaked = parameters.clone();
         leaked.input[5 * HIDDEN_SIZE] = 0.5;
         assert!(leaked.quantize(&support).is_err());
+    }
+
+    #[test]
+    fn dequantized_parameters_export_the_same_network_and_extend_support() {
+        let mut support = vec![false; INPUT_FEATURES];
+        support[10] = true;
+        support[4000] = true;
+        let mut parameters = Parameters::initialize(&support, 9);
+        parameters.output[3] = 0.75;
+        parameters.bias[2] = 0.03;
+        let bytes = parameters.quantize(&support).unwrap();
+
+        let recovered = Parameters::dequantize(&bytes).unwrap();
+        // Quantizing the recovered parameters reproduces the file exactly:
+        // every recovered value sits within half a step of the exported one.
+        assert_eq!(recovered.quantize(&support).unwrap(), bytes);
+        for (recovered, original) in recovered.hidden.iter().zip(&parameters.hidden) {
+            assert!((recovered - original).abs() <= 0.5 / ACTIVATION_MAX as f32);
+        }
+        // The rows the network carries join the support of a corpus that
+        // never shows their features, so the export keeps what was learned.
+        let mut narrow = vec![false; INPUT_FEATURES];
+        recovered.extend_support(&mut narrow);
+        assert!(narrow[10] && narrow[4000]);
+        assert_eq!(narrow.iter().filter(|supported| **supported).count(), 2);
+        assert!(recovered.quantize(&narrow).is_ok());
+
+        assert!(Parameters::dequantize(&bytes[..bytes.len() - 1]).is_err());
     }
 }

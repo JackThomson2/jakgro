@@ -241,6 +241,11 @@ been measured.
   gain was within noise and it cost about 20% of throughput. The 512-unit
   network's gain over run 42 is measured under the clock, so it includes its
   throughput cost; that cost has not been measured separately.
+- The λ 0.25 target compresses decisive scores: the published network prices
+  a bare king-and-queen ending at about +800 at depth 7 (the 128-unit λ 0
+  networks gave over +1000), and its development-set extremes are about
+  ±1900 cp. Anything that reads a static score as "won" needs to allow for
+  this; the null-move contract's winning-capture bound was lowered to 500 cp.
 - Data returns were small at 128 units: 22.9M to 34.2M rows moved the
   fixed-node result from +123 to +147, about +5 per 3M rows, all from groups
   labelled at 100k nodes. The remaining levers are deeper teacher labels and,

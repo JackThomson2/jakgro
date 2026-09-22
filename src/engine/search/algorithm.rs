@@ -3786,7 +3786,7 @@ fn search_root_conventional(
         }
     }
 
-    if context.mode.writes_tt() && !best.path_dependent {
+    if context.mode.writes_tt() {
         let bound = if best.score <= alpha_original {
             Bound::Upper
         } else if best.score >= beta {
@@ -4256,7 +4256,7 @@ fn negamax(
         picker.record_failed_capture(metadata);
     }
 
-    if context.mode.writes_tt() && !best.path_dependent && excluded.is_none() {
+    if context.mode.writes_tt() && excluded.is_none() {
         let bound = if best.score <= alpha_original {
             Bound::Upper
         } else if best.score >= beta {
@@ -4535,7 +4535,7 @@ fn store_quiescence_result(
     stand_pat: Option<Score>,
     context: &mut SearchContext<'_>,
 ) {
-    if !context.mode.writes_tt() || best.path_dependent || best.score == NEG_INFINITY {
+    if !context.mode.writes_tt() || best.score == NEG_INFINITY {
         return;
     }
     let bound = if best.score <= alpha_original {
@@ -5508,7 +5508,7 @@ mod tests {
     }
 
     #[test]
-    fn quiescence_stores_are_refused_for_path_dependent_and_unsearched_results() {
+    fn quiescence_stores_are_refused_for_unsearched_results_alone() {
         let position = Position::default();
         let tracker = super::RepetitionTracker::new(position.hash_history());
         let table = super::TranspositionTable::new(1).unwrap();
@@ -5516,40 +5516,48 @@ mod tests {
         let control = super::SearchControl::new();
         let key = tracker.current_key();
 
-        for (name, mode, best) in [
-            (
-                "path dependent",
-                super::SearchMode::Normal,
-                super::NodeResult {
-                    score: 0,
-                    path_dependent: true,
-                },
-            ),
-            (
-                "unsearched",
-                super::SearchMode::Normal,
-                super::NodeResult {
-                    score: super::NEG_INFINITY,
-                    path_dependent: false,
-                },
-            ),
-        ] {
-            let mut context = super::SearchContext::for_test(&table, &control, mode);
-            super::store_quiescence_result(
-                &table.probe_key(key, 0),
-                0,
-                &best,
-                -50,
-                50,
-                Some(12),
-                &mut context,
-            );
+        let mut context =
+            super::SearchContext::for_test(&table, &control, super::SearchMode::Normal);
+        super::store_quiescence_result(
+            &table.probe_key(key, 0),
+            0,
+            &super::NodeResult {
+                score: super::NEG_INFINITY,
+                path_dependent: false,
+            },
+            -50,
+            50,
+            Some(12),
+            &mut context,
+        );
+        assert!(
+            table.probe_key(key, 0).entry().is_none(),
+            "an unsearched result should not have been stored",
+        );
 
-            assert!(
-                table.probe_key(key, 0).entry().is_none(),
-                "{name} result should not have been stored",
-            );
-        }
+        // A result whose line ends in a repetition is stored like any other
+        // bound: the draw score is what the position is worth on this path,
+        // and a later visit trusts it as it trusts every other stored score.
+        super::store_quiescence_result(
+            &table.probe_key(key, 0),
+            0,
+            &super::NodeResult {
+                score: 0,
+                path_dependent: true,
+            },
+            -50,
+            50,
+            Some(12),
+            &mut context,
+        );
+        let entry = table
+            .probe_key(key, 0)
+            .entry()
+            .expect("a repetition result is stored");
+        assert_eq!(entry.score_at_ply(0), 0);
+        assert_eq!(entry.bound(), super::Bound::Exact);
+        table.clear();
+        table.start_search(0);
 
         // A settled, route-independent result in the ordinary search is stored.
         let mut context =

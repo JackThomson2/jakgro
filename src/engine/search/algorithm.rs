@@ -3881,7 +3881,15 @@ fn negamax(
     }
 
     let alpha_original = alpha;
-    if let Some(entry) = hash_entry.filter(|entry| excluded.is_none() && entry.depth() >= depth) {
+    let pv_node = beta.saturating_sub(alpha) > 1;
+    // A principal-variation node is searched past a table hit: its result
+    // becomes the line the search reports and the bounds the next iteration
+    // narrows to, and a stored score at the same depth was settled under a
+    // window and a pruning regime this node does not share. The entry still
+    // orders its move first.
+    if !pv_node
+        && let Some(entry) = hash_entry.filter(|entry| excluded.is_none() && entry.depth() >= depth)
+    {
         let score = entry.score_at_ply(ply);
         let cutoff = match entry.bound() {
             Bound::Exact => true,
@@ -3904,7 +3912,6 @@ fn negamax(
     }
 
     let in_check = !board.checkers().is_empty();
-    let pv_node = beta.saturating_sub(alpha) > 1;
     // Internal iterative reduction: a deep node the table has never seen is
     // searched one ply shallower; the shallower search seeds the hash move the
     // next visit orders by.

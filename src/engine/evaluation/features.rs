@@ -1363,11 +1363,11 @@ pub(super) fn attack_summary_with_style(board: &Board, style: bool) -> AttackSum
             result.defender_shortage = (result.attackers - defenders).max(0);
             for target in board.colors(enemy) & !board.pieces(Piece::King) {
                 let attackers = i32::from(attack_counts[index][target as usize]);
-                if attackers >= 2 {
-                    if let Some(target_piece) = board.piece_on(target) {
-                        result.supported_threats +=
-                            (attackers - 1) * (1 + piece_value(target_piece) / 300);
-                    }
+                if attackers >= 2
+                    && let Some(target_piece) = board.piece_on(target)
+                {
+                    result.supported_threats +=
+                        (attackers - 1) * (1 + piece_value(target_piece) / 300);
                 }
             }
         }

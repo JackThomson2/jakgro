@@ -477,7 +477,7 @@ fn walk(
     seed: &mut u64,
 ) {
     *seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
-    if (*seed >> 33) % 4 != 0 {
+    if !(*seed >> 33).is_multiple_of(4) {
         let (sums, score) = reference(model, board);
         assert_eq!(stack.evaluate(board, ply), score, "{board}");
         for perspective in [Color::White, Color::Black] {

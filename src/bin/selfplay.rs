@@ -1199,13 +1199,12 @@ impl<'a> Engine<'a> {
     }
 
     fn start_game(&mut self) {
-        if let Some(process) = self.process.as_mut() {
-            if writeln!(process.stdin, "ucinewgame")
+        if let Some(process) = self.process.as_mut()
+            && writeln!(process.stdin, "ucinewgame")
                 .and_then(|()| process.stdin.flush())
                 .is_err()
-            {
-                self.restart();
-            }
+        {
+            self.restart();
         }
     }
 
@@ -1272,10 +1271,10 @@ impl<'a> Engine<'a> {
             if trimmed == "readyok" {
                 return Ok(());
             }
-            if let Some(detail) = trimmed.strip_prefix("info string ") {
-                if detail.contains(" rejected: ") || detail.contains(" requires ") {
-                    return Err(self.fault("option rejected", detail));
-                }
+            if let Some(detail) = trimmed.strip_prefix("info string ")
+                && (detail.contains(" rejected: ") || detail.contains(" requires "))
+            {
+                return Err(self.fault("option rejected", detail));
             }
         }
     }
@@ -1381,10 +1380,10 @@ impl Drop for Engine<'_> {
 }
 
 fn write_pgn(path: &Path, event: &str, records: &[GameRecord]) -> std::io::Result<()> {
-    if let Some(parent) = path.parent() {
-        if !parent.as_os_str().is_empty() {
-            fs::create_dir_all(parent)?;
-        }
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        fs::create_dir_all(parent)?;
     }
     let mut text = String::new();
     for record in records {

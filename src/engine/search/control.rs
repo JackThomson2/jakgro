@@ -120,7 +120,7 @@ impl SearchControl {
     fn deadline_snapshot(&self) -> (u64, u64) {
         loop {
             let before = self.shared.deadline_version.load(Ordering::Acquire);
-            if before % 2 != 0 {
+            if !before.is_multiple_of(2) {
                 std::hint::spin_loop();
                 continue;
             }

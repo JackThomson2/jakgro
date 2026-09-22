@@ -1710,12 +1710,12 @@ fn reverse_futility_cutoff(
     static_evaluation: Score,
     beta: Score,
     depth: u32,
-    aggression: u8,
+    profile_margin: Score,
     improving: bool,
 ) -> bool {
     let margin = REVERSE_FUTILITY_BASE_MARGIN
         + REVERSE_FUTILITY_DEPTH_MARGIN * depth as Score
-        + Score::from(aggression)
+        + profile_margin
         - if improving {
             IMPROVING_REVERSE_FUTILITY_RELIEF
         } else {
@@ -3949,7 +3949,7 @@ fn negamax(
                 evaluation,
                 beta,
                 depth,
-                context.personality.aggression(),
+                context.personality.reverse_futility_margin(),
                 improving,
             )
         })
@@ -6239,13 +6239,20 @@ mod tests {
         ));
         assert!(super::reverse_futility_cutoff(800, 100, 2, 0, false));
 
-        // Aggression widens the margin, so the same node survives at profile 100
-        // where it was given up at 0, and improving narrows it again.
+        // Only the profiles above the default widen the margin: the default
+        // and objective profiles prune alike, the wild endpoint keeps the node.
+        let wild = super::EvaluationConfig::new(100).reverse_futility_margin();
+        assert_eq!(
+            super::EvaluationConfig::new(75).reverse_futility_margin(),
+            0
+        );
+        assert_eq!(super::EvaluationConfig::new(0).reverse_futility_margin(), 0);
+        assert!(wild > 0);
         assert!(!super::reverse_futility_cutoff(
             100 + margin,
             100,
             2,
-            100,
+            wild,
             false
         ));
         assert!(super::reverse_futility_cutoff(

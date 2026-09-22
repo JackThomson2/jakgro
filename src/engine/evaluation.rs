@@ -126,6 +126,20 @@ impl EvaluationConfig {
         2 + self.aggression / 50
     }
 
+    /// Extra reverse-futility margin, in centipawns, kept above the default
+    /// profile.
+    ///
+    /// Every profile used to widen the margin by its aggression, so the default
+    /// profile paid seventy-five centipawns at every depth for nodes the
+    /// objective search gives up on. Measured, that bought no forcing play and
+    /// cost ten Elo, so the default prunes as the objective profile does. The
+    /// wild endpoint keeps the margin it had: at twenty thousand nodes its
+    /// investment and simplification controls are found in exactly the nodes
+    /// the narrower margin prunes.
+    pub(super) const fn reverse_futility_margin(self) -> Score {
+        4 * self.aggression.saturating_sub(DEFAULT_AGGRESSION) as Score
+    }
+
     pub(super) const fn quiescence_check_budget(self) -> u8 {
         1 + (self.aggression >= 80) as u8 + (self.aggression == MAX_AGGRESSION) as u8
     }

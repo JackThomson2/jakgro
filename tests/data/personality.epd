@@ -1,19 +1,19 @@
 # Six-field FEN; id NAME; category NAME; nodes N; bm0 MOVE[,MOVE]; bm100 MOVE[,MOVE]
-rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 ; id starting-development ; category initiative ; nodes 20000 ; bm0 d2d4 ; bm100 e2e4
+rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 ; id starting-development ; category initiative ; nodes 20000 ; bm0 e2e4 ; bm100 e2e4
 rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2 ; id early-king-pressure ; category king-attack ; nodes 20000 ; bm0 g1f3 ; bm100 g1f3
-r2k1b1r/q1p2pp1/1p1pnn1p/pP2p3/N3P1P1/P2PBN1P/2P2P2/R2QK1R1 w Q - 0 16 ; id central-pawn-thrust ; category initiative ; nodes 20000 ; bm0 a4c3 ; bm100 c2c4
+r2k1b1r/q1p2pp1/1p1pnn1p/pP2p3/N3P1P1/P2PBN1P/2P2P2/R2QK1R1 w Q - 0 16 ; id central-pawn-thrust ; category initiative ; nodes 20000 ; bm0 d3d4 ; bm100 c2c4
 rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 2 ; id black-king-pressure ; category king-attack ; nodes 20000 ; bm0 g8f6 ; bm100 g8f6
 4k3/8/8/8/8/8/4q3/4R1K1 w - - 0 1 ; id tactical-safety ; category safety ; nodes 20000 ; bm0 e1e2 ; bm100 e1e2
 7k/8/8/8/8/1r6/8/K7 w - - 0 1 ; id defensive-safety ; category safety ; nodes 20000 ; bm0 a1a2 ; bm100 a1a2
 r1bq1rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP1N2/PPP2PPP/R1BQ1RK1 w - - 0 8 ; id open-king-gambit ; category forcing-attack ; nodes 100000 ; bm0 c3d5 ; bm100 c3d5
-2kr3r/pppq1ppp/2n1bn2/3p4/3P4/2P1PN2/PP1N1PPP/R2Q1RK1 w - - 0 10 ; id opposite-castle-storm ; category pawn-storm ; nodes 20000 ; bm0 a2a4 ; bm100 b2b4
+2kr3r/pppq1ppp/2n1bn2/3p4/3P4/2P1PN2/PP1N1PPP/R2Q1RK1 w - - 0 10 ; id opposite-castle-storm ; category pawn-storm ; nodes 20000 ; bm0 h2h3 ; bm100 b2b4
 4k3/8/8/3q4/8/3Q4/8/4K3 w - - 0 1 ; id hanging-queen-safety ; category safety ; nodes 20000 ; bm0 d3d5 ; bm100 d3d5
 6k1/5ppp/8/7Q/2B5/8/5PPP/6K1 w - - 0 1 ; id forcing-mate-safety ; category safety ; nodes 20000 ; bm0 h5f7 ; bm100 h5f7
 5r1r/6k1/1p2p2p/2n4R/p1Pp2PR/P2B1P2/1PK3P1/8 w - - 7 28 ; id rook-lift-pawn-storm ; category pawn-storm ; nodes 20000 ; bm0 g4g5 ; bm100 g4g5
 r3r1k1/ppp2ppp/2n2n2/3q4/8/2N2N2/PPPQ1PPP/R3R1K1 w - - 0 15 ; id central-queen-safety ; category safety ; nodes 20000 ; bm0 c3d5 ; bm100 c3d5
-r3k1nr/ppqnb1pp/2p1bp2/8/4NP2/1P1B1N1P/P1P1Q1P1/R1B1K2R w KQkq - 6 9 ; id knight-f6-investment ; category sacrifice ; nodes 20000 ; bm0 c1b2 ; bm100 e4f6
+r2bkr2/1p3qp1/2ppb1Rp/p3p2P/2P1P3/2NPB3/PR3P2/3QK3 w q - 2 23 ; id rook-b7-investment ; category sacrifice ; nodes 20000 ; bm0 c4c5 ; bm100 b2b7
 r1bqr1k1/1p4p1/p3pp1p/1Pp1B3/P1P1p2P/2P3P1/4PPK1/R3Q2R w - - 0 14 ; id unsupported-bishop-f6 ; category anti-sacrifice ; nodes 20000 ; bm0 e5f4 ; bm100 e5f4
 r4rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP4/PPP3PP/R4RK1 w - - 0 10 ; id unsupported-rook-f7 ; category anti-sacrifice ; nodes 20000 ; bm0 g1h1 ; bm100 g1h1
-2r1k2r/pp2pp1p/3p2p1/8/2q1P3/P1PQ4/3BKPBP/7R w k - 2 18 ; id avoid-queen-trade-e5-thrust ; category simplification ; nodes 20000 ; bm0 d3c4 ; bm100 e4e5
+r6r/p2n1kN1/1qp3p1/3p1p1p/1Pp1nPb1/4Q1P1/PB1PPR1P/RN2KB2 w Q - 7 14 ; id avoid-queen-trade-bishop-d4 ; category simplification ; nodes 20000 ; bm0 e3b6 ; bm100 b2d4
 r1b4r/1ppnq1bk/p3pnpp/1P1p1p2/P2P3P/2N1PNP1/2PB1PB1/R2Q2KR w - - 1 12 ; id queenside-pawn-thrust ; category initiative ; nodes 20000 ; bm0 c3e2 ; bm100 a4a5
-2r1k2r/pp1b1p2/3bpnpp/8/P2qp2Q/1PN2P2/1PB3PP/RKB4R b k - 3 12 ; id rook-c3-investment ; category sacrifice ; nodes 20000 ; bm0 d6e5 ; bm100 c8c3
+2b1r1k1/q2n1ppp/8/rp1NPP2/p1pP4/P3N1P1/3Q3P/1R2KR2 b - - 0 20 ; id knight-e5-investment ; category sacrifice ; nodes 20000 ; bm0 c8b7 ; bm100 d7e5

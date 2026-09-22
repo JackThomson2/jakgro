@@ -315,15 +315,15 @@ setoption name EvalFile value <embedded>  # back to the built-in network
 ```
 
 A rejected file is reported as `info string EvalFile rejected: ...` and leaves
-the previous configuration in place. The last published 128-unit clipped-ReLU
-network measured +147 Elo [136, 158] over the handcrafted evaluator at
-Aggression 75 in 2048 paired 50,000-node games, and +163 [146, 180] in 1024
-games at 50 ms per move, while searching about 1.3 times as many nodes per
-second; the Aggression 75 versus 0 forcing-move ratio is kept (1.08 against the
-handcrafted 1.06). The series is recorded in
-[`docs/tuning/nnue-aggression75.md`](docs/tuning/nnue-aggression75.md); the
-512-unit network is trained separately, and until it lands `nets/jakgro.nnue`
-is a placeholder trained for two epochs on the refit-pilot smoke corpus.
+the previous configuration in place. The published 512-unit network measured
++59.2 Elo [52.6, 65.8] over the previous 128-unit clipped-ReLU network at
+Aggression 75 in 4096 games at 50 ms per move; that 128-unit network had
+measured +147 [136, 158] over the handcrafted evaluator in 2048 paired
+50,000-node games and +163 [146, 180] in 1024 games at 50 ms per move, while
+searching about 1.3 times as many nodes per second, with the Aggression 75
+versus 0 forcing-move ratio kept (1.08 against the handcrafted 1.06). The
+series is recorded in
+[`docs/tuning/nnue-aggression75.md`](docs/tuning/nnue-aggression75.md).
 
 Networks are produced by the tuning-only `nnue-data` helper, entirely on CPU
 and without Python numeric dependencies:

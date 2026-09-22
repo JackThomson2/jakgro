@@ -24,6 +24,7 @@ class SearchEngine(Protocol):
         root_moves: frozenset[str] | None = None,
         depth: int | None = None,
         move_time_ms: int | None = None,
+        threads: int = 1,
     ) -> measure_style.Observation: ...
 
 
@@ -56,7 +57,15 @@ def measure_rows(
     depth: int,
     samples: int = 3,
     move_time_ms: int = 250,
+    threads: int = 1,
 ) -> list[dict[str, Any]]:
+    """Measure every fixture through the three channels.
+
+    Only the timed channel runs with ``threads`` searchers. The fixed-depth and
+    fixed-node channels describe the deterministic single-threaded tree, which
+    a parallel search cannot reproduce move for move, so they stay on one thread
+    whatever the timed channel is configured for.
+    """
     rows: list[dict[str, Any]] = []
     for fixture_index, fixture in enumerate(fixtures):
         expected = fixture.expected.get(aggression, frozenset())
@@ -104,12 +113,12 @@ def measure_rows(
                 )
                 timed_candidate_samples.append(
                     candidate_engine.measure(
-                        fixture, aggression, move_time_ms=move_time_ms
+                        fixture, aggression, move_time_ms=move_time_ms, threads=threads
                     )
                 )
                 timed_baseline_samples.append(
                     baseline_engine.measure(
-                        fixture, aggression, move_time_ms=move_time_ms
+                        fixture, aggression, move_time_ms=move_time_ms, threads=threads
                     )
                 )
             else:
@@ -121,12 +130,12 @@ def measure_rows(
                 )
                 timed_baseline_samples.append(
                     baseline_engine.measure(
-                        fixture, aggression, move_time_ms=move_time_ms
+                        fixture, aggression, move_time_ms=move_time_ms, threads=threads
                     )
                 )
                 timed_candidate_samples.append(
                     candidate_engine.measure(
-                        fixture, aggression, move_time_ms=move_time_ms
+                        fixture, aggression, move_time_ms=move_time_ms, threads=threads
                     )
                 )
 
@@ -210,6 +219,7 @@ def measure_rows(
                 },
                 "timed": {
                     "move_time_ms": move_time_ms,
+                    "threads": threads,
                     "candidate": observation_json(timed_candidate),
                     "baseline": observation_json(timed_baseline),
                     "candidate_samples": [
@@ -261,6 +271,7 @@ def summarize(
     move_time_ms: int = 250,
     provenance: dict[str, str] | None = None,
     require_identical_tree: bool = False,
+    threads: int = 1,
 ) -> dict[str, Any]:
     active = [
         row
@@ -304,6 +315,16 @@ def summarize(
     reduction = (1.0 - geometric_mean(node_ratios)) * 100.0
     nps_ratio = geometric_mean(nps_ratios)
     nps_gain = (nps_ratio - 1.0) * 100.0
+    # The timed channel is the only one that runs with the configured thread
+    # count, so its node rate is the throughput of the parallel search; it is
+    # reported beside the fixed-node rate and gates nothing.
+    timed_nps_ratios = [
+        int(row["timed"]["candidate"]["nps"]) / int(row["timed"]["baseline"]["nps"])
+        for row in rows
+        if int(row["timed"]["candidate"]["nps"]) > 0
+        and int(row["timed"]["baseline"]["nps"]) > 0
+    ]
+    timed_nps_gain = (geometric_mean(timed_nps_ratios) - 1.0) * 100.0
     depth_gains = [float(row["timed"]["depth_gain"]) for row in rows]
     depth_gain = sum(depth_gains) / len(depth_gains)
     candidate_failures = [
@@ -359,12 +380,14 @@ def summarize(
                 "depth": depth,
                 "samples": samples,
                 "move_time_ms": move_time_ms,
+                "threads": threads,
             },
         },
         "settings": {
             "depth": depth,
             "samples": samples,
             "move_time_ms": move_time_ms,
+            "threads": threads,
         },
         "metrics": {
             "positions": len(rows),
@@ -379,6 +402,7 @@ def summarize(
             "geometric_node_reduction_percent": round(reduction, 6),
             "geometric_candidate_to_baseline_nps_ratio": round(nps_ratio, 8),
             "geometric_nps_gain_percent": round(nps_gain, 6),
+            "geometric_timed_nps_gain_percent": round(timed_nps_gain, 6),
             "mean_completed_depth_gain": round(depth_gain, 6),
             "candidate_expected_move_failures": candidate_failures,
             "baseline_expected_move_failures": baseline_failures,
@@ -464,6 +488,13 @@ def main() -> int:
     parser.add_argument("--depth", type=int, default=9)
     parser.add_argument("--samples", type=int, default=3)
     parser.add_argument("--move-time-ms", type=int, default=250)
+    parser.add_argument(
+        "--threads",
+        type=int,
+        default=1,
+        help="searchers for the timed channel on both engines; the fixed-depth "
+        "and fixed-node channels always measure one thread",
+    )
     parser.add_argument("--minimum-reduction", type=float, default=0.0)
     parser.add_argument("--minimum-nps-gain", type=float, default=-2.0)
     parser.add_argument("--minimum-depth-gain", type=float, default=-0.25)
@@ -496,6 +527,7 @@ def main() -> int:
         or args.depth <= 0
         or args.samples <= 0
         or args.move_time_ms <= 0
+        or not 1 <= args.threads <= 128
     ):
         print(
             "measure_search_efficiency: invalid measurement settings",
@@ -518,6 +550,7 @@ def main() -> int:
                     args.depth,
                     args.samples,
                     args.move_time_ms,
+                    args.threads,
                 )
         if measure_style.sha256_file(args.engine) != candidate_hash:
             raise RuntimeError("candidate binary changed during measurement")
@@ -537,6 +570,7 @@ def main() -> int:
             args.move_time_ms,
             provenance,
             args.require_identical_tree,
+            args.threads,
         )
     except (OSError, RuntimeError, TimeoutError, ValueError) as error:
         print(f"measure_search_efficiency: {error}", file=sys.stderr)
@@ -548,6 +582,8 @@ def main() -> int:
         f"identical={summary['metrics']['identical_tree_positions']} "
         f"node-reduction={summary['metrics']['geometric_node_reduction_percent']:.3f}% "
         f"nps-gain={summary['metrics']['geometric_nps_gain_percent']:.3f}% "
+        f"threads={args.threads} "
+        f"timed-nps-gain={summary['metrics']['geometric_timed_nps_gain_percent']:.3f}% "
         f"depth-gain={summary['metrics']['mean_completed_depth_gain']:.3f}"
     )
     if args.summary_json:

@@ -165,6 +165,10 @@ class UciEngine:
         self.lines: queue.Queue[str | None] = queue.Queue()
         self.reader = threading.Thread(target=self._read_output, daemon=True)
         self.reader.start()
+        # The engine starts with one thread; the option is sent only when a
+        # measurement asks for a different count, so tools that never do keep
+        # their exact protocol exchange.
+        self.threads = 1
         try:
             self.send("uci")
             handshake = self.read_until(lambda line: line == "uciok")
@@ -216,9 +220,13 @@ class UciEngine:
         root_moves: frozenset[str] | None = None,
         depth: int | None = None,
         move_time_ms: int | None = None,
+        threads: int = 1,
     ) -> Observation:
         if depth is not None and move_time_ms is not None:
             raise ValueError("depth and move_time_ms are mutually exclusive")
+        if threads != self.threads:
+            self.send(f"setoption name Threads value {threads}")
+            self.threads = threads
         self.send(f"setoption name Aggression value {aggression}")
         self.send("ucinewgame")
         self.send("isready")

@@ -133,6 +133,11 @@ hold before any parallel Elo claim is recorded:
 
 Searched-node throughput can be compared separately with
 `tools/measure_search_efficiency.py` at fixed time, which reports completed depth
-and NPS. Throughput scaling is necessary but not sufficient: lazy SMP can raise
-NPS substantially while converting little of it into strength, so a node or depth
-improvement must never be reported as an Elo result.
+and NPS. Its `--threads` option configures both engines for the timed channel
+alone: the fixed-depth and fixed-node channels keep measuring the deterministic
+single-threaded search, which a parallel search cannot reproduce move for move,
+while the timed channel's completed depth and node rate, reported as
+`geometric_timed_nps_gain_percent`, compare the parallel search. Throughput
+scaling is necessary but not sufficient: lazy SMP can raise NPS substantially
+while converting little of it into strength, so a node or depth improvement must
+never be reported as an Elo result.

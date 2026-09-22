@@ -22,6 +22,7 @@ class FakeEngine:
         self.nps = nps
         self.timed_depth = timed_depth
         self.calls: list[tuple[int | None, int | None]] = []
+        self.threads: list[int] = []
 
     def measure(
         self,
@@ -30,8 +31,10 @@ class FakeEngine:
         root_moves: frozenset[str] | None = None,
         depth: int | None = None,
         move_time_ms: int | None = None,
+        threads: int = 1,
     ) -> measure_style.Observation:
         self.calls.append((depth, move_time_ms))
+        self.threads.append(threads)
         if move_time_ms is not None:
             return measure_style.Observation(
                 self.bestmove,
@@ -107,8 +110,12 @@ class SearchEfficiencyTests(unittest.TestCase):
 
         self.assertEqual(candidate_engine.calls[0], (4, None))
         self.assertEqual(len(candidate_engine.calls), 9)
+        self.assertEqual(set(candidate_engine.threads), {1})
+        self.assertEqual(summary["settings"]["threads"], 1)
+        self.assertEqual(summary["inputs"]["settings"]["threads"], 1)
         self.assertEqual(summary["metrics"]["geometric_node_reduction_percent"], 20.0)
         self.assertEqual(summary["metrics"]["geometric_nps_gain_percent"], 20.0)
+        self.assertEqual(summary["metrics"]["geometric_timed_nps_gain_percent"], 20.0)
         self.assertEqual(summary["metrics"]["mean_completed_depth_gain"], 1.0)
         self.assertEqual(summary["metrics"]["active_positions"], 1)
         self.assertEqual(summary["metrics"]["repeatable_positions"], 1)
@@ -118,6 +125,75 @@ class SearchEfficiencyTests(unittest.TestCase):
         self.assertTrue(summary["gates"]["fixed_depth_repeatability"]["passed"])
         self.assertTrue(summary["passed"])
         self.assertRegex(summary["inputs"]["candidate"]["sha256"], r"^[0-9a-f]{64}$")
+
+    def test_threads_configure_only_the_timed_channel(self) -> None:
+        """A parallel search is not reproducible move for move.
+
+        The fixed-depth and fixed-node channels therefore keep measuring one
+        thread, so their repeatability and node comparisons stay meaningful,
+        while the timed channel runs with the requested searchers and the
+        summary records how many.
+        """
+        fixture = measure_style.Fixture(
+            "start",
+            "initiative",
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            100,
+            {100: frozenset({"e2e4"})},
+        )
+        candidate_engine = FakeEngine(80, nps=1_200, timed_depth=6)
+        baseline_engine = FakeEngine(100, nps=1_000, timed_depth=5)
+        rows = measure_search_efficiency.measure_rows(
+            candidate_engine,
+            baseline_engine,
+            [fixture],
+            aggression=100,
+            depth=4,
+            samples=2,
+            threads=8,
+        )
+
+        for engine in (candidate_engine, baseline_engine):
+            timed = [
+                threads
+                for (_, move_time_ms), threads in zip(engine.calls, engine.threads)
+                if move_time_ms is not None
+            ]
+            single = [
+                threads
+                for (_, move_time_ms), threads in zip(engine.calls, engine.threads)
+                if move_time_ms is None
+            ]
+            self.assertEqual(timed, [8, 8])
+            self.assertTrue(single)
+            self.assertEqual(set(single), {1})
+        self.assertEqual(rows[0]["timed"]["threads"], 8)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            candidate = root / "candidate"
+            baseline = root / "baseline"
+            suite = root / "suite.epd"
+            candidate.write_bytes(b"candidate")
+            baseline.write_bytes(b"baseline")
+            suite.write_text("suite\n", encoding="utf-8")
+            summary = measure_search_efficiency.summarize(
+                rows,
+                candidate,
+                baseline,
+                suite,
+                aggression=100,
+                depth=4,
+                minimum_reduction=0.0,
+                samples=2,
+                threads=8,
+            )
+
+        self.assertEqual(summary["settings"]["threads"], 8)
+        self.assertEqual(summary["inputs"]["settings"]["threads"], 8)
+        self.assertEqual(summary["metrics"]["geometric_timed_nps_gain_percent"], 20.0)
+        self.assertTrue(summary["gates"]["fixed_depth_repeatability"]["passed"])
+        self.assertTrue(summary["passed"])
 
     def test_nonrepeatable_fixed_depth_results_fail_the_gate(self) -> None:
         fixture = measure_style.Fixture(
@@ -138,10 +214,11 @@ class SearchEfficiencyTests(unittest.TestCase):
             root_moves: frozenset[str] | None = None,
             depth: int | None = None,
             move_time_ms: int | None = None,
+            threads: int = 1,
         ) -> measure_style.Observation:
             nonlocal fixed_depth_calls
             observation = original_measure(
-                fixture, aggression, root_moves, depth, move_time_ms
+                fixture, aggression, root_moves, depth, move_time_ms, threads
             )
             if depth is not None:
                 fixed_depth_calls += 1

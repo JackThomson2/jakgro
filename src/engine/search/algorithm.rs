@@ -1873,9 +1873,17 @@ fn verified_null_move_cutoff(
     }
 
     context.telemetry.null_move_fail_highs += 1;
+    // The probe's score is what the null move established, and a bound the
+    // table can use; a mate found by passing is not one the mover can claim,
+    // so it is held at beta.
+    let established = if -probe.score >= MATE_THRESHOLD {
+        beta
+    } else {
+        -probe.score
+    };
     if depth < NULL_VERIFICATION_MIN_DEPTH {
         return Ok(Some(NodeResult {
-            score: beta,
+            score: established,
             path_dependent: false,
         }));
     }
@@ -1898,7 +1906,7 @@ fn verified_null_move_cutoff(
     let verification = verification?;
     if verification.score >= beta {
         return Ok(Some(NodeResult {
-            score: beta,
+            score: established.min(verification.score),
             path_dependent: verification.path_dependent,
         }));
     }
@@ -3944,15 +3952,14 @@ fn negamax(
         };
     let improving = context.record_static_evaluation(ply, in_check, static_evaluation);
     if reverse_futility_allowed(board, depth, alpha, beta, pv_node, context.mode)
-        && static_evaluation.is_some_and(|evaluation| {
-            reverse_futility_cutoff(
-                evaluation,
-                beta,
-                depth,
-                context.personality.reverse_futility_margin(),
-                improving,
-            )
-        })
+        && let Some(evaluation) = static_evaluation
+        && reverse_futility_cutoff(
+            evaluation,
+            beta,
+            depth,
+            context.personality.reverse_futility_margin(),
+            improving,
+        )
     {
         if hash_move.is_none()
             && let Some(result) = terminal_without_legal_moves(board, history, ply, context)
@@ -3960,8 +3967,10 @@ fn negamax(
             return Ok(result);
         }
         context.telemetry.reverse_futility_cutoffs += 1;
+        // The node is worth at least beta and at most its evaluation; the
+        // midpoint is the bound the table keeps.
         return Ok(NodeResult {
-            score: beta,
+            score: beta + (evaluation - beta) / 2,
             path_dependent: false,
         });
     }

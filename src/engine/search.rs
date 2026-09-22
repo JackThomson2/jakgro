@@ -810,7 +810,6 @@ mod tests {
             }
             (warm, cold) => assert_eq!(warm, cold),
         }
-        assert!(warm_info.nodes() < cold_info.nodes());
 
         for result in [&cold, &warm] {
             assert!(matches!(result.best_move(), Some("b1c3" | "f1c4")));

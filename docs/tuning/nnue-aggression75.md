@@ -43,7 +43,7 @@ by `./autoresearch.sh` unless a row says otherwise; none is an absolute rating.
 | 36 | 40 epochs | +138 [+127, +149] | 1.094 | — |
 | 38 | 31.4M rows (176 seed groups, 32 taught at 100k nodes) | +142 [+131, +153] | 1.083 | 1.24 |
 | 42 | 34.2M rows (192 seed groups, 48 taught at 100k nodes) | **+147 [+136, +158]** | 1.077 | 1.28 |
-| n512 | 512 squared clipped-ReLU units (format v3), 131.0M rows of 10k-node self-play taught by run 42, λ 0.25, 80 epochs | +59.2 [+52.6, +65.8] over run 42 at 50 ms/move† | — | — |
+| n512 | 512 squared clipped-ReLU units (format v3), 131.0M rows of 10k-node self-play taught by run 42, λ 0.25, 80 epochs | +44.6 [+38.1, +51.1] over the `da2cc416` engine (run 42 embedded) at 50 ms/move† | — | — |
 
 \* re-measured over 2048 games; the 512-game figure was 1.009.
 
@@ -68,9 +68,12 @@ and 16 plies; the development split is 3.32M rows from three held-out seed
 groups, one per prefix length. Training ran for 80 epochs at batch 8192, rate
 0.0057 decaying by 0.95 per epoch, L2 1e-6, seed 75 and λ 0.25; epoch 79 was
 selected at a development label MSE of 0.009536 (a λ 0.25 target, not
-comparable with λ 0 figures) and an outcome MSE of 0.06897. Against the run-42
-network at Aggression 75 it scored +59.2 Elo [52.6, 65.8] over 4096 games at
-50 ms per move on an otherwise idle host. The fixed-node chain that selected
+comparable with λ 0 figures) and an outcome MSE of 0.06897. The published
+engine (`0a8c4b0`) scored +44.6 Elo [38.1, 51.1] over the `da2cc416` engine,
+which embeds the run-42 network and is otherwise identical, and +128.1
+[120.6, 135.7] over the `878e369` engine that preceded the search-selectivity
+and speed series; both over 4096 games at 50 ms per move on an otherwise idle
+host. The fixed-node chain that selected
 it, at 50,000 nodes per move on the same prepared data: a λ 0, 30-epoch,
 decay-0.9 network measured +29.8 [21.3, 38.2] over run 42 in 2048 paired
 games; its λ 0.25 sibling measured +17.7 over that network; and the published

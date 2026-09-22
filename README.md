@@ -316,8 +316,10 @@ setoption name EvalFile value <embedded>  # back to the built-in network
 
 A rejected file is reported as `info string EvalFile rejected: ...` and leaves
 the previous configuration in place. The published 512-unit network measured
-+59.2 Elo [52.6, 65.8] over the previous 128-unit clipped-ReLU network at
-Aggression 75 in 4096 games at 50 ms per move; that 128-unit network had
++44.6 Elo [38.1, 51.1] over the previous 128-unit clipped-ReLU network at
+Aggression 75 in 4096 games at 50 ms per move (otherwise identical engines);
+the engine as a whole measured +128.1 [120.6, 135.7] over the head that
+preceded the search-selectivity, speed and network series; that 128-unit network had
 measured +147 [136, 158] over the handcrafted evaluator in 2048 paired
 50,000-node games and +163 [146, 180] in 1024 games at 50 ms per move, while
 searching about 1.3 times as many nodes per second, with the Aggression 75

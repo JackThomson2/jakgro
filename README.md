@@ -35,7 +35,7 @@ The [pin, safe-check and pawn-race trials](docs/tuning/eval-pins-checks-races.md
 
 ## Requirements
 
-- Rust 1.85 or newer
+- Rust 1.89 or newer
 - network access to fetch the optimized [`cozy-chess` fork](https://github.com/JackThomson2/cozy-chess/tree/board-state-save-restore) on the first build
 - Python 3 for the measurement helpers
 - `cutechess-cli` only when running paired match measurements

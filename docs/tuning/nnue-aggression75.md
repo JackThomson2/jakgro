@@ -151,11 +151,20 @@ fifty-move draw (+6 within noise; it flipped a knife-edge sacrifice fixture).
   drew. The published network mates it in 7 moves and KR v K from
   `4k3/8/8/8/8/8/3R4/4K3` in 11 to 12 moves under the same clock (two games
   each; clocked games are not bit-reproducible).
-- The update and output kernels dispatch to AVX2 at runtime when the CPU
-  supports it; the arithmetic is unchanged. The output kernel squares each
-  clipped activation, forms the 16-bit product `weight * activation`, and sums
-  products in 64-unit `i32` chunks into an `i64`; the weight bound makes every
-  step exact by construction.
+- The update kernel dispatches to AVX-512BW or AVX2 at runtime when the CPU
+  supports it; the output kernel is written with intrinsics for AVX-512BW,
+  AVX2 and NEON (`pmaddwd`/`smlal` of the 16-bit product `weight * activation`
+  with the activation), with the scalar 64-unit `i32` chunk definition as the
+  fallback and test oracle. Every `i32` lane accumulates at most 64 products,
+  so each kernel is exact by the same weight bound; scores are bit-identical
+  across kernels. Measured with paired fixed-node searches against the
+  autovectorized kernels: 1.12 times the throughput on a Sapphire Rapids
+  Xeon (AVX-512; 1.04 of that from the AVX2 kernel alone) and 1.035 times on
+  a Graviton4 (Neoverse V2), where the transposition-table prefetch also
+  gained an AArch64 `prfm` path. The compiler did not find the pair
+  multiply-add shape from the scalar definition: it emitted 128-bit code with
+  a horizontal reduction per chunk on AVX2, and deinterleaved pairs padded with
+  zeros when given a lane-structured loop.
 - Accumulators are 16-bit and every weight row is 64-byte aligned (1 KiB per
   row at 512 units; 6 MiB of feature-transformer weights). The loader proves
   no placement can overflow them (each unit's bias plus, per square, its
@@ -177,9 +186,8 @@ fifty-move draw (+6 within noise; it flipped a knife-edge sacrifice fixture).
 - Tried and dropped: prefetching weight rows inside the evaluation (-1%; with
   the whole table aliased into the first-level cache the ceiling was 2-4%), the
   view cache without the piece-count gate (-3% in endgames), a grandparent as a
-  third starting state (3.2 against 3.4 changed features). An explicit 256-bit
-  `madd` output kernel was slower than the compiler's 128-bit one under
-  Rosetta's AVX2 translation and is untested on AVX2 hardware.
+  third starting state (3.2 against 3.4 changed features), caching the popcounts
+  of a placement diff (no measurable change on x86-64 without `popcnt`).
 
 ## Pipeline
 

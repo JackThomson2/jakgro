@@ -370,7 +370,20 @@ impl TranspositionTable {
             // inside the table; a prefetch reads nothing and cannot fault.
             unsafe { _mm_prefetch(bucket.cast::<i8>(), _MM_HINT_T0) };
         }
-        #[cfg(not(target_arch = "x86_64"))]
+        #[cfg(target_arch = "aarch64")]
+        {
+            let bucket: *const Bucket = &self.buckets[self.index(key)];
+            // SAFETY: `prfm` is a hint that reads nothing, writes nothing and
+            // cannot fault, whatever the address.
+            unsafe {
+                std::arch::asm!(
+                    "prfm pldl1keep, [{bucket}]",
+                    bucket = in(reg) bucket,
+                    options(nostack, preserves_flags, readonly),
+                );
+            }
+        }
+        #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
         let _ = key;
     }
     #[inline(always)]

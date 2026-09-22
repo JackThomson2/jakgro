@@ -2,7 +2,7 @@
 name = "jakgro"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.89"
 
 [features]
 # Exposes the linear feature vector the offline weight fitter reads. Not built

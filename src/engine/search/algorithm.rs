@@ -13,7 +13,7 @@ use super::control::DeadlineWindow;
 use super::neural::NeuralEvaluator;
 use super::see::static_exchange_eval_settle;
 use super::time::allocate_time;
-use super::transposition::{Bound, Entry, RULE_FIFTY_EXACT_HORIZON, TranspositionTable};
+use super::transposition::{Bound, Entry, Probe, RULE_FIFTY_EXACT_HORIZON, TranspositionTable};
 use super::{
     SearchControl, SearchInfo, SearchLimits, SearchResult, SearchScore, SearchSettings,
     SearchTelemetry,
@@ -1528,10 +1528,6 @@ impl SearchMode {
         !matches!(self, Self::NullProbe)
     }
 
-    const fn reads_tt(self) -> bool {
-        true
-    }
-
     const fn writes_tt(self) -> bool {
         true
     }
@@ -2161,13 +2157,15 @@ impl SearchContext<'_> {
         has_legal_move(board)
     }
 
-    fn probe_table(&mut self, key: u64, halfmove_clock: u8) -> Option<Entry> {
+    /// Looks the position up and keeps what the bucket held for its store.
+    fn probe_table(&mut self, key: u64, halfmove_clock: u8) -> Probe {
         self.telemetry.tt_probes += 1;
-        let entry = self.table.probe_key(key, halfmove_clock);
+        let probe = self.table.probe_key(key, halfmove_clock);
+        let entry = probe.entry();
         self.telemetry.tt_hits += u64::from(entry.is_some());
         self.telemetry.tt_hash_moves +=
             u64::from(entry.is_some_and(|entry| entry.best_move().is_some()));
-        entry
+        probe
     }
 }
 
@@ -3630,9 +3628,8 @@ fn search_root_conventional(
         return Err(Aborted);
     }
     let alpha_original = alpha;
-    let hash_move = context
-        .probe_table(history.current_key(), board.halfmove_clock())
-        .and_then(|entry| entry.best_move());
+    let probe = context.probe_table(history.current_key(), board.halfmove_clock());
+    let hash_move = probe.entry().and_then(|entry| entry.best_move());
     let preferred = previous_pv.first().copied().or(hash_move);
     let moves = prepare_and_order_root_moves(
         board,
@@ -3755,9 +3752,8 @@ fn search_root_conventional(
         } else {
             Bound::Exact
         };
-        context.table.store_key(
-            history.current_key(),
-            board.halfmove_clock(),
+        context.table.store_probed(
+            &probe,
             depth,
             0,
             best.score,
@@ -3825,11 +3821,8 @@ fn negamax(
     let (mate_alpha, mate_beta) = mate_distance_bounds(ply);
     alpha = alpha.max(mate_alpha);
     beta = beta.min(mate_beta);
-    let hash_entry = context
-        .mode
-        .reads_tt()
-        .then(|| context.probe_table(history.current_key(), board.halfmove_clock()))
-        .flatten();
+    let probe = context.probe_table(history.current_key(), board.halfmove_clock());
+    let hash_entry = probe.entry();
     let hash_move = hash_entry
         .and_then(|entry| entry.best_move())
         .filter(|&chess_move| board.is_legal(chess_move));
@@ -4230,9 +4223,8 @@ fn negamax(
             Bound::Exact
         };
         if !selective_fail_low || bound == Bound::Lower {
-            context.table.store_key(
-                history.current_key(),
-                board.halfmove_clock(),
+            context.table.store_probed(
+                &probe,
                 depth,
                 ply,
                 best.score,
@@ -4300,11 +4292,8 @@ fn quiescence(
     // were re-searched and re-evaluated every time. Entries are stored at depth
     // zero, which the ordinary search treats as the shallowest possible result, so
     // a quiescence entry can never satisfy a deeper interior node's depth test.
-    let hash_entry = context
-        .mode
-        .reads_tt()
-        .then(|| context.probe_table(history.current_key(), board.halfmove_clock()))
-        .flatten();
+    let probe = context.probe_table(history.current_key(), board.halfmove_clock());
+    let hash_entry = probe.entry();
     if let Some(entry) = hash_entry {
         let score = entry.score_at_ply(ply);
         if quiescence_entry_is_usable(entry.bound(), score, alpha, beta) {
@@ -4349,8 +4338,7 @@ fn quiescence(
                 return Ok(result);
             }
             store_quiescence_result(
-                board,
-                history,
+                &probe,
                 ply,
                 &best,
                 alpha_original,
@@ -4472,16 +4460,7 @@ fn quiescence(
     }
 
     context.recycle_picker_storage(ply, picker.into_storage());
-    store_quiescence_result(
-        board,
-        history,
-        ply,
-        &best,
-        alpha_original,
-        beta,
-        stand_pat,
-        context,
-    );
+    store_quiescence_result(&probe, ply, &best, alpha_original, beta, stand_pat, context);
     Ok(best)
 }
 
@@ -4505,10 +4484,8 @@ fn quiescence_entry_is_usable(bound: Bound, score: Score, alpha: Score, beta: Sc
 /// score describes the route taken to a position rather than the position, so
 /// reusing it elsewhere would be wrong. The static evaluation travels with the
 /// entry, which is what lets a later visit skip feature extraction entirely.
-#[allow(clippy::too_many_arguments)]
 fn store_quiescence_result(
-    board: &Board,
-    history: &RepetitionTracker,
+    probe: &Probe,
     ply: u32,
     best: &NodeResult,
     alpha_original: Score,
@@ -4526,9 +4503,8 @@ fn store_quiescence_result(
     } else {
         Bound::Exact
     };
-    context.table.store_key(
-        history.current_key(),
-        board.halfmove_clock(),
+    context.table.store_probed(
+        probe,
         0,
         ply,
         best.score,
@@ -5465,8 +5441,7 @@ mod tests {
             let mut context =
                 super::SearchContext::for_test(&table, &control, super::SearchMode::Normal);
             super::store_quiescence_result(
-                position.board(),
-                &tracker,
+                &table.probe_key(key, 0),
                 0,
                 &super::NodeResult {
                     score,
@@ -5478,7 +5453,10 @@ mod tests {
                 &mut context,
             );
 
-            let entry = table.probe_key(key, 0).expect("a settled result is stored");
+            let entry = table
+                .probe_key(key, 0)
+                .entry()
+                .expect("a settled result is stored");
             assert_eq!(
                 entry.bound(),
                 expected,
@@ -5516,8 +5494,7 @@ mod tests {
         ] {
             let mut context = super::SearchContext::for_test(&table, &control, mode);
             super::store_quiescence_result(
-                position.board(),
-                &tracker,
+                &table.probe_key(key, 0),
                 0,
                 &best,
                 -50,
@@ -5527,7 +5504,7 @@ mod tests {
             );
 
             assert!(
-                table.probe_key(key, 0).is_none(),
+                table.probe_key(key, 0).entry().is_none(),
                 "{name} result should not have been stored",
             );
         }
@@ -5536,8 +5513,7 @@ mod tests {
         let mut context =
             super::SearchContext::for_test(&table, &control, super::SearchMode::Normal);
         super::store_quiescence_result(
-            position.board(),
-            &tracker,
+            &table.probe_key(key, 0),
             0,
             &super::NodeResult {
                 score: 12,
@@ -5549,7 +5525,10 @@ mod tests {
             &mut context,
         );
 
-        let entry = table.probe_key(key, 0).expect("a settled result is stored");
+        let entry = table
+            .probe_key(key, 0)
+            .entry()
+            .expect("a settled result is stored");
         assert_eq!(entry.depth(), 0, "quiescence entries claim no depth");
         assert_eq!(entry.bound(), super::Bound::Exact);
         assert_eq!(entry.static_evaluation(), Some(12));
@@ -6943,7 +6922,6 @@ mod tests {
             )
             .is_none()
         );
-        assert!(super::SearchMode::NullProbe.reads_tt());
         assert!(super::SearchMode::NullProbe.writes_tt());
         assert!(super::SearchMode::NullProbe.updates_ordering());
         assert!(!super::SearchMode::NullProbe.allows_null());

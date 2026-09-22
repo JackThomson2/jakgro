@@ -105,6 +105,30 @@ struct Slot {
 /// The payload words of one bucket, read once for a replacement decision.
 type BucketWords = [u64; BUCKET_SIZE];
 
+/// What a probe read from the bucket its key selects.
+///
+/// The words are the snapshot a store of the same position decides its
+/// replacement from, so a node's store issues no loads: the probe at node entry
+/// has already read the bucket. On a hit the scan stops at the matching slot, so
+/// only that word is meaningful; on a miss every slot was read.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Probe {
+    key: u64,
+    mixed: u64,
+    words: BucketWords,
+    /// The slot that held this position when the bucket was read.
+    matching: Option<u8>,
+    entry: Option<Entry>,
+}
+
+impl Probe {
+    /// Returns the stored result for the probed position, when one was found.
+    #[inline(always)]
+    pub(super) fn entry(&self) -> Option<Entry> {
+        self.entry
+    }
+}
+
 /// Selects the move field of a packed word.
 const MOVE_FIELD: u64 = 0xffff << MOVE_SHIFT;
 /// Selects the generation field of a packed word.
@@ -184,25 +208,15 @@ fn packed_is_exact(data: u64) -> bool {
 impl Slot {
     /// Returns the verification and payload words this slot holds.
     ///
-    /// One pair of loads answers every question a store asks, so a replacement
-    /// decision and an identity test never disagree about what the slot held.
+    /// One pair of loads answers every question a probe or store asks, so a
+    /// replacement decision and an identity test never disagree about what the
+    /// slot held.
     #[inline(always)]
     fn load(&self) -> (u64, u64) {
         (
             self.verify.load(Ordering::Relaxed),
             self.data.load(Ordering::Relaxed),
         )
-    }
-
-    /// Returns the payload this slot holds for `mixed`, when it holds one.
-    #[inline(always)]
-    fn load_verified(&self, mixed: u64) -> Option<Entry> {
-        let (verify, data) = self.load();
-        if verify ^ data == mixed && data != 0 {
-            Entry::decode(data)
-        } else {
-            None
-        }
     }
 
     fn store(&self, mixed: u64, data: u64) {
@@ -329,6 +343,7 @@ impl TranspositionTable {
 
     pub(super) fn probe(&self, board: &Board) -> Option<Entry> {
         self.probe_key(repetition_key(board), board.halfmove_clock())
+            .entry()
     }
 
     #[cfg(test)]
@@ -386,18 +401,39 @@ impl TranspositionTable {
         #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
         let _ = key;
     }
+    /// Reads the bucket a key selects, stopping at the slot that holds it.
+    ///
+    /// What was read travels with the result, so the store this node ends with
+    /// decides its replacement without reading the bucket again.
     #[inline(always)]
-    pub(super) fn probe_key(&self, key: u64, halfmove_clock: u8) -> Option<Entry> {
+    pub(super) fn probe_key(&self, key: u64, halfmove_clock: u8) -> Probe {
         let mixed = mixed_key(key, halfmove_clock);
         let bucket = &self.buckets[self.index(key)];
-        for slot in &bucket.0 {
-            if let Some(entry) = slot.load_verified(mixed) {
-                return Some(entry);
+        let mut words: BucketWords = [0; BUCKET_SIZE];
+        for (index, slot) in bucket.0.iter().enumerate() {
+            let (verify, data) = slot.load();
+            words[index] = data;
+            if data != 0 && verify ^ data == mixed {
+                return Probe {
+                    key,
+                    mixed,
+                    words,
+                    matching: Some(index as u8),
+                    entry: Entry::decode(data),
+                };
             }
         }
-        None
+        Probe {
+            key,
+            mixed,
+            words,
+            matching: None,
+            entry: None,
+        }
     }
 
+    /// Probes a position and stores a result for it, as a search node does.
+    #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
     pub(super) fn store_key(
         &self,
@@ -410,9 +446,31 @@ impl TranspositionTable {
         best_move: Option<Move>,
         static_evaluation: Option<Score>,
     ) {
+        self.store_probed(
+            &self.probe_key(key, halfmove_clock),
+            depth,
+            ply,
+            score,
+            bound,
+            best_move,
+            static_evaluation,
+        );
+    }
+
+    /// Publishes a result for the position a probe looked up.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn store_probed(
+        &self,
+        probe: &Probe,
+        depth: u32,
+        ply: u32,
+        score: Score,
+        bound: Bound,
+        best_move: Option<Move>,
+        static_evaluation: Option<Score>,
+    ) {
         self.store_entry(
-            key,
-            mixed_key(key, halfmove_clock),
+            probe,
             Entry {
                 depth: depth.min(MAX_STORED_DEPTH) as u8,
                 score: narrow(score_to_table(score, ply)),
@@ -424,62 +482,21 @@ impl TranspositionTable {
         );
     }
 
-    /// Publishes an entry into the bucket its key selects.
+    /// Publishes an entry into the bucket a probe read.
     ///
-    /// Every decision is taken from one snapshot of the bucket, so a concurrent
-    /// writer can at worst cost this entry its slot or overwrite one this call
-    /// chose to keep. Neither outcome can produce an unverifiable slot, because a
-    /// slot is only ever written as a complete pair.
-    ///
-    /// The decision reads only the depth, generation and bound fields of the
-    /// packed words; nothing is decoded, and the slot that already holds this
-    /// exact payload is left untouched.
-    fn store_entry(&self, key: u64, mixed: u64, candidate: Entry) {
-        let generation = self.generation();
-        let bucket = &self.buckets[self.index(key)];
-        let mut words: BucketWords = [0; BUCKET_SIZE];
-        let mut matching = None;
-        for (index, slot) in bucket.0.iter().enumerate() {
-            let (verify, data) = slot.load();
-            words[index] = data;
-            if matching.is_none() && data != 0 && verify ^ data == mixed {
-                matching = Some(index);
-            }
-        }
-        let data = candidate.encode();
-
-        if let Some(index) = matching {
-            let existing = words[index];
-            if existing == data {
-                return;
-            }
-            if packed_depth(existing) > candidate.depth && packed_is_exact(existing) {
-                let mut refreshed =
-                    existing & !GENERATION_FIELD | u64::from(generation) << GENERATION_SHIFT;
-                if existing & MOVE_FIELD == 0 {
-                    refreshed |= data & MOVE_FIELD;
-                }
-                bucket.0[index].store(mixed, refreshed);
-                return;
-            }
-            bucket.0[index].store(mixed, data);
+    /// Every decision is taken from the words the probe read rather than from a
+    /// fresh read of the bucket, so a store issues no loads and at most two
+    /// stores. That snapshot may be stale: this searcher's own subtree, or
+    /// another searcher, may have written the bucket since. A stale decision can
+    /// cost this entry its slot, overwrite one a fresh read would have kept, or
+    /// restore an older result of the same position, which is exactly what a
+    /// lost race between two writers already costs. It cannot produce an
+    /// unverifiable slot, because a slot is only ever written as a complete pair.
+    fn store_entry(&self, probe: &Probe, candidate: Entry) {
+        let Some((slot, data)) = placement(probe, candidate, self.generation()) else {
             return;
-        }
-
-        if let Some(empty) = words.iter().position(|&word| word == 0) {
-            bucket.0[empty].store(mixed, data);
-            return;
-        }
-
-        let replacement = replacement_index(&words, generation);
-        let existing = words[replacement];
-        if packed_generation(existing) == generation
-            && candidate.bound != Bound::Exact
-            && (packed_is_exact(existing) || packed_depth(existing) > candidate.depth)
-        {
-            return;
-        }
-        bucket.0[replacement].store(mixed, data);
+        };
+        self.buckets[self.index(probe.key)].0[slot].store(probe.mixed, data);
     }
 
     pub(super) fn write_principal_variation(
@@ -528,6 +545,49 @@ impl TranspositionTable {
     fn index(&self, key: u64) -> usize {
         key as usize & (self.buckets.len() - 1)
     }
+}
+
+/// Decides what a store writes, from the words a probe read.
+///
+/// Returns the slot to write and the word to write there, or `None` when the
+/// bucket is left as it is. The slot the probe found the position in is
+/// refreshed when it holds a deeper exact result and overwritten otherwise; a
+/// position the probe missed takes an empty slot, or else the slot
+/// `replacement_index` selects unless that holds a current-generation result
+/// the candidate cannot improve on. Only the depth, generation and bound fields
+/// of the packed words are read; nothing is decoded, and a slot that already
+/// holds this exact payload is left untouched.
+fn placement(probe: &Probe, candidate: Entry, generation: u8) -> Option<(usize, u64)> {
+    let data = candidate.encode();
+    if let Some(index) = probe.matching.map(usize::from) {
+        let existing = probe.words[index];
+        if existing == data {
+            return None;
+        }
+        if packed_depth(existing) > candidate.depth && packed_is_exact(existing) {
+            let mut refreshed =
+                existing & !GENERATION_FIELD | u64::from(generation) << GENERATION_SHIFT;
+            if existing & MOVE_FIELD == 0 {
+                refreshed |= data & MOVE_FIELD;
+            }
+            return Some((index, refreshed));
+        }
+        return Some((index, data));
+    }
+
+    if let Some(empty) = probe.words.iter().position(|&word| word == 0) {
+        return Some((empty, data));
+    }
+
+    let replacement = replacement_index(&probe.words, generation);
+    let existing = probe.words[replacement];
+    if packed_generation(existing) == generation
+        && candidate.bound != Bound::Exact
+        && (packed_is_exact(existing) || packed_depth(existing) > candidate.depth)
+    {
+        return None;
+    }
+    Some((replacement, data))
 }
 
 /// Selects the slot a new entry should take in a full bucket.
@@ -705,10 +765,10 @@ mod tests {
         // Simulate a writer that published a payload for a different position
         // without its matching verification word.
         let bucket = &table.buckets[table.index(key)];
-        let slot = bucket
-            .0
-            .iter()
-            .find(|slot| slot.load_verified(super::mixed_key(key, 0)).is_some())
+        let slot = table
+            .probe_key(key, 0)
+            .matching
+            .map(|index| &bucket.0[usize::from(index)])
             .expect("the stored entry occupies a slot");
         slot.data
             .store(slot.data.load(Ordering::Relaxed) ^ 1, Ordering::Relaxed);
@@ -763,7 +823,7 @@ mod tests {
 
     /// Stores a synthetic entry under `key`, bypassing score normalization.
     fn store_synthetic(table: &TranspositionTable, key: u64, entry: super::Entry) {
-        table.store_entry(key, super::mixed_key(key, 0), entry);
+        table.store_entry(&table.probe_key(key, 0), entry);
     }
 
     #[test]
@@ -781,7 +841,7 @@ mod tests {
         }
 
         for slot in 0..super::BUCKET_SIZE {
-            assert!(table.probe_key(slot as u64 * stride, 0).is_some());
+            assert!(table.probe_key(slot as u64 * stride, 0).entry().is_some());
         }
     }
     #[test]
@@ -818,9 +878,9 @@ mod tests {
             synthetic_entry(3, Bound::Lower, table.generation()),
         );
 
-        assert!(table.probe_key(3 * stride, 0).is_none());
-        assert!(table.probe_key(4 * stride, 0).is_some());
-        assert_eq!(table.probe_key(0, 0).unwrap().depth(), 8);
+        assert!(table.probe_key(3 * stride, 0).entry().is_none());
+        assert!(table.probe_key(4 * stride, 0).entry().is_some());
+        assert_eq!(table.probe_key(0, 0).entry().unwrap().depth(), 8);
     }
 
     #[test]
@@ -843,7 +903,7 @@ mod tests {
             synthetic_entry(1, Bound::Upper, table.generation()),
         );
 
-        assert!(table.probe_key(4 * stride, 0).is_some());
+        assert!(table.probe_key(4 * stride, 0).entry().is_some());
     }
 
     /// Aging must keep working when the narrow generation field wraps.
@@ -883,7 +943,7 @@ mod tests {
             synthetic_entry(2, Bound::Lower, table.generation()),
         );
 
-        let entry = table.probe_key(key, 0).unwrap();
+        let entry = table.probe_key(key, 0).entry().unwrap();
         assert_eq!(entry.depth(), 8);
         assert_eq!(entry.bound(), Bound::Exact);
         assert_eq!(entry.generation, table.generation());
@@ -903,10 +963,117 @@ mod tests {
         refreshed.score = 64;
         store_synthetic(&table, key, refreshed);
 
-        let entry = table.probe_key(key, 0).unwrap();
+        let entry = table.probe_key(key, 0).entry().unwrap();
         assert_eq!(entry.depth(), 5);
         assert_eq!(entry.bound(), Bound::Lower);
         assert_eq!(entry.score_at_ply(0), 64);
+    }
+
+    /// A store decided from a stale probe publishes only its own position.
+    ///
+    /// The bucket is filled by other positions between the probe and the
+    /// store, so the empty slot the probe saw is taken. The store still lands
+    /// as a complete pair: its own position reads back, the position it
+    /// displaced reads as nothing, and no key ever reads another's payload.
+    #[test]
+    fn a_stale_probe_still_publishes_a_verifiable_entry() {
+        let table = TranspositionTable::new(1).unwrap();
+        table.start_search(0);
+        let stride = table.buckets.len() as u64;
+        let stale = table.probe_key(0, 0);
+        assert!(stale.entry().is_none());
+
+        for slot in 1..=super::BUCKET_SIZE as u64 {
+            store_synthetic(
+                &table,
+                slot * stride,
+                synthetic_entry(slot as u32, Bound::Exact, table.generation()),
+            );
+        }
+
+        table.store_entry(&stale, synthetic_entry(9, Bound::Exact, table.generation()));
+
+        let entry = table
+            .probe_key(0, 0)
+            .entry()
+            .expect("the stale store publishes its own position");
+        assert_eq!(entry.depth(), 9);
+        let survivors = (1..=super::BUCKET_SIZE as u64)
+            .filter(|&slot| {
+                table
+                    .probe_key(slot * stride, 0)
+                    .entry()
+                    .inspect(|entry| {
+                        assert_eq!(
+                            entry.depth(),
+                            slot as u32,
+                            "key {slot} read another payload"
+                        );
+                    })
+                    .is_some()
+            })
+            .count();
+        assert_eq!(
+            survivors,
+            super::BUCKET_SIZE - 1,
+            "a stale decision costs exactly the slot it took",
+        );
+    }
+
+    /// A stale hit writes the probed position back over whatever took its slot.
+    ///
+    /// The displaced position reads as nothing rather than as the payload of
+    /// the position that reclaimed the slot.
+    #[test]
+    fn a_stale_hit_restores_only_the_probed_position() {
+        let table = TranspositionTable::new(1).unwrap();
+        table.start_search(0);
+        let stride = table.buckets.len() as u64;
+        store_synthetic(
+            &table,
+            0,
+            synthetic_entry(1, Bound::Lower, table.generation()),
+        );
+        for slot in 1..super::BUCKET_SIZE as u64 {
+            store_synthetic(
+                &table,
+                slot * stride,
+                synthetic_entry(8, Bound::Exact, table.generation()),
+            );
+        }
+        let stale = table.probe_key(0, 0);
+        assert_eq!(stale.entry().map(|entry| entry.depth()), Some(1));
+
+        // The shallow inexact entry is the one a new position replaces.
+        let intruder = super::BUCKET_SIZE as u64 * stride;
+        store_synthetic(
+            &table,
+            intruder,
+            synthetic_entry(5, Bound::Exact, table.generation()),
+        );
+        assert!(table.probe_key(0, 0).entry().is_none());
+        assert!(table.probe_key(intruder, 0).entry().is_some());
+
+        table.store_entry(&stale, synthetic_entry(2, Bound::Lower, table.generation()));
+
+        assert_eq!(
+            table.probe_key(0, 0).entry().map(|entry| entry.depth()),
+            Some(2),
+            "the probed position is written back",
+        );
+        assert!(
+            table.probe_key(intruder, 0).entry().is_none(),
+            "the displaced position must not read the probed position's payload",
+        );
+        for slot in 1..super::BUCKET_SIZE as u64 {
+            assert_eq!(
+                table
+                    .probe_key(slot * stride, 0)
+                    .entry()
+                    .map(|entry| entry.depth()),
+                Some(8),
+            );
+        }
     }
 
     #[test]
@@ -1001,8 +1168,10 @@ mod tests {
     /// Concurrent writers must never publish a slot that verifies incorrectly.
     ///
     /// Many threads hammer one bucket with distinct keys, each carrying a depth
-    /// that identifies its key. Every successful probe must decode to the depth
-    /// that key was stored with, which is what a torn read would violate.
+    /// that identifies its key. Half the stores decide from a probe taken before
+    /// the hammering began, so their snapshots are as stale as a snapshot can
+    /// be. Every successful probe must decode to the depth that key was stored
+    /// with, which is what a torn read would violate.
     #[test]
     fn concurrent_writers_never_publish_a_torn_entry() {
         use std::sync::Arc;
@@ -1017,20 +1186,33 @@ mod tests {
             .map(|writer| {
                 let table = Arc::clone(&table);
                 std::thread::spawn(move || {
-                    for _ in 0..ROUNDS {
-                        let key = writer * stride;
-                        table.store_key(
-                            key,
-                            0,
-                            writer as u32,
-                            0,
-                            writer as super::Score,
-                            Bound::Exact,
-                            None,
-                            None,
-                        );
+                    let key = writer * stride;
+                    let stale = table.probe_key(key, 0);
+                    for round in 0..ROUNDS {
+                        if round % 2 == 0 {
+                            table.store_key(
+                                key,
+                                0,
+                                writer as u32,
+                                0,
+                                writer as super::Score,
+                                Bound::Exact,
+                                None,
+                                None,
+                            );
+                        } else {
+                            table.store_probed(
+                                &stale,
+                                writer as u32,
+                                0,
+                                writer as super::Score,
+                                Bound::Exact,
+                                None,
+                                None,
+                            );
+                        }
                         for probe in 1..=WRITERS {
-                            if let Some(entry) = table.probe_key(probe * stride, 0) {
+                            if let Some(entry) = table.probe_key(probe * stride, 0).entry() {
                                 assert_eq!(
                                     entry.depth(),
                                     probe as u32,

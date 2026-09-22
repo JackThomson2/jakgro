@@ -21,10 +21,15 @@ capture history, per-ply move-picker storage, principal variations, and static
 evaluations. The pawn and king structure cache remains thread-local and verified
 by full key, so it stays an optimization with no observable effect.
 
-A lost race costs at most one entry. Replacement decisions come from one snapshot
-per slot, so a concurrent writer can cost an entry its slot or overwrite one that
-was chosen to be kept; neither outcome can produce a slot that verifies as
-another position's payload.
+A lost race costs at most one entry. A node probes its bucket on entry and
+stores into it on exit, and the store decides its replacement from the words
+the probe read rather than reading the bucket again, so a store issues no loads
+and at most two stores. That snapshot may be stale by then: the node's own
+subtree or another searcher may have written the bucket since, and a stale
+decision can cost the entry its slot, overwrite one a fresh read would have
+kept, or restore an older result of the same position. Concurrent writers cost
+the same, so neither staleness nor a lost race can produce a slot that verifies
+as another position's payload: a slot is only ever written as a complete pair.
 
 ## Main searcher and helpers
 

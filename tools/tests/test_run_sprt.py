@@ -210,10 +210,12 @@ class CommandTests(unittest.TestCase):
         args = run_sprt.parse_arguments(self._arguments())
 
         self.assertEqual(args.nodes, 50_000)
+        self.assertEqual(args.threads, 1)
         self.assertIsNone(args.time_control)
         command = run_sprt.build_command(args, "A", "B")
         self.assertIn("--nodes", command)
         self.assertNotIn("--time-control", command)
+        self.assertEqual(command[command.index("--threads") + 1], "1")
 
     def test_a_time_control_replaces_the_node_limit(self) -> None:
         args = run_sprt.parse_arguments(self._arguments("--time-control", "0.25+0.002"))
@@ -222,6 +224,35 @@ class CommandTests(unittest.TestCase):
         command = run_sprt.build_command(args, "A", "B")
         self.assertIn("--time-control", command)
         self.assertNotIn("--nodes", command)
+
+    def test_thread_counts_are_forwarded_for_both_timed_limits(self) -> None:
+        for option, value in (("--time-control", "1+0.01"), ("--movetime-ms", "100")):
+            with self.subTest(option=option):
+                args = run_sprt.parse_arguments(
+                    self._arguments(option, value, "--threads", "8")
+                )
+                command = run_sprt.build_command(args, "A", "B")
+                self.assertEqual(command[command.index("--threads") + 1], "8")
+                self.assertEqual(command[command.index(option) + 1], value)
+                self.assertNotIn("--nodes", command)
+
+    def test_thread_counts_are_bounded(self) -> None:
+        for value in ("0", "-1", "129", "eight"):
+            with self.subTest(value=value), self.assertRaises(SystemExit):
+                run_sprt.parse_arguments(
+                    self._arguments("--time-control", "1+0.01", "--threads", value)
+                )
+        for value in ("1", "128"):
+            with self.subTest(value=value):
+                args = run_sprt.parse_arguments(
+                    self._arguments("--time-control", "1+0.01", "--threads", value)
+                )
+                self.assertEqual(args.threads, int(value))
+
+    def test_parallel_fixed_node_matches_are_rejected(self) -> None:
+        for limit in ((), ("--nodes", "1000")):
+            with self.subTest(limit=limit), self.assertRaises(SystemExit):
+                run_sprt.parse_arguments(self._arguments("--threads", "8", *limit))
 
     def test_limits_are_mutually_exclusive_and_games_must_be_paired(self) -> None:
         with self.assertRaises(SystemExit):
@@ -284,6 +315,26 @@ class ManifestTests(unittest.TestCase):
                 self.assertRegex(digest, r"^[0-9a-f]{64}$")
             self.assertEqual(manifest["settings"]["limit"]["mode"], "fixed-nodes")
             self.assertEqual(manifest["settings"]["sprt"]["elo1"], 10.0)
+
+    def test_the_manifest_records_the_executed_thread_count(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for count in (1, 8):
+                with self.subTest(threads=count):
+                    args = self._namespace(
+                        root,
+                        pgn=root / "m.pgn",
+                        manifest=root / "m.json",
+                        nodes=None,
+                        time_control="1+0.01",
+                        threads=count,
+                    )
+                    command = run_sprt.build_command(args, "A", "B")
+                    manifest = run_sprt.build_manifest(args, command, "A", "B", 1)
+                    self.assertEqual(manifest["settings"]["threads"], count)
+                    self.assertEqual(manifest["settings"]["limit"]["mode"], "fixed-time")
+                    recorded = manifest["command"]
+                    self.assertEqual(recorded[recorded.index("--threads") + 1], str(count))
 
     def test_same_profile_runs_reject_one_binary_unless_allowed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

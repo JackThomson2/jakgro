@@ -48,6 +48,13 @@ def positive(value: str) -> int:
     return parsed
 
 
+def threads(value: str) -> int:
+    parsed = positive(value)
+    if parsed > 128:
+        raise argparse.ArgumentTypeError("Threads must be at most 128")
+    return parsed
+
+
 def probability(value: str) -> float:
     parsed = float(value)
     if not 0.0 < parsed < 1.0:
@@ -287,6 +294,8 @@ def build_command(args: argparse.Namespace, candidate: str, baseline: str) -> li
         str(args.openings),
         "--hash",
         str(args.hash),
+        "--threads",
+        str(args.threads),
         "--concurrency",
         str(args.concurrency),
         "--pgn",
@@ -408,6 +417,7 @@ def build_manifest(
             "nodes_per_move": args.nodes if limit_mode == "fixed-nodes" else None,
             "time_control": args.time_control,
             "hash_mib": args.hash,
+            "threads": args.threads,
             "concurrency": args.concurrency,
             "draw": {"movenumber": 80, "movecount": 10, "score": 10},
             "resign": {"movecount": 4, "score": 800, "twosided": True},
@@ -509,6 +519,12 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
     limits.add_argument("--movetime-ms", type=positive)
     limits.add_argument("--time-control")
     parser.add_argument("--hash", type=positive, default=16)
+    parser.add_argument(
+        "--threads",
+        type=threads,
+        default=1,
+        help="search threads per engine; multiple threads require a timed limit",
+    )
     parser.add_argument("--concurrency", type=positive, default=8)
     parser.add_argument(
         "--openings",
@@ -541,6 +557,8 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
         parser.error("--elo1 must exceed --elo0")
     if args.nodes is None and args.movetime_ms is None and args.time_control is None:
         args.nodes = 50_000
+    if args.threads > 1 and args.nodes is not None:
+        parser.error("--threads greater than one requires --time-control or --movetime-ms")
     return args
 
 

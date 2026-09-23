@@ -41,7 +41,9 @@ impl Error for NnueConfigError {
 /// The network shipped inside the executable and used by default.
 ///
 /// `nets/jakgro.nnue` is the published network of the recipe in
-/// `tools/nnue_recipe.sh`; `nets/jakgro.report.json` records its training.
+/// `tools/nnue_recipe.sh`, continued on the new head's self-play as
+/// `docs/tuning/nnue-aggression75.md` records; `nets/jakgro.report.json`
+/// records the continuation that produced it.
 static EMBEDDED_NETWORK: LazyLock<Arc<nnue::Network>> = LazyLock::new(|| {
     Arc::new(
         nnue::Network::from_bytes(include_bytes!("../../nets/jakgro.nnue"))

@@ -4,7 +4,7 @@
   "suites": [
     {
       "path": "tests/data/objective-personality-contract.epd",
-      "sha256": "fad744614712ec49044f77a8261842b14088716080abbdf191d24f824eae834d",
+      "sha256": "00b5fa89e5dc672745df709880575dced9cdccd8db5ab5628e444a3c408ce847",
       "records": 16,
       "kind": "objective-personality"
     },
@@ -22,7 +22,7 @@
     },
     {
       "path": "tests/data/personality.epd",
-      "sha256": "35fadfd098b1b2cf81a57036166fa5a6843990772aab519ac05e0d38169f4c44",
+      "sha256": "55fe974751aa3ac8bdb425536b89da240631866b5a08ebeeb05b9eaffbf9b6d0",
       "records": 18,
       "kind": "legacy-personality"
     },

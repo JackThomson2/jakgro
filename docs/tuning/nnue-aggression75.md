@@ -220,20 +220,64 @@ that costs 56 centipawns under the objective search; `knight-e5-investment`,
 a knight for two pawns), declines an unsound king-side sacrifice with the same
 move as Aggression 0 (`unsupported-bishop-f6`, `unsupported-rook-f7`,
 `unsupported-knight-g7`), keeps the queens on where Aggression 0 trades them
-(`avoid-queen-trade-bishop-d4`), and storms or thrusts a pawn where Aggression
-0 moves a piece (`opposite-castle-storm`, `queenside-pawn-thrust`) or chooses
-a different central push (`central-pawn-thrust`). The standard-profile
-acceptance suite has two sacrifices that Aggression 75 makes within its
-ceiling (`standard-knight-e4-investment`, a knight for a pawn at 18
-centipawns; `standard-knight-d5-investment`, at 112). The verified-null
-contract allows a one-pawn score drift between the pruned and unpruned
-searches, and its in-check position has a single winning capture, which the
-network values at about +800.
+(`avoid-queen-trade-rook-e1`, mined for the continued network after the
+continued network traded queens in the earlier bishop-d4 position at every
+profile and budget), and storms or thrusts a pawn where Aggression 0 moves a
+piece (`queenside-pawn-thrust`) or chooses a different central push
+(`central-pawn-thrust`, which the continued network separates only from
+400,000 nodes). The standard-profile acceptance suite records what Aggression
+75 does in its two investment positions: with the continued network every
+profile plays the knight investment of `standard-knight-d5-investment` at
+20,000 nodes and none plays that of `standard-knight-e4-investment`, so
+neither separates the default profile there any more; the default profile's
+style is measured by the forcing-move channel below rather than by those two
+records. The verified-null contract allows a one-pawn score drift between the
+pruned and unpruned searches, and its in-check position has a single winning
+capture, which the network values at about +800.
 
 The 75-over-0 forcing-move ratio of the run-42 network was 1.08 over 512 games
 (handcrafted 1.06), and its forcing-move rate against the handcrafted engine
-1.15 times the handcrafted engine's own; the published network's style has not
-been measured.
+1.15 times the handcrafted engine's own; the published 512-unit network's
+ratio was 1.088 over 2048 games on the search head that preceded the table
+series, and the continued network's is 1.111 over 4096 games (29.05 forcing
+moves per hundred against 26.14 for its objective profile, 12.28 checks
+against 8.57), against 1.115 for the network it continues on the same search.
+
+## Continued network
+
+The shipped network (`nets/jakgro.nnue`, SHA-256
+`afbc0897e26c88720d9fe46d5cb90c906512d07eb8e69ba46c74ade4b944350b`) is the
+published network above continued with `nnue-data train --init-network`, in
+three runs of six, eight and eight epochs at rate 0.0001 decaying by 0.9 per
+epoch, batch 8192, L2 1e-6, seed 75 and λ 0.25, each run starting from the
+previous run's export. The corpus of every run is the published network's
+131.0M-row 10,000-node corpus plus the complete groups of a 20,000-node
+corpus played by the engine at `0efc825`, the head of the table, repetition
+and clock series, as player and teacher with the published network embedded,
+Aggression 75 against 0 from the same 8-, 12- and 16-ply random prefixes and
+the seeds `2000 + 8g` for group `g` (the first sixty groups; groups from sixty
+were played by the same engine after the series landed): 12, 20 and 32 new
+groups respectively, about 1.3M rows each before deduplication, three of
+them held out as the development split each time, one per prefix length. Rate
+0.0002 was measured on the third run's data and lowered the development loss
+of no epoch below its starting network's, so it exported nothing; the
+continuation only moves the network at the lower rate. The development label
+loss (a λ 0.25 target on 20,000-node labels, so not comparable with the
+published network's 10,000-node figure) fell from 0.009114 to 0.009044,
+0.008932 and 0.008814 across the three runs, each measured on its own
+development split.
+
+Measured on the `0efc825` search with each network embedded, Aggression 75 on
+both sides, 4096 colour-reversed games each: at 50,000 nodes per move, where
+networks of one architecture cost the same, the first run measured +10.7 Elo
+[4.5, 16.9] over the published network, the second +16.5 [10.3, 22.6] and the
+third, shipped, +15.2 [8.9, 21.5]; at 50 ms per move on a host shared with the
+corpus generation, the first run measured +5.9 [-0.7, 12.5] and the shipped
+network +7.2 [0.9, 13.5]. A network trained from scratch on the first eight
+new groups alone measured -172.8 [-185.6, -160.4] at 50,000 nodes, which is
+why the continuation keeps the old corpus under the new rows rather than
+replacing it. The corpus, the prepared data and the three reports are in
+`artifacts/next` of the host that produced them, not in the repository.
 
 ## Limitations
 

@@ -2716,23 +2716,23 @@ fn run_worker(
         previous_score = Some(iteration.primary_score);
         previous_pv.clear();
         previous_pv.extend_from_slice(context.pv(0));
-        let pv = format_pv(&shared.root_board, &previous_pv);
-        let info = SearchInfo::new(
-            depth,
-            SearchScore::from_internal(iteration.selected.score),
-            context.total_nodes(),
-            context.started.elapsed(),
-            pv,
-        );
         if role.is_main() {
+            let pv = format_pv(&shared.root_board, &previous_pv);
+            let info = SearchInfo::new(
+                depth,
+                SearchScore::from_internal(iteration.selected.score),
+                context.total_nodes(),
+                context.started.elapsed(),
+                pv,
+            );
             report(info.clone());
+            final_info = Some(info);
         }
         // A mate score is settled only once the iteration is deep enough to
         // have proven it; a shallow score inherited from the table may name
         // a longer mate and, replayed, shuffle into a repetition.
         let mate_settled = iteration.selected.score.abs() >= MATE_THRESHOLD
             && depth >= (MATE_SCORE - iteration.selected.score.abs()) as u32;
-        final_info = Some(info);
         // The obligation is discharged: from here the ordinary budgets apply.
         context.first_iteration_pending = false;
 
@@ -6649,6 +6649,56 @@ mod tests {
             moves[..1].to_vec(),
             "a single root move cannot be rotated away",
         );
+    }
+
+    #[test]
+    fn helpers_publish_work_without_constructing_reports() {
+        use super::{SearchControl, SearchLimits, SearchStats, SharedSearch, WorkerRole};
+
+        let position = Position::default();
+        let limits = SearchLimits {
+            depth: Some(2),
+            ..SearchLimits::default()
+        };
+        let control = SearchControl::new();
+        let evaluation = super::EvaluationConfig::new(0);
+        for role in [
+            WorkerRole::Main,
+            WorkerRole::Helper { index: 0 },
+            WorkerRole::Helper { index: 1 },
+        ] {
+            let table = super::TranspositionTable::new(1).unwrap();
+            let shared = SharedSearch {
+                root_board: position.board().clone(),
+                root_moves: position.search_moves(),
+                hash_history: position.hash_history(),
+                limits: &limits,
+                control: &control,
+                table: &table,
+                evaluation,
+                scoring: evaluation.objective_scoring(),
+                maximum_depth: 2,
+                threads: 8,
+                started: std::time::Instant::now(),
+                stats: SearchStats::default(),
+                network: None,
+            };
+            let mut reports = Vec::new();
+            let outcome = super::run_worker(&shared, role, None, &mut |info| reports.push(info));
+
+            assert!(shared.stats.nodes() > 0, "{role:?} must publish its nodes");
+            assert!(outcome.telemetry.tt_probes() > 0);
+            if role.is_main() {
+                assert_eq!(reports.len(), 2);
+                assert_eq!(outcome.info.as_ref().unwrap().depth(), 2);
+                assert!(outcome.ordering.is_some());
+            } else {
+                assert!(reports.is_empty());
+                assert!(outcome.info.is_none());
+                assert!(outcome.ordering.is_none());
+            }
+            assert!(table.probe(position.board()).is_some());
+        }
     }
 
     #[test]

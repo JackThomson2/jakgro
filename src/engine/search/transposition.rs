@@ -303,10 +303,16 @@ pub(in crate::engine) struct TranspositionTable {
 }
 
 impl TranspositionTable {
+    /// Allocates a table of as many buckets as fit in the requested mebibytes.
+    ///
+    /// A bucket count need not be a power of two, so the table uses the memory
+    /// it was given rather than the power of two below it.
     pub(in crate::engine) fn new(size_mib: usize) -> Result<Self, AllocationError> {
         let bytes = size_mib.checked_mul(1024 * 1024).ok_or(AllocationError)?;
-        let maximum_buckets = bytes / size_of::<Bucket>();
-        let bucket_count = floor_power_of_two(maximum_buckets).ok_or(AllocationError)?;
+        let bucket_count = bytes / size_of::<Bucket>();
+        if bucket_count == 0 {
+            return Err(AllocationError);
+        }
         let mut buckets = Vec::new();
         buckets
             .try_reserve_exact(bucket_count)
@@ -542,8 +548,15 @@ impl TranspositionTable {
         }
     }
 
+    /// Selects the bucket a key addresses.
+    ///
+    /// The high word of the key times the bucket count lies in `0..count` for
+    /// any count, so the table is not bound to a power of two. Keys that share
+    /// a bucket therefore agree in their high bits, and the verification word
+    /// tells them apart as it did keys agreeing in their low bits under a mask.
+    #[inline(always)]
     fn index(&self, key: u64) -> usize {
-        key as usize & (self.buckets.len() - 1)
+        ((u128::from(key) * self.buckets.len() as u128) >> 64) as usize
     }
 }
 
@@ -640,12 +653,6 @@ fn replacement_index(bucket: &BucketWords, generation: u8) -> usize {
         .or(current)
         .map(|(index, _)| index)
         .expect("a full bucket has an occupied entry")
-}
-
-fn floor_power_of_two(value: usize) -> Option<usize> {
-    value
-        .checked_next_power_of_two()
-        .map(|power| if power == value { power } else { power / 2 })
 }
 
 /// Narrows a search score to the width stored in a table entry.
@@ -843,38 +850,84 @@ mod tests {
         table.store_entry(&table.probe_key(key, 0), entry);
     }
 
+    /// Returns the `ordinal`-th key that selects the table's first bucket.
+    ///
+    /// A bucket is chosen by the high word of the key times the bucket count,
+    /// so every key below `u64::MAX / count` selects bucket zero: distinct small
+    /// integers collide.
+    fn colliding_key(table: &TranspositionTable, ordinal: u64) -> u64 {
+        assert_eq!(table.index(ordinal), 0, "key {ordinal} misses bucket zero");
+        ordinal
+    }
+
     #[test]
     fn colliding_entries_share_a_bucket() {
         let table = TranspositionTable::new(1).unwrap();
         table.start_search(0);
-        let stride = table.buckets.len() as u64;
 
         for slot in 0..super::BUCKET_SIZE {
             store_synthetic(
                 &table,
-                slot as u64 * stride,
+                colliding_key(&table, slot as u64),
                 synthetic_entry(slot as u32 + 1, Bound::Lower, table.generation()),
             );
         }
 
         for slot in 0..super::BUCKET_SIZE {
-            assert!(table.probe_key(slot as u64 * stride, 0).entry().is_some());
+            assert!(
+                table
+                    .probe_key(colliding_key(&table, slot as u64), 0)
+                    .entry()
+                    .is_some()
+            );
         }
     }
-    #[test]
-    fn bucket_allocation_stays_within_the_requested_size() {
-        let table = TranspositionTable::new(1).unwrap();
-        let bytes = table.buckets.len() * std::mem::size_of::<super::Bucket>();
 
-        assert!(bytes <= 1024 * 1024);
-        assert!(bytes * 2 > 1024 * 1024);
+    /// The table uses every mebibyte it is given, not the power of two below.
+    #[test]
+    fn bucket_allocation_uses_the_requested_size() {
+        for size_mib in [1, 3] {
+            let table = TranspositionTable::new(size_mib).unwrap();
+            let bytes = table.buckets.len() * std::mem::size_of::<super::Bucket>();
+
+            assert_eq!(bytes, size_mib * 1024 * 1024);
+        }
+        assert!(
+            !TranspositionTable::new(3)
+                .unwrap()
+                .buckets
+                .len()
+                .is_power_of_two()
+        );
+    }
+
+    /// Every key must land inside a bucket count that is not a power of two,
+    /// and the keys must spread across the whole table.
+    #[test]
+    fn indexing_covers_any_bucket_count() {
+        let table = TranspositionTable::new(3).unwrap();
+        let count = table.buckets.len();
+
+        assert_eq!(table.index(0), 0);
+        assert_eq!(table.index(u64::MAX), count - 1);
+        assert_eq!(table.index(1 << 63), count / 2);
+        let mut key = 0x9e37_79b9_7f4a_7c15_u64;
+        let mut touched = vec![false; count];
+        for _ in 0..(count * 16) {
+            key = key.wrapping_mul(0x5851_f42d_4c95_7f2d).wrapping_add(1);
+            touched[table.index(key)] = true;
+        }
+        let coverage = touched.iter().filter(|&&hit| hit).count();
+        assert!(
+            coverage * 100 >= count * 99,
+            "{coverage} of {count} buckets"
+        );
     }
 
     #[test]
     fn replacement_prefers_the_shallowest_non_exact_entry() {
         let table = TranspositionTable::new(1).unwrap();
         table.start_search(0);
-        let stride = table.buckets.len() as u64;
         let entries = [
             (0, 8, Bound::Exact),
             (1, 6, Bound::Exact),
@@ -884,19 +937,29 @@ mod tests {
         for (slot, depth, bound) in entries {
             store_synthetic(
                 &table,
-                slot * stride,
+                colliding_key(&table, slot),
                 synthetic_entry(depth, bound, table.generation()),
             );
         }
 
         store_synthetic(
             &table,
-            4 * stride,
+            colliding_key(&table, 4),
             synthetic_entry(3, Bound::Lower, table.generation()),
         );
 
-        assert!(table.probe_key(3 * stride, 0).entry().is_none());
-        assert!(table.probe_key(4 * stride, 0).entry().is_some());
+        assert!(
+            table
+                .probe_key(colliding_key(&table, 3), 0)
+                .entry()
+                .is_none()
+        );
+        assert!(
+            table
+                .probe_key(colliding_key(&table, 4), 0)
+                .entry()
+                .is_some()
+        );
         assert_eq!(table.probe_key(0, 0).entry().unwrap().depth(), 8);
     }
 
@@ -904,11 +967,10 @@ mod tests {
     fn stale_entries_yield_to_the_current_generation() {
         let table = TranspositionTable::new(1).unwrap();
         table.start_search(0);
-        let stride = table.buckets.len() as u64;
         for slot in 0..super::BUCKET_SIZE {
             store_synthetic(
                 &table,
-                slot as u64 * stride,
+                colliding_key(&table, slot as u64),
                 synthetic_entry(8, Bound::Exact, table.generation()),
             );
         }
@@ -916,11 +978,16 @@ mod tests {
         table.start_search(0);
         store_synthetic(
             &table,
-            4 * stride,
+            colliding_key(&table, 4),
             synthetic_entry(1, Bound::Upper, table.generation()),
         );
 
-        assert!(table.probe_key(4 * stride, 0).entry().is_some());
+        assert!(
+            table
+                .probe_key(colliding_key(&table, 4), 0)
+                .entry()
+                .is_some()
+        );
     }
 
     /// Aging must keep working when the narrow generation field wraps.
@@ -1081,14 +1148,13 @@ mod tests {
     fn a_stale_probe_still_publishes_a_verifiable_entry() {
         let table = TranspositionTable::new(1).unwrap();
         table.start_search(0);
-        let stride = table.buckets.len() as u64;
         let stale = table.probe_key(0, 0);
         assert!(stale.entry().is_none());
 
         for slot in 1..=super::BUCKET_SIZE as u64 {
             store_synthetic(
                 &table,
-                slot * stride,
+                colliding_key(&table, slot),
                 synthetic_entry(slot as u32, Bound::Exact, table.generation()),
             );
         }
@@ -1103,7 +1169,7 @@ mod tests {
         let survivors = (1..=super::BUCKET_SIZE as u64)
             .filter(|&slot| {
                 table
-                    .probe_key(slot * stride, 0)
+                    .probe_key(colliding_key(&table, slot), 0)
                     .entry()
                     .inspect(|entry| {
                         assert_eq!(
@@ -1130,7 +1196,6 @@ mod tests {
     fn a_stale_hit_restores_only_the_probed_position() {
         let table = TranspositionTable::new(1).unwrap();
         table.start_search(0);
-        let stride = table.buckets.len() as u64;
         store_synthetic(
             &table,
             0,
@@ -1139,7 +1204,7 @@ mod tests {
         for slot in 1..super::BUCKET_SIZE as u64 {
             store_synthetic(
                 &table,
-                slot * stride,
+                colliding_key(&table, slot),
                 synthetic_entry(8, Bound::Exact, table.generation()),
             );
         }
@@ -1147,7 +1212,7 @@ mod tests {
         assert_eq!(stale.entry().map(|entry| entry.depth()), Some(1));
 
         // The shallow inexact entry is the one a new position replaces.
-        let intruder = super::BUCKET_SIZE as u64 * stride;
+        let intruder = colliding_key(&table, super::BUCKET_SIZE as u64);
         store_synthetic(
             &table,
             intruder,
@@ -1170,7 +1235,7 @@ mod tests {
         for slot in 1..super::BUCKET_SIZE as u64 {
             assert_eq!(
                 table
-                    .probe_key(slot * stride, 0)
+                    .probe_key(colliding_key(&table, slot), 0)
                     .entry()
                     .map(|entry| entry.depth()),
                 Some(8),
@@ -1283,12 +1348,11 @@ mod tests {
 
         let table = Arc::new(TranspositionTable::new(1).unwrap());
         table.start_search(0);
-        let stride = table.buckets.len() as u64;
         let writers = (1..=WRITERS)
             .map(|writer| {
                 let table = Arc::clone(&table);
                 std::thread::spawn(move || {
-                    let key = writer * stride;
+                    let key = colliding_key(&table, writer);
                     let stale = table.probe_key(key, 0);
                     for round in 0..ROUNDS {
                         if round % 2 == 0 {
@@ -1314,7 +1378,9 @@ mod tests {
                             );
                         }
                         for probe in 1..=WRITERS {
-                            if let Some(entry) = table.probe_key(probe * stride, 0).entry() {
+                            if let Some(entry) =
+                                table.probe_key(colliding_key(&table, probe), 0).entry()
+                            {
                                 assert_eq!(
                                     entry.depth(),
                                     probe as u32,

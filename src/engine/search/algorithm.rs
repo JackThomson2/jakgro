@@ -67,6 +67,13 @@ const NULL_VERIFICATION_MIN_DEPTH: u32 = 12;
 const NULL_MOVE_RULE_FIFTY_LIMIT: u8 = 99;
 const STATIC_PRUNING_MAX_DEPTH: u32 = 8;
 const QUIET_FUTILITY_MAX_DEPTH: u32 = 6;
+/// Deepest node that razoring may settle by quiescence.
+const RAZOR_MAX_DEPTH: u32 = 3;
+/// Distance below alpha, in centipawns, a razored node's evaluation must lie
+/// before the part of the margin that grows with depth.
+const RAZOR_BASE_MARGIN: Score = 200;
+/// Growth of the razoring margin per squared ply of depth.
+const RAZOR_DEPTH_MARGIN: Score = 150;
 /// Swap-list score below which a quiescence capture is not searched.
 const QUIESCENCE_SEE_PRUNE_THRESHOLD: Score = 0;
 /// Margin a quiescence capture must be able to raise the stand-pat score over
@@ -1722,6 +1729,15 @@ fn reverse_futility_cutoff(
             0
         };
     static_evaluation.saturating_sub(margin) >= beta
+}
+
+/// Reports whether a shallow node's static evaluation lies so far below alpha
+/// that quiescence alone may settle it.
+fn razoring_margin_holds(static_evaluation: Score, alpha: Score, depth: u32) -> bool {
+    depth <= RAZOR_MAX_DEPTH
+        && static_evaluation
+            .saturating_add(RAZOR_BASE_MARGIN + RAZOR_DEPTH_MARGIN * (depth * depth) as Score)
+            <= alpha
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -3973,6 +3989,30 @@ fn negamax(
             score: beta + (evaluation - beta) / 2,
             path_dependent: false,
         });
+    }
+    // Razoring: a shallow node whose evaluation lies hopelessly below alpha is
+    // settled by quiescence, which still finds the captures and first-ply
+    // checks that could rescue it. Only a confirmed fail-low is returned; a
+    // node quiescence lifts above alpha is searched in full.
+    if excluded.is_none()
+        && let Some(evaluation) = pruning_evaluation
+        && razoring_margin_holds(evaluation, alpha, depth)
+    {
+        let result = quiescence(
+            board,
+            history,
+            ply,
+            alpha,
+            beta,
+            QUIESCENCE_DEPTH,
+            context.personality.quiescence_check_budget(),
+            previous_move.map(|previous| previous.to),
+            true,
+            context,
+        )?;
+        if result.score <= alpha {
+            return Ok(result);
+        }
     }
     if excluded.is_none()
         && let Some(result) = verified_null_move_cutoff(
@@ -6721,6 +6761,110 @@ mod tests {
 
         assert!(result.primary_inside((50, 150)));
         assert!(!(50..150).contains(&result.selected.score));
+    }
+
+    #[test]
+    fn razoring_needs_a_shallow_node_far_below_alpha() {
+        for (depth, margin) in [(1, 350), (2, 800), (3, 1_550)] {
+            assert!(super::razoring_margin_holds(-margin, 0, depth));
+            assert!(!super::razoring_margin_holds(1 - margin, 0, depth));
+        }
+        assert!(!super::razoring_margin_holds(
+            -super::MATE_THRESHOLD,
+            0,
+            super::RAZOR_MAX_DEPTH + 1
+        ));
+    }
+
+    #[test]
+    fn razoring_settles_a_hopeless_shallow_node_by_quiescence() {
+        // A bare king against a queen, with nothing to capture or check.
+        let position = Position::from_fen("1q6/8/8/8/8/8/8/k6K w - - 0 1").unwrap();
+        let table = super::TranspositionTable::new(1).unwrap();
+        let control = super::SearchControl::new();
+        let mut context =
+            super::SearchContext::for_test(&table, &control, super::SearchMode::Normal);
+        let evaluation = context.static_score(position.board(), 1);
+        assert!(
+            super::razoring_margin_holds(evaluation, 0, 2),
+            "{evaluation}"
+        );
+        let mut history = RepetitionTracker::new(position.hash_history());
+
+        let result = super::negamax(
+            position.board(),
+            &mut history,
+            2,
+            1,
+            0,
+            0,
+            1,
+            None,
+            &[],
+            &mut context,
+        )
+        .unwrap();
+
+        // The node and the quiescence search that settled it, which stands pat.
+        assert_eq!(context.nodes, 2);
+        assert_eq!(result.score, evaluation);
+
+        let mut context =
+            super::SearchContext::for_test(&table, &control, super::SearchMode::Normal);
+        table.clear();
+        super::negamax(
+            position.board(),
+            &mut history,
+            2,
+            1,
+            0,
+            -1,
+            1,
+            None,
+            &[],
+            &mut context,
+        )
+        .unwrap();
+        assert!(
+            context.nodes > 2,
+            "a principal-variation node is not razored"
+        );
+    }
+
+    #[test]
+    fn razoring_searches_in_full_a_node_quiescence_rescues() {
+        // Down a queen for a bishop and a pawn, but the bishop takes the queen.
+        let position = Position::from_fen("3q3k/8/8/B7/8/8/P7/7K w - - 0 1").unwrap();
+        let table = super::TranspositionTable::new(1).unwrap();
+        let control = super::SearchControl::new();
+        let mut context =
+            super::SearchContext::for_test(&table, &control, super::SearchMode::Normal);
+        let evaluation = context.static_score(position.board(), 1);
+        assert!(
+            super::razoring_margin_holds(evaluation, 0, 1),
+            "{evaluation}"
+        );
+        let mut history = RepetitionTracker::new(position.hash_history());
+
+        let result = super::negamax(
+            position.board(),
+            &mut history,
+            1,
+            1,
+            0,
+            0,
+            1,
+            None,
+            &[],
+            &mut context,
+        )
+        .unwrap();
+
+        assert!(result.score > 0, "{}", result.score);
+        assert_eq!(
+            context.pv(1).first().map(ToString::to_string).as_deref(),
+            Some("a5d8")
+        );
     }
 
     #[test]

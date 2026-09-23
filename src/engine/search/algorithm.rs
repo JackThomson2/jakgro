@@ -1962,6 +1962,8 @@ struct SearchContext<'a> {
     stats: &'a SearchStats,
     /// Whether this searcher stops when the main searcher finishes.
     helper: bool,
+    /// Rotation of ordered root alternatives; zero for the main worker.
+    root_rotation: usize,
     /// Whether the node limit bounds the whole search rather than this searcher.
     shared_node_budget: bool,
     /// Whether the reporting searcher still owes its first completed iteration.
@@ -2024,6 +2026,7 @@ impl<'a> SearchContext<'a> {
             observed_total: 0,
             stats,
             helper: false,
+            root_rotation: 0,
             shared_node_budget: false,
             first_iteration_pending: false,
             started: Instant::now(),
@@ -2285,27 +2288,17 @@ impl WorkerRole {
         }
     }
 
-    /// Returns how far this searcher rotates the root move order.
+    /// Returns how far this searcher rotates the ordered root alternatives.
     ///
-    /// Starting from a different root move makes helpers disagree about which
-    /// subtree to establish first, which is what turns extra threads into extra
-    /// table coverage rather than repeated identical work.
+    /// Helpers retain a preferred PV or hash move at the front, then disagree
+    /// about which alternative subtree to establish first. With no preferred
+    /// move, the whole root order is diversified.
     const fn root_rotation(self) -> usize {
         match self {
             Self::Main => 0,
             Self::Helper { index } => index + 1,
         }
     }
-}
-
-/// Rotates a root move order so a searcher begins with a different move.
-fn rotated_root_moves(moves: &[Move], rotation: usize) -> Vec<Move> {
-    let offset = rotation % moves.len().max(1);
-    moves[offset..]
-        .iter()
-        .chain(&moves[..offset])
-        .copied()
-        .collect()
 }
 
 /// Node accounting shared by every searcher in one search.
@@ -2620,6 +2613,7 @@ fn run_worker(
         observed_total: 0,
         stats: &shared.stats,
         helper: !role.is_main(),
+        root_rotation: role.root_rotation(),
         shared_node_budget: shared.threads > 1,
         // Only the reporting searcher owes an iteration. A helper contributes to
         // the shared table and is released the moment the main searcher is done,
@@ -2640,7 +2634,6 @@ fn run_worker(
         ordering: carried.unwrap_or_else(MoveOrdering::new),
         neural: shared.network.map(NeuralEvaluator::new),
     };
-    let root_moves = rotated_root_moves(&shared.root_moves, role.root_rotation());
     let mut history = RepetitionTracker::new(shared.hash_history);
     let mut previous_pv = Vec::new();
     let mut previous_score = None;
@@ -2672,7 +2665,7 @@ fn run_worker(
             let nodes_before = context.nodes;
             let iteration = search_root(
                 &shared.root_board,
-                &root_moves,
+                &shared.root_moves,
                 &mut history,
                 depth,
                 (alpha, beta),
@@ -3727,6 +3720,7 @@ fn search_root_conventional(
         preferred,
         &context.ordering,
         context.personality,
+        context.root_rotation,
     );
     let (child_depth, child_extensions) = next_search_depth(
         depth,
@@ -5066,7 +5060,7 @@ fn order_root_moves(
     ordering: &MoveOrdering,
     evaluation: EvaluationConfig,
 ) -> Vec<Move> {
-    prepare_and_order_root_moves(board, moves, preferred, ordering, evaluation)
+    prepare_and_order_root_moves(board, moves, preferred, ordering, evaluation, 0)
         .into_iter()
         .map(|prepared| prepared.metadata.chess_move)
         .collect()
@@ -5078,6 +5072,7 @@ fn prepare_and_order_root_moves(
     preferred: Option<Move>,
     ordering: &MoveOrdering,
     evaluation: EvaluationConfig,
+    rotation: usize,
 ) -> Vec<PreparedMove> {
     let mover = board.side_to_move();
     let mut prepared = moves
@@ -5107,6 +5102,18 @@ fn prepare_and_order_root_moves(
                 move_key(left.metadata.chess_move).cmp(&move_key(right.metadata.chess_move))
             })
     });
+    if rotation != 0 {
+        // Keep the PV or hash move first to establish alpha cheaply, then
+        // diversify the alternatives after their complete numeric ordering.
+        let pinned = usize::from(
+            prepared
+                .first()
+                .is_some_and(|candidate| Some(candidate.metadata.chess_move) == preferred),
+        );
+        let alternatives = &mut prepared[pinned..];
+        let offset = rotation % alternatives.len().max(1);
+        alternatives.rotate_left(offset);
+    }
     prepared
 }
 
@@ -6613,42 +6620,171 @@ mod tests {
         );
     }
 
-    /// Helper diversification must be deterministic and cover every root move.
+    /// Worker roles assign deterministic depth and root diversification.
     #[test]
     fn helper_roles_diversify_depth_and_root_order() {
         use super::WorkerRole;
 
         assert_eq!(WorkerRole::Main.depth_schedule(), (1, 1));
         assert_eq!(WorkerRole::Main.root_rotation(), 0);
-        // Odd helpers skip ahead so deep results reach the table sooner.
-        assert_eq!(WorkerRole::Helper { index: 1 }.depth_schedule(), (2, 2));
-        // Even helpers keep the ordinary schedule and diversify by move order.
-        assert_eq!(WorkerRole::Helper { index: 0 }.depth_schedule(), (1, 1));
-        assert_eq!(WorkerRole::Helper { index: 0 }.root_rotation(), 1);
-        assert_eq!(WorkerRole::Helper { index: 3 }.root_rotation(), 4);
+        for index in 0..7 {
+            let role = WorkerRole::Helper { index };
+            assert_eq!(role.root_rotation(), index + 1);
+            assert_eq!(
+                role.depth_schedule(),
+                if index % 2 == 1 { (2, 2) } else { (1, 1) }
+            );
+        }
+    }
 
+    #[test]
+    fn helpers_diversify_the_final_root_order() {
         let position = Position::default();
         let moves = position.search_moves();
-        let rotated = super::rotated_root_moves(&moves, 1);
-        assert_eq!(rotated.len(), moves.len());
-        assert_eq!(rotated[0], moves[1]);
-        assert_eq!(rotated[moves.len() - 1], moves[0]);
-        assert_eq!(
-            rotated.iter().collect::<std::collections::HashSet<_>>(),
-            moves.iter().collect::<std::collections::HashSet<_>>(),
-            "rotation must preserve the root move set",
+        let mut canonical = moves.clone();
+        canonical.sort_unstable_by_key(|chess_move| super::move_key(*chess_move));
+        let ordering = MoveOrdering::new();
+        for rotation in 0..8 {
+            let prepared = super::prepare_and_order_root_moves(
+                position.board(),
+                moves.clone(),
+                None,
+                &ordering,
+                super::EvaluationConfig::new(0),
+                rotation,
+            );
+            let actual = prepared
+                .iter()
+                .map(|entry| entry.metadata.chess_move)
+                .collect::<Vec<_>>();
+            let mut expected = canonical.clone();
+            expected.rotate_left(rotation);
+            assert_eq!(actual, expected, "rotation {rotation}");
+            for entry in prepared {
+                let mut replay = position.board().clone();
+                replay.play_unchecked(entry.metadata.chess_move);
+                assert_eq!(entry.child.to_string(), replay.to_string());
+            }
+        }
+    }
+
+    #[test]
+    fn helper_root_order_keeps_the_preferred_move_and_rotates_ranked_alternatives() {
+        let position = Position::from_fen("4k3/8/8/3q4/8/2p2p2/3P1Q2/4K3 w - - 0 1").unwrap();
+        let moves = position.search_moves();
+        let ordering = MoveOrdering::new();
+        let preferred = Some(moves[moves.len() - 1]);
+        let main = super::prepare_and_order_root_moves(
+            position.board(),
+            moves.clone(),
+            preferred,
+            &ordering,
+            super::EvaluationConfig::new(0),
+            0,
         );
-        // A rotation beyond the move count wraps rather than truncating.
-        assert_eq!(
-            super::rotated_root_moves(&moves, moves.len()),
-            moves,
-            "a full rotation returns the original order",
+        assert!(
+            main[1..]
+                .windows(2)
+                .any(|pair| pair[0].order_score != pair[1].order_score)
         );
-        assert_eq!(
-            super::rotated_root_moves(&moves[..1], 7),
-            moves[..1].to_vec(),
-            "a single root move cannot be rotated away",
-        );
+        let canonical = main
+            .iter()
+            .map(|entry| entry.metadata.chess_move)
+            .collect::<Vec<_>>();
+        assert_eq!(canonical.first().copied(), preferred);
+        for rotation in 1..8 {
+            let prepared = super::prepare_and_order_root_moves(
+                position.board(),
+                moves.clone(),
+                preferred,
+                &ordering,
+                super::EvaluationConfig::new(0),
+                rotation,
+            );
+            let actual = prepared
+                .iter()
+                .map(|entry| entry.metadata.chess_move)
+                .collect::<Vec<_>>();
+            let mut expected = canonical.clone();
+            let offset = rotation % (expected.len() - 1);
+            expected[1..].rotate_left(offset);
+            assert_eq!(actual, expected, "rotation {rotation}");
+        }
+    }
+
+    #[test]
+    fn root_diversification_respects_restricted_move_sets() {
+        let position = Position::default();
+        let moves = position.search_moves();
+        let ordering = MoveOrdering::new();
+        for count in [0, 1, 2, moves.len()] {
+            let restricted = &moves[..count];
+            for preferred in [None, Some(moves[0]), moves.last().copied()] {
+                let main = super::prepare_and_order_root_moves(
+                    position.board(),
+                    restricted.to_vec(),
+                    preferred,
+                    &ordering,
+                    super::EvaluationConfig::new(0),
+                    0,
+                );
+                let canonical = main
+                    .iter()
+                    .map(|entry| entry.metadata.chess_move)
+                    .collect::<Vec<_>>();
+                for rotation in [0, 1, 7, 128, usize::MAX] {
+                    let prepared = super::prepare_and_order_root_moves(
+                        position.board(),
+                        restricted.to_vec(),
+                        preferred,
+                        &ordering,
+                        super::EvaluationConfig::new(0),
+                        rotation,
+                    );
+                    let actual = prepared
+                        .iter()
+                        .map(|entry| entry.metadata.chess_move)
+                        .collect::<Vec<_>>();
+                    let mut expected = canonical.clone();
+                    let pinned = usize::from(
+                        preferred.is_some_and(|chess_move| restricted.contains(&chess_move)),
+                    );
+                    let offset = rotation % (expected.len() - pinned).max(1);
+                    expected[pinned..].rotate_left(offset);
+                    assert_eq!(
+                        actual, expected,
+                        "count {count}, preferred {preferred:?}, rotation {rotation}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn root_search_uses_the_helper_order_after_preparation() {
+        let position = Position::default();
+        let moves = position.search_moves();
+        let mut canonical = moves.clone();
+        canonical.sort_unstable_by_key(|chess_move| super::move_key(*chess_move));
+        for (rotation, expected) in canonical.iter().enumerate().take(8) {
+            let table = super::TranspositionTable::new(1).unwrap();
+            let control = super::SearchControl::new();
+            let mut context =
+                super::SearchContext::for_test(&table, &control, super::SearchMode::Normal);
+            context.root_rotation = rotation;
+            let mut history = RepetitionTracker::new(position.hash_history());
+            super::search_root_conventional(
+                position.board(),
+                &moves,
+                &mut history,
+                1,
+                (-MATE_SCORE, -MATE_SCORE + 1),
+                &[],
+                &mut context,
+            )
+            .unwrap();
+            assert_eq!(context.pv(0).first(), Some(expected));
+        }
     }
 
     #[test]

@@ -1,0 +1,36 @@
+   Compiling jakgro v0.1.0 (/home/ubuntu/.local/state/jakkoo/worktrees/worktree-1786106-1790179191997434215-0/workspace)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.82s
+────────────
+ Nextest run ID 28114a5b-ec60-4111-8256-bfc3a4eda09f with nextest profile: default
+    Starting 29 tests across 1 binary (295 tests skipped)
+        PASS [   0.004s] ( 1/29) jakgro engine::search::algorithm::tests::helper_roles_diversify_depth_and_root_order
+        PASS [   0.004s] ( 2/29) jakgro engine::search::algorithm::tests::root_evidence_only_skips_proven_candidates
+        PASS [   0.004s] ( 3/29) jakgro engine::search::algorithm::tests::root_style_margin_scales_from_zero_to_a_pawn
+        PASS [   0.004s] ( 4/29) jakgro engine::search::algorithm::tests::helper_root_order_keeps_the_preferred_move_and_rotates_ranked_alternatives
+        PASS [   0.005s] ( 5/29) jakgro engine::evaluation::tests::root_complexity_bonus_is_scaled_and_bounded
+        PASS [   0.005s] ( 6/29) jakgro engine::search::algorithm::tests::root_line_outcome_recognizes_rule_fifty_and_repetition_draws
+        PASS [   0.005s] ( 7/29) jakgro engine::search::algorithm::tests::root_diversification_respects_restricted_move_sets
+        PASS [   0.006s] ( 8/29) jakgro engine::search::algorithm::tests::root_complexity_orders_equally_ranked_quiet_moves
+        PASS [   0.006s] ( 9/29) jakgro engine::search::algorithm::tests::helpers_diversify_the_final_root_order
+        PASS [   0.012s] (10/29) jakgro engine::search::algorithm::tests::helpers_publish_work_without_constructing_reports
+        PASS [   0.023s] (11/29) jakgro engine::search::algorithm::tests::root_risk_margin_tracks_sacrifice_and_position_context
+        PASS [   0.023s] (12/29) jakgro engine::search::algorithm::tests::root_reference_respects_search_depth_and_latest_mate_evidence
+        PASS [   0.023s] (13/29) jakgro engine::search::algorithm::tests::verified_root_selection_orders_mates_by_sign_and_distance
+        PASS [   0.023s] (14/29) jakgro engine::search::algorithm::tests::verified_sacrifice_cannot_cross_the_hard_root_margin
+        PASS [   0.004s] (15/29) jakgro engine::search::algorithm::tests::verified_root_reference_reprices_the_conventional_move
+        PASS [   0.004s] (16/29) jakgro engine::search::algorithm::tests::verified_root_improvement_displaces_an_ineligible_conventional_move
+        PASS [   0.004s] (17/29) jakgro engine::search::algorithm::tests::styled_root_choice_stays_inside_the_margin_and_preserves_mates
+        PASS [   0.024s] (18/29) jakgro engine::search::transposition::tests::normalizes_mate_scores_across_root_plies
+        PASS [   0.005s] (19/29) jakgro engine::search::algorithm::tests::styled_root_budget_is_bounded_and_respects_the_global_limit
+        PASS [   0.025s] (20/29) jakgro engine::search::algorithm::tests::staged_picker_matches_eager_non_root_ordering
+        PASS [   0.006s] (21/29) jakgro engine::search::algorithm::tests::verified_root_reference_still_allows_bounded_attacking_choices
+        PASS [   0.025s] (22/29) jakgro engine::search::algorithm::tests::verified_root_mate_cannot_be_ignored_for_personality
+        PASS [   0.026s] (23/29) jakgro engine::search::tests::root_repetition_is_scored_as_a_draw
+        PASS [   0.007s] (24/29) jakgro engine::search::algorithm::tests::verified_root_selection_is_independent_of_candidate_order
+        PASS [   0.028s] (25/29) jakgro engine::search::tests::root_style_preference_does_not_change_draw_scores
+        PASS [   0.012s] (26/29) jakgro engine::search::algorithm::tests::root_search_uses_the_helper_order_after_preparation
+        PASS [   0.060s] (27/29) jakgro engine::search::tests::a_parallel_search_joins_every_helper_before_returning
+        PASS [   0.161s] (28/29) jakgro engine::search::tests::one_thread_matches_a_search_that_never_spawned_helpers
+        PASS [   0.385s] (29/29) jakgro engine::search::tests::helpers_contribute_nodes_to_the_search_total
+────────────
+     Summary [   0.386s] 29 tests run: 29 passed, 295 skipped

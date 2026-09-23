@@ -1,0 +1,335 @@
+   Compiling jakgro v0.1.0 (/home/ubuntu/.local/state/jakkoo/worktrees/worktree-1786106-1790179191997434215-0/workspace)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.51s
+────────────
+ Nextest run ID 4aeaba6b-1d17-4a60-bab4-b8e5a15fd441 with nextest profile: default
+    Starting 328 tests across 2 binaries
+        PASS [   0.004s] (  1/328) jakgro engine::evaluation::memo::tests::collisions_verify_pieces_colors_tempo_and_castling
+        PASS [   0.004s] (  2/328) jakgro engine::evaluation::nnue::kernels::tests::sums_wrap_instead_of_trapping_and_recover_exactly
+        PASS [   0.005s] (  3/328) jakgro engine::evaluation::features::tests::pawn_races_require_a_clear_path_and_no_interrupting_threat
+        PASS [   0.005s] (  4/328) jakgro engine::evaluation::features::tests::pinned_sliders_and_pawns_keep_only_the_pin_line
+        PASS [   0.005s] (  5/328) jakgro engine::evaluation::features::tests::cached_attack_maps_match_reference_positions
+        PASS [   0.006s] (  6/328) jakgro engine::evaluation::features::tests::evaluation_pins_match_move_generator_pins_over_a_playout
+        PASS [   0.006s] (  7/328) jakgro engine::evaluation::features::tests::pawn_race_tempo_does_not_leak_through_the_structure_cache
+        PASS [   0.006s] (  8/328) jakgro engine::evaluation::features::tests::multiple_blockers_and_wrong_slider_types_do_not_create_pins
+        PASS [   0.006s] (  9/328) jakgro engine::evaluation::features::tests::pawn_races_account_for_tempo_and_initial_double_pushes
+        PASS [   0.007s] ( 10/328) jakgro engine::evaluation::features::tests::cached_structure_matches_recomputation_over_a_playout
+        PASS [   0.007s] ( 11/328) jakgro engine::evaluation::features::tests::credited_pawn_runs_survive_every_legal_king_reply
+        PASS [   0.020s] ( 12/328) jakgro engine::evaluation::features::tests::cached_structure_is_stable_across_repeated_queries
+        PASS [   0.004s] ( 13/328) jakgro engine::evaluation::tactics::tests::exchange_outcome_records_en_passant_on_the_destination_square
+        PASS [   0.024s] ( 14/328) jakgro engine::evaluation::nnue::tests::feature_indices_fix_orientation_planes_and_buckets
+        PASS [   0.026s] ( 15/328) jakgro engine::evaluation::features::tests::pinned_knights_do_not_create_actionable_queen_threats
+        PASS [   0.004s] ( 16/328) jakgro engine::evaluation::tests::tropism_buckets_each_piece_by_its_distance_to_the_enemy_king
+        PASS [   0.004s] ( 17/328) jakgro engine::evaluation::tests::the_storm_is_graded_by_the_nearest_enemy_pawn_on_each_file
+        PASS [   0.035s] ( 18/328) jakgro engine::evaluation::features::tests::cached_attack_maps_match_reference_playout
+        PASS [   0.049s] ( 19/328) jakgro engine::evaluation::features::tests::safe_check_counts_match_legal_move_generation_over_playouts
+        PASS [   0.029s] ( 20/328) jakgro engine::evaluation::tactics::tests::exchange_outcome_marks_an_unresolved_depth_boundary
+        PASS [   0.053s] ( 21/328) jakgro engine::evaluation::features::tests::safe_check_validation_recognizes_support_opened_by_the_checking_move
+        PASS [   0.033s] ( 22/328) jakgro engine::evaluation::tests::objective_threats_count_attacked_pieces_by_kind
+        PASS [   0.034s] ( 23/328) jakgro engine::evaluation::tactics::tests::exchange_risk_recognizes_en_passant
+        PASS [   0.034s] ( 24/328) jakgro engine::evaluation::tests::color_swapped_material_is_symmetric_for_the_side_to_move
+        PASS [   0.035s] ( 25/328) jakgro engine::evaluation::tests::attacking_style_is_color_symmetric
+        PASS [   0.036s] ( 26/328) jakgro engine::evaluation::tests::objective_fast_path_matches_the_general_evaluation
+        PASS [   0.004s] ( 27/328) jakgro engine::position::tests::applies_castling_in_standard_uci_notation
+        PASS [   0.004s] ( 28/328) jakgro engine::position::tests::applies_en_passant_capture
+        PASS [   0.004s] ( 29/328) jakgro engine::position::tests::applies_promotion
+        PASS [   0.004s] ( 30/328) jakgro engine::position::tests::distinguishes_malformed_moves
+        PASS [   0.004s] ( 31/328) jakgro engine::position::tests::ignores_ineffective_en_passant_in_repetition_keys
+        PASS [   0.004s] ( 32/328) jakgro engine::position::tests::parses_and_displays_fen
+        PASS [   0.004s] ( 33/328) jakgro engine::position::tests::move_lists_are_transactional
+        PASS [   0.004s] ( 34/328) jakgro engine::position::tests::preserves_effective_en_passant_in_repetition_keys
+        PASS [   0.004s] ( 35/328) jakgro engine::position::tests::records_threefold_repetition_history
+        PASS [   0.004s] ( 36/328) jakgro engine::position::tests::rejects_invalid_fen
+        PASS [   0.004s] ( 37/328) jakgro engine::position::tests::start_position_has_twenty_legal_moves
+        PASS [   0.004s] ( 38/328) jakgro engine::search::algorithm::tests::aggressive_ordering_prioritizes_quiet_checks
+        PASS [   0.004s] ( 39/328) jakgro engine::search::algorithm::tests::an_irreversible_move_ends_the_repetition_window
+        PASS [   0.068s] ( 40/328) jakgro engine::evaluation::features::tests::protected_passers_are_counted_separately_from_bare_ones
+        PASS [   0.006s] ( 41/328) jakgro engine::search::algorithm::tests::a_shared_budget_observes_the_others_only_when_publishing
+        PASS [   0.004s] ( 42/328) jakgro engine::search::algorithm::tests::aspiration_and_mate_windows_are_bounded
+        PASS [   0.006s] ( 43/328) jakgro engine::search::algorithm::tests::check_extensions_are_capped_per_line
+        PASS [   0.006s] ( 44/328) jakgro engine::search::algorithm::tests::capture_history_rewards_cutoffs_without_crossing_see_tiers
+        PASS [   0.028s] ( 45/328) jakgro engine::evaluation::tests::shelter_is_graded_by_the_nearest_pawn_on_each_file
+        PASS [   0.028s] ( 46/328) jakgro engine::evaluation::tests::space_counts_safe_centre_squares_behind_the_pawns
+        PASS [   0.077s] ( 47/328) jakgro engine::evaluation::features::tests::safe_checks_must_also_evade_an_existing_check
+        PASS [   0.058s] ( 48/328) jakgro engine::evaluation::tests::piece_values_scale_with_the_pawn_count
+        PASS [   0.029s] ( 49/328) jakgro engine::evaluation::tactics::tests::exchange_risk_accounts_for_a_legal_recapture
+        PASS [   0.029s] ( 50/328) jakgro engine::evaluation::placement::tests::placement_is_colour_symmetric
+        PASS [   0.029s] ( 51/328) jakgro engine::evaluation::tactics::tests::tactical_snapshot_counts_legal_checks
+        PASS [   0.058s] ( 52/328) jakgro engine::evaluation::nnue::tests::stream_errors_propagate_with_a_source
+        PASS [   0.058s] ( 53/328) jakgro engine::evaluation::tactics::tests::exchange_outcome_keeps_the_best_promotion
+        PASS [   0.078s] ( 54/328) jakgro engine::evaluation::features::tests::pinned_knights_have_no_objective_mobility
+        PASS [   0.030s] ( 55/328) jakgro engine::evaluation::tests::placement_is_symmetric_between_mirrored_positions
+        PASS [   0.060s] ( 56/328) jakgro engine::evaluation::memo::tests::clock_and_en_passant_metadata_do_not_change_evaluation_inputs
+        PASS [   0.060s] ( 57/328) jakgro engine::evaluation::features::tests::structure_keys_separate_positions_that_differ_only_by_a_king
+        PASS [   0.012s] ( 58/328) jakgro engine::search::algorithm::tests::continuation_history_distinguishes_predecessors
+        PASS [   0.031s] ( 59/328) jakgro engine::evaluation::tests::rook_files_and_the_seventh_are_counted_for_each_side
+        PASS [   0.030s] ( 60/328) jakgro engine::evaluation::placement::tests::white_and_black_read_vertically_mirrored_entries
+        PASS [   0.060s] ( 61/328) jakgro engine::evaluation::memo::tests::an_exact_repeat_reuses_the_value
+        PASS [   0.059s] ( 62/328) jakgro engine::evaluation::tests::mobility_curves_are_read_per_piece_type
+        PASS [   0.031s] ( 63/328) jakgro engine::evaluation::tests::root_complexity_bonus_is_scaled_and_bounded
+        PASS [   0.031s] ( 64/328) jakgro engine::evaluation::placement::tests::placement_prefers_a_central_knight_to_a_cornered_one
+        PASS [   0.060s] ( 65/328) jakgro engine::evaluation::memo::tests::entries_have_compact_storage
+        PASS [   0.060s] ( 66/328) jakgro engine::evaluation::features::tests::structure_terms_are_signed_from_whites_perspective
+        PASS [   0.080s] ( 67/328) jakgro engine::evaluation::features::tests::pinned_pieces_preserve_geometric_king_safety
+        PASS [   0.031s] ( 68/328) jakgro engine::evaluation::tests::piece_mobility_is_weighted_without_entering_style
+        PASS [   0.031s] ( 69/328) jakgro engine::evaluation::tests::style_free_extraction_preserves_material_and_mobility_features
+        PASS [   0.080s] ( 70/328) jakgro engine::evaluation::features::tests::the_derived_passer_scalar_matches_the_weighted_sum
+        PASS [   0.059s] ( 71/328) jakgro engine::evaluation::tests::attacking_style_does_not_refund_a_material_deficit
+        PASS [   0.059s] ( 72/328) jakgro engine::evaluation::tests::mobility_onto_pawn_attacked_squares_is_counted_by_piece
+        PASS [   0.060s] ( 73/328) jakgro engine::evaluation::placement::tests::tables_describe_a_coherent_evaluation
+        PASS [   0.059s] ( 74/328) jakgro engine::evaluation::tests::passers_report_blockade_and_king_distance
+        PASS [   0.059s] ( 75/328) jakgro engine::evaluation::tests::quiet_check_budgets_are_bounded_and_monotone
+        PASS [   0.060s] ( 76/328) jakgro engine::evaluation::nnue::kernels::tests::output_squares_each_clipped_activation_before_the_signed_product
+        PASS [   0.060s] ( 77/328) jakgro engine::evaluation::placement::tests::placement_moves_the_king_home_in_the_middlegame_and_out_in_the_endgame
+        PASS [   0.060s] ( 78/328) jakgro engine::evaluation::placement::tests::advanced_pawns_are_worth_more_in_the_endgame
+        PASS [   0.080s] ( 79/328) jakgro engine::evaluation::features::tests::pawn_races_reward_at_most_one_runner_without_changing_style
+        PASS [   0.060s] ( 80/328) jakgro engine::evaluation::tests::backward_and_connected_pawns_are_counted_by_rank
+        PASS [   0.080s] ( 81/328) jakgro engine::evaluation::features::tests::safe_checks_reject_a_check_that_exposes_the_movers_king
+        PASS [   0.031s] ( 82/328) jakgro engine::evaluation::tests::feature_trace_exposes_pawn_structure
+        PASS [   0.079s] ( 83/328) jakgro engine::evaluation::nnue::tests::feature_and_file_contract_has_explicit_dimensions
+        PASS [   0.031s] ( 84/328) jakgro engine::evaluation::tests::aggression_is_clamped_and_scales_tempered_style_caps
+        PASS [   0.032s] ( 85/328) jakgro engine::evaluation::tactics::tests::exchange_outcome_keeps_the_selected_line_and_board_together
+        PASS [   0.061s] ( 86/328) jakgro engine::evaluation::nnue::kernels::tests::output_extremes_exceed_i32_without_overflowing
+        PASS [   0.060s] ( 87/328) jakgro engine::evaluation::tests::coordinated_attack_keeps_more_raw_style_than_a_lone_attacker
+        PASS [   0.032s] ( 88/328) jakgro engine::evaluation::placement::tests::the_first_rank_reads_the_last_table_row
+        PASS [   0.061s] ( 89/328) jakgro engine::evaluation::placement::tests::pawn_tables_are_empty_on_the_back_ranks
+        PASS [   0.061s] ( 90/328) jakgro engine::evaluation::tests::drawn_positions_score_near_zero_without_style
+        PASS [   0.014s] ( 91/328) jakgro engine::search::algorithm::tests::checkmate_precedes_rule_fifty
+        PASS [   0.061s] ( 92/328) jakgro engine::evaluation::tests::fitted_evaluation_is_shared_without_weakening_attacking_style
+        PASS [   0.010s] ( 93/328) jakgro engine::search::algorithm::tests::killer_picker_move_defers_quiet_generation_and_is_not_duplicated
+        PASS [   0.040s] ( 94/328) jakgro engine::evaluation::tactics::tests::exchange_risk_values_promotion_captures
+        PASS [   0.069s] ( 95/328) jakgro engine::evaluation::tests::candidate_passers_islands_and_pawnless_flanks_are_counted
+        PASS [   0.069s] ( 96/328) jakgro engine::evaluation::tactics::tests::exchange_risk_finds_a_hanging_rook
+        PASS [   0.010s] ( 97/328) jakgro engine::search::algorithm::tests::iteration_stability_holds_time_after_best_move_or_score_swings
+        PASS [   0.069s] ( 98/328) jakgro engine::evaluation::tactics::tests::material_balance_is_mover_relative
+        PASS [   0.009s] ( 99/328) jakgro engine::search::algorithm::tests::lazy_move_metadata_matches_played_children
+        PASS [   0.068s] (100/328) jakgro engine::evaluation::tests::the_starting_position_scores_only_a_tempo
+        PASS [   0.011s] (101/328) jakgro engine::search::algorithm::tests::helper_roles_diversify_depth_and_root_order
+        PASS [   0.009s] (102/328) jakgro engine::search::algorithm::tests::prepared_moves_match_direct_board_play
+        PASS [   0.069s] (103/328) jakgro engine::evaluation::nnue::kernels::tests::every_shape_agrees_with_the_scalar_definition_in_and_out_of_place
+        PASS [   0.009s] (104/328) jakgro engine::search::algorithm::tests::legal_move_probe_matches_full_generation
+        PASS [   0.017s] (105/328) jakgro engine::search::algorithm::tests::equal_major_exchange_is_sterile_but_a_clean_win_is_not
+        PASS [   0.021s] (106/328) jakgro engine::search::algorithm::tests::control_polling_has_a_bounded_interval
+        PASS [   0.089s] (107/328) jakgro engine::evaluation::features::tests::the_objective_scan_matches_the_styled_scan_over_a_playout
+        PASS [   0.010s] (108/328) jakgro engine::search::algorithm::tests::improving_shifts_each_static_pruning_margin_in_its_own_direction
+        PASS [   0.069s] (109/328) jakgro engine::evaluation::tests::outposts_need_pawn_support_and_no_pawn_challenge
+        PASS [   0.009s] (110/328) jakgro engine::search::algorithm::tests::preferred_picker_move_defers_all_generation_and_see
+        PASS [   0.069s] (111/328) jakgro engine::evaluation::tests::passers_are_scored_by_the_state_of_their_path
+        PASS [   0.061s] (112/328) jakgro engine::evaluation::tests::material_evaluation_does_not_embed_terminal_scores
+        PASS [   0.009s] (113/328) jakgro engine::search::algorithm::tests::quiescence_picker_skips_or_filters_the_quiet_stage
+        PASS [   0.010s] (114/328) jakgro engine::search::algorithm::tests::high_aggression_does_not_trade_a_draw_for_a_negative_score
+        PASS [   0.010s] (115/328) jakgro engine::search::algorithm::tests::late_move_reductions_protect_tactics_and_use_bounded_history
+        PASS [   0.009s] (116/328) jakgro engine::search::algorithm::tests::null_move_reduction_is_bounded_by_remaining_depth
+        PASS [   0.010s] (117/328) jakgro engine::search::algorithm::tests::iteration_forecasts_respect_soft_and_hard_windows
+        PASS [   0.040s] (118/328) jakgro engine::evaluation::tactics::tests::exchange_risk_ignores_pinned_attackers
+        PASS [   0.009s] (119/328) jakgro engine::search::algorithm::tests::lmr_table_entries_fit_in_one_byte
+        PASS [   0.017s] (120/328) jakgro engine::search::algorithm::tests::equal_captures_are_ordered_before_losing_captures
+        PASS [   0.069s] (121/328) jakgro engine::evaluation::tests::pawn_push_threats_and_castling_rights_are_counted
+        PASS [   0.040s] (122/328) jakgro engine::evaluation::tests::soft_style_bound_preserves_sign_and_order_below_its_limit
+        PASS [   0.011s] (123/328) jakgro engine::search::algorithm::tests::extended_investment_does_not_overprice_unextended_moves
+        PASS [   0.069s] (124/328) jakgro engine::evaluation::tests::phase_tracks_remaining_non_pawn_material
+        PASS [   0.011s] (125/328) jakgro engine::search::algorithm::tests::full_verification_keeps_one_high_interest_and_one_sacrifice_seed
+        PASS [   0.009s] (126/328) jakgro engine::search::algorithm::tests::objective_guard_compares_mate_sign_and_distance
+        PASS [   0.089s] (127/328) jakgro engine::evaluation::features::tests::safe_check_occupancy_matches_legal_captures_and_color_mirrors
+        PASS [   0.010s] (128/328) jakgro engine::search::algorithm::tests::move_count_pruning_exempts_forcing_and_protected_moves
+        PASS [   0.069s] (129/328) jakgro engine::evaluation::tests::king_danger_counts_attack_units_and_safe_checks
+        PASS [   0.040s] (130/328) jakgro engine::evaluation::tests::material_is_scored_for_the_side_to_move
+        PASS [   0.009s] (131/328) jakgro engine::search::algorithm::tests::razoring_needs_a_shallow_node_far_below_alpha
+        PASS [   0.010s] (132/328) jakgro engine::search::algorithm::tests::move_ordering_prefers_hash_moves_and_is_otherwise_numeric
+        PASS [   0.009s] (133/328) jakgro engine::search::algorithm::tests::repetition_draws_are_marked_as_path_dependent
+        PASS [   0.009s] (134/328) jakgro engine::search::algorithm::tests::pv_late_move_reductions_keep_an_extra_ply_within_depth_bounds
+        PASS [   0.009s] (135/328) jakgro engine::search::algorithm::tests::quiet_checks_are_recognized_without_being_tactical_captures
+        PASS [   0.010s] (136/328) jakgro engine::search::algorithm::tests::quiescence_evasion_picker_emits_every_legal_move
+        PASS [   0.010s] (137/328) jakgro engine::search::algorithm::tests::quiescence_check_mask_filtering_emits_identical_moves_to_unfiltered_generation
+        PASS [   0.010s] (138/328) jakgro engine::search::algorithm::tests::qsearch_see_pruning_preserves_forcing_and_recapture_cases
+        PASS [   0.011s] (139/328) jakgro engine::search::algorithm::tests::null_move_policy_rejects_unsafe_search_states
+        PASS [   0.009s] (140/328) jakgro engine::search::algorithm::tests::repetition_occurrences_reach_the_last_entry_in_the_window
+        PASS [   0.011s] (141/328) jakgro engine::search::algorithm::tests::repetition_occurrences_match_a_full_scan_over_a_played_game
+        PASS [   0.010s] (142/328) jakgro engine::search::algorithm::tests::root_evidence_only_skips_proven_candidates
+        PASS [   0.010s] (143/328) jakgro engine::search::algorithm::tests::repetition_occurrences_track_pushed_and_popped_children
+        PASS [   0.012s] (144/328) jakgro engine::search::algorithm::tests::quiet_cutoffs_reward_winners_and_penalize_failed_quiets
+        PASS [   0.011s] (145/328) jakgro engine::search::algorithm::tests::root_risk_margin_tracks_sacrifice_and_position_context
+        PASS [   0.018s] (146/328) jakgro engine::search::algorithm::tests::exhausted_quiescence_budgets_still_search_quiet_check_evasions
+        PASS [   0.013s] (147/328) jakgro engine::search::algorithm::tests::root_line_outcome_recognizes_rule_fifty_and_repetition_draws
+        PASS [   0.013s] (148/328) jakgro engine::search::algorithm::tests::root_reference_respects_search_depth_and_latest_mate_evidence
+        PASS [   0.006s] (149/328) jakgro engine::search::algorithm::tests::root_style_margin_scales_from_zero_to_a_pawn
+        PASS [   0.014s] (150/328) jakgro engine::search::algorithm::tests::repetition_occurrences_report_the_threefold_claim_on_a_fourth_visit
+        PASS [   0.015s] (151/328) jakgro engine::search::algorithm::tests::quiescence_cutoffs_accept_bounds_at_the_window_edge
+        PASS [   0.015s] (152/328) jakgro engine::search::algorithm::tests::repetition_occurrences_match_a_full_scan_inside_the_halfmove_window
+        PASS [   0.006s] (153/328) jakgro engine::search::algorithm::tests::static_pruning_requires_stable_non_pv_nodes
+        PASS [   0.007s] (154/328) jakgro engine::search::algorithm::tests::static_bounds_keep_tactical_and_priority_moves
+        PASS [   0.007s] (155/328) jakgro engine::search::algorithm::tests::rule_fifty_draws_are_board_state_dependent
+        PASS [   0.007s] (156/328) jakgro engine::search::algorithm::tests::see_orders_equivalent_captures_by_the_settled_exchange
+        PASS [   0.007s] (157/328) jakgro engine::search::algorithm::tests::verified_root_improvement_displaces_an_ineligible_conventional_move
+        PASS [   0.016s] (158/328) jakgro engine::search::algorithm::tests::reduced_alpha_raises_require_a_full_depth_research
+        PASS [   0.007s] (159/328) jakgro engine::search::algorithm::tests::verified_root_mate_cannot_be_ignored_for_personality
+        PASS [   0.007s] (160/328) jakgro engine::search::see::tests::losing_captures_report_the_full_loss
+        PASS [   0.017s] (161/328) jakgro engine::search::algorithm::tests::quiescence_stores_are_refused_for_unsearched_results_alone
+        PASS [   0.016s] (162/328) jakgro engine::search::algorithm::tests::root_complexity_orders_equally_ranked_quiet_moves
+        PASS [   0.008s] (163/328) jakgro engine::search::algorithm::tests::synthetic_null_mode_ignores_legal_history_draws_only
+        PASS [   0.008s] (164/328) jakgro engine::search::algorithm::tests::verified_root_reference_reprices_the_conventional_move
+        PASS [   0.008s] (165/328) jakgro engine::search::control::tests::stop_is_shared_between_clones
+        PASS [   0.018s] (166/328) jakgro engine::search::algorithm::tests::razoring_settles_a_hopeless_shallow_node_by_quiescence
+        PASS [   0.009s] (167/328) jakgro engine::search::algorithm::tests::sacrifice_profile_marks_material_accepted_after_the_best_reply
+        PASS [   0.008s] (168/328) jakgro engine::search::algorithm::tests::tactical_picker_move_defers_quiet_generation_and_sorting
+        PASS [   0.009s] (169/328) jakgro engine::search::algorithm::tests::verification_pool_keeps_sacrifice_hints
+        PASS [   0.009s] (170/328) jakgro engine::search::algorithm::tests::sacrifice_profile_nets_immediate_recaptures
+        PASS [   0.009s] (171/328) jakgro engine::search::see::tests::a_quiet_move_settles_at_zero
+        PASS [   0.010s] (172/328) jakgro engine::search::algorithm::tests::staged_picker_matches_eager_non_root_ordering
+        PASS [   0.010s] (173/328) jakgro engine::search::algorithm::tests::sacrifice_profile_distinguishes_declined_and_unverified_offers
+        PASS [   0.010s] (174/328) jakgro engine::search::algorithm::tests::styled_scores_do_not_reopen_a_satisfied_primary_window
+        PASS [   0.010s] (175/328) jakgro engine::search::algorithm::tests::search_memory_is_taken_only_by_the_next_move_of_the_same_game
+        PASS [   0.010s] (176/328) jakgro engine::search::algorithm::tests::staged_move_facts_complete_to_the_existing_metadata
+        PASS [   0.010s] (177/328) jakgro engine::search::algorithm::tests::verified_root_reference_still_allows_bounded_attacking_choices
+        PASS [   0.010s] (178/328) jakgro engine::search::algorithm::tests::verified_root_selection_is_independent_of_candidate_order
+        PASS [   0.010s] (179/328) jakgro engine::search::algorithm::tests::styled_root_choice_stays_inside_the_margin_and_preserves_mates
+        PASS [   0.022s] (180/328) jakgro engine::search::algorithm::tests::helpers_publish_work_without_constructing_reports
+        PASS [   0.011s] (181/328) jakgro engine::search::algorithm::tests::verified_sacrifice_cannot_cross_the_hard_root_margin
+        PASS [   0.022s] (182/328) jakgro engine::search::algorithm::tests::razoring_searches_in_full_a_node_quiescence_rescues
+        PASS [   0.012s] (183/328) jakgro engine::search::algorithm::tests::verified_root_selection_orders_mates_by_sign_and_distance
+        PASS [   0.012s] (184/328) jakgro engine::search::see::tests::x_ray_attackers_join_the_exchange_behind_a_moved_piece
+        PASS [   0.012s] (185/328) jakgro engine::search::see::tests::a_defended_square_refuses_a_king_recapture
+        PASS [   0.014s] (186/328) jakgro engine::search::see::tests::swap_list_matches_settled_material_for_common_exchange_shapes
+        PASS [   0.015s] (187/328) jakgro engine::search::control::tests::concurrent_deadline_writers_publish_complete_pairs
+        PASS [   0.014s] (188/328) jakgro engine::search::see::tests::the_swap_list_does_not_model_pinned_defenders
+        PASS [   0.014s] (189/328) jakgro engine::search::tests::computes_nodes_per_second_without_dividing_by_zero
+        PASS [   0.009s] (190/328) jakgro engine::search::tests::illegal_search_moves_produce_no_result
+        PASS [   0.015s] (191/328) jakgro engine::search::tests::checkmate_has_no_best_move
+        PASS [   0.018s] (192/328) jakgro engine::search::tests::a_zero_node_budget_searches_nothing
+        PASS [   0.009s] (193/328) jakgro engine::search::transposition::tests::a_store_without_a_move_keeps_the_recorded_move
+        PASS [   0.012s] (194/328) jakgro engine::search::time::tests::allocation_uses_the_side_to_move_clock
+        PASS [   0.020s] (195/328) jakgro engine::search::control::tests::soft_and_hard_deadlines_can_be_set_and_cleared
+        PASS [   0.020s] (196/328) jakgro engine::search::see::tests::the_swap_list_agrees_with_exact_settlement_on_almost_every_capture
+        PASS [   0.013s] (197/328) jakgro engine::search::tests::root_repetition_is_scored_as_a_draw
+        PASS [   0.017s] (198/328) jakgro engine::search::tests::converts_internal_mate_distance_to_uci_moves
+        PASS [   0.019s] (199/328) jakgro engine::search::tests::completed_iterations_respect_the_node_limit
+        PASS [   0.010s] (200/328) jakgro engine::search::algorithm::tests::styled_root_budget_is_bounded_and_respects_the_global_limit
+        PASS [   0.012s] (201/328) jakgro engine::search::tests::pre_cancelled_search_returns_a_legal_fallback
+        PASS [   0.014s] (202/328) jakgro engine::search::tests::node_limit_stops_after_the_first_iteration
+        PASS [   0.019s] (203/328) jakgro engine::search::tests::depth_one_counts_pvs_researches_as_nodes
+        PASS [   0.035s] (204/328) jakgro engine::search::algorithm::tests::quiescence_stores_classify_bounds_at_the_window_edges
+        PASS [   0.010s] (205/328) jakgro engine::search::transposition::tests::no_stored_entry_encodes_as_empty
+        PASS [   0.025s] (206/328) jakgro engine::search::tests::a_reached_soft_deadline_stops_after_a_stable_iteration
+        PASS [   0.010s] (207/328) jakgro engine::search::transposition::tests::mixed_keys_separate_clock_classes
+        PASS [   0.018s] (208/328) jakgro engine::search::tests::quiescence_avoids_a_poisoned_capture
+        PASS [   0.019s] (209/328) jakgro engine::search::tests::move_time_interrupts_search_within_a_bounded_delay
+        PASS [   0.013s] (210/328) jakgro engine::search::transposition::tests::colliding_entries_share_a_bucket
+        PASS [   0.018s] (211/328) jakgro engine::search::time::tests::extreme_increments_saturate_without_exceeding_usable_time
+        PASS [   0.018s] (212/328) jakgro engine::search::time::tests::infinite_and_ponder_searches_have_no_initial_deadline
+        PASS [   0.018s] (213/328) jakgro engine::search::time::tests::clocks_have_soft_time_and_bounded_hard_time
+        PASS [   0.019s] (214/328) jakgro engine::search::tests::root_style_preference_does_not_change_draw_scores
+        PASS [   0.018s] (215/328) jakgro engine::search::tests::zero_move_time_still_completes_one_iteration
+        PASS [   0.011s] (216/328) jakgro engine::search::transposition::tests::evaluation_profile_changes_discard_entries
+        PASS [   0.015s] (217/328) jakgro engine::search::transposition::tests::an_unchanged_retained_move_snapshot_leaves_a_newer_entry_alone
+        PASS [   0.028s] (218/328) jakgro engine::search::tests::dead_material_is_scored_as_a_draw
+        PASS [   0.022s] (219/328) jakgro engine::search::time::tests::move_time_has_precedence_and_fixed_limits
+        PASS [   0.021s] (220/328) jakgro engine::search::transposition::tests::a_stale_hit_restores_only_the_probed_position
+        PASS [   0.023s] (221/328) jakgro engine::search::tests::search_prefers_an_immediate_material_gain
+        PASS [   0.021s] (222/328) jakgro engine::search::transposition::tests::an_equal_depth_result_replaces_a_matching_exact_entry
+        PASS [   0.031s] (223/328) jakgro engine::search::algorithm::tests::sacrifice_seed_hints_match_full_tactical_snapshots
+        PASS [   0.020s] (224/328) jakgro engine::search::transposition::tests::clear_discards_entries
+        PASS [   0.023s] (225/328) jakgro engine::search::time::tests::ponderhit_activates_the_fixed_movetime_budget
+        PASS [   0.019s] (226/328) jakgro engine::search::tests::infinite_search_waits_for_an_explicit_stop
+        PASS [   0.023s] (227/328) jakgro engine::search::transposition::tests::a_half_written_slot_does_not_verify
+        PASS [   0.006s] (228/328) jakgro uci::command::tests::option_file_values_preserve_internal_whitespace_and_unicode
+        PASS [   0.024s] (229/328) jakgro engine::search::transposition::tests::a_shallower_exact_store_replaces_a_deeper_inexact_entry
+        PASS [   0.018s] (230/328) jakgro engine::search::tests::reports_forced_mate_in_moves
+        PASS [   0.032s] (231/328) jakgro engine::search::tests::depth_and_mate_limits_use_the_stricter_bound
+        PASS [   0.009s] (232/328) jakgro engine::search::transposition::tests::normalizes_mate_scores_across_root_plies
+        PASS [   0.025s] (233/328) jakgro engine::search::time::tests::overhead_larger_than_the_clock_saturates_both_limits
+        PASS [   0.025s] (234/328) jakgro engine::search::transposition::tests::a_deeper_matching_exact_entry_is_preserved
+        PASS [   0.027s] (235/328) jakgro engine::search::tests::stalemate_has_no_best_move
+        PASS [   0.010s] (236/328) jakgro engine::search::transposition::tests::packing_preserves_every_stored_field
+        PASS [   0.010s] (237/328) jakgro uci::command::tests::parses_option_names_and_values_with_spaces
+        PASS [   0.025s] (238/328) jakgro engine::search::transposition::tests::bucket_allocation_stays_within_the_requested_size
+        PASS [   0.008s] (239/328) jakgro uci::command::tests::rejects_invalid_numeric_limits
+        PASS [   0.008s] (240/328) jakgro engine::search::transposition::tests::replacement_measures_age_across_a_generation_wrap
+        PASS [   0.010s] (241/328) jakgro engine::search::transposition::tests::stored_static_evaluations_are_recovered_and_optional
+        PASS [   0.006s] (242/328) jakgro uci::session::tests::spin_values_clamp_without_fixed_width_integer_overflow
+        PASS [   0.029s] (243/328) jakgro engine::search::transposition::tests::a_stale_probe_still_publishes_a_verifiable_entry
+        PASS [   0.024s] (244/328) jakgro engine::search::transposition::tests::concurrent_writers_never_publish_a_torn_entry
+        PASS [   0.033s] (245/328) jakgro engine::search::tests::reports_each_completed_iteration
+        PASS [   0.014s] (246/328) jakgro uci::command::tests::parses_start_position_with_moves
+        PASS [   0.013s] (247/328) jakgro engine::search::transposition::tests::stores_and_recovers_entries
+        PASS [   0.032s] (248/328) jakgro engine::search::transposition::tests::a_much_shallower_inexact_store_keeps_the_deeper_entry
+        PASS [   0.031s] (249/328) jakgro engine::search::transposition::tests::an_unchanged_retained_move_payload_is_not_rewritten
+        PASS [   0.014s] (250/328) jakgro engine::search::transposition::tests::retaining_a_move_still_publishes_other_payload_changes
+        PASS [   0.012s] (251/328) jakgro uci::command::tests::rejects_incomplete_fen
+        PASS [   0.014s] (252/328) jakgro engine::search::transposition::tests::shares_entries_below_the_rule_fifty_horizon_and_isolates_above_it
+        PASS [   0.014s] (253/328) jakgro uci::command::tests::parses_all_go_limits
+        PASS [   0.005s] (254/328) jakgro::search_regression fixture_ids_are_unique_and_files_match_their_categories
+        PASS [   0.015s] (255/328) jakgro uci::command::tests::parses_blank_input
+        PASS [   0.019s] (256/328) jakgro engine::search::transposition::tests::stale_entries_yield_to_the_current_generation
+        PASS [   0.038s] (257/328) jakgro engine::search::tests::search_moves_restrict_the_result
+        PASS [   0.019s] (258/328) jakgro engine::search::transposition::tests::replacement_prefers_the_shallowest_non_exact_entry
+        PASS [   0.040s] (259/328) jakgro engine::search::tests::the_personality_budget_binds_during_the_first_iteration
+        PASS [   0.025s] (260/328) jakgro uci::command::tests::parses_fen_position_with_moves
+        PASS [   0.051s] (261/328) jakgro engine::search::tests::missing_side_to_move_clock_uses_the_default_depth
+        PASS [   0.065s] (262/328) jakgro engine::search::tests::a_parallel_search_joins_every_helper_before_returning
+        PASS [   0.080s] (263/328) jakgro engine::search::tests::iterative_search_is_deterministic
+        PASS [   0.106s] (264/328) jakgro engine::search::tests::a_warm_transposition_table_reduces_nodes_without_changing_the_result
+        PASS [   0.118s] (265/328) jakgro engine::search::tests::aggression_changes_clear_policy_specific_hash_entries
+        PASS [   0.196s] (266/328) jakgro engine::search::algorithm::tests::check_masks_never_reject_a_real_check
+        PASS [   0.189s] (267/328) jakgro engine::search::tests::a_warm_styled_search_preserves_equal_score_transpositions
+        PASS [   0.267s] (268/328) jakgro engine::evaluation::memo::tests::cached_scores_match_uncached_evaluation_over_legal_playouts
+        PASS [   0.243s] (269/328) jakgro engine::search::tests::a_parallel_node_limit_bounds_the_whole_search
+        PASS [   0.257s] (270/328) jakgro engine::search::tests::one_thread_matches_a_search_that_never_spawned_helpers
+        PASS [   0.239s] (271/328) jakgro uci::session::tests::input_thread_panics_are_reported
+        PASS [   0.246s] (272/328) jakgro engine::tests::hash_resize_is_shared_between_engine_clones_and_validated
+        PASS [   0.261s] (273/328) jakgro uci::session::tests::handshake_and_readiness_have_exact_output
+        PASS [   0.265s] (274/328) jakgro engine::tests::new_game_preserves_the_configured_hash_size
+        PASS [   0.270s] (275/328) jakgro uci::session::tests::malformed_and_unknown_commands_are_silent_by_default
+        PASS [   0.276s] (276/328) jakgro engine::tests::aggression_is_clamped_and_preserved_across_new_games
+        PASS [   0.281s] (277/328) jakgro uci::session::tests::debug_mode_reports_invalid_options
+        PASS [   0.287s] (278/328) jakgro uci::session::tests::persistent_spin_options_accept_and_clamp_values_without_protocol_noise
+        PASS [   0.294s] (279/328) jakgro engine::tests::new_game_restores_the_starting_position
+        PASS [   0.298s] (280/328) jakgro uci::session::tests::end_of_input_ends_the_session_cleanly
+        PASS [   0.310s] (281/328) jakgro uci::session::tests::debug_mode_reports_ignored_commands
+        PASS [   0.324s] (282/328) jakgro uci::session::tests::nnue_option_diagnostics_cannot_inject_protocol_lines
+        PASS [   0.327s] (283/328) jakgro uci::session::tests::hash_options_resize_and_clear_without_protocol_noise
+        PASS [   0.387s] (284/328) jakgro engine::search::algorithm::tests::nnue_null_verification_restores_mode_and_reuses_the_same_backend
+        PASS [   0.467s] (285/328) jakgro engine::evaluation::nnue::tests::metadata_does_not_change_piece_only_features_or_scores
+        PASS [   0.358s] (286/328) jakgro engine::tests::move_overhead_is_clamped_and_preserved_across_new_games
+        PASS [   0.387s] (287/328) jakgro engine::search::neural::tests::worker_rows_cover_special_moves_and_king_bucket_refreshes
+        PASS [   0.380s] (288/328) jakgro engine::tests::threads_are_clamped_and_preserved_across_new_games
+        PASS [   0.426s] (289/328) jakgro engine::search::algorithm::tests::nnue_node_fallbacks_use_the_selected_model_in_every_search_mode
+        PASS [   0.529s] (290/328) jakgro engine::evaluation::nnue::tests::malformed_header_fields_are_rejected_before_reading_the_payload
+        PASS [   0.443s] (291/328) jakgro engine::search::neural::tests::independent_workers_share_only_the_immutable_network
+        PASS [   0.538s] (292/328) jakgro engine::evaluation::nnue::tests::color_swapping_and_rank_mirroring_preserve_relative_scores
+        PASS [   0.577s] (293/328) jakgro engine::evaluation::nnue::tests::full_inference_matches_independent_scalar_reference
+        PASS [   0.561s] (294/328) jakgro engine::evaluation::nnue::tests::null_moves_swap_output_order_without_changing_sums
+        PASS [   0.582s] (295/328) jakgro engine::evaluation::nnue::tests::every_promotion_and_underpromotion_updates_both_perspectives
+        PASS [   0.615s] (296/328) jakgro engine::evaluation::nnue::tests::stack_shares_its_deepest_state_and_serves_unrelated_boards
+        PASS [   0.527s] (297/328) jakgro engine::search::tests::helpers_contribute_nodes_to_the_search_total
+        PASS [   0.519s] (298/328) jakgro::search_regression first_capture_cutoffs_update_capture_history
+        PASS [   0.682s] (299/328) jakgro engine::evaluation::nnue::tests::incremental_special_moves_and_restoration_match_refresh
+        PASS [   0.671s] (300/328) jakgro engine::neural::tests::loading_errors_preserve_settings_model_position_and_cache_ownership
+        PASS [   0.622s] (301/328) jakgro uci::session::tests::nnue_option_errors_are_visible_without_debug_and_success_is_quiet
+        PASS [   0.656s] (302/328) jakgro engine::search::tests::a_parallel_search_returns_a_legal_result_and_playable_pv
+        PASS [   0.648s] (303/328) jakgro engine::search::tests::verified_null_move_reports_attempts_and_cutoffs
+        PASS [   0.707s] (304/328) jakgro engine::neural::tests::nnue_parallel_workers_return_legal_playable_principal_variations
+        PASS [   0.722s] (305/328) jakgro engine::neural::tests::new_game_aggression_and_hash_controls_preserve_the_model
+        PASS [   0.797s] (306/328) jakgro engine::evaluation::nnue::tests::truncated_trailing_and_corrupted_models_are_rejected
+        PASS [   0.780s] (307/328) jakgro engine::neural::tests::the_embedded_network_is_the_default_and_loading_a_file_keeps_the_backend_choice
+        PASS [   0.786s] (308/328) jakgro engine::neural::tests::nnue_search_respects_terminal_draw_mate_and_cancellation_rules
+        PASS [   0.850s] (309/328) jakgro engine::evaluation::nnue::tests::regular_file_loading_checks_length_and_keeps_models_independent
+        PASS [   0.903s] (310/328) jakgro engine::evaluation::nnue::tests::output_weights_beyond_the_limit_are_rejected_at_the_exact_boundary
+        PASS [   0.908s] (311/328) jakgro engine::evaluation::nnue::tests::checksum_rejects_a_weight_change_even_when_dimensions_match
+        PASS [   0.911s] (312/328) jakgro engine::evaluation::nnue::tests::binary_round_trip_preserves_all_tensors_and_signed_values
+        PASS [   0.926s] (313/328) jakgro engine::neural::tests::divergent_clones_can_search_concurrently_without_mixing_models
+        PASS [   0.920s] (314/328) jakgro engine::tests::search_memory_follows_the_game_and_clears_with_the_hash
+        PASS [   1.045s] (315/328) jakgro::search_regression capture_history_is_trained_by_misordered_cutoffs
+        PASS [   1.145s] (316/328) jakgro engine::search::neural::tests::lazy_rows_match_refresh_after_skipped_parents_siblings_and_null_moves
+        PASS [   1.168s] (317/328) jakgro::search_regression static_pruning_is_exercised_in_a_rich_position
+        PASS [   1.180s] (318/328) jakgro::search_regression selective_search_telemetry_attributes_objective_work
+        PASS [   1.337s] (319/328) jakgro engine::evaluation::nnue::tests::loading_a_model_does_not_change_engine_defaults_or_search
+        PASS [   1.318s] (320/328) jakgro engine::neural::tests::model_and_backend_switches_create_isolated_search_domains
+        PASS [   1.286s] (321/328) jakgro::search_regression warmed_transposition_search_reconstructs_a_pv_tail
+        PASS [   1.409s] (322/328) jakgro::search_regression selective_search_telemetry_attributes_personality_work
+        PASS [   1.662s] (323/328) jakgro engine::evaluation::nnue::tests::extreme_weights_keep_unclipped_incremental_sums_and_bounded_output
+        PASS [   1.664s] (324/328) jakgro engine::evaluation::nnue::tests::unprovable_accumulator_bounds_are_rejected_at_the_exact_boundary
+        PASS [   1.910s] (325/328) jakgro engine::evaluation::nnue::tests::activation_clipping_squaring_and_negative_division_are_explicit
+        PASS [   2.860s] (326/328) jakgro engine::evaluation::nnue::tests::incremental_playouts_siblings_and_clones_match_independent_reference
+        PASS [   8.083s] (327/328) jakgro engine::evaluation::nnue::tests::stack_matches_independent_reference_over_search_shaped_walks
+        PASS [  10.489s] (328/328) jakgro::search_regression fixed_node_regressions_are_deterministic_and_legal
+────────────
+     Summary [  10.617s] 328 tests run: 328 passed, 0 skipped

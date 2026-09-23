@@ -1,0 +1,1658 @@
+{
+  "command": [
+    "/tmp/jakkoo-temp/session-1786106-1790178860615-0/lazy-smp/measure.py",
+    "--variant",
+    "baseline=/tmp/jakkoo-temp/session-1786106-1790178860615-0/lazy-smp/baseline",
+    "--variant",
+    "helpers=/tmp/jakkoo-temp/session-1786106-1790178860615-0/lazy-smp/helpers",
+    "--variant",
+    "tt=/tmp/jakkoo-temp/session-1786106-1790178860615-0/lazy-smp/tt",
+    "--variant",
+    "diversified=/tmp/jakkoo-temp/session-1786106-1790178860615-0/lazy-smp/diversified",
+    "--threads",
+    "1",
+    "8",
+    "--times-ms",
+    "50",
+    "250",
+    "--samples",
+    "12",
+    "--aggression",
+    "75",
+    "--hash",
+    "16",
+    "--json",
+    "/tmp/jakkoo-temp/session-1786106-1790178860615-0/lazy-smp/timing.json"
+  ],
+  "fixed_comparisons": [
+    {
+      "baseline": "baseline",
+      "candidate": "helpers",
+      "differences": []
+    },
+    {
+      "baseline": "helpers",
+      "candidate": "tt",
+      "differences": []
+    },
+    {
+      "baseline": "tt",
+      "candidate": "diversified",
+      "differences": []
+    },
+    {
+      "baseline": "baseline",
+      "candidate": "diversified",
+      "differences": []
+    }
+  ],
+  "host": {
+    "affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "platform": "Linux-7.0.0-1012-aws-x86_64-with-glibc2.39"
+  },
+  "inputs": {
+    "network_sha256": "afbc0897e26c88720d9fe46d5cb90c906512d07eb8e69ba46c74ade4b944350b",
+    "script_sha256": "6b15d543b0320a348fee74aee2be7983bc0363d9ed7284195fe1826f80328a16",
+    "suite": "tests/data/search-performance.epd",
+    "suite_sha256": "666a7a23d97b9e2ce39de1eabdd0f4faa467a43edf3d2d938d0f8e40fa2baa29",
+    "uci_harness_sha256": "d97751473f0483466839b27893eb3522837c21fce372e44d89d53e4c09d9d487"
+  },
+  "limitations": [
+    "Reported NPS and nodes belong to the last completed iteration, not all work up to bestmove.",
+    "Wall latency measures go write through bestmove receipt, including UCI scheduling and helper joins.",
+    "Bootstrap intervals resample fixture medians; this small suite is not an Elo or broad hardware result."
+  ],
+  "observed_fixed_count": 160,
+  "observed_timed_count": 1920,
+  "raw_sha256": "aa7b4d2e3b46480717be22882bc09fce0873c2621768cb2ab426e8536a1794d7",
+  "schema_version": 1,
+  "settings": {
+    "aggression": 75,
+    "cold_game_per_sample": true,
+    "hash_mib": 16,
+    "order": "rotating/reversing variant order per sample and fixture",
+    "samples": 12,
+    "threads": [
+      1,
+      8
+    ],
+    "times_ms": [
+      50,
+      250
+    ],
+    "use_nnue": true
+  },
+  "summaries": [
+    {
+      "comparisons": [
+        {
+          "baseline": "baseline",
+          "candidate": "helpers",
+          "fixture_bootstrap_ci95_percent": [
+            -0.1374,
+            0.9244
+          ],
+          "geometric_reported_nps_gain_percent": 0.4014,
+          "mean_median_depth_gain": 0.05
+        },
+        {
+          "baseline": "helpers",
+          "candidate": "tt",
+          "fixture_bootstrap_ci95_percent": [
+            -0.4852,
+            0.5254
+          ],
+          "geometric_reported_nps_gain_percent": 0.0338,
+          "mean_median_depth_gain": 0.0
+        },
+        {
+          "baseline": "tt",
+          "candidate": "diversified",
+          "fixture_bootstrap_ci95_percent": [
+            0.0253,
+            1.3234
+          ],
+          "geometric_reported_nps_gain_percent": 0.7002,
+          "mean_median_depth_gain": 0.05
+        },
+        {
+          "baseline": "baseline",
+          "candidate": "diversified",
+          "fixture_bootstrap_ci95_percent": [
+            0.6107,
+            1.6387
+          ],
+          "geometric_reported_nps_gain_percent": 1.1386,
+          "mean_median_depth_gain": 0.1
+        }
+      ],
+      "fixture_medians": {
+        "baseline": {
+          "bishop-f7-sacrifice": {
+            "depth": 9.0,
+            "first_info_ms": 0.5606340000000001,
+            "nodes": 51101.0,
+            "reported_nps": 2190767.0,
+            "wall_ms": 50.473912999999996
+          },
+          "central-queen-safety": {
+            "depth": 8.0,
+            "first_info_ms": 0.550938,
+            "nodes": 51015.0,
+            "reported_nps": 2212000.0,
+            "wall_ms": 23.784928
+          },
+          "central-space": {
+            "depth": 7.0,
+            "first_info_ms": 0.4430535,
+            "nodes": 58682.0,
+            "reported_nps": 2184335.0,
+            "wall_ms": 27.260222
+          },
+          "defensive-safety": {
+            "depth": 14.0,
+            "first_info_ms": 0.32304849999999996,
+            "nodes": 131305.0,
+            "reported_nps": 4452109.5,
+            "wall_ms": 29.721287
+          },
+          "kingside-pawn-storm": {
+            "depth": 11.0,
+            "first_info_ms": 0.37631099999999995,
+            "nodes": 83782.0,
+            "reported_nps": 3064779.5,
+            "wall_ms": 28.1819255
+          },
+          "open-king-gambit": {
+            "depth": 7.0,
+            "first_info_ms": 0.545013,
+            "nodes": 67913.0,
+            "reported_nps": 2147194.0,
+            "wall_ms": 32.0000725
+          },
+          "opposite-castle-storm": {
+            "depth": 8.0,
+            "first_info_ms": 0.45104449999999996,
+            "nodes": 80547.0,
+            "reported_nps": 2162320.0,
+            "wall_ms": 37.7220685
+          },
+          "starting-development": {
+            "depth": 8.0,
+            "first_info_ms": 0.4221855,
+            "nodes": 64740.0,
+            "reported_nps": 2295568.5,
+            "wall_ms": 28.436215500000003
+          },
+          "tactical-safety": {
+            "depth": 11.0,
+            "first_info_ms": 0.459999,
+            "nodes": 134392.0,
+            "reported_nps": 3860062.0,
+            "wall_ms": 35.2180635
+          },
+          "unsupported-greek-gift": {
+            "depth": 8.0,
+            "first_info_ms": 0.507441,
+            "nodes": 44009.0,
+            "reported_nps": 2269089.5,
+            "wall_ms": 50.4279545
+          }
+        },
+        "diversified": {
+          "bishop-f7-sacrifice": {
+            "depth": 9.0,
+            "first_info_ms": 0.5514064999999999,
+            "nodes": 51101.0,
+            "reported_nps": 2225151.5,
+            "wall_ms": 50.3890825
+          },
+          "central-queen-safety": {
+            "depth": 8.0,
+            "first_info_ms": 0.5095175000000001,
+            "nodes": 51015.0,
+            "reported_nps": 2201856.0,
+            "wall_ms": 23.523691499999998
+          },
+          "central-space": {
+            "depth": 7.0,
+            "first_info_ms": 0.468574,
+            "nodes": 58682.0,
+            "reported_nps": 2212105.5,
+            "wall_ms": 26.9390085
+          },
+          "defensive-safety": {
+            "depth": 14.0,
+            "first_info_ms": 0.348218,
+            "nodes": 131305.0,
+            "reported_nps": 4511905.0,
+            "wall_ms": 29.380584
+          },
+          "kingside-pawn-storm": {
+            "depth": 12.0,
+            "first_info_ms": 0.3161655,
+            "nodes": 104994.0,
+            "reported_nps": 3136952.0,
+            "wall_ms": 32.8273155
+          },
+          "open-king-gambit": {
+            "depth": 7.0,
+            "first_info_ms": 0.589291,
+            "nodes": 67913.0,
+            "reported_nps": 2151431.0,
+            "wall_ms": 31.9060785
+          },
+          "opposite-castle-storm": {
+            "depth": 8.0,
+            "first_info_ms": 0.442709,
+            "nodes": 80547.0,
+            "reported_nps": 2187103.0,
+            "wall_ms": 37.0978115
+          },
+          "starting-development": {
+            "depth": 8.0,
+            "first_info_ms": 0.380385,
+            "nodes": 64740.0,
+            "reported_nps": 2350275.5,
+            "wall_ms": 27.963805999999998
+          },
+          "tactical-safety": {
+            "depth": 11.0,
+            "first_info_ms": 0.432624,
+            "nodes": 134392.0,
+            "reported_nps": 3877587.0,
+            "wall_ms": 35.0315625
+          },
+          "unsupported-greek-gift": {
+            "depth": 8.0,
+            "first_info_ms": 0.42581,
+            "nodes": 44009.0,
+            "reported_nps": 2295425.5,
+            "wall_ms": 50.3222765
+          }
+        },
+        "helpers": {
+          "bishop-f7-sacrifice": {
+            "depth": 9.0,
+            "first_info_ms": 0.5819295,
+            "nodes": 51101.0,
+            "reported_nps": 2205745.0,
+            "wall_ms": 50.435987499999996
+          },
+          "central-queen-safety": {
+            "depth": 8.0,
+            "first_info_ms": 0.49836749999999996,
+            "nodes": 51015.0,
+            "reported_nps": 2208547.0,
+            "wall_ms": 23.638851
+          },
+          "central-space": {
+            "depth": 7.0,
+            "first_info_ms": 0.4449935,
+            "nodes": 58682.0,
+            "reported_nps": 2190017.5,
+            "wall_ms": 27.054685499999998
+          },
+          "defensive-safety": {
+            "depth": 14.0,
+            "first_info_ms": 0.317007,
+            "nodes": 131305.0,
+            "reported_nps": 4516971.5,
+            "wall_ms": 29.268249
+          },
+          "kingside-pawn-storm": {
+            "depth": 11.5,
+            "first_info_ms": 0.324476,
+            "nodes": 94388.0,
+            "reported_nps": 3106026.5,
+            "wall_ms": 30.8219245
+          },
+          "open-king-gambit": {
+            "depth": 7.0,
+            "first_info_ms": 0.4833695,
+            "nodes": 67913.0,
+            "reported_nps": 2119264.0,
+            "wall_ms": 32.419616500000004
+          },
+          "opposite-castle-storm": {
+            "depth": 8.0,
+            "first_info_ms": 0.4280705,
+            "nodes": 80547.0,
+            "reported_nps": 2165425.0,
+            "wall_ms": 37.5176505
+          },
+          "starting-development": {
+            "depth": 8.0,
+            "first_info_ms": 0.45515,
+            "nodes": 64740.0,
+            "reported_nps": 2288709.5,
+            "wall_ms": 28.7342655
+          },
+          "tactical-safety": {
+            "depth": 11.0,
+            "first_info_ms": 0.369572,
+            "nodes": 134392.0,
+            "reported_nps": 3873234.0,
+            "wall_ms": 35.004571999999996
+          },
+          "unsupported-greek-gift": {
+            "depth": 8.0,
+            "first_info_ms": 0.458119,
+            "nodes": 44009.0,
+            "reported_nps": 2304822.0,
+            "wall_ms": 50.3322895
+          }
+        },
+        "tt": {
+          "bishop-f7-sacrifice": {
+            "depth": 9.0,
+            "first_info_ms": 0.5702985,
+            "nodes": 51101.0,
+            "reported_nps": 2209164.0,
+            "wall_ms": 50.411669
+          },
+          "central-queen-safety": {
+            "depth": 8.0,
+            "first_info_ms": 0.50392,
+            "nodes": 51015.0,
+            "reported_nps": 2232823.0,
+            "wall_ms": 23.269928999999998
+          },
+          "central-space": {
+            "depth": 7.0,
+            "first_info_ms": 0.4614355,
+            "nodes": 58682.0,
+            "reported_nps": 2205519.0,
+            "wall_ms": 27.005081500000003
+          },
+          "defensive-safety": {
+            "depth": 14.0,
+            "first_info_ms": 0.3264585,
+            "nodes": 131305.0,
+            "reported_nps": 4465718.0,
+            "wall_ms": 29.5798245
+          },
+          "kingside-pawn-storm": {
+            "depth": 11.5,
+            "first_info_ms": 0.31584650000000003,
+            "nodes": 94388.0,
+            "reported_nps": 3072123.0,
+            "wall_ms": 30.8569515
+          },
+          "open-king-gambit": {
+            "depth": 7.0,
+            "first_info_ms": 0.5079355000000001,
+            "nodes": 67913.0,
+            "reported_nps": 2117449.0,
+            "wall_ms": 32.505569
+          },
+          "opposite-castle-storm": {
+            "depth": 8.0,
+            "first_info_ms": 0.4944955,
+            "nodes": 80547.0,
+            "reported_nps": 2146613.0,
+            "wall_ms": 37.8694385
+          },
+          "starting-development": {
+            "depth": 8.0,
+            "first_info_ms": 0.4232895,
+            "nodes": 64740.0,
+            "reported_nps": 2318012.0,
+            "wall_ms": 28.323895
+          },
+          "tactical-safety": {
+            "depth": 11.0,
+            "first_info_ms": 0.3561075,
+            "nodes": 134392.0,
+            "reported_nps": 3884509.0,
+            "wall_ms": 34.993093
+          },
+          "unsupported-greek-gift": {
+            "depth": 8.0,
+            "first_info_ms": 0.5164920000000001,
+            "nodes": 44009.0,
+            "reported_nps": 2305250.0,
+            "wall_ms": 50.4133105
+          }
+        }
+      },
+      "latency": {
+        "baseline": {
+          "first_info_ms": {
+            "max": 1.6418,
+            "p50": 0.475,
+            "p95": 1.2411
+          },
+          "wall_ms": {
+            "max": 50.5694,
+            "p50": 32.0001,
+            "p95": 50.5021
+          }
+        },
+        "diversified": {
+          "first_info_ms": {
+            "max": 1.3573,
+            "p50": 0.446,
+            "p95": 1.1197
+          },
+          "wall_ms": {
+            "max": 50.5026,
+            "p50": 32.6664,
+            "p95": 50.4243
+          }
+        },
+        "helpers": {
+          "first_info_ms": {
+            "max": 1.4568,
+            "p50": 0.4564,
+            "p95": 1.2011
+          },
+          "wall_ms": {
+            "max": 50.5875,
+            "p50": 32.6193,
+            "p95": 50.4562
+          }
+        },
+        "tt": {
+          "first_info_ms": {
+            "max": 1.4172,
+            "p50": 0.4638,
+            "p95": 1.2126
+          },
+          "wall_ms": {
+            "max": 50.5448,
+            "p50": 32.5718,
+            "p95": 50.4731
+          }
+        }
+      },
+      "movetime_ms": 50,
+      "threads": 1
+    },
+    {
+      "comparisons": [
+        {
+          "baseline": "baseline",
+          "candidate": "helpers",
+          "fixture_bootstrap_ci95_percent": [
+            -0.5052,
+            0.4892
+          ],
+          "geometric_reported_nps_gain_percent": -0.0158,
+          "mean_median_depth_gain": 0.05
+        },
+        {
+          "baseline": "helpers",
+          "candidate": "tt",
+          "fixture_bootstrap_ci95_percent": [
+            -0.19,
+            0.4794
+          ],
+          "geometric_reported_nps_gain_percent": 0.1389,
+          "mean_median_depth_gain": 0.0
+        },
+        {
+          "baseline": "tt",
+          "candidate": "diversified",
+          "fixture_bootstrap_ci95_percent": [
+            -0.0095,
+            0.918
+          ],
+          "geometric_reported_nps_gain_percent": 0.4183,
+          "mean_median_depth_gain": 0.05
+        },
+        {
+          "baseline": "baseline",
+          "candidate": "diversified",
+          "fixture_bootstrap_ci95_percent": [
+            0.0951,
+            1.0337
+          ],
+          "geometric_reported_nps_gain_percent": 0.5418,
+          "mean_median_depth_gain": 0.1
+        }
+      ],
+      "fixture_medians": {
+        "baseline": {
+          "bishop-f7-sacrifice": {
+            "depth": 12.0,
+            "first_info_ms": 0.645436,
+            "nodes": 416733.0,
+            "reported_nps": 2224400.5,
+            "wall_ms": 187.8009525
+          },
+          "central-queen-safety": {
+            "depth": 12.0,
+            "first_info_ms": 1.1659205,
+            "nodes": 340217.0,
+            "reported_nps": 2330594.5,
+            "wall_ms": 248.53229299999998
+          },
+          "central-space": {
+            "depth": 12.0,
+            "first_info_ms": 0.575178,
+            "nodes": 412247.0,
+            "reported_nps": 2180982.0,
+            "wall_ms": 189.5201605
+          },
+          "defensive-safety": {
+            "depth": 19.0,
+            "first_info_ms": 0.7172565,
+            "nodes": 1060572.0,
+            "reported_nps": 5508968.5,
+            "wall_ms": 192.8859245
+          },
+          "kingside-pawn-storm": {
+            "depth": 16.5,
+            "first_info_ms": 0.383352,
+            "nodes": 557877.0,
+            "reported_nps": 3213955.5,
+            "wall_ms": 173.75426
+          },
+          "open-king-gambit": {
+            "depth": 10.0,
+            "first_info_ms": 0.9494445,
+            "nodes": 265549.0,
+            "reported_nps": 2097381.0,
+            "wall_ms": 250.38604600000002
+          },
+          "opposite-castle-storm": {
+            "depth": 11.0,
+            "first_info_ms": 0.5488305,
+            "nodes": 299897.0,
+            "reported_nps": 2244389.0,
+            "wall_ms": 135.341318
+          },
+          "starting-development": {
+            "depth": 12.0,
+            "first_info_ms": 0.47624449999999996,
+            "nodes": 355380.0,
+            "reported_nps": 2290925.0,
+            "wall_ms": 155.550141
+          },
+          "tactical-safety": {
+            "depth": 16.0,
+            "first_info_ms": 0.39366900000000005,
+            "nodes": 830559.0,
+            "reported_nps": 5043272.0,
+            "wall_ms": 165.0730915
+          },
+          "unsupported-greek-gift": {
+            "depth": 11.0,
+            "first_info_ms": 0.5857535,
+            "nodes": 332815.0,
+            "reported_nps": 2164075.5,
+            "wall_ms": 153.277141
+          }
+        },
+        "diversified": {
+          "bishop-f7-sacrifice": {
+            "depth": 12.0,
+            "first_info_ms": 0.568667,
+            "nodes": 416733.0,
+            "reported_nps": 2225738.5,
+            "wall_ms": 187.687604
+          },
+          "central-queen-safety": {
+            "depth": 12.5,
+            "first_info_ms": 0.863896,
+            "nodes": 472147.5,
+            "reported_nps": 2381293.5,
+            "wall_ms": 245.46026899999998
+          },
+          "central-space": {
+            "depth": 12.0,
+            "first_info_ms": 0.5414615,
+            "nodes": 412247.0,
+            "reported_nps": 2162522.5,
+            "wall_ms": 191.0234375
+          },
+          "defensive-safety": {
+            "depth": 19.0,
+            "first_info_ms": 0.4074605,
+            "nodes": 1060572.0,
+            "reported_nps": 5551407.0,
+            "wall_ms": 191.45824950000002
+          },
+          "kingside-pawn-storm": {
+            "depth": 17.0,
+            "first_info_ms": 0.4068025,
+            "nodes": 667706.0,
+            "reported_nps": 3257403.5,
+            "wall_ms": 201.218909
+          },
+          "open-king-gambit": {
+            "depth": 10.0,
+            "first_info_ms": 0.9105274999999999,
+            "nodes": 265549.0,
+            "reported_nps": 2111645.0,
+            "wall_ms": 250.412694
+          },
+          "opposite-castle-storm": {
+            "depth": 11.0,
+            "first_info_ms": 0.5417730000000001,
+            "nodes": 299897.0,
+            "reported_nps": 2256569.5,
+            "wall_ms": 135.676983
+          },
+          "starting-development": {
+            "depth": 12.0,
+            "first_info_ms": 0.400354,
+            "nodes": 355380.0,
+            "reported_nps": 2291284.5,
+            "wall_ms": 155.557009
+          },
+          "tactical-safety": {
+            "depth": 16.0,
+            "first_info_ms": 0.444043,
+            "nodes": 830559.0,
+            "reported_nps": 5061257.5,
+            "wall_ms": 164.49021299999998
+          },
+          "unsupported-greek-gift": {
+            "depth": 11.0,
+            "first_info_ms": 0.579584,
+            "nodes": 332815.0,
+            "reported_nps": 2171462.0,
+            "wall_ms": 153.771456
+          }
+        },
+        "helpers": {
+          "bishop-f7-sacrifice": {
+            "depth": 12.0,
+            "first_info_ms": 0.783601,
+            "nodes": 416733.0,
+            "reported_nps": 2232113.5,
+            "wall_ms": 187.142271
+          },
+          "central-queen-safety": {
+            "depth": 12.0,
+            "first_info_ms": 0.5632135,
+            "nodes": 340217.0,
+            "reported_nps": 2320996.5,
+            "wall_ms": 249.5891995
+          },
+          "central-space": {
+            "depth": 12.0,
+            "first_info_ms": 0.557781,
+            "nodes": 412247.0,
+            "reported_nps": 2178573.5,
+            "wall_ms": 189.70165500000002
+          },
+          "defensive-safety": {
+            "depth": 19.0,
+            "first_info_ms": 0.4073015,
+            "nodes": 1060572.0,
+            "reported_nps": 5591769.5,
+            "wall_ms": 190.095164
+          },
+          "kingside-pawn-storm": {
+            "depth": 17.0,
+            "first_info_ms": 0.335837,
+            "nodes": 667706.0,
+            "reported_nps": 3247383.5,
+            "wall_ms": 202.2476385
+          },
+          "open-king-gambit": {
+            "depth": 10.0,
+            "first_info_ms": 1.248913,
+            "nodes": 265549.0,
+            "reported_nps": 2096404.5,
+            "wall_ms": 250.43635849999998
+          },
+          "opposite-castle-storm": {
+            "depth": 11.0,
+            "first_info_ms": 0.5751299999999999,
+            "nodes": 299897.0,
+            "reported_nps": 2236444.5,
+            "wall_ms": 135.2108405
+          },
+          "starting-development": {
+            "depth": 12.0,
+            "first_info_ms": 0.4934415,
+            "nodes": 355380.0,
+            "reported_nps": 2280502.0,
+            "wall_ms": 156.311687
+          },
+          "tactical-safety": {
+            "depth": 16.0,
+            "first_info_ms": 0.4713765,
+            "nodes": 830559.0,
+            "reported_nps": 5036666.0,
+            "wall_ms": 165.218299
+          },
+          "unsupported-greek-gift": {
+            "depth": 11.0,
+            "first_info_ms": 0.9131415,
+            "nodes": 332815.0,
+            "reported_nps": 2131437.0,
+            "wall_ms": 156.8412935
+          }
+        },
+        "tt": {
+          "bishop-f7-sacrifice": {
+            "depth": 12.0,
+            "first_info_ms": 0.5995755,
+            "nodes": 416733.0,
+            "reported_nps": 2215931.0,
+            "wall_ms": 188.41094950000002
+          },
+          "central-queen-safety": {
+            "depth": 12.0,
+            "first_info_ms": 0.865378,
+            "nodes": 340217.0,
+            "reported_nps": 2330176.0,
+            "wall_ms": 250.3076925
+          },
+          "central-space": {
+            "depth": 12.0,
+            "first_info_ms": 0.5406255,
+            "nodes": 412247.0,
+            "reported_nps": 2176903.5,
+            "wall_ms": 189.924857
+          },
+          "defensive-safety": {
+            "depth": 19.0,
+            "first_info_ms": 0.4073525,
+            "nodes": 1060572.0,
+            "reported_nps": 5561851.5,
+            "wall_ms": 191.0903165
+          },
+          "kingside-pawn-storm": {
+            "depth": 17.0,
+            "first_info_ms": 0.343304,
+            "nodes": 667706.0,
+            "reported_nps": 3270246.5,
+            "wall_ms": 201.50333949999998
+          },
+          "open-king-gambit": {
+            "depth": 10.0,
+            "first_info_ms": 0.5772575,
+            "nodes": 265549.0,
+            "reported_nps": 2101058.0,
+            "wall_ms": 250.4319265
+          },
+          "opposite-castle-storm": {
+            "depth": 11.0,
+            "first_info_ms": 0.5549595,
+            "nodes": 299897.0,
+            "reported_nps": 2235007.5,
+            "wall_ms": 134.96965799999998
+          },
+          "starting-development": {
+            "depth": 12.0,
+            "first_info_ms": 0.4466145,
+            "nodes": 355380.0,
+            "reported_nps": 2279819.0,
+            "wall_ms": 156.364914
+          },
+          "tactical-safety": {
+            "depth": 16.0,
+            "first_info_ms": 0.352633,
+            "nodes": 830559.0,
+            "reported_nps": 5055545.5,
+            "wall_ms": 164.6713205
+          },
+          "unsupported-greek-gift": {
+            "depth": 11.0,
+            "first_info_ms": 0.530525,
+            "nodes": 332815.0,
+            "reported_nps": 2155686.0,
+            "wall_ms": 154.8327285
+          }
+        }
+      },
+      "latency": {
+        "baseline": {
+          "first_info_ms": {
+            "max": 6.2063,
+            "p50": 0.5694,
+            "p95": 1.3103
+          },
+          "wall_ms": {
+            "max": 250.5868,
+            "p50": 186.5661,
+            "p95": 250.3887
+          }
+        },
+        "diversified": {
+          "first_info_ms": {
+            "max": 1.6517,
+            "p50": 0.5586,
+            "p95": 1.2944
+          },
+          "wall_ms": {
+            "max": 250.677,
+            "p50": 187.2377,
+            "p95": 250.4154
+          }
+        },
+        "helpers": {
+          "first_info_ms": {
+            "max": 1.6493,
+            "p50": 0.581,
+            "p95": 1.3153
+          },
+          "wall_ms": {
+            "max": 250.6067,
+            "p50": 187.6973,
+            "p95": 250.4764
+          }
+        },
+        "tt": {
+          "first_info_ms": {
+            "max": 1.355,
+            "p50": 0.5482,
+            "p95": 1.2724
+          },
+          "wall_ms": {
+            "max": 250.5172,
+            "p50": 187.6692,
+            "p95": 250.4401
+          }
+        }
+      },
+      "movetime_ms": 250,
+      "threads": 1
+    },
+    {
+      "comparisons": [
+        {
+          "baseline": "baseline",
+          "candidate": "helpers",
+          "fixture_bootstrap_ci95_percent": [
+            -0.8553,
+            0.754
+          ],
+          "geometric_reported_nps_gain_percent": 0.0003,
+          "mean_median_depth_gain": -0.05
+        },
+        {
+          "baseline": "helpers",
+          "candidate": "tt",
+          "fixture_bootstrap_ci95_percent": [
+            -0.7084,
+            0.527
+          ],
+          "geometric_reported_nps_gain_percent": -0.122,
+          "mean_median_depth_gain": 0.0
+        },
+        {
+          "baseline": "tt",
+          "candidate": "diversified",
+          "fixture_bootstrap_ci95_percent": [
+            0.3048,
+            1.0832
+          ],
+          "geometric_reported_nps_gain_percent": 0.6829,
+          "mean_median_depth_gain": 0.1
+        },
+        {
+          "baseline": "baseline",
+          "candidate": "diversified",
+          "fixture_bootstrap_ci95_percent": [
+            0.0078,
+            1.145
+          ],
+          "geometric_reported_nps_gain_percent": 0.5603,
+          "mean_median_depth_gain": 0.05
+        }
+      ],
+      "fixture_medians": {
+        "baseline": {
+          "bishop-f7-sacrifice": {
+            "depth": 10.0,
+            "first_info_ms": 4.5131785,
+            "nodes": 577275.5,
+            "reported_nps": 18240100.0,
+            "wall_ms": 38.3565615
+          },
+          "central-queen-safety": {
+            "depth": 10.0,
+            "first_info_ms": 4.2002365,
+            "nodes": 599685.0,
+            "reported_nps": 19294316.0,
+            "wall_ms": 32.9106175
+          },
+          "central-space": {
+            "depth": 9.5,
+            "first_info_ms": 4.0537775,
+            "nodes": 536020.5,
+            "reported_nps": 17330784.5,
+            "wall_ms": 33.213594
+          },
+          "defensive-safety": {
+            "depth": 17.0,
+            "first_info_ms": 4.322357,
+            "nodes": 1309040.0,
+            "reported_nps": 39959805.0,
+            "wall_ms": 34.558513500000004
+          },
+          "kingside-pawn-storm": {
+            "depth": 15.0,
+            "first_info_ms": 3.688696,
+            "nodes": 853847.0,
+            "reported_nps": 24437964.0,
+            "wall_ms": 36.2163665
+          },
+          "open-king-gambit": {
+            "depth": 9.0,
+            "first_info_ms": 4.0240279999999995,
+            "nodes": 545532.5,
+            "reported_nps": 16862978.5,
+            "wall_ms": 38.133206
+          },
+          "opposite-castle-storm": {
+            "depth": 10.0,
+            "first_info_ms": 4.2619935,
+            "nodes": 556206.0,
+            "reported_nps": 18090406.5,
+            "wall_ms": 35.125196
+          },
+          "starting-development": {
+            "depth": 11.0,
+            "first_info_ms": 4.2242235,
+            "nodes": 657121.0,
+            "reported_nps": 18216177.0,
+            "wall_ms": 35.687317500000006
+          },
+          "tactical-safety": {
+            "depth": 15.0,
+            "first_info_ms": 4.410382,
+            "nodes": 1232334.0,
+            "reported_nps": 36570443.0,
+            "wall_ms": 34.733577
+          },
+          "unsupported-greek-gift": {
+            "depth": 10.0,
+            "first_info_ms": 4.094587499999999,
+            "nodes": 486805.0,
+            "reported_nps": 18041335.5,
+            "wall_ms": 28.863926
+          }
+        },
+        "diversified": {
+          "bishop-f7-sacrifice": {
+            "depth": 10.0,
+            "first_info_ms": 3.8497874999999997,
+            "nodes": 546140.5,
+            "reported_nps": 18139061.0,
+            "wall_ms": 39.962359
+          },
+          "central-queen-safety": {
+            "depth": 10.0,
+            "first_info_ms": 4.355468500000001,
+            "nodes": 600498.5,
+            "reported_nps": 19556154.5,
+            "wall_ms": 31.815299
+          },
+          "central-space": {
+            "depth": 10.0,
+            "first_info_ms": 3.9532295,
+            "nodes": 606240.5,
+            "reported_nps": 17752450.0,
+            "wall_ms": 35.6682785
+          },
+          "defensive-safety": {
+            "depth": 17.0,
+            "first_info_ms": 4.055894,
+            "nodes": 1333158.0,
+            "reported_nps": 40293517.5,
+            "wall_ms": 37.182625
+          },
+          "kingside-pawn-storm": {
+            "depth": 15.0,
+            "first_info_ms": 3.606744,
+            "nodes": 707853.5,
+            "reported_nps": 24395030.0,
+            "wall_ms": 31.5439665
+          },
+          "open-king-gambit": {
+            "depth": 9.0,
+            "first_info_ms": 3.924709,
+            "nodes": 465424.0,
+            "reported_nps": 17087667.0,
+            "wall_ms": 32.7291955
+          },
+          "opposite-castle-storm": {
+            "depth": 11.0,
+            "first_info_ms": 4.1117539999999995,
+            "nodes": 601096.0,
+            "reported_nps": 18248165.5,
+            "wall_ms": 34.4550525
+          },
+          "starting-development": {
+            "depth": 10.0,
+            "first_info_ms": 3.8287965,
+            "nodes": 598341.0,
+            "reported_nps": 18173626.5,
+            "wall_ms": 37.6932235
+          },
+          "tactical-safety": {
+            "depth": 15.0,
+            "first_info_ms": 4.3093825,
+            "nodes": 1186192.0,
+            "reported_nps": 36655403.5,
+            "wall_ms": 32.931675
+          },
+          "unsupported-greek-gift": {
+            "depth": 10.0,
+            "first_info_ms": 3.913322,
+            "nodes": 557351.0,
+            "reported_nps": 17959465.5,
+            "wall_ms": 31.584086
+          }
+        },
+        "helpers": {
+          "bishop-f7-sacrifice": {
+            "depth": 9.0,
+            "first_info_ms": 4.314763,
+            "nodes": 517773.5,
+            "reported_nps": 18038700.5,
+            "wall_ms": 32.4330775
+          },
+          "central-queen-safety": {
+            "depth": 10.0,
+            "first_info_ms": 3.8388785,
+            "nodes": 604339.0,
+            "reported_nps": 19411826.0,
+            "wall_ms": 32.525435
+          },
+          "central-space": {
+            "depth": 10.0,
+            "first_info_ms": 4.477997500000001,
+            "nodes": 596795.0,
+            "reported_nps": 17668999.5,
+            "wall_ms": 34.696859
+          },
+          "defensive-safety": {
+            "depth": 17.5,
+            "first_info_ms": 3.927919,
+            "nodes": 1417704.0,
+            "reported_nps": 40313503.0,
+            "wall_ms": 35.5907975
+          },
+          "kingside-pawn-storm": {
+            "depth": 15.0,
+            "first_info_ms": 4.1678745,
+            "nodes": 721354.0,
+            "reported_nps": 23865115.5,
+            "wall_ms": 34.3096035
+          },
+          "open-king-gambit": {
+            "depth": 9.0,
+            "first_info_ms": 4.188229,
+            "nodes": 515800.0,
+            "reported_nps": 17039078.5,
+            "wall_ms": 31.987751
+          },
+          "opposite-castle-storm": {
+            "depth": 10.5,
+            "first_info_ms": 4.478997,
+            "nodes": 631897.5,
+            "reported_nps": 18094873.0,
+            "wall_ms": 35.6158205
+          },
+          "starting-development": {
+            "depth": 10.0,
+            "first_info_ms": 4.4201485,
+            "nodes": 621026.5,
+            "reported_nps": 18308129.0,
+            "wall_ms": 35.789227499999996
+          },
+          "tactical-safety": {
+            "depth": 15.0,
+            "first_info_ms": 4.9161965,
+            "nodes": 1111932.0,
+            "reported_nps": 36755121.5,
+            "wall_ms": 30.731181
+          },
+          "unsupported-greek-gift": {
+            "depth": 10.0,
+            "first_info_ms": 4.112184,
+            "nodes": 569456.5,
+            "reported_nps": 17682881.0,
+            "wall_ms": 35.8527665
+          }
+        },
+        "tt": {
+          "bishop-f7-sacrifice": {
+            "depth": 9.5,
+            "first_info_ms": 4.8105080000000005,
+            "nodes": 547406.5,
+            "reported_nps": 18171314.0,
+            "wall_ms": 34.386793999999995
+          },
+          "central-queen-safety": {
+            "depth": 9.0,
+            "first_info_ms": 3.984378,
+            "nodes": 597390.5,
+            "reported_nps": 19242187.0,
+            "wall_ms": 39.048643999999996
+          },
+          "central-space": {
+            "depth": 9.0,
+            "first_info_ms": 3.9117805,
+            "nodes": 500302.0,
+            "reported_nps": 17566998.5,
+            "wall_ms": 29.111663999999998
+          },
+          "defensive-safety": {
+            "depth": 18.0,
+            "first_info_ms": 3.849703,
+            "nodes": 1335467.0,
+            "reported_nps": 40220366.0,
+            "wall_ms": 33.6449365
+          },
+          "kingside-pawn-storm": {
+            "depth": 15.0,
+            "first_info_ms": 3.9245865,
+            "nodes": 801605.5,
+            "reported_nps": 24313114.0,
+            "wall_ms": 36.2751065
+          },
+          "open-king-gambit": {
+            "depth": 9.0,
+            "first_info_ms": 4.1827895,
+            "nodes": 539021.5,
+            "reported_nps": 16784034.0,
+            "wall_ms": 33.341323
+          },
+          "opposite-castle-storm": {
+            "depth": 10.5,
+            "first_info_ms": 4.0080345,
+            "nodes": 624622.0,
+            "reported_nps": 18145125.0,
+            "wall_ms": 35.7537265
+          },
+          "starting-development": {
+            "depth": 11.0,
+            "first_info_ms": 3.7282195,
+            "nodes": 657208.5,
+            "reported_nps": 18177385.0,
+            "wall_ms": 38.192902000000004
+          },
+          "tactical-safety": {
+            "depth": 15.0,
+            "first_info_ms": 4.3346835,
+            "nodes": 1161272.5,
+            "reported_nps": 36359885.5,
+            "wall_ms": 33.6717965
+          },
+          "unsupported-greek-gift": {
+            "depth": 10.0,
+            "first_info_ms": 4.1874970000000005,
+            "nodes": 509615.0,
+            "reported_nps": 17843401.0,
+            "wall_ms": 32.305394500000006
+          }
+        }
+      },
+      "latency": {
+        "baseline": {
+          "first_info_ms": {
+            "max": 6.5867,
+            "p50": 4.1776,
+            "p95": 5.4986
+          },
+          "wall_ms": {
+            "max": 50.869,
+            "p50": 35.0658,
+            "p95": 50.4466
+          }
+        },
+        "diversified": {
+          "first_info_ms": {
+            "max": 6.6427,
+            "p50": 4.0179,
+            "p95": 5.3501
+          },
+          "wall_ms": {
+            "max": 51.8731,
+            "p50": 33.5315,
+            "p95": 50.4426
+          }
+        },
+        "helpers": {
+          "first_info_ms": {
+            "max": 6.5045,
+            "p50": 4.249,
+            "p95": 5.4628
+          },
+          "wall_ms": {
+            "max": 51.3498,
+            "p50": 33.9607,
+            "p95": 50.4298
+          }
+        },
+        "tt": {
+          "first_info_ms": {
+            "max": 6.5657,
+            "p50": 3.9576,
+            "p95": 5.6327
+          },
+          "wall_ms": {
+            "max": 51.0812,
+            "p50": 34.3668,
+            "p95": 50.735
+          }
+        }
+      },
+      "movetime_ms": 50,
+      "threads": 8
+    },
+    {
+      "comparisons": [
+        {
+          "baseline": "baseline",
+          "candidate": "helpers",
+          "fixture_bootstrap_ci95_percent": [
+            -0.7277,
+            -0.006
+          ],
+          "geometric_reported_nps_gain_percent": -0.3479,
+          "mean_median_depth_gain": 0.05
+        },
+        {
+          "baseline": "helpers",
+          "candidate": "tt",
+          "fixture_bootstrap_ci95_percent": [
+            0.0102,
+            1.3831
+          ],
+          "geometric_reported_nps_gain_percent": 0.6919,
+          "mean_median_depth_gain": 0.0
+        },
+        {
+          "baseline": "tt",
+          "candidate": "diversified",
+          "fixture_bootstrap_ci95_percent": [
+            -0.9537,
+            0.4125
+          ],
+          "geometric_reported_nps_gain_percent": -0.1712,
+          "mean_median_depth_gain": 0.1
+        },
+        {
+          "baseline": "baseline",
+          "candidate": "diversified",
+          "fixture_bootstrap_ci95_percent": [
+            -0.5951,
+            0.8021
+          ],
+          "geometric_reported_nps_gain_percent": 0.1699,
+          "mean_median_depth_gain": 0.15
+        }
+      ],
+      "fixture_medians": {
+        "baseline": {
+          "bishop-f7-sacrifice": {
+            "depth": 14.5,
+            "first_info_ms": 4.6639745,
+            "nodes": 3467415.0,
+            "reported_nps": 18704316.0,
+            "wall_ms": 191.579868
+          },
+          "central-queen-safety": {
+            "depth": 12.0,
+            "first_info_ms": 3.9847434999999995,
+            "nodes": 2980649.0,
+            "reported_nps": 19988006.0,
+            "wall_ms": 154.99825199999998
+          },
+          "central-space": {
+            "depth": 13.0,
+            "first_info_ms": 4.4006050000000005,
+            "nodes": 2595104.0,
+            "reported_nps": 17775171.5,
+            "wall_ms": 204.4567645
+          },
+          "defensive-safety": {
+            "depth": 22.0,
+            "first_info_ms": 4.254728500000001,
+            "nodes": 4495834.5,
+            "reported_nps": 42039067.5,
+            "wall_ms": 108.8485145
+          },
+          "kingside-pawn-storm": {
+            "depth": 20.5,
+            "first_info_ms": 4.256344,
+            "nodes": 4617540.0,
+            "reported_nps": 26063042.0,
+            "wall_ms": 175.66788100000002
+          },
+          "open-king-gambit": {
+            "depth": 13.0,
+            "first_info_ms": 4.799946,
+            "nodes": 3540144.0,
+            "reported_nps": 16955725.5,
+            "wall_ms": 231.18829649999998
+          },
+          "opposite-castle-storm": {
+            "depth": 14.0,
+            "first_info_ms": 3.880661,
+            "nodes": 2790023.5,
+            "reported_nps": 17604535.5,
+            "wall_ms": 192.77201300000002
+          },
+          "starting-development": {
+            "depth": 14.0,
+            "first_info_ms": 4.6811679999999996,
+            "nodes": 3080968.0,
+            "reported_nps": 18519461.0,
+            "wall_ms": 206.1044525
+          },
+          "tactical-safety": {
+            "depth": 20.0,
+            "first_info_ms": 4.7198395,
+            "nodes": 5970944.5,
+            "reported_nps": 39661857.5,
+            "wall_ms": 229.553342
+          },
+          "unsupported-greek-gift": {
+            "depth": 13.0,
+            "first_info_ms": 4.3670124999999995,
+            "nodes": 2706846.5,
+            "reported_nps": 17959628.5,
+            "wall_ms": 240.625987
+          }
+        },
+        "diversified": {
+          "bishop-f7-sacrifice": {
+            "depth": 15.0,
+            "first_info_ms": 3.945699,
+            "nodes": 3471222.5,
+            "reported_nps": 18786474.0,
+            "wall_ms": 185.617211
+          },
+          "central-queen-safety": {
+            "depth": 12.0,
+            "first_info_ms": 4.259861,
+            "nodes": 3131155.0,
+            "reported_nps": 20070498.5,
+            "wall_ms": 199.697581
+          },
+          "central-space": {
+            "depth": 13.5,
+            "first_info_ms": 4.256864,
+            "nodes": 2652931.5,
+            "reported_nps": 18070793.5,
+            "wall_ms": 229.734917
+          },
+          "defensive-safety": {
+            "depth": 22.0,
+            "first_info_ms": 4.23643,
+            "nodes": 3744722.0,
+            "reported_nps": 41900037.0,
+            "wall_ms": 103.9734835
+          },
+          "kingside-pawn-storm": {
+            "depth": 21.0,
+            "first_info_ms": 3.8360339999999997,
+            "nodes": 4950602.5,
+            "reported_nps": 26231360.5,
+            "wall_ms": 189.62492300000002
+          },
+          "open-king-gambit": {
+            "depth": 12.5,
+            "first_info_ms": 3.6051279999999997,
+            "nodes": 2416912.0,
+            "reported_nps": 16907376.0,
+            "wall_ms": 181.54285850000002
+          },
+          "opposite-castle-storm": {
+            "depth": 13.5,
+            "first_info_ms": 4.2613455,
+            "nodes": 2794679.5,
+            "reported_nps": 17140140.0,
+            "wall_ms": 192.623616
+          },
+          "starting-development": {
+            "depth": 15.0,
+            "first_info_ms": 4.429031,
+            "nodes": 3179962.0,
+            "reported_nps": 18665766.0,
+            "wall_ms": 189.8433755
+          },
+          "tactical-safety": {
+            "depth": 20.0,
+            "first_info_ms": 4.2926994999999994,
+            "nodes": 7488717.5,
+            "reported_nps": 40128311.5,
+            "wall_ms": 213.241769
+          },
+          "unsupported-greek-gift": {
+            "depth": 13.0,
+            "first_info_ms": 3.8399615000000002,
+            "nodes": 2976067.5,
+            "reported_nps": 17939498.0,
+            "wall_ms": 223.071565
+          }
+        },
+        "helpers": {
+          "bishop-f7-sacrifice": {
+            "depth": 14.5,
+            "first_info_ms": 4.2165795,
+            "nodes": 3218425.0,
+            "reported_nps": 18581729.5,
+            "wall_ms": 188.43113799999998
+          },
+          "central-queen-safety": {
+            "depth": 12.0,
+            "first_info_ms": 4.0856555,
+            "nodes": 3586478.5,
+            "reported_nps": 19991254.5,
+            "wall_ms": 192.8000285
+          },
+          "central-space": {
+            "depth": 13.0,
+            "first_info_ms": 3.7603235,
+            "nodes": 3116577.5,
+            "reported_nps": 17675567.0,
+            "wall_ms": 220.11449850000002
+          },
+          "defensive-safety": {
+            "depth": 22.0,
+            "first_info_ms": 3.7353180000000004,
+            "nodes": 3876333.5,
+            "reported_nps": 42088807.5,
+            "wall_ms": 97.529239
+          },
+          "kingside-pawn-storm": {
+            "depth": 21.0,
+            "first_info_ms": 4.059651000000001,
+            "nodes": 4719773.0,
+            "reported_nps": 26170145.0,
+            "wall_ms": 183.714508
+          },
+          "open-king-gambit": {
+            "depth": 12.0,
+            "first_info_ms": 3.7909325000000003,
+            "nodes": 2791672.5,
+            "reported_nps": 16693518.0,
+            "wall_ms": 180.1686725
+          },
+          "opposite-castle-storm": {
+            "depth": 14.0,
+            "first_info_ms": 4.0466135,
+            "nodes": 2716964.5,
+            "reported_nps": 17419233.5,
+            "wall_ms": 167.058818
+          },
+          "starting-development": {
+            "depth": 14.5,
+            "first_info_ms": 3.779144,
+            "nodes": 3159378.5,
+            "reported_nps": 18529569.0,
+            "wall_ms": 186.9200085
+          },
+          "tactical-safety": {
+            "depth": 20.0,
+            "first_info_ms": 5.157579,
+            "nodes": 5883895.5,
+            "reported_nps": 39693509.5,
+            "wall_ms": 239.872205
+          },
+          "unsupported-greek-gift": {
+            "depth": 13.5,
+            "first_info_ms": 4.0946204999999996,
+            "nodes": 3108327.0,
+            "reported_nps": 17900922.5,
+            "wall_ms": 200.2561285
+          }
+        },
+        "tt": {
+          "bishop-f7-sacrifice": {
+            "depth": 15.0,
+            "first_info_ms": 3.9420005,
+            "nodes": 3683507.5,
+            "reported_nps": 18814087.0,
+            "wall_ms": 198.1827175
+          },
+          "central-queen-safety": {
+            "depth": 12.0,
+            "first_info_ms": 4.2830265,
+            "nodes": 3089217.0,
+            "reported_nps": 19980029.0,
+            "wall_ms": 189.22837349999998
+          },
+          "central-space": {
+            "depth": 13.5,
+            "first_info_ms": 4.249881500000001,
+            "nodes": 2924759.5,
+            "reported_nps": 17858305.5,
+            "wall_ms": 226.6798405
+          },
+          "defensive-safety": {
+            "depth": 22.0,
+            "first_info_ms": 4.3190305,
+            "nodes": 4587668.0,
+            "reported_nps": 43246911.0,
+            "wall_ms": 110.6439705
+          },
+          "kingside-pawn-storm": {
+            "depth": 21.0,
+            "first_info_ms": 3.923394,
+            "nodes": 4645197.0,
+            "reported_nps": 26364794.0,
+            "wall_ms": 178.9612205
+          },
+          "open-king-gambit": {
+            "depth": 13.0,
+            "first_info_ms": 4.2618185,
+            "nodes": 2645737.5,
+            "reported_nps": 17003006.5,
+            "wall_ms": 179.4031245
+          },
+          "opposite-castle-storm": {
+            "depth": 13.5,
+            "first_info_ms": 4.829826000000001,
+            "nodes": 2720381.5,
+            "reported_nps": 17150167.5,
+            "wall_ms": 183.5409795
+          },
+          "starting-development": {
+            "depth": 14.5,
+            "first_info_ms": 4.130240499999999,
+            "nodes": 3156415.5,
+            "reported_nps": 18555761.0,
+            "wall_ms": 197.9487455
+          },
+          "tactical-safety": {
+            "depth": 19.0,
+            "first_info_ms": 4.398941000000001,
+            "nodes": 6225150.0,
+            "reported_nps": 39876916.5,
+            "wall_ms": 159.96976
+          },
+          "unsupported-greek-gift": {
+            "depth": 13.0,
+            "first_info_ms": 4.0296695,
+            "nodes": 2969105.5,
+            "reported_nps": 17962236.5,
+            "wall_ms": 199.081218
+          }
+        }
+      },
+      "latency": {
+        "baseline": {
+          "first_info_ms": {
+            "max": 6.7953,
+            "p50": 4.3875,
+            "p95": 5.9262
+          },
+          "wall_ms": {
+            "max": 251.5406,
+            "p50": 191.0571,
+            "p95": 251.1196
+          }
+        },
+        "diversified": {
+          "first_info_ms": {
+            "max": 6.5657,
+            "p50": 4.1536,
+            "p95": 5.723
+          },
+          "wall_ms": {
+            "max": 251.5937,
+            "p50": 194.371,
+            "p95": 250.9787
+          }
+        },
+        "helpers": {
+          "first_info_ms": {
+            "max": 6.603,
+            "p50": 4.0453,
+            "p95": 5.6679
+          },
+          "wall_ms": {
+            "max": 252.2962,
+            "p50": 190.9261,
+            "p95": 250.9548
+          }
+        },
+        "tt": {
+          "first_info_ms": {
+            "max": 6.5757,
+            "p50": 4.2499,
+            "p95": 5.5481
+          },
+          "wall_ms": {
+            "max": 251.2851,
+            "p50": 188.7394,
+            "p95": 250.7863
+          }
+        }
+      },
+      "movetime_ms": 250,
+      "threads": 8
+    }
+  ],
+  "variants": {
+    "baseline": {
+      "path": "/tmp/jakkoo-temp/session-1786106-1790178860615-0/lazy-smp/baseline",
+      "sha256": "161a205f29b4d7ddd8f4d41992c370d847d9d7c89bda6d47b05823ff738049d1"
+    },
+    "diversified": {
+      "path": "/tmp/jakkoo-temp/session-1786106-1790178860615-0/lazy-smp/diversified",
+      "sha256": "6261938495f0376b01f2845d17121ee0e23be82950de83262ed18d93ce6ec36d"
+    },
+    "helpers": {
+      "path": "/tmp/jakkoo-temp/session-1786106-1790178860615-0/lazy-smp/helpers",
+      "sha256": "fcd9d42111f7dc733209fcc3c935a5059a8adfbfc056d89e90d3ce5778bd3abf"
+    },
+    "tt": {
+      "path": "/tmp/jakkoo-temp/session-1786106-1790178860615-0/lazy-smp/tt",
+      "sha256": "bea06c22a9ac0b58541cc32c0378daaf11f9a7132d1a2a6a31ac752c70887c98"
+    }
+  }
+}

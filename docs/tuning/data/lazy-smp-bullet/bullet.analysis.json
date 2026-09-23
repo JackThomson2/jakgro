@@ -1,0 +1,88 @@
+{
+  "average_plies": 109.583333,
+  "colors": {
+    "black": {
+      "draws": 2,
+      "losses": 5,
+      "score_percent": 50.0,
+      "wins": 5
+    },
+    "score_gap_percentage_points": 8.333333,
+    "white": {
+      "draws": 4,
+      "losses": 3,
+      "score_percent": 58.333333,
+      "wins": 5
+    }
+  },
+  "confidence": {
+    "elo": 29.020267,
+    "elo_ci95": [
+      -301.854094,
+      459.524695
+    ],
+    "method": "95% Hoeffding bound over color-reversed pair scores",
+    "score_percent_ci95": [
+      14.961653,
+      93.37168
+    ]
+  },
+  "engines": {
+    "baseline": "baseline-8",
+    "candidate": "candidate-8"
+  },
+  "games": 24,
+  "inputs": {
+    "manifest": "bullet.manifest.json",
+    "manifest_sha256": "f37f883c5b9fa40539ed6e68f5ebb31878615ba95ca3493dcb5e2b4005eaa389",
+    "pgn": "bullet.pgn",
+    "pgn_sha256": "9e8045c7c56203f8b1d32b7e5bee689e5662f8b81a9f87f7c44c1cb2371450a9"
+  },
+  "pairs": {
+    "count": 12,
+    "decisive_splits": 8,
+    "double_draws": 2,
+    "point_distribution": {
+      "1.0": 10,
+      "1.5": 2
+    }
+  },
+  "result": {
+    "decisive_percent": 75.0,
+    "draws": 6,
+    "losses": 8,
+    "score_percent": 54.166667,
+    "wins": 10
+  },
+  "schema_version": 2,
+  "style": {
+    "baseline": {
+      "captures": 216,
+      "captures_per_100_moves": 16.413374,
+      "checks": 96,
+      "checks_per_100_moves": 7.294833,
+      "forcing_moves": 288,
+      "forcing_moves_per_100_moves": 21.884498,
+      "moves": 1316,
+      "promotions": 0,
+      "promotions_per_100_moves": 0.0
+    },
+    "candidate": {
+      "captures": 219,
+      "captures_per_100_moves": 16.666667,
+      "checks": 85,
+      "checks_per_100_moves": 6.468798,
+      "forcing_moves": 284,
+      "forcing_moves_per_100_moves": 21.613394,
+      "moves": 1314,
+      "promotions": 1,
+      "promotions_per_100_moves": 0.076104
+    }
+  },
+  "terminations": {
+    "adjudication: move limit": 1,
+    "adjudication: resignation": 18,
+    "fifty-move rule": 1,
+    "threefold repetition": 4
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "engines": {
+    "baseline": "tt-8",
+    "candidate": "diversified-8"
+  },
+  "faults": [],
+  "inputs": {
+    "baseline_sha256": "bea06c22a9ac0b58541cc32c0378daaf11f9a7132d1a2a6a31ac752c70887c98",
+    "candidate_sha256": "6261938495f0376b01f2845d17121ee0e23be82950de83262ed18d93ce6ec36d",
+    "manifest_sha256": "101d4e98555aefe251344a14ba746d6477225d38db001f9b239b94eb3fc2c2ed",
+    "pgn_sha256": "0282f9002e36e20b5a5764da70edcb09cc599eefcccd8c08e7973ed0343bc86f"
+  },
+  "result": {
+    "elo": 17.658403,
+    "elo_ci95": [
+      1.250945,
+      34.144993
+    ],
+    "elo_margin_95": 16.447024,
+    "games": 256,
+    "los_percent": 98.255075,
+    "pair_distribution": {
+      "0.0": 1,
+      "0.5": 9,
+      "1.0": 95,
+      "1.5": 22,
+      "2.0": 1
+    },
+    "pairs": 128,
+    "score_percent": 52.539062,
+    "score_percent_ci95": [
+      50.180025,
+      54.8981
+    ],
+    "sprt": {
+      "alpha": 0.05,
+      "beta": 0.05,
+      "decision": "continue",
+      "elo0": 0.0,
+      "elo1": 10.0,
+      "llr": 1.807186,
+      "lower_bound": -2.944439,
+      "upper_bound": 2.944439
+    }
+  },
+  "settings": {
+    "concurrency": 1,
+    "draw": {
+      "movecount": 10,
+      "movenumber": 80,
+      "score": 10
+    },
+    "games": 256,
+    "hash_mib": 16,
+    "limit": {
+      "mode": "fixed-time",
+      "movetime_ms": null,
+      "nodes_per_move": null,
+      "time_control": "1+0.01"
+    },
+    "maxmoves": 200,
+    "nodes_per_move": null,
+    "resign": {
+      "movecount": 4,
+      "score": 800,
+      "twosided": true
+    },
+    "rounds": 128,
+    "sprt": {
+      "alpha": 0.05,
+      "beta": 0.05,
+      "elo0": 0.0,
+      "elo1": 10.0
+    },
+    "threads": 8,
+    "time_control": "1+0.01",
+    "time_grace_ms": 10
+  },
+  "status": "complete"
+}

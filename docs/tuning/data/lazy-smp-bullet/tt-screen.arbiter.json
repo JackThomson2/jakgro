@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "games": 128,
+  "pairs": 64,
+  "random_plies": 0,
+  "seed": 1,
+  "candidate": "tt-8",
+  "baseline": "helpers-8",
+  "wins": 59,
+  "draws": 21,
+  "losses": 48,
+  "pair_points": [1.0, 1.5, 0.5, 1.0, 0.5, 1.0, 1.5, 1.0, 1.0, 1.0, 1.5, 1.0, 1.0, 1.0, 2.0, 1.0, 1.5, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.5, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.5, 1.0, 1.5, 1.0, 1.5, 1.5, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 1.5, 1.0, 0.5, 1.0, 2.0, 1.0, 1.0, 1.5, 1.0, 1.0, 1.0],
+  "terminations": {
+    "adjudication: drawn score": 1,
+    "adjudication: move limit": 2,
+    "adjudication: resignation": 105,
+    "checkmate": 2,
+    "fifty-move rule": 4,
+    "insufficient material": 7,
+    "threefold repetition": 7
+  },
+  "faults": [
+  ]
+}

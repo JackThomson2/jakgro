@@ -1,0 +1,14 @@
+    Checking jakgro v0.1.0 (/home/ubuntu/.local/state/jakkoo/worktrees/worktree-1786106-1790179191997434215-0/workspace)
+warning: manual slice size calculation
+   --> src/engine/search/transposition.rs:903:25
+    |
+903 |             let bytes = table.buckets().len() * std::mem::size_of::<super::Bucket>();
+    |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `std::mem::size_of_val(table.buckets())`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.93.0/index.html#manual_slice_size_calculation
+    = note: `#[warn(clippy::manual_slice_size_calculation)]` on by default
+
+warning: `jakgro` (lib test) generated 1 warning (run `cargo clippy --fix --lib -p jakgro --tests` to apply 1 suggestion)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.63s
+    Finished `release` profile [optimized] target(s) in 0.07s
+920c3b32c9d59b8a3fc162691be51d3742266223ef0c0ec10c4ca4741892563d  /tmp/jakkoo-temp/session-1786106-1790178860615-0/lazy-smp/integrated

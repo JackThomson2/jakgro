@@ -1,0 +1,165 @@
+{
+  "command": [
+    "/tmp/jakkoo-temp/session-1786106-1790178860615-0/lazy-smp/selfplay",
+    "--engine",
+    "/tmp/jakkoo-temp/session-1786106-1790178860615-0/lazy-smp/tt",
+    "--baseline-engine",
+    "/tmp/jakkoo-temp/session-1786106-1790178860615-0/lazy-smp/helpers",
+    "--candidate-aggression",
+    "75",
+    "--baseline-aggression",
+    "75",
+    "--candidate-name",
+    "tt-8",
+    "--baseline-name",
+    "helpers-8",
+    "--games",
+    "128",
+    "--openings",
+    "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-1786106-1790179191997434215-0/workspace/docs/tuning/data/selective-search-confirmation.epd",
+    "--hash",
+    "16",
+    "--threads",
+    "8",
+    "--concurrency",
+    "1",
+    "--pgn",
+    "/tmp/jakkoo-temp/session-1786106-1790178860615-0/lazy-smp/tt-screen.pgn",
+    "--results-json",
+    "/tmp/jakkoo-temp/session-1786106-1790178860615-0/lazy-smp/tt-screen.arbiter.json",
+    "--time-control",
+    "1+0.01",
+    "--candidate-eval-file",
+    "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-1786106-1790179191997434215-0/workspace/nets/jakgro.nnue",
+    "--baseline-eval-file",
+    "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-1786106-1790179191997434215-0/workspace/nets/jakgro.nnue",
+    "--time-grace-ms",
+    "10"
+  ],
+  "comparison": {
+    "distinct_binaries_required": true,
+    "distinct_binary_hashes": true,
+    "identical_binaries_allowed": false,
+    "mode": "same-profile-binaries"
+  },
+  "created_utc": "2026-09-23T16:32:40.193711+00:00",
+  "execution": {
+    "changed_inputs": [],
+    "completed_games": 128,
+    "duration_seconds": 334.25354,
+    "error": null,
+    "expected_games": 128,
+    "faults": [],
+    "finished_utc": "2026-09-23T16:38:14.459021+00:00",
+    "inputs_unchanged": true,
+    "pgn_sha256": "ff0097a0e497fcff09befe35fb15dcc50eecfbc6b1e0ddfc8466809ddad215e4",
+    "return_code": 0,
+    "started_utc": "2026-09-23T16:32:40.205481+00:00",
+    "status": "complete"
+  },
+  "host": {
+    "affinity": [
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31
+    ],
+    "platform": "Linux-7.0.0-1012-aws-x86_64-with-glibc2.39",
+    "python": "3.12.3"
+  },
+  "inputs": {
+    "baseline": {
+      "aggression": 75,
+      "eval_file": {
+        "path": "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-1786106-1790179191997434215-0/workspace/nets/jakgro.nnue",
+        "sha256": "afbc0897e26c88720d9fe46d5cb90c906512d07eb8e69ba46c74ade4b944350b"
+      },
+      "name": "helpers-8",
+      "path": "/tmp/jakkoo-temp/session-1786106-1790178860615-0/lazy-smp/helpers",
+      "revision": "3b4243e1d5686998e8ef0d3ea682ee5a99506b82",
+      "sha256": "fcd9d42111f7dc733209fcc3c935a5059a8adfbfc056d89e90d3ce5778bd3abf"
+    },
+    "candidate": {
+      "aggression": 75,
+      "eval_file": {
+        "path": "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-1786106-1790179191997434215-0/workspace/nets/jakgro.nnue",
+        "sha256": "afbc0897e26c88720d9fe46d5cb90c906512d07eb8e69ba46c74ade4b944350b"
+      },
+      "name": "tt-8",
+      "path": "/tmp/jakkoo-temp/session-1786106-1790178860615-0/lazy-smp/tt",
+      "revision": "4f40f9b1a882f00f73f6e826ff054696bcbf8be9",
+      "sha256": "bea06c22a9ac0b58541cc32c0378daaf11f9a7132d1a2a6a31ac752c70887c98"
+    },
+    "harness": {
+      "path": "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-1786106-1790179191997434215-0/workspace/tools/run_sprt.py",
+      "sha256": "d86047387379ea54424e5bd6c8fde21ce55ea88f39a57446ddaac060d3ded926"
+    },
+    "launcher": {
+      "path": "/tmp/jakkoo-temp/session-1786106-1790178860615-0/lazy-smp/match.py",
+      "sha256": "0658c784b651a1f9b3e398cf4c74f582a13487afa7cd9ef82bd9afba4573b785"
+    },
+    "openings": {
+      "count": 2048,
+      "path": "/home/ubuntu/.local/state/jakkoo/worktrees/worktree-1786106-1790179191997434215-0/workspace/docs/tuning/data/selective-search-confirmation.epd",
+      "sha256": "9f44058d953324751ed1db1a3325f8bfa8ccf31ee6f6cffa3e1e98a391a9de37"
+    },
+    "runner": {
+      "path": "/tmp/jakkoo-temp/session-1786106-1790178860615-0/lazy-smp/selfplay",
+      "sha256": "0884614f48a207f070e169b090106af9bcb3d882e9d86d2317ad07780109b8b0"
+    }
+  },
+  "outputs": {
+    "manifest": "/tmp/jakkoo-temp/session-1786106-1790178860615-0/lazy-smp/tt-screen.manifest.json",
+    "pgn": "/tmp/jakkoo-temp/session-1786106-1790178860615-0/lazy-smp/tt-screen.pgn"
+  },
+  "provenance": {
+    "build_profile": "rustc-1.93.1 release fat-lto codegen-units=1",
+    "dependency_revision": "5851b224ca58ef3330b9d41813fa76f391bb60cf"
+  },
+  "schema_version": 2,
+  "settings": {
+    "concurrency": 1,
+    "draw": {
+      "movecount": 10,
+      "movenumber": 80,
+      "score": 10
+    },
+    "games": 128,
+    "hash_mib": 16,
+    "limit": {
+      "mode": "fixed-time",
+      "movetime_ms": null,
+      "nodes_per_move": null,
+      "time_control": "1+0.01"
+    },
+    "maxmoves": 200,
+    "nodes_per_move": null,
+    "resign": {
+      "movecount": 4,
+      "score": 800,
+      "twosided": true
+    },
+    "rounds": 64,
+    "sprt": {
+      "alpha": 0.05,
+      "beta": 0.05,
+      "elo0": 0.0,
+      "elo1": 10.0
+    },
+    "threads": 8,
+    "time_control": "1+0.01",
+    "time_grace_ms": 10
+  }
+}

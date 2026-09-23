@@ -1,0 +1,39 @@
+{
+  "binary_sha256": "920c3b32c9d59b8a3fc162691be51d3742266223ef0c0ec10c4ca4741892563d",
+  "cargo_lock_sha256": "29520dd18001dc339cfea569f09d46f7fa9ec6edf9834c674af8bb20ce985a9c",
+  "checks": [
+    {
+      "command": "cargo +1.93.1 nextest run --no-tests=pass --cargo-profile release --test-threads 8 --target-dir \"$TMPDIR/lazy-smp/target\"",
+      "exit_status": 0,
+      "tests_passed": 380,
+      "tests_skipped": 0
+    },
+    {
+      "command": "cargo +1.93.1 clippy --all-targets --target-dir \"$TMPDIR/lazy-smp/target\" -- -D warnings",
+      "diagnostic": "manual_slice_size_calculation in bucket_allocation_uses_the_requested_size, already present in source base",
+      "exit_status": 101
+    },
+    {
+      "command": "cargo +1.93.1 clippy --all-targets --target-dir \"$TMPDIR/lazy-smp/target\"",
+      "exit_status": 0,
+      "warnings": 1
+    },
+    {
+      "command": "cargo +1.93.1 fmt --check",
+      "exit_status": 0
+    },
+    {
+      "command": "cargo +1.93.1 build --release --locked --bin jakgro --target-dir \"$TMPDIR/lazy-smp/target\"",
+      "exit_status": 0
+    }
+  ],
+  "compiler": "rustc 1.93.1 (01f6ddf75 2026-02-11), LLVM 21.1.8",
+  "implementation_revision": "69e7eb7ae8531bbca4f4712a6b8b58e4742e983f",
+  "logs_sha256": {
+    "integration-checks.log": "7ce5e95662a8b5693c7f91c81cbcaf8d4c95c26d5cc7dc66863def4b3c6346eb",
+    "integration-tests.log": "58d1609f83a4421da8ea8e111da8efe556cedb4dbd0f83c0c5ecad63a122b0ea"
+  },
+  "matches_replayed_after_integration": false,
+  "performance_remeasured_after_integration": false,
+  "source_base": "e0230ff18f6c403df810f36f20c230de2127043b"
+}

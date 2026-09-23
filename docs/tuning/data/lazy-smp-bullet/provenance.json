@@ -1,0 +1,44 @@
+{
+  "base": "59cd7f2c9247cc4fd4def2a9b9dc57c355de830d",
+  "helpers_revision": "3b4243e1d5686998e8ef0d3ea682ee5a99506b82",
+  "tt_revision": "4f40f9b1a882f00f73f6e826ff054696bcbf8be9",
+  "diversified_revision": "37c9c8af9636a0048bcc84c8c89953586e060920",
+  "compiler": "rustc 1.93.1 (01f6ddf75 2026-02-11), LLVM 21.1.8",
+  "build": "cargo +1.93.1 build --release --locked --bin jakgro --bin selfplay",
+  "rustflags": "",
+  "cpu": "Intel Xeon Platinum 8488C",
+  "physical_cores": 48,
+  "logical_cpus": 96,
+  "benchmark_affinity": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "binaries": [
+    {
+      "label": "baseline",
+      "sha256": "161a205f29b4d7ddd8f4d41992c370d847d9d7c89bda6d47b05823ff738049d1"
+    },
+    {
+      "label": "helpers",
+      "sha256": "fcd9d42111f7dc733209fcc3c935a5059a8adfbfc056d89e90d3ce5778bd3abf"
+    },
+    {
+      "label": "tt",
+      "sha256": "bea06c22a9ac0b58541cc32c0378daaf11f9a7132d1a2a6a31ac752c70887c98"
+    },
+    {
+      "label": "diversified",
+      "sha256": "6261938495f0376b01f2845d17121ee0e23be82950de83262ed18d93ce6ec36d"
+    },
+    {
+      "label": "selfplay",
+      "sha256": "0884614f48a207f070e169b090106af9bcb3d882e9d86d2317ad07780109b8b0"
+    }
+  ]
+}

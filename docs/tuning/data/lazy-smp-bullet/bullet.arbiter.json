@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "games": 24,
+  "pairs": 12,
+  "random_plies": 0,
+  "seed": 1,
+  "candidate": "candidate-8",
+  "baseline": "baseline-8",
+  "wins": 10,
+  "draws": 6,
+  "losses": 8,
+  "pair_points": [1.0, 1.5, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.5, 1.0, 1.0, 1.0],
+  "terminations": {
+    "adjudication: move limit": 1,
+    "adjudication: resignation": 18,
+    "fifty-move rule": 1,
+    "threefold repetition": 4
+  },
+  "faults": [
+  ]
+}

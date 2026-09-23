@@ -3,12 +3,15 @@
 Jakgro searches on a configurable number of threads. `Threads` defaults to one
 and is bounded from one to 128. No Elo claim is recorded here: this document
 describes the design, states what is and is not reproducible, and specifies the
-protocol that a strength measurement must follow.
+protocol that a strength measurement must follow. The first eight-thread
+implementation checks are recorded in [the bullet validation report](lazy-smp-bullet.md).
 
 ## What the searchers share
 
-The transposition table is the only structure searchers share. Each entry packs
-a move, score, static evaluation, depth, generation, and bound into one 64-bit
+The transposition table is the shared mutable search-knowledge structure.
+Searchers also share read-only inputs and the network, cancellation/deadlines,
+and batched node accounting. Each table entry packs a move, score, static
+evaluation, depth, generation, and bound into one 64-bit
 payload, stored beside a verification word holding the mixed key exclusive-ored
 with that payload. A reader recomputes the key from both words and rejects a
 mismatch, so an entry caught between two writes is detected without locking. The
@@ -21,15 +24,18 @@ capture history, per-ply move-picker storage, principal variations, and static
 evaluations. The pawn and king structure cache remains thread-local and verified
 by full key, so it stays an optimization with no observable effect.
 
-A lost race costs at most one entry. A node probes its bucket on entry and
+A lost write normally costs a cached entry. A node probes its bucket on entry and
 stores into it on exit, and the store decides its replacement from the words
-the probe read rather than reading the bucket again, so a store issues no loads
-and at most two stores. That snapshot may be stale by then: the node's own
-subtree or another searcher may have written the bucket since, and a stale
-decision can cost the entry its slot, overwrite one a fresh read would have
-kept, or restore an older result of the same position. Concurrent writers cost
-the same, so neither staleness nor a lost race can produce a slot that verifies
-as another position's payload: a slot is only ever written as a complete pair.
+the probe read rather than reading the bucket again, so a store issues no bucket
+reloads and at most two stores. A candidate without a move inherits the recorded
+move; if the resulting payload equals the snapshot, no write is needed. That
+snapshot may be stale by then: the node's own subtree or another searcher may
+have written the bucket since, and a stale decision can cost the entry its slot,
+overwrite one a fresh read would have kept, or restore an older result of the
+same position. Conversely, suppressing an unchanged snapshot can leave a newer
+entry alone. The two atomic words are not a transactional pair: mixed pairs
+normally fail verification, but XOR verification is probabilistic, not an
+absolute guarantee against a wrong-key collision.
 
 ## Main searcher and helpers
 
@@ -38,23 +44,32 @@ deadlines, the reported `info` lines, the styled root that decides personality
 and sacrifice questions, and the `bestmove` the search returns. Helpers exist
 only to deepen the shared table, and never run the styled root.
 
-A helper never reports progress and never decides when to stop deepening. It
-observes cancellation, the hard deadline, and a shared release flag, but not the
-soft-deadline decision that ends an iteration early, so the main searcher
+A helper neither reports progress nor formats UCI principal-variation strings;
+it keeps the internal move variation needed for iterative deepening. It observes
+cancellation, the hard deadline, a shared release flag, and its node/depth/mate
+limits, but not the main searcher's soft-deadline decision, so the main searcher
 finishing is what normally ends it. Release is deliberately distinct from an
 explicit stop, which would be indistinguishable from a cancelled search. Every
-helper is joined before a search returns, and each is caught individually so a
-helper that fails costs its thread rather than the search.
+helper is joined before a search returns. Helpers are caught individually in
+unwinding builds; the release profile uses aborting panics, so a panic there
+still terminates the process.
 
 Helpers diversify deterministically by index rather than randomly. Odd-indexed
 helpers take every second depth starting one ahead, reaching deep results sooner
-and leaving them in the table. Every helper rotates the root move order by its
-index, so helpers disagree about which subtree to establish first. Without that
-rotation, extra threads would repeat the same work rather than widening coverage.
+and leaving them in the table. Helpers rotate the final ordered root alternatives
+by their zero-based index plus one, after scoring and numeric tie-breaking. An
+available previous-PV or hash move stays first to establish alpha cheaply; with
+no preferred move, the whole order is rotated. The main searcher is not rotated.
+This gives helpers different alternative orders for identical ordering inputs,
+although small move sets and racing table/history inputs can still produce
+coincident orders. Diversification is not itself a strength guarantee.
 
-Reported nodes and telemetry are summed across searchers. Every telemetry counter
-records work performed, so a sum keeps the relationships between them true of the
-whole search.
+Reported nodes include the main searcher's current nodes and the helpers' last
+published counts at each completed main iteration. The final returned `info`
+remains that iteration's snapshot, not a recount after helper joins or an
+abandoned iteration. Telemetry is merged from the completed worker outcomes.
+Use independent `go`-to-`bestmove` timing when measuring end-to-end latency rather
+than treating the last `info` timestamp as the whole search duration.
 
 ## Determinism
 
@@ -70,8 +85,9 @@ may differ between runs of the same position at the same limit. This is inherent
 to lazy SMP and is not a defect. With helpers running, the node limit bounds the
 search as a whole rather than one searcher. Each searcher publishes its own
 nodes and observes the shared total only on the existing polling cadence, so
-between polls no node of a parallel search reads a cache line another searcher
-writes, and the limit can be overshot by less than two intervals per searcher:
+between polls node accounting does not read a cache line another searcher
+writes. Apart from the main searcher's first-iteration guarantee, the limit can
+be overshot by less than two intervals per searcher:
 the work the others have not yet published, and the publications this searcher
 has not yet observed. A fixed-node comparison across different thread counts is
 therefore not a like-for-like measurement, and strength must be measured at
@@ -83,47 +99,57 @@ Parallel strength must be measured at an equal time control, never at fixed
 nodes, because a node budget shared between searchers does not describe the same
 amount of work per searcher.
 
-Build one binary and run it against itself at differing thread counts, so the
-only difference between the sides is the option value. The bundled
+To compare implementations, build distinct old/new binaries with the same
+compiler, flags, network, Hash, Aggression and thread count. The bundled
 `tools/data/openings.epd` holds 48 positions, which bounds a `run_match.py` run
-to 96 games; larger runs need a larger suite, as the recorded series use:
+to 96 games; larger runs need a larger suite:
 
 ```sh
 python3 tools/run_match.py \
-  --engine /path/to/jakgro \
-  --candidate-aggression 75 \
-  --baseline-aggression 75 \
-  --candidate-name Threads-8 \
-  --baseline-name Threads-1 \
-  --time-control 10+0.1 \
-  --threads 8 \
-  --games 96 \
-  --pgn artifacts/lazy-smp.pgn \
-  --manifest artifacts/lazy-smp.json
+  --engine /path/to/candidate --baseline-engine /path/to/baseline \
+  --candidate-aggression 75 --baseline-aggression 75 \
+  --candidate-name Candidate-8 --baseline-name Baseline-8 \
+  --time-control 60+0.1 --threads 8 --hash 16 --games 96 \
+  --pgn artifacts/lazy-smp.pgn --manifest artifacts/lazy-smp.json
 ```
 
-On a host without `cutechess-cli`, `selfplay` accepts the same `--threads` option
-and sends it during every handshake, including after an engine restart, and is
-what the recorded series use for high game counts:
+Without `cutechess-cli`, `run_sprt.py` launches `selfplay`, forwards `--threads`
+and records it in the manifest. The arbiter sends Threads during every
+handshake, including after an engine restart. For example:
 
 ```sh
-./target/release/selfplay \
-  --engine /path/to/jakgro \
+python3 tools/run_sprt.py \
+  --runner ./target/release/selfplay \
+  --engine /path/to/candidate --baseline-engine /path/to/baseline \
   --candidate-aggression 75 --baseline-aggression 75 \
-  --candidate-name Threads-8 --baseline-name Threads-1 \
-  --games 1200 --time-control 1.0+0.01 --threads 8 \
+  --candidate-name Candidate-8 --baseline-name Baseline-8 \
+  --games 1200 --time-control 60+0.1 --threads 8 --hash 16 \
   --openings docs/tuning/data/selective-search-confirmation.epd \
-  --concurrency 8 \
-  --pgn artifacts/lazy-smp.pgn --results-json artifacts/lazy-smp.summary.json
+  --concurrency 1 --pgn artifacts/lazy-smp.pgn
 ```
 
-`--threads` currently configures both sides identically, so measuring one count
-against another requires two invocations with differing values compared through
-their summaries, or a per-side option once the tooling grows one.
+The selfplay clock syntax is seconds plus seconds: `60+0.1` is one minute plus
+100 ms per move; `1+0.01` is an accelerated one-second plus 10-ms screen, not a
+one-minute match. Its default time-forfeit grace is 250 ms, material at very
+short controls. The archived bullet launcher sets and records a 10-ms grace.
 
-Evaluate the result with `tools/run_sprt.py` and validate the PGN with
-`tools/analyze_match.py`, exactly as the existing series do. Two conditions must
-hold before any parallel Elo claim is recorded:
+These commands configure **both sides** with eight threads. Measuring one binary
+at eight threads against itself at one thread needs a runner with per-side
+Threads options; the bundled wrappers do not yet offer those. Comparing separate
+8-v-8 and 1-v-1 self-match summaries does not establish 8-v-1 strength.
+
+`run_sprt.py` runs a new match and then evaluates its paired results; it does not
+stop the match as soon as a sequential boundary is crossed. It also replaces its
+output PGN, so do not point it at an existing PGN to analyze that file. Validate
+an already recorded PGN without replaying it using:
+
+```sh
+python3 tools/analyze_match.py \
+  --pgn artifacts/lazy-smp.pgn --manifest artifacts/lazy-smp.manifest.json
+```
+
+Use the actual manifest filename (`lazy-smp.json` in the Cute Chess example).
+Two conditions must hold before any parallel Elo claim is recorded:
 
 - the match runs at equal time control on an otherwise-idle host with enough
   physical cores for the higher thread count, since oversubscription measures the

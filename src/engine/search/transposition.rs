@@ -547,16 +547,26 @@ impl TranspositionTable {
     }
 }
 
+/// How much shallower than the entry it finds an inexact store of the same
+/// position must be for the entry to be kept instead.
+///
+/// A position reached again through a reduction, or at the horizon by
+/// quiescence, is searched far shallower than when it was first stored, and
+/// its bound says less than the one it would replace.
+const SAME_POSITION_DEPTH_MARGIN: u8 = 4;
+
 /// Decides what a store writes, from the words a probe read.
 ///
 /// Returns the slot to write and the word to write there, or `None` when the
 /// bucket is left as it is. The slot the probe found the position in is
-/// refreshed when it holds a deeper exact result and overwritten otherwise; a
-/// position the probe missed takes an empty slot, or else the slot
+/// refreshed when it holds a deeper exact result, or an inexact candidate is
+/// at least [`SAME_POSITION_DEPTH_MARGIN`] plies shallower than it, and
+/// overwritten otherwise; a candidate without a move keeps the move the slot
+/// recorded. A position the probe missed takes an empty slot, or else the slot
 /// `replacement_index` selects unless that holds a current-generation result
-/// the candidate cannot improve on. Only the depth, generation and bound fields
-/// of the packed words are read; nothing is decoded, and a slot that already
-/// holds this exact payload is left untouched.
+/// the candidate cannot improve on. Only the depth, generation, bound and move
+/// fields of the packed words are read; nothing is decoded, and a slot that
+/// already holds this exact payload is left untouched.
 fn placement(probe: &Probe, candidate: Entry, generation: u8) -> Option<(usize, u64)> {
     let data = candidate.encode();
     if let Some(index) = probe.matching.map(usize::from) {
@@ -564,13 +574,20 @@ fn placement(probe: &Probe, candidate: Entry, generation: u8) -> Option<(usize, 
         if existing == data {
             return None;
         }
-        if packed_depth(existing) > candidate.depth && packed_is_exact(existing) {
+        let existing_depth = packed_depth(existing);
+        let keeps_existing = (existing_depth > candidate.depth && packed_is_exact(existing))
+            || (candidate.bound != Bound::Exact
+                && existing_depth >= candidate.depth.saturating_add(SAME_POSITION_DEPTH_MARGIN));
+        if keeps_existing {
             let mut refreshed =
                 existing & !GENERATION_FIELD | u64::from(generation) << GENERATION_SHIFT;
             if existing & MOVE_FIELD == 0 {
                 refreshed |= data & MOVE_FIELD;
             }
-            return Some((index, refreshed));
+            return (refreshed != existing).then_some((index, refreshed));
+        }
+        if data & MOVE_FIELD == 0 {
+            return Some((index, data | existing & MOVE_FIELD));
         }
         return Some((index, data));
     }
@@ -967,6 +984,91 @@ mod tests {
         assert_eq!(entry.depth(), 5);
         assert_eq!(entry.bound(), Bound::Lower);
         assert_eq!(entry.score_at_ply(0), 64);
+    }
+
+    /// A much shallower inexact result of the same position, such as one
+    /// quiescence settles at the horizon, keeps the deeper entry.
+    #[test]
+    fn a_much_shallower_inexact_store_keeps_the_deeper_entry() {
+        let table = TranspositionTable::new(1).unwrap();
+        table.start_search(0);
+        let key = 13;
+        store_synthetic(&table, key, synthetic_entry(8, Bound::Lower, 0));
+        store_synthetic(
+            &table,
+            key,
+            synthetic_entry(
+                8 - u32::from(super::SAME_POSITION_DEPTH_MARGIN),
+                Bound::Upper,
+                1,
+            ),
+        );
+
+        let entry = table.probe_key(key, 0).entry().unwrap();
+        assert_eq!(entry.depth(), 8);
+        assert_eq!(entry.bound(), Bound::Lower);
+        assert_eq!(entry.generation, table.generation());
+
+        store_synthetic(
+            &table,
+            key,
+            synthetic_entry(
+                9 - u32::from(super::SAME_POSITION_DEPTH_MARGIN),
+                Bound::Upper,
+                table.generation(),
+            ),
+        );
+        let entry = table.probe_key(key, 0).entry().unwrap();
+        assert_eq!(
+            entry.depth(),
+            9 - u32::from(super::SAME_POSITION_DEPTH_MARGIN),
+            "a result inside the margin replaces the entry",
+        );
+        assert_eq!(entry.bound(), Bound::Upper);
+    }
+
+    #[test]
+    fn a_shallower_exact_store_replaces_a_deeper_inexact_entry() {
+        let table = TranspositionTable::new(1).unwrap();
+        table.start_search(0);
+        let key = 17;
+        store_synthetic(
+            &table,
+            key,
+            synthetic_entry(10, Bound::Lower, table.generation()),
+        );
+        store_synthetic(
+            &table,
+            key,
+            synthetic_entry(0, Bound::Exact, table.generation()),
+        );
+
+        let entry = table.probe_key(key, 0).entry().unwrap();
+        assert_eq!(entry.depth(), 0);
+        assert_eq!(entry.bound(), Bound::Exact);
+    }
+
+    /// A result that names no move keeps the one the position already has,
+    /// whether it replaces the entry or not.
+    #[test]
+    fn a_store_without_a_move_keeps_the_recorded_move() {
+        let position = Position::default();
+        let best_move = position.search_moves()[0];
+        let table = TranspositionTable::new(1).unwrap();
+        table.start_search(0);
+
+        table.store(position.board(), 3, 0, 20, Bound::Lower, Some(best_move));
+        table.store(position.board(), 3, 0, -5, Bound::Upper, None);
+        let replaced = table.probe(position.board()).unwrap();
+        assert_eq!(replaced.bound(), Bound::Upper);
+        assert_eq!(replaced.score_at_ply(0), -5);
+        assert_eq!(replaced.best_move(), Some(best_move));
+
+        table.store(position.board(), 12, 0, 30, Bound::Lower, Some(best_move));
+        table.store(position.board(), 0, 0, 10, Bound::Upper, None);
+        let kept = table.probe(position.board()).unwrap();
+        assert_eq!(kept.depth(), 12);
+        assert_eq!(kept.best_move(), Some(best_move));
     }
 
     /// A store decided from a stale probe publishes only its own position.

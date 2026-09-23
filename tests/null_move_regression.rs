@@ -47,10 +47,11 @@ fn contracts() -> Vec<ContractPosition> {
         .collect()
 }
 
+/// Every fixture is compared at depth nine. A shallower tree is small enough
+/// that the table's stored bounds already refute most of what a null probe
+/// would, which leaves the probe nothing measurable to save.
 fn observe(fixture: &ContractPosition, null_move: bool) -> Observation {
-    let board = fixture.fen.parse::<cozy_chess::Board>().unwrap();
-    let depth = if board.checkers().is_empty() { 7 } else { 9 };
-    observe_at_depth(fixture, null_move, depth)
+    observe_at_depth(fixture, null_move, 9)
 }
 
 fn observe_at_depth(fixture: &ContractPosition, null_move: bool, depth: u32) -> Observation {

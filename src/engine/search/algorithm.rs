@@ -4069,7 +4069,6 @@ fn negamax(
         score: NEG_INFINITY,
         path_dependent: false,
     };
-    let mut selective_fail_low = false;
 
     while let Some((index, metadata)) = prefetched_move
         .take()
@@ -4110,7 +4109,6 @@ fn negamax(
             )
         }) {
             context.telemetry.futility_pruned_moves += 1;
-            selective_fail_low = true;
             picker.record_failed_quiet(metadata);
             continue;
         }
@@ -4129,7 +4127,6 @@ fn negamax(
             )
         {
             context.telemetry.late_move_pruned_moves += 1;
-            selective_fail_low = true;
             picker.record_failed_quiet(metadata);
             continue;
         }
@@ -4199,8 +4196,6 @@ fn negamax(
             if score >= beta {
                 context.telemetry.lmr_research_fail_highs += 1;
             }
-        } else if reduction > 0 {
-            selective_fail_low = true;
         }
 
         if index != 0 && score > alpha && score < beta {
@@ -4280,17 +4275,22 @@ fn negamax(
         } else {
             Bound::Exact
         };
-        if !selective_fail_low || bound == Bound::Lower {
-            context.table.store_probed(
-                &probe,
-                depth,
-                ply,
-                best.score,
-                bound,
-                context.pv(ply).first().copied(),
-                static_evaluation,
-            );
-        }
+        // A fail-low's best move is whichever move failed least badly, which says
+        // nothing about the position; naming none keeps the move the table recorded.
+        let best_move = if bound == Bound::Upper {
+            None
+        } else {
+            context.pv(ply).first().copied()
+        };
+        context.table.store_probed(
+            &probe,
+            depth,
+            ply,
+            best.score,
+            bound,
+            best_move,
+            static_evaluation,
+        );
     }
 
     context.recycle_picker_storage(ply, picker.into_storage());

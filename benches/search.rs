@@ -108,7 +108,9 @@ fn main() {
          tt_hash_moves,tt_cutoffs,quiescence_nodes,capture_cutoffs,capture_cutoff_index_sum,\
          capture_history_updates,capture_history_first_move_cutoffs,\
          quiescence_pruned_captures,horizon_quiescence_pruned_captures,\
-         lmr_shallow_reductions,lmr_shallow_researches"
+         lmr_shallow_reductions,lmr_shallow_researches,interior_tt_probes,interior_tt_hits,\
+         interior_tt_cutoffs,quiescence_tt_probes,quiescence_tt_hits,quiescence_tt_cutoffs,\
+         interior_static_evaluation_hits,quiescence_static_evaluation_hits"
     );
 
     for fixture in SUITES.iter().flat_map(|input| parse_fixtures(input)) {
@@ -132,7 +134,7 @@ fn main() {
         };
 
         println!(
-            "{},{},{},{},{},{},{},{},{},{},{:.3},{},{},{:.3},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
+            "{},{},{},{},{},{},{},{},{},{},{:.3},{},{},{:.3},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
             fixture.id,
             fixture.category,
             observation.best_move,
@@ -181,6 +183,14 @@ fn main() {
             observation.telemetry.horizon_quiescence_pruned_captures(),
             null.telemetry.lmr_shallow_reductions(),
             null.telemetry.lmr_shallow_researches(),
+            observation.telemetry.interior_tt_probes(),
+            observation.telemetry.interior_tt_hits(),
+            observation.telemetry.interior_tt_cutoffs(),
+            observation.telemetry.quiescence_tt_probes(),
+            observation.telemetry.quiescence_tt_hits(),
+            observation.telemetry.quiescence_tt_cutoffs(),
+            observation.telemetry.interior_static_evaluation_hits(),
+            observation.telemetry.quiescence_static_evaluation_hits(),
         );
     }
 }

@@ -167,6 +167,21 @@ fn selective_search_telemetry_attributes_objective_work() {
     assert!(telemetry.tt_hits() <= telemetry.tt_probes());
     assert!(telemetry.tt_hash_moves() <= telemetry.tt_hits());
     assert!(telemetry.tt_cutoffs() <= telemetry.tt_hits());
+    // Every node probes at most once, and the two node classes account for
+    // every probe between them.
+    assert!(telemetry.interior_tt_probes() > 0);
+    assert!(telemetry.quiescence_tt_probes() > 0);
+    assert!(telemetry.quiescence_tt_probes() <= telemetry.quiescence_nodes());
+    assert_eq!(
+        telemetry.interior_tt_probes() + telemetry.quiescence_tt_probes(),
+        telemetry.tt_probes()
+    );
+    assert!(telemetry.interior_tt_hits() <= telemetry.interior_tt_probes());
+    assert!(telemetry.quiescence_tt_hits() <= telemetry.quiescence_tt_probes());
+    assert!(telemetry.interior_tt_cutoffs() <= telemetry.interior_tt_hits());
+    assert!(telemetry.quiescence_tt_cutoffs() <= telemetry.quiescence_tt_hits());
+    assert!(telemetry.interior_static_evaluation_hits() <= telemetry.interior_tt_hits());
+    assert!(telemetry.quiescence_static_evaluation_hits() <= telemetry.quiescence_tt_hits());
     assert!(telemetry.quiescence_nodes() > 0);
     assert!(telemetry.capture_cutoffs() > 0);
     assert!(telemetry.capture_history_updates() > 0);

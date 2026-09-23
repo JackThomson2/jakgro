@@ -156,7 +156,8 @@ pub struct SearchTelemetry {
     pub(super) null_probe_nodes: u64,
     pub(super) null_verification_nodes: u64,
     pub(super) static_pruning_attempts: u64,
-    pub(super) static_evaluation_hits: u64,
+    pub(super) interior_static_evaluation_hits: u64,
+    pub(super) quiescence_static_evaluation_hits: u64,
     pub(super) reverse_futility_cutoffs: u64,
     pub(super) futility_pruned_moves: u64,
     pub(super) late_move_pruned_moves: u64,
@@ -165,10 +166,13 @@ pub struct SearchTelemetry {
     pub(super) aspiration_fail_highs: u64,
     pub(super) aspiration_research_nodes: u64,
     pub(super) legal_move_probes: u64,
-    pub(super) tt_probes: u64,
-    pub(super) tt_hits: u64,
+    pub(super) interior_tt_probes: u64,
+    pub(super) interior_tt_hits: u64,
+    pub(super) interior_tt_cutoffs: u64,
+    pub(super) quiescence_tt_probes: u64,
+    pub(super) quiescence_tt_hits: u64,
+    pub(super) quiescence_tt_cutoffs: u64,
     pub(super) tt_hash_moves: u64,
-    pub(super) tt_cutoffs: u64,
     pub(super) quiescence_nodes: u64,
     pub(super) quiescence_pruned_captures: u64,
     pub(super) horizon_quiescence_pruned_captures: u64,
@@ -205,7 +209,10 @@ impl SearchTelemetry {
             null_probe_nodes: self.null_probe_nodes + other.null_probe_nodes,
             null_verification_nodes: self.null_verification_nodes + other.null_verification_nodes,
             static_pruning_attempts: self.static_pruning_attempts + other.static_pruning_attempts,
-            static_evaluation_hits: self.static_evaluation_hits + other.static_evaluation_hits,
+            interior_static_evaluation_hits: self.interior_static_evaluation_hits
+                + other.interior_static_evaluation_hits,
+            quiescence_static_evaluation_hits: self.quiescence_static_evaluation_hits
+                + other.quiescence_static_evaluation_hits,
             reverse_futility_cutoffs: self.reverse_futility_cutoffs
                 + other.reverse_futility_cutoffs,
             futility_pruned_moves: self.futility_pruned_moves + other.futility_pruned_moves,
@@ -216,10 +223,13 @@ impl SearchTelemetry {
             aspiration_research_nodes: self.aspiration_research_nodes
                 + other.aspiration_research_nodes,
             legal_move_probes: self.legal_move_probes + other.legal_move_probes,
-            tt_probes: self.tt_probes + other.tt_probes,
-            tt_hits: self.tt_hits + other.tt_hits,
+            interior_tt_probes: self.interior_tt_probes + other.interior_tt_probes,
+            interior_tt_hits: self.interior_tt_hits + other.interior_tt_hits,
+            interior_tt_cutoffs: self.interior_tt_cutoffs + other.interior_tt_cutoffs,
+            quiescence_tt_probes: self.quiescence_tt_probes + other.quiescence_tt_probes,
+            quiescence_tt_hits: self.quiescence_tt_hits + other.quiescence_tt_hits,
+            quiescence_tt_cutoffs: self.quiescence_tt_cutoffs + other.quiescence_tt_cutoffs,
             tt_hash_moves: self.tt_hash_moves + other.tt_hash_moves,
-            tt_cutoffs: self.tt_cutoffs + other.tt_cutoffs,
             quiescence_nodes: self.quiescence_nodes + other.quiescence_nodes,
             quiescence_pruned_captures: self.quiescence_pruned_captures
                 + other.quiescence_pruned_captures,
@@ -289,7 +299,19 @@ impl SearchTelemetry {
     /// Returns the number of static evaluations recovered from the table.
     #[must_use]
     pub const fn static_evaluation_hits(self) -> u64 {
-        self.static_evaluation_hits
+        self.interior_static_evaluation_hits + self.quiescence_static_evaluation_hits
+    }
+
+    /// Returns the static evaluations interior nodes recovered from the table.
+    #[must_use]
+    pub const fn interior_static_evaluation_hits(self) -> u64 {
+        self.interior_static_evaluation_hits
+    }
+
+    /// Returns the stand-pat evaluations quiescence recovered from the table.
+    #[must_use]
+    pub const fn quiescence_static_evaluation_hits(self) -> u64 {
+        self.quiescence_static_evaluation_hits
     }
 
     /// Returns the number of reverse-futility node cutoffs.
@@ -405,13 +427,13 @@ impl SearchTelemetry {
     /// Returns the number of transposition-table probes made by search.
     #[must_use]
     pub const fn tt_probes(self) -> u64 {
-        self.tt_probes
+        self.interior_tt_probes + self.quiescence_tt_probes
     }
 
     /// Returns the number of search probes that matched a table entry.
     #[must_use]
     pub const fn tt_hits(self) -> u64 {
-        self.tt_hits
+        self.interior_tt_hits + self.quiescence_tt_hits
     }
 
     /// Returns the number of table hits that supplied a hash move.
@@ -423,7 +445,47 @@ impl SearchTelemetry {
     /// Returns the number of table bounds that cut off a node.
     #[must_use]
     pub const fn tt_cutoffs(self) -> u64 {
-        self.tt_cutoffs
+        self.interior_tt_cutoffs + self.quiescence_tt_cutoffs
+    }
+
+    /// Returns the table probes made by interior nodes, the root included.
+    #[must_use]
+    pub const fn interior_tt_probes(self) -> u64 {
+        self.interior_tt_probes
+    }
+
+    /// Returns the interior-node probes that matched a table entry.
+    #[must_use]
+    pub const fn interior_tt_hits(self) -> u64 {
+        self.interior_tt_hits
+    }
+
+    /// Returns the interior nodes a table bound cut off.
+    #[must_use]
+    pub const fn interior_tt_cutoffs(self) -> u64 {
+        self.interior_tt_cutoffs
+    }
+
+    /// Returns the table probes made by quiescence nodes.
+    ///
+    /// Quiescence is the overwhelming majority of nodes and of table traffic,
+    /// and it stores only depth-zero results, so its hit and cutoff rates say
+    /// something different from the interior search's.
+    #[must_use]
+    pub const fn quiescence_tt_probes(self) -> u64 {
+        self.quiescence_tt_probes
+    }
+
+    /// Returns the quiescence probes that matched a table entry.
+    #[must_use]
+    pub const fn quiescence_tt_hits(self) -> u64 {
+        self.quiescence_tt_hits
+    }
+
+    /// Returns the quiescence nodes a table bound cut off.
+    #[must_use]
+    pub const fn quiescence_tt_cutoffs(self) -> u64 {
+        self.quiescence_tt_cutoffs
     }
 
     /// Returns the number of nodes entered by quiescence search.

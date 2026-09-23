@@ -1929,6 +1929,17 @@ fn verified_null_move_cutoff(
     Ok(None)
 }
 
+/// Which class of node is consulting the table.
+///
+/// Quiescence is the overwhelming majority of nodes and of table traffic, and
+/// it stores only depth-zero results, so its hit and cutoff rates say something
+/// different from the interior search's; telemetry keeps the two apart.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum NodeClass {
+    Interior,
+    Quiescence,
+}
+
 struct SearchContext<'a> {
     control: &'a SearchControl,
     table: &'a TranspositionTable,
@@ -2224,11 +2235,20 @@ impl SearchContext<'_> {
     }
 
     /// Looks the position up and keeps what the bucket held for its store.
-    fn probe_table(&mut self, key: u64, halfmove_clock: u8) -> Probe {
-        self.telemetry.tt_probes += 1;
+    fn probe_table(&mut self, key: u64, halfmove_clock: u8, class: NodeClass) -> Probe {
         let probe = self.table.probe_key(key, halfmove_clock);
         let entry = probe.entry();
-        self.telemetry.tt_hits += u64::from(entry.is_some());
+        let hit = u64::from(entry.is_some());
+        match class {
+            NodeClass::Interior => {
+                self.telemetry.interior_tt_probes += 1;
+                self.telemetry.interior_tt_hits += hit;
+            }
+            NodeClass::Quiescence => {
+                self.telemetry.quiescence_tt_probes += 1;
+                self.telemetry.quiescence_tt_hits += hit;
+            }
+        }
         self.telemetry.tt_hash_moves +=
             u64::from(entry.is_some_and(|entry| entry.best_move().is_some()));
         probe
@@ -3694,7 +3714,11 @@ fn search_root_conventional(
         return Err(Aborted);
     }
     let alpha_original = alpha;
-    let probe = context.probe_table(history.current_key(), board.halfmove_clock());
+    let probe = context.probe_table(
+        history.current_key(),
+        board.halfmove_clock(),
+        NodeClass::Interior,
+    );
     let hash_move = probe.entry().and_then(|entry| entry.best_move());
     let preferred = previous_pv.first().copied().or(hash_move);
     let moves = prepare_and_order_root_moves(
@@ -3887,7 +3911,11 @@ fn negamax(
     let (mate_alpha, mate_beta) = mate_distance_bounds(ply);
     alpha = alpha.max(mate_alpha);
     beta = beta.min(mate_beta);
-    let probe = context.probe_table(history.current_key(), board.halfmove_clock());
+    let probe = context.probe_table(
+        history.current_key(),
+        board.halfmove_clock(),
+        NodeClass::Interior,
+    );
     let hash_entry = probe.entry();
     let hash_move = hash_entry
         .and_then(|entry| entry.best_move())
@@ -3926,7 +3954,7 @@ fn negamax(
             {
                 return Ok(result);
             }
-            context.telemetry.tt_cutoffs += 1;
+            context.telemetry.interior_tt_cutoffs += 1;
             context.mark_hash_pv(entry.bound(), depth, ply);
             return Ok(NodeResult {
                 score,
@@ -3953,7 +3981,7 @@ fn negamax(
         Some(
             hash_entry
                 .and_then(Entry::static_evaluation)
-                .inspect(|_| context.telemetry.static_evaluation_hits += 1)
+                .inspect(|_| context.telemetry.interior_static_evaluation_hits += 1)
                 .unwrap_or_else(|| context.static_score(board, ply)),
         )
     } else {
@@ -4390,12 +4418,16 @@ fn quiescence(
     // were re-searched and re-evaluated every time. Entries are stored at depth
     // zero, which the ordinary search treats as the shallowest possible result, so
     // a quiescence entry can never satisfy a deeper interior node's depth test.
-    let probe = context.probe_table(history.current_key(), board.halfmove_clock());
+    let probe = context.probe_table(
+        history.current_key(),
+        board.halfmove_clock(),
+        NodeClass::Quiescence,
+    );
     let hash_entry = probe.entry();
     if let Some(entry) = hash_entry {
         let score = entry.score_at_ply(ply);
         if quiescence_entry_is_usable(entry.bound(), score, alpha, beta) {
-            context.telemetry.tt_cutoffs += 1;
+            context.telemetry.quiescence_tt_cutoffs += 1;
             return Ok(NodeResult {
                 score,
                 path_dependent: false,
@@ -4421,7 +4453,7 @@ fn quiescence(
         Some(
             hash_entry
                 .and_then(Entry::static_evaluation)
-                .inspect(|_| context.telemetry.static_evaluation_hits += 1)
+                .inspect(|_| context.telemetry.quiescence_static_evaluation_hits += 1)
                 .unwrap_or_else(|| context.static_score(board, ply)),
         )
     };

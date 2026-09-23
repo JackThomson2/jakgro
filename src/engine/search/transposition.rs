@@ -611,7 +611,8 @@ fn placement(probe: &Probe, candidate: Entry, generation: u8) -> Option<(usize, 
             return (refreshed != existing).then_some((index, refreshed));
         }
         if data & MOVE_FIELD == 0 {
-            return Some((index, data | existing & MOVE_FIELD));
+            let retained = data | existing & MOVE_FIELD;
+            return (retained != existing).then_some((index, retained));
         }
         return Some((index, data));
     }
@@ -1147,6 +1148,121 @@ mod tests {
         let kept = table.probe(position.board()).unwrap();
         assert_eq!(kept.depth(), 12);
         assert_eq!(kept.best_move(), Some(best_move));
+    }
+
+    #[test]
+    fn an_unchanged_retained_move_payload_is_not_rewritten() {
+        let position = Position::default();
+        let table = TranspositionTable::new(1).unwrap();
+        table.start_search(0);
+        for bound in [Bound::Upper, Bound::Lower, Bound::Exact] {
+            let existing = super::Entry {
+                best_move: Some(position.search_moves()[0]),
+                score: 20,
+                static_evaluation: -4,
+                ..synthetic_entry(4, bound, table.generation())
+            };
+            store_synthetic(&table, 17, existing);
+            let probe = table.probe_key(17, 0);
+            let candidate = super::Entry {
+                best_move: None,
+                ..existing
+            };
+
+            assert_eq!(
+                super::placement(&probe, candidate, table.generation()),
+                None
+            );
+            table.store_entry(&probe, candidate);
+            assert_eq!(
+                table.probe_key(17, 0).entry().unwrap().encode(),
+                existing.encode()
+            );
+        }
+    }
+
+    #[test]
+    fn retaining_a_move_still_publishes_other_payload_changes() {
+        let position = Position::default();
+        let table = TranspositionTable::new(1).unwrap();
+        table.start_search(0);
+        let existing = super::Entry {
+            best_move: Some(position.search_moves()[0]),
+            score: 20,
+            static_evaluation: -4,
+            ..synthetic_entry(4, Bound::Upper, table.generation())
+        };
+        store_synthetic(&table, 17, existing);
+        let probe = table.probe_key(17, 0);
+        let candidate = super::Entry {
+            best_move: None,
+            ..existing
+        };
+        for changed in [
+            super::Entry {
+                depth: 5,
+                ..candidate
+            },
+            super::Entry {
+                score: -5,
+                ..candidate
+            },
+            super::Entry {
+                static_evaluation: 10,
+                ..candidate
+            },
+            super::Entry {
+                bound: Bound::Lower,
+                ..candidate
+            },
+            super::Entry {
+                generation: table.generation().wrapping_add(1),
+                ..candidate
+            },
+        ] {
+            let expected = super::Entry {
+                best_move: existing.best_move,
+                ..changed
+            }
+            .encode();
+            assert_eq!(
+                super::placement(&probe, changed, table.generation()),
+                Some((probe.matching.unwrap() as usize, expected)),
+            );
+            table.store_entry(&probe, changed);
+            assert_eq!(table.probe_key(17, 0).entry().unwrap().encode(), expected);
+        }
+    }
+
+    #[test]
+    fn an_unchanged_retained_move_snapshot_leaves_a_newer_entry_alone() {
+        let position = Position::default();
+        let table = TranspositionTable::new(1).unwrap();
+        table.start_search(0);
+        let existing = super::Entry {
+            best_move: Some(position.search_moves()[0]),
+            ..synthetic_entry(4, Bound::Upper, table.generation())
+        };
+        store_synthetic(&table, 17, existing);
+        let stale = table.probe_key(17, 0);
+        let newer = super::Entry {
+            score: 100,
+            best_move: Some(position.search_moves()[1]),
+            ..synthetic_entry(12, Bound::Exact, table.generation())
+        };
+        store_synthetic(&table, 17, newer);
+        table.store_entry(
+            &stale,
+            super::Entry {
+                best_move: None,
+                ..existing
+            },
+        );
+
+        assert_eq!(
+            table.probe_key(17, 0).entry().unwrap().encode(),
+            newer.encode()
+        );
     }
 
     /// A store decided from a stale probe publishes only its own position.

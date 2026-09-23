@@ -237,7 +237,7 @@ measurement protocol and interpretation rules.
 - `src/engine/evaluation.rs` and `src/engine/evaluation/` contain bounded tapered scoring, tuned piece-square tables, feature extraction, legal exchange settlement, mover-relative tactical snapshots, trace data, weights, and mate-score constants.
 - `src/engine/search/algorithm.rs` implements iterative deepening, negamax alpha-beta, quiescence, deterministic move ordering, draw detection, null-move pruning verified at depth, internal iterative reduction, singular extensions, tactical-aware late-move reductions, sacrifice profiling after best defense, bounded root-risk selection, null telemetry, principal-variation construction, and the lazy SMP driver that runs one main searcher alongside diversified helpers.
 - `src/engine/search/see.rs` performs allocation-free swap-list static-exchange analysis for ordering and conservative quiescence pruning; exact legal settlement for sacrifice verification lives in `src/engine/evaluation/tactics.rs`.
-- `src/engine/search/transposition.rs` owns the fixed-size, generation-aged search cache, its lock-free atomic slots, and mate-score normalization.
+- `src/engine/search/transposition.rs` owns the fixed-size, generation-aged search cache, its lock-free atomic slots, and mate-score normalization; `src/engine/search/transposition/memory.rs` owns the table's own zeroed mapping, aligned to a 2 MiB page and requested as large pages where the kernel offers them.
 - `src/engine/search/control.rs` provides shared cancellation and updateable soft/hard deadlines.
 - `src/engine/search/time.rs` converts UCI clock fields and move overhead into normal and emergency budgets.
 - `src/uci/session.rs` owns the serialized protocol event loop.

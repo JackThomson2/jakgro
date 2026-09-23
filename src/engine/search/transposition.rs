@@ -7,6 +7,10 @@ use cozy_chess::{Board, Move, Piece, Square};
 use super::{MATE_THRESHOLD, Score};
 use crate::engine::position::repetition_key;
 
+mod memory;
+
+use memory::BucketMemory;
+
 pub(in crate::engine) const DEFAULT_HASH_MIB: usize = 16;
 pub(in crate::engine) const MIN_HASH_MIB: usize = 1;
 pub(in crate::engine) const MAX_HASH_MIB: usize = 1024;
@@ -296,11 +300,18 @@ const NO_EVALUATION_PROFILE: u16 = u16::MAX;
 
 #[derive(Debug)]
 pub(in crate::engine) struct TranspositionTable {
-    buckets: Box<[Bucket]>,
+    memory: BucketMemory,
     size_mib: usize,
     generation: AtomicU8,
     evaluation_profile: AtomicU16,
 }
+
+// Searchers share one table through an `Arc`, so it must stay shareable when
+// its memory is described by a raw pointer rather than a box.
+const _: () = {
+    const fn shareable<T: Send + Sync>() {}
+    shareable::<TranspositionTable>();
+};
 
 impl TranspositionTable {
     /// Allocates a table of as many buckets as fit in the requested mebibytes.
@@ -313,14 +324,9 @@ impl TranspositionTable {
         if bucket_count == 0 {
             return Err(AllocationError);
         }
-        let mut buckets = Vec::new();
-        buckets
-            .try_reserve_exact(bucket_count)
-            .map_err(|_| AllocationError)?;
-        buckets.extend((0..bucket_count).map(|_| Bucket::default()));
 
         Ok(Self {
-            buckets: buckets.into_boxed_slice(),
+            memory: BucketMemory::zeroed(bucket_count)?,
             size_mib,
             generation: AtomicU8::new(0),
             evaluation_profile: AtomicU16::new(NO_EVALUATION_PROFILE),
@@ -329,6 +335,11 @@ impl TranspositionTable {
 
     pub(in crate::engine) fn size_mib(&self) -> usize {
         self.size_mib
+    }
+
+    #[inline(always)]
+    fn buckets(&self) -> &[Bucket] {
+        self.memory.buckets()
     }
 
     pub(super) fn start_search(&self, evaluation_profile: u8) {
@@ -386,14 +397,14 @@ impl TranspositionTable {
         #[cfg(target_arch = "x86_64")]
         {
             use std::arch::x86_64::{_MM_HINT_T0, _mm_prefetch};
-            let bucket: *const Bucket = &self.buckets[self.index(key)];
+            let bucket: *const Bucket = &self.buckets()[self.index(key)];
             // SAFETY: SSE is part of the x86_64 baseline and the pointer lies
             // inside the table; a prefetch reads nothing and cannot fault.
             unsafe { _mm_prefetch(bucket.cast::<i8>(), _MM_HINT_T0) };
         }
         #[cfg(target_arch = "aarch64")]
         {
-            let bucket: *const Bucket = &self.buckets[self.index(key)];
+            let bucket: *const Bucket = &self.buckets()[self.index(key)];
             // SAFETY: `prfm` is a hint that reads nothing, writes nothing and
             // cannot fault, whatever the address.
             unsafe {
@@ -414,7 +425,7 @@ impl TranspositionTable {
     #[inline(always)]
     pub(super) fn probe_key(&self, key: u64, halfmove_clock: u8) -> Probe {
         let mixed = mixed_key(key, halfmove_clock);
-        let bucket = &self.buckets[self.index(key)];
+        let bucket = &self.buckets()[self.index(key)];
         let mut words: BucketWords = [0; BUCKET_SIZE];
         for (index, slot) in bucket.0.iter().enumerate() {
             let (verify, data) = slot.load();
@@ -502,7 +513,7 @@ impl TranspositionTable {
         let Some((slot, data)) = placement(probe, candidate, self.generation()) else {
             return;
         };
-        self.buckets[self.index(probe.key)].0[slot].store(probe.mixed, data);
+        self.buckets()[self.index(probe.key)].0[slot].store(probe.mixed, data);
     }
 
     pub(super) fn write_principal_variation(
@@ -543,7 +554,7 @@ impl TranspositionTable {
     }
 
     fn discard_entries(&self) {
-        for slot in self.buckets.iter().flat_map(|bucket| &bucket.0) {
+        for slot in self.buckets().iter().flat_map(|bucket| &bucket.0) {
             slot.clear();
         }
     }
@@ -556,7 +567,7 @@ impl TranspositionTable {
     /// tells them apart as it did keys agreeing in their low bits under a mask.
     #[inline(always)]
     fn index(&self, key: u64) -> usize {
-        ((u128::from(key) * self.buckets.len() as u128) >> 64) as usize
+        ((u128::from(key) * self.buckets().len() as u128) >> 64) as usize
     }
 }
 
@@ -788,7 +799,7 @@ mod tests {
 
         // Simulate a writer that published a payload for a different position
         // without its matching verification word.
-        let bucket = &table.buckets[table.index(key)];
+        let bucket = &table.buckets()[table.index(key)];
         let slot = table
             .probe_key(key, 0)
             .matching
@@ -888,14 +899,14 @@ mod tests {
     fn bucket_allocation_uses_the_requested_size() {
         for size_mib in [1, 3] {
             let table = TranspositionTable::new(size_mib).unwrap();
-            let bytes = table.buckets.len() * std::mem::size_of::<super::Bucket>();
+            let bytes = table.buckets().len() * std::mem::size_of::<super::Bucket>();
 
             assert_eq!(bytes, size_mib * 1024 * 1024);
         }
         assert!(
             !TranspositionTable::new(3)
                 .unwrap()
-                .buckets
+                .buckets()
                 .len()
                 .is_power_of_two()
         );
@@ -906,7 +917,7 @@ mod tests {
     #[test]
     fn indexing_covers_any_bucket_count() {
         let table = TranspositionTable::new(3).unwrap();
-        let count = table.buckets.len();
+        let count = table.buckets().len();
 
         assert_eq!(table.index(0), 0);
         assert_eq!(table.index(u64::MAX), count - 1);

@@ -13,6 +13,11 @@ tuning = []
 cozy-chess = { version = "0.3.4", git = "https://github.com/JackThomson2/cozy-chess", branch = "board-state-save-restore" }
 mimalloc = "0.1.48"
 
+# The transposition table maps its own memory so that it can ask the kernel
+# for large pages; nothing else needs the C library directly.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [[bin]]
 name = "selfplay"
 path = "src/bin/selfplay.rs"

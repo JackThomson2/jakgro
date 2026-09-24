@@ -53,6 +53,11 @@ pub struct Options {
     /// An exported network whose weights the run starts from, instead of the
     /// seeded random initialization.
     pub init_network: Option<PathBuf>,
+    /// Per-step decay of an exponential moving average of the weights. When
+    /// set, the averaged weights are exported and selected as `network.nnue`
+    /// and the best raw epoch is kept beside them as `raw-network.nnue`; the
+    /// raw trajectory itself does not depend on it.
+    pub ema: Option<f32>,
 }
 
 impl Options {
@@ -101,6 +106,14 @@ impl Options {
                 thread::available_parallelism().map_or(1, |count| count.get().min(32)),
             )?,
             init_network: values.get("--init-network").map(PathBuf::from),
+            ema: values
+                .get("--ema")
+                .map(|value| {
+                    value
+                        .parse()
+                        .map_err(|_| format!("--ema: invalid value {value}"))
+                })
+                .transpose()?,
         };
         for key in values.keys() {
             if ![
@@ -116,6 +129,7 @@ impl Options {
                 "--k",
                 "--threads",
                 "--init-network",
+                "--ema",
             ]
             .contains(key)
             {
@@ -162,7 +176,12 @@ impl Options {
             self.k.is_finite() && self.k > 0.0 && self.k <= 10.0,
             "K must be finite in (0,10]",
         )?;
-        check((1..=256).contains(&self.threads), "threads must be 1..256")
+        check((1..=256).contains(&self.threads), "threads must be 1..256")?;
+        check(
+            self.ema
+                .is_none_or(|decay| decay.is_finite() && decay > 0.0 && decay < 1.0),
+            "EMA decay must be finite in (0,1)",
+        )
     }
 }
 
@@ -902,6 +921,13 @@ fn adam_impl(
     }
 }
 
+/// Moves an exponential moving average one step toward `values`.
+fn blend(average: &mut [f32], values: &[f32], decay: f32) {
+    for (average, &value) in average.iter_mut().zip(values) {
+        *average = decay * *average + (1.0 - decay) * value;
+    }
+}
+
 /// The step-dependent Adam settings shared by every tensor in one update.
 #[derive(Clone, Copy)]
 struct AdamUpdate {
@@ -1014,6 +1040,8 @@ struct EpochState<'a> {
     moment: &'a mut Parameters,
     velocity: &'a mut Parameters,
     shards: &'a mut [Parameters],
+    /// The moving average `Options::ema` asks for, updated after every step.
+    average: Option<&'a mut Parameters>,
 }
 
 /// What the workers need for one minibatch.
@@ -1029,7 +1057,8 @@ struct Step<'a> {
 /// Per step, three barriers separate: (1) the main thread publishing the
 /// batch; (2) every worker accumulating its shard's gradient while reading
 /// the parameters; (3) every worker applying Adam to its own parameter range
-/// while reading all shards. Worker zero also owns the small tensors. Returns
+/// while reading all shards, then moving the same range of the average, if
+/// any, toward it. Worker zero also owns the small tensors. Returns
 /// the summed batch losses, the batch count and the wall seconds of phases
 /// two and three.
 fn run_epoch<'a>(
@@ -1046,6 +1075,8 @@ fn run_epoch<'a>(
     let moment = Ptr(state.moment as *mut Parameters);
     let velocity = Ptr(state.velocity as *mut Parameters);
     let shards = Ptr(state.shards.as_mut_ptr());
+    let average = state.average.map(|average| Ptr(average as *mut Parameters));
+    let ema = options.ema;
     let mut current = Step {
         rows: Vec::new(),
         shard_size: 1,
@@ -1090,8 +1121,9 @@ fn run_epoch<'a>(
                     unsafe { *losses_ptr.get().add(worker) = loss };
                     barrier.wait();
                     // SAFETY: phase three reads every shard and writes only
-                    // this worker's parameter range (and, for worker zero, the
-                    // small tensors nobody else writes).
+                    // this worker's range of the parameters and the average
+                    // (and, for worker zero, the small tensors nobody else
+                    // writes).
                     unsafe {
                         let used = std::slice::from_raw_parts(shards.get(), shard_count);
                         let parameters = &mut *parameters.get();
@@ -1132,6 +1164,15 @@ fn run_epoch<'a>(
                                 step.update,
                                 BIAS_LIMIT,
                             );
+                        }
+                        if let Some((average, decay)) = average.zip(ema) {
+                            let average = &mut *average.get();
+                            blend(&mut average.input[lo..hi], &parameters.input[lo..hi], decay);
+                            if worker == 0 {
+                                blend(&mut average.hidden, &parameters.hidden, decay);
+                                blend(&mut average.output, &parameters.output, decay);
+                                blend(&mut average.bias, &parameters.bias, decay);
+                            }
                         }
                     }
                     barrier.wait();
@@ -1197,12 +1238,23 @@ struct Epoch {
     seconds: [f64; 3],
     training: Metrics,
     development: Metrics,
+    /// The moving average's training and development metrics, when kept.
+    average: Option<[Metrics; 2]>,
 }
 
 impl Epoch {
     fn json(&self) -> String {
+        let average = self
+            .average
+            .map_or_else(String::new, |[training, development]| {
+                format!(
+                    "\"average\": {{\"integer_development\": {}, \"integer_training\": {}}}, ",
+                    development.json(),
+                    training.json()
+                )
+            });
         format!(
-            "{{\"epoch\": {}, \"float_training_loss\": {}, \"integer_development\": {}, \"integer_training\": {}, \"seconds\": {{\"gradients\": {:.3}, \"adam\": {:.3}, \"metrics\": {:.3}}}, \"steps\": {}}}",
+            "{{{average}\"epoch\": {}, \"float_training_loss\": {}, \"integer_development\": {}, \"integer_training\": {}, \"seconds\": {{\"gradients\": {:.3}, \"adam\": {:.3}, \"metrics\": {:.3}}}, \"steps\": {}}}",
             self.epoch,
             self.training_loss,
             self.development.json(),
@@ -1219,7 +1271,10 @@ impl Epoch {
 ///
 /// Every epoch is exported and scored with integer inference. The published
 /// epoch must improve the training label loss over initialization and has the
-/// lowest development label loss among those; the history records all.
+/// lowest development label loss among those; the history records all. With
+/// a moving average, both weight sets are scored every epoch under the same
+/// rule: the best averaged epoch is published and the best raw one is kept
+/// as `raw-network.nnue`.
 pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, String> {
     if output.exists() {
         return Err("output already exists; choose a new directory".to_owned());
@@ -1273,6 +1328,9 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
     let mut moment = Parameters::zeros();
     let mut velocity = Parameters::zeros();
     let mut shards = (0..SHARDS).map(|_| Parameters::zeros()).collect::<Vec<_>>();
+    // The average starts at the initial weights, so it needs no bias
+    // correction; a random start is forgotten within the first epoch.
+    let mut average = options.ema.map(|_| parameters.clone());
     let initial_network =
         Network::from_bytes(&parameters.quantize(&support)?).map_err(|error| error.to_string())?;
     eprintln!(
@@ -1293,6 +1351,7 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
     let mut step = 0;
     let mut history = Vec::new();
     let mut best: Option<(usize, Metrics, Vec<u8>)> = None;
+    let mut best_average: Option<(usize, Metrics, Vec<u8>)> = None;
 
     let mut rate = options.rate;
     for epoch in 1..=options.epochs {
@@ -1309,6 +1368,7 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
                 moment: &mut moment,
                 velocity: &mut velocity,
                 shards: &mut shards,
+                average: average.as_mut(),
             },
             &mut step,
             rate,
@@ -1324,6 +1384,18 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
             integer_metrics(&network, &training_sample, options.k, options.threads);
         let development_metric =
             integer_metrics(&network, &development, options.k, options.threads);
+        let averaged = match &average {
+            Some(average) => {
+                let bytes = average.quantize(&support)?;
+                let network = Network::from_bytes(&bytes).map_err(|error| error.to_string())?;
+                Some((
+                    integer_metrics(&network, &training_sample, options.k, options.threads),
+                    integer_metrics(&network, &development, options.k, options.threads),
+                    bytes,
+                ))
+            }
+            None => None,
+        };
         seconds[2] = phase.elapsed().as_secs_f64();
         let record = Epoch {
             epoch,
@@ -1332,6 +1404,9 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
             seconds,
             training: training_metric,
             development: development_metric,
+            average: averaged
+                .as_ref()
+                .map(|(training, development, _)| [*training, *development]),
         };
         println!("{}", record.json());
         // A fresh run must first beat its random initialization on the
@@ -1339,22 +1414,39 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
         // starts from a network that already fits its corpus, so it must
         // instead beat that network where the epoch is selected, on the
         // development split.
-        let improves_initial = if initial_bytes.is_some() {
-            development_metric.label_mse < initial_development.label_mse
-        } else {
-            training_metric.label_mse < initial_training.label_mse
+        let improves_initial = |training: &Metrics, development: &Metrics| {
+            if initial_bytes.is_some() {
+                development.label_mse < initial_development.label_mse
+            } else {
+                training.label_mse < initial_training.label_mse
+            }
         };
-        if improves_initial
-            && best
-                .as_ref()
-                .is_none_or(|(_, metrics, _)| development_metric.label_mse < metrics.label_mse)
-        {
-            best = Some((epoch, development_metric, bytes));
+        let candidates = [(
+            &mut best,
+            Some((training_metric, development_metric, bytes)),
+        )]
+        .into_iter()
+        .chain([(&mut best_average, averaged)]);
+        for (best, candidate) in candidates {
+            let Some((training, development, bytes)) = candidate else {
+                continue;
+            };
+            if improves_initial(&training, &development)
+                && best
+                    .as_ref()
+                    .is_none_or(|(_, metrics, _)| development.label_mse < metrics.label_mse)
+            {
+                *best = Some((epoch, development, bytes));
+            }
         }
         history.push(record);
         rate *= options.rate_decay;
     }
-    let (selected, _, bytes) = best.ok_or(if initial_bytes.is_some() {
+    let (chosen, raw) = match options.ema {
+        Some(_) => (best_average, best),
+        None => (best, None),
+    };
+    let (selected, _, bytes) = chosen.ok_or(if initial_bytes.is_some() {
         "no trained integer model improved the initial network's development loss; no artifact exported"
     } else {
         "no trained integer model improved training loss; no artifact exported"
@@ -1370,6 +1462,10 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
     }
     fs::create_dir_all(&staging).map_err(|error| error.to_string())?;
     fs::write(staging.join("network.nnue"), &bytes).map_err(|error| error.to_string())?;
+    if let Some((_, _, raw_bytes)) = &raw {
+        fs::write(staging.join("raw-network.nnue"), raw_bytes)
+            .map_err(|error| error.to_string())?;
+    }
     let history_json = history
         .iter()
         .map(Epoch::json)
@@ -1391,7 +1487,7 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
     );
     let _ = writeln!(
         report,
-        "  \"hyperparameters\": {{\"epochs\": {}, \"batch_size\": {}, \"rate\": {}, \"rate_decay\": {}, \"l2\": {}, \"seed\": {}, \"lambda\": {}, \"k\": {}}},",
+        "  \"hyperparameters\": {{\"epochs\": {}, \"batch_size\": {}, \"rate\": {}, \"rate_decay\": {}, \"l2\": {}, \"seed\": {}, \"lambda\": {}, \"k\": {}{}}},",
         options.epochs,
         options.batch_size,
         options.rate,
@@ -1399,7 +1495,10 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
         options.l2,
         options.seed,
         options.label_mix,
-        options.k
+        options.k,
+        options
+            .ema
+            .map_or_else(String::new, |decay| format!(", \"ema\": {decay}"))
     );
     let _ = writeln!(
         report,
@@ -1434,6 +1533,18 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
     );
     let _ = writeln!(report, "  \"selected_epoch\": {selected},");
     let _ = writeln!(report, "  \"selected_metrics\": {selected_json},");
+    if options.ema.is_some() {
+        let _ = writeln!(
+            report,
+            "  \"raw_selected_epoch\": {}, \"raw_network_sha256\": {},",
+            raw.as_ref()
+                .map_or_else(|| "null".to_owned(), |(epoch, _, _)| epoch.to_string()),
+            raw.as_ref().map_or_else(
+                || "null".to_owned(),
+                |(_, _, bytes)| format!("\"{}\"", sha256::hex(bytes))
+            )
+        );
+    }
     let _ = writeln!(report, "  \"history\": [{history_json}],");
     let _ = writeln!(
         report,
@@ -1593,6 +1704,97 @@ mod tests {
         .unwrap();
         let error = read(&terminated, 1 << 20, training).err().unwrap();
         assert!(error.contains(":4:"), "{error}");
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    /// A prepared dataset of twelve training positions and one development
+    /// position in a fresh directory, under `data`.
+    fn prepared(name: &str) -> PathBuf {
+        let root = temporary(name);
+        fs::create_dir_all(&root).unwrap();
+        let mut training = String::new();
+        for (index, knight) in ["5n2", "2n5"].iter().enumerate() {
+            for file in 1..=6 {
+                let _ = writeln!(
+                    training,
+                    "4k3/8/{knight}/8/8/8/{file}P{}/4K3 w - - 0 1;{};{}",
+                    7 - file,
+                    [0.0, 0.5, 1.0][(file + index) % 3],
+                    file as i32 * 40 - 150
+                );
+            }
+        }
+        fs::write(root.join("training.txt"), training).unwrap();
+        fs::write(
+            root.join("development.txt"),
+            "4k3/8/8/3n4/8/8/1P6/4K3 w - - 0 1;1;30\n",
+        )
+        .unwrap();
+        prepare::prepare(&prepare::Options {
+            training: root.join("training.txt"),
+            development: root.join("development.txt"),
+            output: root.join("data"),
+            deduplicate: false,
+            drop_overlap: false,
+        })
+        .unwrap();
+        root
+    }
+
+    fn small_run() -> Options {
+        Options {
+            epochs: 3,
+            batch_size: 4,
+            rate: 0.01,
+            rate_decay: 1.0,
+            l2: 0.0,
+            seed: 5,
+            label_mix: 0.25,
+            k: 0.88,
+            threads: 2,
+            init_network: None,
+            ema: None,
+        }
+    }
+
+    #[test]
+    fn a_moving_average_leaves_the_raw_trajectory_unchanged() {
+        let root = prepared("ema");
+        let data = root.join("data");
+        train(&small_run(), &data, &root.join("plain")).unwrap();
+        let averaged = Options {
+            ema: Some(0.5),
+            ..small_run()
+        };
+        train(&averaged, &data, &root.join("averaged")).unwrap();
+        let read = |name: &str| fs::read(root.join(name)).unwrap();
+        assert_eq!(
+            read("plain/network.nnue"),
+            read("averaged/raw-network.nnue")
+        );
+        assert_ne!(
+            read("averaged/network.nnue"),
+            read("averaged/raw-network.nnue")
+        );
+        assert!(!root.join("plain/raw-network.nnue").exists());
+        let report = fs::read_to_string(root.join("averaged/report.json")).unwrap();
+        for key in [
+            "\"ema\": 0.5",
+            "\"average\": {",
+            "\"raw_network_sha256\": \"",
+        ] {
+            assert!(report.contains(key), "{key}");
+        }
+        let plain = fs::read_to_string(root.join("plain/report.json")).unwrap();
+        for key in ["\"ema\"", "\"average\"", "raw_"] {
+            assert!(!plain.contains(key), "{key}");
+        }
+        assert!(
+            Options::parse(
+                &["--data-dir", "d", "--output-dir", "o", "--ema", "1"].map(String::from)
+            )
+            .is_err()
+        );
         fs::remove_dir_all(&root).unwrap();
     }
 

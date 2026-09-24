@@ -336,6 +336,16 @@ versus 0 forcing-move ratio kept (1.08 against the handcrafted 1.06). The
 series is recorded in
 [`docs/tuning/nnue-aggression75.md`](docs/tuning/nnue-aggression75.md).
 
+The network is about a fifth of search time. Each search's accumulator stack
+selects the widest kernel level the host supports, AVX-512BW or AVX2 together
+with `popcnt` and BMI, once, and runs every evaluation compiled for it with
+both kernels inline, while the binary itself keeps the baseline target; the
+scores are the same integers on every path. Interior nodes that return
+through reverse futility or a null-move cutoff store the evaluation they
+computed, and razoring hands its evaluation to quiescence. The measurements,
+and the VNNI output kernel and weight-row prefetching that were rejected, are
+in [`docs/tuning/nnue-inference-speed.md`](docs/tuning/nnue-inference-speed.md).
+
 Networks are produced by the tuning-only `nnue-data` helper, entirely on CPU
 and without Python numeric dependencies:
 

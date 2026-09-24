@@ -3,9 +3,10 @@
 //! Every path computes the same exact integers; they differ only in vector
 //! width and in the order the exact partial sums are added. The widest path
 //! the CPU supports is selected at runtime, so the shipped binary keeps its
-//! baseline target while the evaluation runs at the host's width. Selection
-//! happens once per perspective update and once per output, never per
-//! feature.
+//! baseline target while the evaluation runs at the host's width. A search's
+//! accumulator stack selects a [`Level`] once and runs its whole evaluation
+//! compiled for it; other callers select once per perspective update and once
+//! per output, never per feature.
 
 use std::ops::{Deref, DerefMut};
 
@@ -86,6 +87,177 @@ pub(super) fn output(weights: &[Row; 2], sums: [&Row; 2]) -> i64 {
     return unsafe { neon::output(weights, sums) };
     #[cfg(not(target_arch = "aarch64"))]
     output_impl(weights, sums)
+}
+
+/// One vector width's kernels, held as proof that the host runs them.
+///
+/// A value of an implementing type exists only where the host supports every
+/// instruction its kernels use, so the methods are safe. The evaluation is
+/// generic over this trait so that it can be compiled once per width, inside a
+/// function that enables that width's features, with the kernels inlined into
+/// it rather than selected at every call.
+pub(super) trait Kernels: Copy {
+    /// As [`apply`].
+    fn apply(
+        self,
+        weights: &[Row],
+        target: &mut Row,
+        source: Option<&Row>,
+        adds: &[u16],
+        subs: &[u16],
+    );
+
+    /// As [`output`].
+    fn output(self, weights: &[Row; 2], sums: [&Row; 2]) -> i64;
+}
+
+/// The kernels selected afresh at every call, for callers that have not
+/// chosen a width.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Dispatched;
+
+impl Kernels for Dispatched {
+    #[inline(always)]
+    fn apply(
+        self,
+        weights: &[Row],
+        target: &mut Row,
+        source: Option<&Row>,
+        adds: &[u16],
+        subs: &[u16],
+    ) {
+        apply(weights, target, source, adds, subs);
+    }
+
+    #[inline(always)]
+    fn output(self, weights: &[Row; 2], sums: [&Row; 2]) -> i64 {
+        output(weights, sums)
+    }
+}
+
+/// Proof that the host executes AVX-512BW and the bit-manipulation
+/// instructions the evaluation's bookkeeping is compiled with.
+#[cfg(target_arch = "x86_64")]
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Avx512(());
+
+/// Proof that the host executes AVX2 and the bit-manipulation instructions
+/// the evaluation's bookkeeping is compiled with.
+#[cfg(target_arch = "x86_64")]
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Avx2(());
+
+/// Whether the host has the bit-manipulation instructions a specialised
+/// evaluation enables beside its vector width: `popcnt`, `bmi1`, `bmi2` and
+/// `lzcnt`, which count, find and clear the bits of the placement masks.
+#[cfg(target_arch = "x86_64")]
+fn bit_manipulation_detected() -> bool {
+    is_x86_feature_detected!("popcnt")
+        && is_x86_feature_detected!("bmi1")
+        && is_x86_feature_detected!("bmi2")
+        && is_x86_feature_detected!("lzcnt")
+}
+
+#[cfg(target_arch = "x86_64")]
+impl Avx512 {
+    /// Returns the proof on a host with AVX-512BW and the bit-manipulation
+    /// instructions.
+    pub(super) fn detect() -> Option<Self> {
+        (is_x86_feature_detected!("avx512bw") && bit_manipulation_detected()).then_some(Self(()))
+    }
+}
+
+#[cfg(target_arch = "x86_64")]
+impl Avx2 {
+    /// Returns the proof on a host with AVX2 and the bit-manipulation
+    /// instructions.
+    pub(super) fn detect() -> Option<Self> {
+        (is_x86_feature_detected!("avx2") && bit_manipulation_detected()).then_some(Self(()))
+    }
+}
+
+/// The specialised kernels are the always-inlined bodies: they vectorise at
+/// the width of the function they are inlined into, which enables that width.
+#[cfg(target_arch = "x86_64")]
+impl Kernels for Avx512 {
+    #[inline(always)]
+    fn apply(
+        self,
+        weights: &[Row],
+        target: &mut Row,
+        source: Option<&Row>,
+        adds: &[u16],
+        subs: &[u16],
+    ) {
+        apply_impl(weights, target, source, adds, subs);
+    }
+
+    #[inline(always)]
+    fn output(self, weights: &[Row; 2], sums: [&Row; 2]) -> i64 {
+        // SAFETY: an `Avx512` exists only on a host with AVX-512BW.
+        unsafe { avx512::output_body(weights, sums) }
+    }
+}
+
+#[cfg(target_arch = "x86_64")]
+impl Kernels for Avx2 {
+    #[inline(always)]
+    fn apply(
+        self,
+        weights: &[Row],
+        target: &mut Row,
+        source: Option<&Row>,
+        adds: &[u16],
+        subs: &[u16],
+    ) {
+        apply_impl(weights, target, source, adds, subs);
+    }
+
+    #[inline(always)]
+    fn output(self, weights: &[Row; 2], sums: [&Row; 2]) -> i64 {
+        // SAFETY: an `Avx2` exists only on a host with AVX2.
+        unsafe { avx2::output_body(weights, sums) }
+    }
+}
+
+/// The kernels an accumulator stack evaluates with, chosen once for the host.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum Level {
+    #[cfg(target_arch = "x86_64")]
+    Avx512(Avx512),
+    #[cfg(target_arch = "x86_64")]
+    Avx2(Avx2),
+    /// No specialised evaluation: the kernels are selected at every call.
+    Dispatched,
+}
+
+impl Level {
+    /// Returns the widest level this host supports.
+    pub(super) fn detect() -> Self {
+        #[cfg(target_arch = "x86_64")]
+        {
+            if let Some(kernels) = Avx512::detect() {
+                return Self::Avx512(kernels);
+            }
+            if let Some(kernels) = Avx2::detect() {
+                return Self::Avx2(kernels);
+            }
+        }
+        Self::Dispatched
+    }
+
+    /// Returns every level this host supports, widest first.
+    #[cfg(test)]
+    pub(super) fn supported() -> Vec<Self> {
+        let mut levels = Vec::new();
+        #[cfg(target_arch = "x86_64")]
+        {
+            levels.extend(Avx512::detect().map(Self::Avx512));
+            levels.extend(Avx2::detect().map(Self::Avx2));
+        }
+        levels.push(Self::Dispatched);
+        levels
+    }
 }
 
 /// Products one `i32` accumulates before spilling into the `i64` total:
@@ -237,6 +409,7 @@ mod avx2 {
     /// Each perspective has its own accumulator of `WIDTH / 2` lanes.
     const _: () = assert!(lanes_within_chunk(WIDTH / 2, HIDDEN_SIZE));
 
+    #[inline]
     #[target_feature(enable = "avx2")]
     pub(super) unsafe fn apply(
         weights: &[Row],
@@ -248,31 +421,41 @@ mod avx2 {
         apply_impl(weights, target, source, adds, subs);
     }
 
+    #[inline]
     #[target_feature(enable = "avx2")]
     pub(super) unsafe fn output(weights: &[Row; 2], sums: [&Row; 2]) -> i64 {
-        let zero = _mm256_setzero_si256();
-        let ceiling = _mm256_set1_epi16(ACTIVATION_MAX as i16);
-        let mut total = 0_i64;
-        for (weights, sums) in weights.iter().zip(sums) {
-            let mut lanes = zero;
-            for unit in (0..HIDDEN_SIZE).step_by(WIDTH) {
-                // SAFETY: rows are 64-byte aligned and `unit + WIDTH` stays
-                // within them.
-                let (sum, weight) = unsafe {
-                    (
-                        _mm256_load_si256(sums.0.as_ptr().add(unit).cast()),
-                        _mm256_load_si256(weights.0.as_ptr().add(unit).cast()),
-                    )
-                };
-                let activation = _mm256_min_epi16(_mm256_max_epi16(sum, zero), ceiling);
-                let product = _mm256_mullo_epi16(weight, activation);
-                lanes = _mm256_add_epi32(lanes, _mm256_madd_epi16(product, activation));
+        // SAFETY: this function enables AVX2.
+        unsafe { output_body(weights, sums) }
+    }
+
+    /// The output kernel, always inlined so that an evaluation compiled for
+    /// AVX2 carries it inline.
+    ///
+    /// # Safety
+    ///
+    /// The host must support AVX2.
+    #[inline(always)]
+    pub(super) unsafe fn output_body(weights: &[Row; 2], sums: [&Row; 2]) -> i64 {
+        // SAFETY: the caller guarantees AVX2; rows are 64-byte aligned and
+        // `unit + WIDTH` stays within them; a vector is exactly its lanes.
+        unsafe {
+            let zero = _mm256_setzero_si256();
+            let ceiling = _mm256_set1_epi16(ACTIVATION_MAX as i16);
+            let mut total = 0_i64;
+            for (weights, sums) in weights.iter().zip(sums) {
+                let mut lanes = zero;
+                for unit in (0..HIDDEN_SIZE).step_by(WIDTH) {
+                    let sum = _mm256_load_si256(sums.0.as_ptr().add(unit).cast());
+                    let weight = _mm256_load_si256(weights.0.as_ptr().add(unit).cast());
+                    let activation = _mm256_min_epi16(_mm256_max_epi16(sum, zero), ceiling);
+                    let product = _mm256_mullo_epi16(weight, activation);
+                    lanes = _mm256_add_epi32(lanes, _mm256_madd_epi16(product, activation));
+                }
+                let lanes: [i32; WIDTH / 2] = std::mem::transmute::<__m256i, _>(lanes);
+                total += lanes.iter().map(|&lane| i64::from(lane)).sum::<i64>();
             }
-            // SAFETY: a vector is exactly its lanes.
-            let lanes: [i32; WIDTH / 2] = unsafe { std::mem::transmute::<__m256i, _>(lanes) };
-            total += lanes.iter().map(|&lane| i64::from(lane)).sum::<i64>();
+            total
         }
-        total
     }
 }
 
@@ -290,6 +473,7 @@ mod avx512 {
     /// One accumulator of `WIDTH / 2` lanes covers both perspectives.
     const _: () = assert!(lanes_within_chunk(WIDTH / 2, 2 * HIDDEN_SIZE));
 
+    #[inline]
     #[target_feature(enable = "avx512bw")]
     pub(super) unsafe fn apply(
         weights: &[Row],
@@ -301,29 +485,39 @@ mod avx512 {
         apply_impl(weights, target, source, adds, subs);
     }
 
+    #[inline]
     #[target_feature(enable = "avx512bw")]
     pub(super) unsafe fn output(weights: &[Row; 2], sums: [&Row; 2]) -> i64 {
-        let zero = _mm512_setzero_si512();
-        let ceiling = _mm512_set1_epi16(ACTIVATION_MAX as i16);
-        let mut lanes = zero;
-        for (weights, sums) in weights.iter().zip(sums) {
-            for unit in (0..HIDDEN_SIZE).step_by(WIDTH) {
-                // SAFETY: rows are 64-byte aligned and `unit + WIDTH` stays
-                // within them.
-                let (sum, weight) = unsafe {
-                    (
-                        _mm512_load_si512(sums.0.as_ptr().add(unit).cast()),
-                        _mm512_load_si512(weights.0.as_ptr().add(unit).cast()),
-                    )
-                };
-                let activation = _mm512_min_epi16(_mm512_max_epi16(sum, zero), ceiling);
-                let product = _mm512_mullo_epi16(weight, activation);
-                lanes = _mm512_add_epi32(lanes, _mm512_madd_epi16(product, activation));
+        // SAFETY: this function enables AVX-512BW.
+        unsafe { output_body(weights, sums) }
+    }
+
+    /// The output kernel, always inlined so that an evaluation compiled for
+    /// AVX-512BW carries it inline.
+    ///
+    /// # Safety
+    ///
+    /// The host must support AVX-512BW.
+    #[inline(always)]
+    pub(super) unsafe fn output_body(weights: &[Row; 2], sums: [&Row; 2]) -> i64 {
+        // SAFETY: the caller guarantees AVX-512BW; rows are 64-byte aligned
+        // and `unit + WIDTH` stays within them; a vector is exactly its lanes.
+        unsafe {
+            let zero = _mm512_setzero_si512();
+            let ceiling = _mm512_set1_epi16(ACTIVATION_MAX as i16);
+            let mut lanes = zero;
+            for (weights, sums) in weights.iter().zip(sums) {
+                for unit in (0..HIDDEN_SIZE).step_by(WIDTH) {
+                    let sum = _mm512_load_si512(sums.0.as_ptr().add(unit).cast());
+                    let weight = _mm512_load_si512(weights.0.as_ptr().add(unit).cast());
+                    let activation = _mm512_min_epi16(_mm512_max_epi16(sum, zero), ceiling);
+                    let product = _mm512_mullo_epi16(weight, activation);
+                    lanes = _mm512_add_epi32(lanes, _mm512_madd_epi16(product, activation));
+                }
             }
+            let lanes: [i32; WIDTH / 2] = std::mem::transmute::<__m512i, _>(lanes);
+            lanes.iter().map(|&lane| i64::from(lane)).sum()
         }
-        // SAFETY: a vector is exactly its lanes.
-        let lanes: [i32; WIDTH / 2] = unsafe { std::mem::transmute::<__m512i, _>(lanes) };
-        lanes.iter().map(|&lane| i64::from(lane)).sum()
     }
 }
 

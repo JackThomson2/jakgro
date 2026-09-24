@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use cozy_chess::{Board, Color, Move, Piece, Square};
 
-use super::kernels::Row;
+use super::kernels::{Level, Row};
 use super::{
     ACTIVATION_MAX, Accumulator, AccumulatorStack, FEATURE_SET, FILE_BYTES, FORMAT_VERSION,
     HEADER_BYTES, HIDDEN_SIZE, INPUT_FEATURES, LoadError, MAX_SCORE, Network, OUTPUT_BUCKETS,
@@ -506,6 +506,15 @@ fn walk(
 
 #[test]
 fn stack_matches_independent_reference_over_search_shaped_walks() {
+    let levels = Level::supported();
+    assert!(matches!(levels.last(), Some(Level::Dispatched)));
+    for level in levels {
+        walk_every_fixture(level);
+    }
+}
+
+/// Walks every search-shaped fixture with a stack evaluating at `level`.
+fn walk_every_fixture(level: Level) {
     let model = synthetic_network();
     for (fen, depth) in [
         (
@@ -523,7 +532,7 @@ fn stack_matches_independent_reference_over_search_shaped_walks() {
         ("r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 0 1", 5),
     ] {
         let board: Board = fen.parse().unwrap();
-        let mut stack = AccumulatorStack::new(model, 8);
+        let mut stack = AccumulatorStack::with_level(model, 8, level);
         let mut seed = 0x9e37_79b9_u64;
         for _ in 0..3 {
             walk(model, &mut stack, &board, 0, depth, &mut seed);

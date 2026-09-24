@@ -28,7 +28,9 @@ use std::fmt;
 use cozy_chess::{BitBoard, Board, Color, Piece, Square};
 
 pub use format::{FEATURE_SET, FILE_BYTES, FORMAT_VERSION, HEADER_BYTES, LoadError, MAGIC};
-use kernels::Row;
+#[cfg(target_arch = "x86_64")]
+use kernels::{Avx2, Avx512};
+use kernels::{Dispatched, Kernels, Level, Row};
 
 /// Number of 2x2 king buckets on the oriented, file-mirrored half board.
 pub const KING_BUCKETS: usize = 8;
@@ -106,7 +108,13 @@ impl Network {
     #[must_use]
     pub fn accumulator(&self, board: &Board) -> Accumulator<'_> {
         let mut state = State::EMPTY;
-        self.advance(&mut state, None, None, &FeaturePosition::new(board));
+        self.advance(
+            Dispatched,
+            &mut state,
+            None,
+            None,
+            &FeaturePosition::new(board),
+        );
         Accumulator {
             network: self,
             state,
@@ -122,8 +130,13 @@ impl Network {
     /// sibling four to six from the sibling evaluated before it, and either
     /// may be stale. A perspective whose view the chosen state does not share
     /// is refreshed.
-    fn advance(
+    ///
+    /// Always inlined, so that a caller compiled for a vector width compiles
+    /// the bookkeeping for it too and inlines `kernels` into it.
+    #[inline(always)]
+    fn advance<K: Kernels>(
         &self,
+        kernels: K,
         target: &mut State,
         parent: Option<&State>,
         mut cache: Option<&mut RefreshCache>,
@@ -140,7 +153,7 @@ impl Network {
             let before = from.map_or(&target.position, |(parent, _)| &parent.position);
             let delta = Delta::new(&before.placement, &next.placement, diff, next.views);
             for index in (0..2).filter(|&index| usable[index]) {
-                kernels::apply(
+                kernels.apply(
                     &self.input_weights,
                     &mut target.sums[index],
                     from.map(|(parent, _)| &parent.sums[index]),
@@ -208,11 +221,12 @@ impl Network {
         }
     }
 
-    fn output(&self, state: &State) -> i32 {
+    #[inline(always)]
+    fn output<K: Kernels>(&self, kernels: K, state: &State) -> i32 {
         let position = &state.position;
         let ours = color_index(position.side_to_move);
         let numerator = i64::from(self.output_bias[position.output_bucket])
-            + kernels::output(
+            + kernels.output(
                 &self.output_weights[position.output_bucket],
                 [&state.sums[ours], &state.sums[1 - ours]],
             );
@@ -239,14 +253,19 @@ pub struct Accumulator<'network> {
 impl Accumulator<'_> {
     /// Updates the exact unclipped sums to represent `board`.
     pub fn update(&mut self, board: &Board) {
-        self.network
-            .advance(&mut self.state, None, None, &FeaturePosition::new(board));
+        self.network.advance(
+            Dispatched,
+            &mut self.state,
+            None,
+            None,
+            &FeaturePosition::new(board),
+        );
     }
 
     /// Returns the current side-to-move-relative static centipawn score.
     #[must_use]
     pub fn evaluate(&self) -> i32 {
-        self.network.output(&self.state)
+        self.network.output(Dispatched, &self.state)
     }
 
     /// Exposes the exact, unclipped sums for exporter and reference validation.
@@ -262,20 +281,31 @@ impl Accumulator<'_> {
 /// same-ply re-searches and null moves need no push or pop hooks: evaluating a
 /// board at a ply moves that ply's state to it from the cheaper of itself and
 /// the state one ply up.
+///
+/// The stack selects the host's kernel [`Level`] when it is built, and each
+/// evaluation runs in a function compiled for that level: the placement
+/// diffs and feature lists count and clear bits with the host's instructions,
+/// and the kernels are inlined rather than selected at every call.
 pub struct AccumulatorStack<'network> {
     network: &'network Network,
     states: Box<[State]>,
     cache: Box<RefreshCache>,
+    level: Level,
 }
 
 impl<'network> AccumulatorStack<'network> {
     /// Builds states for plies `0..=deepest`, all describing no placement yet.
     #[must_use]
     pub fn new(network: &'network Network, deepest: usize) -> Self {
+        Self::with_level(network, deepest, Level::detect())
+    }
+
+    fn with_level(network: &'network Network, deepest: usize, level: Level) -> Self {
         Self {
             network,
             states: vec![State::EMPTY; deepest + 1].into_boxed_slice(),
             cache: Box::new(RefreshCache::new(network)),
+            level,
         }
     }
 
@@ -283,16 +313,47 @@ impl<'network> AccumulatorStack<'network> {
     ///
     /// Plies beyond the deepest state share it.
     pub fn evaluate(&mut self, board: &Board, ply: usize) -> i32 {
+        match self.level {
+            // SAFETY: the level holds the proof that the host supports every
+            // feature the function enables.
+            #[cfg(target_arch = "x86_64")]
+            Level::Avx512(kernels) => unsafe { self.evaluate_avx512(kernels, board, ply) },
+            // SAFETY: as above.
+            #[cfg(target_arch = "x86_64")]
+            Level::Avx2(kernels) => unsafe { self.evaluate_avx2(kernels, board, ply) },
+            Level::Dispatched => self.evaluate_with(Dispatched, board, ply),
+        }
+    }
+
+    /// The evaluation compiled for AVX-512BW; the features are those
+    /// [`Avx512::detect`] requires.
+    #[cfg(target_arch = "x86_64")]
+    #[target_feature(enable = "avx512bw,popcnt,bmi1,bmi2,lzcnt")]
+    fn evaluate_avx512(&mut self, kernels: Avx512, board: &Board, ply: usize) -> i32 {
+        self.evaluate_with(kernels, board, ply)
+    }
+
+    /// The evaluation compiled for AVX2; the features are those
+    /// [`Avx2::detect`] requires.
+    #[cfg(target_arch = "x86_64")]
+    #[target_feature(enable = "avx2,popcnt,bmi1,bmi2,lzcnt")]
+    fn evaluate_avx2(&mut self, kernels: Avx2, board: &Board, ply: usize) -> i32 {
+        self.evaluate_with(kernels, board, ply)
+    }
+
+    #[inline(always)]
+    fn evaluate_with<K: Kernels>(&mut self, kernels: K, board: &Board, ply: usize) -> i32 {
         let ply = ply.min(self.states.len() - 1);
         let (above, below) = self.states.split_at_mut(ply);
         let target = &mut below[0];
         self.network.advance(
+            kernels,
             target,
             above.last(),
             Some(&mut self.cache),
             &FeaturePosition::new(board),
         );
-        self.network.output(target)
+        self.network.output(kernels, target)
     }
 
     /// Exposes one ply's exact sums for reference validation.
@@ -318,6 +379,7 @@ impl Placement {
         colors: [0; 2],
     };
 
+    #[inline(always)]
     fn new(board: &Board) -> Self {
         Self {
             kinds: PIECES.map(|piece| board.pieces(piece).0),
@@ -331,6 +393,7 @@ impl Placement {
 
     /// The owner and kind of the piece on an occupied square, without a
     /// branch per plane.
+    #[inline(always)]
     fn piece_on(&self, square: usize) -> (usize, usize) {
         let on = |squares: u64| (squares >> square) as usize & 1;
         let kind = (1..6).map(|kind| kind * on(self.kinds[kind])).sum();
@@ -339,6 +402,7 @@ impl Placement {
 
     /// The squares whose piece leaves, and whose piece arrives, on the way to
     /// `after`. A square whose piece is replaced is in both.
+    #[inline(always)]
     fn diff(&self, after: &Self) -> Diff {
         let mut changed = 0;
         for (before, after) in self.kinds.iter().zip(&after.kinds) {
@@ -362,6 +426,7 @@ struct Diff {
 
 impl Diff {
     /// The number of features that differ, which is the same in every view.
+    #[inline(always)]
     fn changes(self) -> u32 {
         self.removed.count_ones() + self.added.count_ones()
     }
@@ -436,6 +501,7 @@ struct Candidate {
 }
 
 impl Candidate {
+    #[inline(always)]
     fn new(before: &FeaturePosition, next: &FeaturePosition) -> Self {
         let diff = before.placement.diff(&next.placement);
         let short = diff.changes() <= MAX_DELTA;
@@ -446,6 +512,7 @@ impl Candidate {
     }
 
     /// Whether starting here is strictly cheaper than starting from `other`.
+    #[inline(always)]
     fn beats(&self, other: &Self) -> bool {
         let shared = |candidate: &Self| candidate.usable.iter().filter(|&&usable| usable).count();
         (shared(other), self.diff.changes()) < (shared(self), other.diff.changes())
@@ -462,6 +529,7 @@ struct Delta {
 
 impl Delta {
     /// Requires `diff.changes() <= MAX_DELTA`.
+    #[inline(always)]
     fn new(before: &Placement, after: &Placement, diff: Diff, views: [View; 2]) -> Self {
         debug_assert!(diff.changes() <= MAX_DELTA);
         let mut features = [[0; MAX_DELTA as usize]; 2];
@@ -482,10 +550,12 @@ impl Delta {
         }
     }
 
+    #[inline(always)]
     fn removed(&self, index: usize) -> &[u16] {
         &self.features[index][..self.removed]
     }
 
+    #[inline(always)]
     fn added(&self, index: usize) -> &[u16] {
         &self.features[index][self.removed..self.total]
     }
@@ -514,6 +584,7 @@ impl View {
 
     /// The feature of `owner`'s piece of `kind` on an absolute square, with
     /// the perspective and owner as color indices.
+    #[inline(always)]
     fn feature(self, perspective: usize, owner: usize, kind: usize, square: usize) -> u16 {
         let flip = (56 * perspective) | (7 * usize::from(self.mirror));
         let plane = kind + 6 * (owner ^ perspective);
@@ -530,6 +601,7 @@ struct FeaturePosition {
 }
 
 impl FeaturePosition {
+    #[inline(always)]
     fn new(board: &Board) -> Self {
         Self {
             placement: Placement::new(board),
@@ -567,10 +639,12 @@ pub fn active_features(board: &Board, perspective: Color) -> Vec<u16> {
 
 /// Selects the output layer from the piece count; both kings are always present.
 #[must_use]
+#[inline(always)]
 pub fn output_bucket(board: &Board) -> usize {
     (board.occupied().len() as usize - 1) / 4
 }
 
+#[inline(always)]
 fn color_index(color: Color) -> usize {
     match color {
         Color::White => 0,
@@ -578,11 +652,13 @@ fn color_index(color: Color) -> usize {
     }
 }
 
+#[inline(always)]
 fn oriented_square(square: usize, perspective: Color, mirror: bool) -> usize {
     let flip = if perspective == Color::Black { 56 } else { 0 } | if mirror { 7 } else { 0 };
     square ^ flip
 }
 
+#[inline(always)]
 fn view(king: Square, perspective: Color) -> View {
     let mirror = king.file() as usize >= 4;
     let square = oriented_square(king as usize, perspective, mirror);

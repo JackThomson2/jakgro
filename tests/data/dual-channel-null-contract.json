@@ -4,13 +4,13 @@
   "suites": [
     {
       "path": "tests/data/objective-personality-contract.epd",
-      "sha256": "37ab4b84949e374457696760bb44a6a37e717fbe17b006062bc9051c85eff7a6",
+      "sha256": "368fa7b9914565b0bc4ed0feb6e7a218414a012ef1eb1d07191b77445295daca",
       "records": 16,
       "kind": "objective-personality"
     },
     {
       "path": "tests/data/sacrifice-acceptance-contract.epd",
-      "sha256": "4859ac73ef006a81ddb291a5ef78571c3745136238cbbc6afc66bde36c06b194",
+      "sha256": "f68f07f617362a21a5d86f15fa68937168b1a1024a55b561d69a97f751e716e1",
       "records": 4,
       "kind": "sacrifice"
     },
@@ -22,7 +22,7 @@
     },
     {
       "path": "tests/data/personality.epd",
-      "sha256": "dd322d6fea5f61f87ba1e9cd179f3a3956f45783f61d4e20a816ab2104440acf",
+      "sha256": "212e3c88a31b669f3c09524b8a262094b25676b222eab0f6f1776ef20b640486",
       "records": 18,
       "kind": "legacy-personality"
     },

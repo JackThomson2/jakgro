@@ -3877,6 +3877,7 @@ fn negamax(
             context.personality.quiescence_check_budget(),
             previous_move.map(|previous| previous.to),
             true,
+            None,
             context,
         );
     }
@@ -4006,6 +4007,7 @@ fn negamax(
             return Ok(result);
         }
         context.telemetry.reverse_futility_cutoffs += 1;
+        store_static_evaluation(context, &probe, ply, evaluation);
         // The node is worth at least beta and at most its evaluation; the
         // midpoint is the bound the table keeps.
         return Ok(NodeResult {
@@ -4016,7 +4018,8 @@ fn negamax(
     // Razoring: a shallow node whose evaluation lies hopelessly below alpha is
     // settled by quiescence, which still finds the captures and first-ply
     // checks that could rescue it. Only a confirmed fail-low is returned; a
-    // node quiescence lifts above alpha is searched in full.
+    // node quiescence lifts above alpha is searched in full. Quiescence stands
+    // pat on the evaluation this node already holds.
     if excluded.is_none()
         && let Some(evaluation) = pruning_evaluation
         && razoring_margin_holds(evaluation, alpha, depth)
@@ -4031,6 +4034,7 @@ fn negamax(
             context.personality.quiescence_check_budget(),
             previous_move.map(|previous| previous.to),
             true,
+            Some(evaluation),
             context,
         )?;
         if result.score <= alpha {
@@ -4057,6 +4061,9 @@ fn negamax(
             return Ok(terminal);
         }
         context.telemetry.null_move_cutoffs += 1;
+        if let Some(evaluation) = static_evaluation {
+            store_static_evaluation(context, &probe, ply, evaluation);
+        }
         return Ok(result);
     }
 
@@ -4360,6 +4367,42 @@ fn negamax(
     Ok(best)
 }
 
+/// Records the static evaluation of an interior node that returns before it
+/// searches a move.
+///
+/// Such a node stores nothing else, so without this its next visit, in the
+/// next iteration or through a transposition, evaluates the position again.
+/// The entry is the one a quiescence stand-pat cutoff writes: a depth-zero
+/// lower bound at the evaluation itself. Quiescence may stand pat on the
+/// evaluation outside check, so the bound holds for it; an interior node
+/// reads a depth-zero entry only for its evaluation, since no table cutoff or
+/// singular test accepts that depth. Only a position the table held nothing
+/// for is stored, so no result or recorded move is displaced, and the callers
+/// have already ruled out a position without legal moves.
+fn store_static_evaluation(
+    context: &mut SearchContext<'_>,
+    probe: &Probe,
+    ply: u32,
+    evaluation: Score,
+) {
+    if probe.entry().is_none() && context.mode.writes_tt() {
+        context.table.store_probed(
+            probe,
+            0,
+            ply,
+            evaluation,
+            Bound::Lower,
+            None,
+            Some(evaluation),
+        );
+    }
+}
+
+/// Settles captures, evasions and early quiet checks below the horizon.
+///
+/// `known_evaluation`, when given, is this position's static evaluation as a
+/// caller at the same ply already computed it, and stands in for evaluating
+/// the position again.
 #[allow(clippy::too_many_arguments)]
 fn quiescence(
     board: &Board,
@@ -4371,6 +4414,7 @@ fn quiescence(
     check_budget: u8,
     recapture_square: Option<cozy_chess::Square>,
     horizon: bool,
+    known_evaluation: Option<Score>,
     context: &mut SearchContext<'_>,
 ) -> Result<NodeResult, Aborted> {
     context.clear_pv(ply);
@@ -4389,7 +4433,7 @@ fn quiescence(
             });
         }
         return Ok(NodeResult {
-            score: context.static_score(board, ply),
+            score: known_evaluation.unwrap_or_else(|| context.static_score(board, ply)),
             path_dependent: false,
         });
     }
@@ -4435,7 +4479,7 @@ fn quiescence(
             return Ok(result);
         }
         return Ok(NodeResult {
-            score: context.static_score(board, ply),
+            score: known_evaluation.unwrap_or_else(|| context.static_score(board, ply)),
             path_dependent: false,
         });
     }
@@ -4449,6 +4493,7 @@ fn quiescence(
             hash_entry
                 .and_then(Entry::static_evaluation)
                 .inspect(|_| context.telemetry.quiescence_static_evaluation_hits += 1)
+                .or(known_evaluation)
                 .unwrap_or_else(|| context.static_score(board, ply)),
         )
     };
@@ -4538,6 +4583,7 @@ fn quiescence(
             next_check_budget,
             Some(chess_move.to),
             false,
+            None,
             context,
         );
         history.pop();
@@ -5386,6 +5432,7 @@ mod tests {
                     0,
                     None,
                     false,
+                    None,
                     &mut context,
                 )
                 .unwrap();
@@ -5421,6 +5468,7 @@ mod tests {
                 0,
                 None,
                 false,
+                None,
                 &mut context,
             )
             .unwrap();
@@ -5544,6 +5592,7 @@ mod tests {
             0,
             None,
             true,
+            None,
             &mut context,
         )
         .unwrap();

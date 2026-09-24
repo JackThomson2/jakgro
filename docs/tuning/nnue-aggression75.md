@@ -199,7 +199,11 @@ and rank mirroring, and binds everything by SHA-256 tree digests; `nnue-data
 train` recomputes every row's features from its FEN, then runs float32 Adam
 over sixteen persistent gradient-shard workers (thread-count independent),
 flushes subnormal moments, clamps weights to the export bounds, exports every
-epoch and selects the lowest development label loss. `tools/nnue_recipe.sh`
+epoch and selects the lowest development label loss. Splits are streamed in
+bounded blocks and only the rows scored for metrics keep a board, so a
+216M-row continuation holds about 31 GB; the options the factorized network
+was trained with (`--ema`, `--factorize`, `--qat`) are described under
+Factorized network. `tools/nnue_recipe.sh`
 records the 128-unit era's corpus (192 seed groups of 4096 games: 64 taught by
 the handcrafted engine at 50k nodes, then 32, 16, 16 and 16 taught at 50k
 nodes and 16, 16 and 16 at 100k nodes by successively stronger published
@@ -215,23 +219,28 @@ The fixed-node fixtures in `tests/data` pinned handcrafted-era outputs and were
 re-pinned to the network; each published network moves the 20,000-node
 knife-edge positions again, so the profile-control fixtures are mined from
 self-play against the shipped network: positions where Aggression 100 invests
-material and Aggression 0 does not (`rook-b7-investment`, a rook for a pawn
-that costs 56 centipawns under the objective search; `knight-e5-investment`,
-a knight for two pawns), declines an unsound king-side sacrifice with the same
+material and Aggression 0 does not (`rook-e6-investment`, the exchange for a
+bishop, which costs 70 centipawns under the objective search, and
+`rook-f3-investment`, a rook for the knight beside the king, at 12; both were
+mined for the factorized network from self-play it was not trained on and
+hold from 20,000 to 100,000 nodes, after it stopped separating the earlier
+rook-b7 position except at 40,000 nodes and the knight-e6 position at any
+budget up to 400,000), declines an unsound king-side sacrifice with the same
 move as Aggression 0 (`unsupported-bishop-f6`, `unsupported-rook-f7`,
 `unsupported-knight-g7`), keeps the queens on where Aggression 0 trades them
-(`avoid-queen-trade-rook-e1`, mined for the continued network after the
-continued network traded queens in the earlier bishop-d4 position at every
-profile and budget), and storms or thrusts a pawn where Aggression 0 moves a
-piece (`queenside-pawn-thrust`) or chooses a different central push
+(`avoid-queen-trade-queen-c7`, mined for the factorized network, which
+separated the earlier rook-e1 position the wrong way round at 20,000 nodes and
+not at all from 40,000), and storms or thrusts a pawn where Aggression 0 moves
+a piece (`queenside-pawn-thrust`) or chooses a different central push
 (`central-pawn-thrust`, which the continued network separates only from
 400,000 nodes). The standard-profile acceptance suite records what Aggression
-75 does in its two investment positions: with the continued network every
-profile plays the knight investment of `standard-knight-d5-investment` at
-20,000 nodes and none plays that of `standard-knight-e4-investment`, so
-neither separates the default profile there any more; the default profile's
-style is measured by the forcing-move channel below rather than by those two
-records. The verified-null contract allows a one-pawn score drift between the
+75 does in its two investment positions: with the factorized network only
+Aggression 100 plays the knight investment of `standard-knight-d5-investment`
+at 20,000 nodes and no profile plays that of `standard-knight-e4-investment`,
+so neither separates the default profile, and Aggression 75 trades queens in
+the bare queen ending of `standard-avoid-equal-queen-trade`, which is drawn
+whatever it plays; the default profile's style is measured by the
+forcing-move channel below rather than by those records. The verified-null contract allows a one-pawn score drift between the
 pruned and unpruned searches, and its in-check position has a single winning
 capture, which the network values at about +800.
 
@@ -242,11 +251,14 @@ ratio was 1.088 over 2048 games on the search head that preceded the table
 series, and the continued network's is 1.111 over 4096 games (29.05 forcing
 moves per hundred against 26.14 for its objective profile, 12.28 checks
 against 8.57), against 1.115 for the network it continues on the same search.
+The factorized network's is 1.178 over 2048 games at 50,000 nodes, against
+1.129 for the continued network on the same search and games.
 
 ## Continued network
 
-The shipped network (`nets/jakgro.nnue`, SHA-256
-`afbc0897e26c88720d9fe46d5cb90c906512d07eb8e69ba46c74ade4b944350b`) is the
+The continued network (SHA-256
+`afbc0897e26c88720d9fe46d5cb90c906512d07eb8e69ba46c74ade4b944350b`), shipped
+until the factorized network below replaced it, is the
 published network above continued with `nnue-data train --init-network`, in
 three runs of six, eight and eight epochs at rate 0.0001 decaying by 0.9 per
 epoch, batch 8192, L2 1e-6, seed 75 and λ 0.25, each run starting from the
@@ -271,13 +283,82 @@ Measured on the `0efc825` search with each network embedded, Aggression 75 on
 both sides, 4096 colour-reversed games each: at 50,000 nodes per move, where
 networks of one architecture cost the same, the first run measured +10.7 Elo
 [4.5, 16.9] over the published network, the second +16.5 [10.3, 22.6] and the
-third, shipped, +15.2 [8.9, 21.5]; at 50 ms per move on a host shared with the
+third, which was shipped, +15.2 [8.9, 21.5]; at 50 ms per move on a host shared with the
 corpus generation, the first run measured +5.9 [-0.7, 12.5] and the shipped
 network +7.2 [0.9, 13.5]. A network trained from scratch on the first eight
 new groups alone measured -172.8 [-185.6, -160.4] at 50,000 nodes, which is
 why the continuation keeps the old corpus under the new rows rather than
 replacing it. The corpus, the prepared data and the three reports are in
 `artifacts/next` of the host that produced them, not in the repository.
+
+## Factorized network
+
+The shipped network (`nets/jakgro.nnue`, SHA-256
+`39ec8c5cab524eb81db580b42fe852b536ade5d1b1f07b42db90980c17e76d78`) is the
+continued network above continued once more, for eight epochs at rate 0.0001
+decaying by 0.9 per epoch, batch 8192, L2 1e-6, seed 75 and λ 0.25, with three
+trainer options added for it:
+
+- `--ema 0.9998` keeps an exponential moving average of the weights, moved
+  toward them after every Adam step, and publishes the best averaged epoch;
+  the best raw epoch is kept beside it as `raw-network.nnue`, and the raw
+  trajectory does not depend on the average;
+- `--factorize true` trains one row per plane and square shared by the eight
+  king buckets, added to every bucket's row of that plane and square in the
+  forward pass and folded into the supported rows on export, so the file
+  format and the engine are unchanged;
+- `--qat true` makes the forward pass read every weight rounded exactly as the
+  export stores it, with straight-through gradients into the float weights.
+
+Its corpus is the continued network's with every complete group of the same
+20,000-node corpus (groups 0 to 40, 60 to 68 and 72 to 89, with 69, 70 and 71
+again the development split), plus six groups of 20,000-node self-play by the
+engine at `44a4088` with the continued network embedded, from the same
+prefixes with the seeds `3000 + 8g` for group `g`: 224.3M training rows after
+deduplication. The averaged weights of the last epoch were selected at a
+development label MSE of 0.008509, against 0.008844 for the continued network
+on the same split. That split drops the rows that overlap this larger training
+set, so the figure is not the continued network's own 0.008814.
+
+Each idea was first measured alone, in one arm per idea of the same
+continuation on the same corpus without the six new groups (216.2M rows),
+all four trained side by side and each with the moving average, so that every
+arm yields a raw and an averaged network. Against the continued network in the
+same binary, Aggression 75 on both sides, 4096 colour-reversed games at
+50,000 nodes per move:
+
+| Arm | Raw weights | Averaged weights | Development label MSE, raw / averaged |
+| --- | --- | --- | --- |
+| Control: the continued network's recipe | +2.4 [-3.7, +8.4] | +8.1 [+2.1, +14.2] | 0.008753 / 0.008683 |
+| King-bucket factorizer | +14.7 [+8.3, +21.1] | +22.7 [+16.3, +29.0] | 0.008586 / 0.008519 |
+| Quantization-aware training | +4.9 [-1.3, +11.1] | +10.4 [+4.4, +16.3] | 0.008746 / 0.008667 |
+| 20,000-node rows only (86M) | -4.3 [-10.8, +2.1] | +0.6 [-5.7, +6.8] | 0.008659 / 0.008582 † |
+
+† The development split of this arm keeps more rows, since fewer of them
+overlap its smaller training set, so its losses are not comparable with the
+other three (the continued network scores 0.008826 on it against 0.008841).
+
+The final run combined every idea whose averaged arm beat the averaged
+control on its point estimate, the factorizer and quantization-aware training,
+with the moving average, on the full corpus. Against the continued network it
+measured +25.9 Elo [19.6, 32.2] at 50,000 nodes per move and +20.0
+[13.5, 26.6] at 50 ms per move on an otherwise idle host, 4096 games each, and
++3.2 [-3.0, 9.5] directly against the averaged factorizer arm at 50,000 nodes.
+
+The moving average helped every arm, by five to eight Elo; the averaged
+control's best epoch is its first, where the rate is highest. The factorizer
+moved the network most: its development loss fell through the seventh epoch,
+while the control's was flat after the first. The two rarest king buckets
+hold under one percent of the positions each, which is where a row shared
+across buckets would be expected to help most; how the gain divides between
+buckets has not been measured.
+Quantization-aware training's gain over the control is within noise and was
+included on its point estimate, and the combination's edge over the
+factorizer arm is within noise too. Dropping the 10,000-node corpus lowered
+the development loss on its own split and did not move the match result. The
+driver, datasets, arms and reports are in `artifacts/overnight` of the host
+that produced them, not in the repository, with eight further head-engine
+groups played the same night and not yet used.
 
 ## Limitations
 
@@ -302,3 +383,8 @@ replacing it. The corpus, the prepared data and the three reports are in
   fixed-node result from +123 to +147, about +5 per 3M rows, all from groups
   labelled at 100k nodes. The remaining levers are deeper teacher labels and,
   under a clock, throughput.
+- The factorized network's arms share one seed and one data order, and the
+  ideas were combined on point estimates; quantization-aware training's share
+  of the gain has not been separated from the factorizer's. The moving
+  average's decay (0.9998) and the factorizer's effect on a network trained
+  from scratch have not been measured.

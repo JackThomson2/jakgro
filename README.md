@@ -316,12 +316,15 @@ setoption name EvalFile value <embedded>  # back to the built-in network
 
 A rejected file is reported as `info string EvalFile rejected: ...` and leaves
 the previous configuration in place. The shipped network is the published
-512-unit network continued for twenty-two epochs at a low rate on its own corpus
-plus 20,000-node self-play of the current search (`nnue-data train
---init-network`); it measured +15.2 Elo [8.9, 21.5] over the network it
-continues in 4096 games at 50,000 nodes per move and +7.2 [0.9, 13.5] at 50 ms
-on a shared host, with the Aggression 75 versus 0 forcing-move ratio kept
-(1.111 against 1.115). The published 512-unit network measured
+512-unit network continued twice at a low rate on its own corpus plus
+20,000-node self-play of the search (`nnue-data train --init-network`). The
+first continuation, twenty-two epochs, measured +15.2 Elo [8.9, 21.5] over the
+published network in 4096 games at 50,000 nodes per move. The second, eight
+epochs with a row per plane and square shared by the king buckets,
+quantization-aware training and a moving average of the weights
+(`--factorize`, `--qat`, `--ema`), measured +25.9 [19.6, 32.2] over the first
+at 50,000 nodes and +20.0 [13.5, 26.6] at 50 ms per move, with the Aggression 75
+versus 0 forcing-move ratio at 1.178 against 1.129. The published 512-unit network measured
 +44.6 Elo [38.1, 51.1] over the previous 128-unit clipped-ReLU network at
 Aggression 75 in 4096 games at 50 ms per move (otherwise identical engines);
 the engine as a whole measured +128.1 [120.6, 135.7] over the head that
@@ -361,6 +364,12 @@ full-parameter Adam over fixed gradient shards, so the exported network does
 not depend on the thread count; each epoch is exported, re-loaded through the
 engine's own network loader and scored on the development split, and the epoch
 with the lowest development label loss is published beside `report.json`.
+Splits are streamed in bounded blocks and only the rows scored for metrics keep
+a board, so a 216M-row run holds about 31 GB. `--init-network` continues an
+exported network; `--ema DECAY` publishes an exponential moving average of the
+weights and keeps the best raw epoch as `raw-network.nnue`; `--factorize true`
+trains a row per plane and square shared by the king buckets and folds it into
+the export; and `--qat true` trains through the export's rounding.
 `tools/nnue_recipe.sh` records the corpus and training settings the
 autoresearch harness measures, and `tools/nnue_corpus.sh` pre-generates any
 missing corpus members, including seed groups taught by a previously published

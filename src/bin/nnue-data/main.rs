@@ -86,6 +86,20 @@ fn main() -> ExitCode {
     }
 }
 
+/// Reads until `buffer` is full or the input ends; returns the bytes read.
+fn fill(reader: &mut impl Read, buffer: &mut [u8]) -> io::Result<usize> {
+    let mut filled = 0;
+    while filled < buffer.len() {
+        match reader.read(&mut buffer[filled..]) {
+            Ok(0) => break,
+            Ok(read) => filled += read,
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(filled)
+}
+
 fn open(path: &str) -> Result<Box<dyn BufRead>, String> {
     if path == "-" {
         Ok(Box::new(BufReader::new(io::stdin())))

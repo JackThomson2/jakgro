@@ -156,33 +156,45 @@ pub fn file(path: &Path) -> io::Result<String> {
 /// Rendered as `sha256tree:<hex>`. It binds content as strongly as the plain
 /// digest while letting a multi-gigabyte corpus be verified in seconds.
 pub fn file_tree(path: &Path) -> io::Result<String> {
-    let bytes = std::fs::read(path)?;
     let threads = thread::available_parallelism().map_or(1, |count| count.get());
-    let leaves = bytes.chunks(TREE_CHUNK).collect::<Vec<_>>();
-    let per_thread = leaves.len().div_ceil(threads).max(1);
-    let digests = thread::scope(|scope| {
-        let handles = leaves
-            .chunks(per_thread)
-            .map(|group| {
-                scope.spawn(move || {
-                    group
-                        .iter()
-                        .map(|leaf| {
-                            let mut hasher = Sha256::default();
-                            hasher.update(leaf);
-                            hasher.finish()
-                        })
-                        .collect::<Vec<_>>()
+    tree(&mut File::open(path)?, TREE_CHUNK, threads.min(16))
+}
+
+/// The tree digest of everything `reader` yields, with `leaf_bytes` leaves.
+///
+/// Leaves are read `batch_leaves` at a time and hashed one per thread, so
+/// memory stays at one batch whatever the length of the input, and every
+/// batch but the last is whole leaves: the leaves, and so the digest, do not
+/// depend on the batch size.
+fn tree(reader: &mut impl Read, leaf_bytes: usize, batch_leaves: usize) -> io::Result<String> {
+    let mut batch = vec![0_u8; leaf_bytes * batch_leaves.max(1)];
+    let mut digests = Vec::new();
+    let mut length = 0_u64;
+    loop {
+        let read = crate::fill(reader, &mut batch)?;
+        length += read as u64;
+        digests.extend(thread::scope(|scope| {
+            let handles = batch[..read]
+                .chunks(leaf_bytes)
+                .map(|leaf| {
+                    scope.spawn(move || {
+                        let mut hasher = Sha256::default();
+                        hasher.update(leaf);
+                        hasher.finish()
+                    })
                 })
-            })
-            .collect::<Vec<_>>();
-        handles
-            .into_iter()
-            .flat_map(|handle| handle.join().expect("digest worker panicked"))
-            .collect::<Vec<_>>()
-    });
+                .collect::<Vec<_>>();
+            handles
+                .into_iter()
+                .map(|handle| handle.join().expect("digest worker panicked"))
+                .collect::<Vec<_>>()
+        }));
+        if read < batch.len() {
+            break;
+        }
+    }
     let mut root = Sha256::default();
-    root.update(&(bytes.len() as u64).to_be_bytes());
+    root.update(&length.to_be_bytes());
     for digest in &digests {
         root.update(digest);
     }
@@ -233,5 +245,33 @@ mod tests {
         std::fs::write(&path, b"abd").unwrap();
         assert_ne!(first, file_tree(&path).unwrap());
         std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn the_streamed_tree_digest_is_the_whole_input_digest() {
+        // The digest as it was defined over the input held in memory.
+        let whole = |bytes: &[u8], leaf: usize| {
+            let mut root = Sha256::default();
+            root.update(&(bytes.len() as u64).to_be_bytes());
+            for chunk in bytes.chunks(leaf) {
+                let mut hasher = Sha256::default();
+                hasher.update(chunk);
+                root.update(&hasher.finish());
+            }
+            format!("sha256tree:{}", to_hex(&root.finish()))
+        };
+        let bytes = (0..10_007_u32)
+            .map(|index| (index * 31 % 251) as u8)
+            .collect::<Vec<_>>();
+        for length in [0, 1, 999, 1000, 1001, 5000, 10_007] {
+            let input = &bytes[..length];
+            for batch in [1, 2, 3, 16] {
+                assert_eq!(
+                    tree(&mut &input[..], 1000, batch).unwrap(),
+                    whole(input, 1000),
+                    "length {length} batch {batch}"
+                );
+            }
+        }
     }
 }

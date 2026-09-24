@@ -166,20 +166,52 @@ impl Options {
     }
 }
 
-/// One prepared position, oriented to the side to move.
+/// One prepared position's training inputs, oriented to the side to move.
+///
+/// A training row carries no board: gradients need only the features, and a
+/// board per row would more than double what a large corpus holds in memory.
 #[derive(Clone)]
 struct Row {
-    board: Board,
     /// Side-to-move perspective features, then the opponent's.
     features: [[u16; MAX_PIECES]; 2],
     count: u8,
     /// Output layer selected by the piece count.
     bucket: u8,
+    /// Fitted label after mixing outcome and teacher probability.
+    label: f32,
+}
+
+/// What integer metrics need of a position: the board the engine's own
+/// network evaluates, and both targets.
+#[derive(Clone)]
+struct MetricRow {
+    board: Board,
     /// Side-to-move outcome in points.
     outcome: f32,
     /// Fitted label after mixing outcome and teacher probability.
     label: f32,
 }
+
+/// A prepared split as the trainer keeps it.
+struct Split {
+    /// Training inputs of every row; empty for a split read for metrics only.
+    rows: Vec<Row>,
+    /// Metric inputs of the rows [`Keep`] selects, in file order.
+    metrics: Vec<MetricRow>,
+}
+
+/// Which rows of a split are kept, and in which form.
+#[derive(Clone, Copy)]
+enum Keep {
+    /// Every row, for integer metrics only: the development split.
+    Metrics,
+    /// Every row's training inputs, and the metric inputs of the rows
+    /// [`strided`] selects for at most `metric_rows`.
+    Training { metric_rows: usize },
+}
+
+/// Bytes read per block when streaming a split; blocks end on a newline.
+const BLOCK_BYTES: usize = 1 << 29;
 
 fn sigmoid_scale(k: f32) -> f32 {
     std::f32::consts::LN_10 * k / 400.0
@@ -189,15 +221,29 @@ fn sigmoid(score: f32, k: f32) -> f32 {
     1.0 / (1.0 + (-(score * sigmoid_scale(k)).clamp(-80.0, 80.0)).exp())
 }
 
-/// Loads a prepared split, parsing line chunks on every thread.
+/// Indices of at most `maximum` rows spread evenly over `len` rows, the
+/// first and the last included, in increasing order.
+fn strided(len: usize, maximum: usize) -> Vec<usize> {
+    if len <= maximum {
+        return (0..len).collect();
+    }
+    (0..maximum)
+        .map(|index| index * (len - 1) / (maximum - 1))
+        .collect()
+}
+
+/// The number of lines in a block of whole lines, the last of which may lack
+/// its newline.
+fn line_count(block: &[u8]) -> usize {
+    block.iter().filter(|&&byte| byte == b'\n').count()
+        + usize::from(block.last().is_some_and(|&byte| byte != b'\n'))
+}
+
+/// Validates a split's two header lines and returns the offset of its body.
 ///
 /// The schema line must name this feature contract (see
-/// [`crate::schema_accepted`]) and the column line must match exactly. Every
-/// row's stored features are then recomputed from its FEN with the engine's
-/// own mapping, so a dataset prepared by another feature set is rejected here
-/// rather than trusted.
-fn read_rows(path: &Path, label_mix: f32, k: f32, threads: usize) -> Result<Vec<Row>, String> {
-    let bytes = fs::read(path).map_err(|error| format!("{}: {error}", path.display()))?;
+/// [`crate::schema_accepted`]) and the column line must match exactly.
+fn check_header(path: &Path, bytes: &[u8]) -> Result<usize, String> {
     let mut offset = 0;
     for line in 0..2 {
         let end = bytes[offset..]
@@ -221,49 +267,119 @@ fn read_rows(path: &Path, label_mix: f32, k: f32, threads: usize) -> Result<Vec<
         }
         offset = end + 1;
     }
-    let body = &bytes[offset..];
+    Ok(offset)
+}
+
+/// Streams a prepared split's body in blocks of whole lines of at most
+/// `block_bytes`, after validating its header.
+///
+/// `consume` receives every block with the number of body lines before it;
+/// only the file's last line may lack its newline. Returns the number of body
+/// lines. Memory is bounded by the block, whatever the size of the split.
+fn stream_body(
+    path: &Path,
+    block_bytes: usize,
+    mut consume: impl FnMut(&[u8], usize) -> Result<(), String>,
+) -> Result<usize, String> {
+    let failed = |error: std::io::Error| format!("{}: {error}", path.display());
+    let mut file = fs::File::open(path).map_err(failed)?;
+    let mut buffer = vec![0_u8; block_bytes];
+    let mut filled = 0;
+    let mut body = None;
+    let mut lines = 0;
+    loop {
+        let read = crate::fill(&mut file, &mut buffer[filled..]).map_err(failed)?;
+        let finished = filled + read < buffer.len();
+        filled += read;
+        let start = match body {
+            Some(start) => start,
+            None => check_header(path, &buffer[..filled])?,
+        };
+        body = Some(0);
+        let end = if finished {
+            filled
+        } else {
+            buffer[start..filled]
+                .iter()
+                .rposition(|&byte| byte == b'\n')
+                .map(|last| start + last + 1)
+                .ok_or_else(|| format!("{}: a line exceeds {block_bytes} bytes", path.display()))?
+        };
+        let block = &buffer[start..end];
+        if !block.is_empty() {
+            consume(block, lines)?;
+            lines += line_count(block);
+        }
+        if finished {
+            return Ok(lines);
+        }
+        buffer.copy_within(end..filled, 0);
+        filled -= end;
+    }
+}
+
+/// Parses one block of whole lines on every thread.
+///
+/// `first_line` is the number of body lines before the block and `selected`
+/// the sorted body-line indices whose metric inputs a training split keeps.
+/// Returns the block's kept rows and metric rows, in file order.
+#[allow(clippy::too_many_arguments)]
+fn parse_block(
+    path: &Path,
+    block: &[u8],
+    first_line: usize,
+    label_mix: f32,
+    k: f32,
+    threads: usize,
+    keep: Keep,
+    selected: &[usize],
+) -> Result<(Vec<Row>, Vec<MetricRow>), String> {
     // Chunk boundaries fall on newlines so every line is parsed exactly once.
-    let target = body.len().div_ceil(threads * 4).max(1);
+    let target = block.len().div_ceil(threads * 4).max(1);
     let mut bounds = vec![0];
-    while *bounds.last().unwrap() < body.len() {
+    while *bounds.last().unwrap() < block.len() {
         let start = *bounds.last().unwrap();
-        let end = (start + target).min(body.len());
-        let end = body[end..]
+        let end = (start + target).min(block.len());
+        let end = block[end..]
             .iter()
             .position(|&byte| byte == b'\n')
-            .map_or(body.len(), |extra| end + extra + 1);
+            .map_or(block.len(), |extra| end + extra + 1);
         bounds.push(end);
     }
-    let lines_before: Vec<usize> = {
-        let mut counts = vec![0];
-        for pair in bounds.windows(2) {
-            let last = *counts.last().unwrap();
-            counts.push(
-                last + body[pair[0]..pair[1]]
-                    .iter()
-                    .filter(|&&byte| byte == b'\n')
-                    .count(),
-            );
-        }
-        counts
-    };
+    let mut lines_before = vec![first_line];
+    for pair in bounds.windows(2) {
+        let last = *lines_before.last().unwrap();
+        lines_before.push(last + line_count(&block[pair[0]..pair[1]]));
+    }
     let chunks = thread::scope(|scope| {
         let handles = bounds
             .windows(2)
             .zip(&lines_before)
-            .map(|(pair, &first_line)| {
-                let chunk = &body[pair[0]..pair[1]];
-                scope.spawn(move || -> Result<Vec<Row>, String> {
+            .map(|(pair, &chunk_first)| {
+                let chunk = &block[pair[0]..pair[1]];
+                scope.spawn(move || -> Result<(Vec<Row>, Vec<MetricRow>), String> {
                     let text = std::str::from_utf8(chunk)
                         .map_err(|_| format!("{}: invalid UTF-8", path.display()))?;
-                    let mut rows = Vec::with_capacity(chunk.len() / 200);
+                    let mut rows = Vec::new();
+                    let mut metrics = Vec::new();
+                    let mut next = selected.partition_point(|&line| line < chunk_first);
                     for (index, line) in text.lines().enumerate() {
-                        let row = parse_row(line, label_mix, k).map_err(|error| {
-                            format!("{}:{}: {error}", path.display(), first_line + index + 3)
+                        let body_line = chunk_first + index;
+                        let (row, metric) = parse_row(line, label_mix, k).map_err(|error| {
+                            format!("{}:{}: {error}", path.display(), body_line + 3)
                         })?;
-                        rows.push(row);
+                        match keep {
+                            Keep::Metrics => metrics.push(metric),
+                            Keep::Training { .. } => {
+                                rows.push(row);
+                                if selected.get(next) == Some(&body_line) {
+                                    metrics.push(metric);
+                                    next += 1;
+                                }
+                            }
+                        }
                     }
-                    Ok(rows)
+                    Ok((rows, metrics))
                 })
             })
             .collect::<Vec<_>>();
@@ -272,11 +388,65 @@ fn read_rows(path: &Path, label_mix: f32, k: f32, threads: usize) -> Result<Vec<
             .map(|handle| handle.join().expect("row parser panicked"))
             .collect::<Result<Vec<_>, _>>()
     })?;
-    let rows = chunks.into_iter().flatten().collect::<Vec<_>>();
-    if rows.is_empty() {
+    let mut rows = Vec::new();
+    let mut metrics = Vec::new();
+    for (chunk_rows, chunk_metrics) in chunks {
+        rows.extend(chunk_rows);
+        metrics.extend(chunk_metrics);
+    }
+    Ok((rows, metrics))
+}
+
+/// Loads a prepared split, streaming it twice: once to count its rows, so
+/// storage is reserved exactly and a training split's metric rows are known
+/// before any is parsed, then to parse every block on every thread.
+///
+/// Every row's stored features are recomputed from its FEN with the engine's
+/// own mapping, so a dataset prepared by another feature set is rejected here
+/// rather than trusted.
+fn read_split(
+    path: &Path,
+    block_bytes: usize,
+    label_mix: f32,
+    k: f32,
+    threads: usize,
+    keep: Keep,
+) -> Result<Split, String> {
+    let total = stream_body(path, block_bytes, |_, _| Ok(()))?;
+    if total == 0 {
         return Err(format!("{}: empty dataset", path.display()));
     }
-    Ok(rows)
+    let selected = match keep {
+        Keep::Metrics => Vec::new(),
+        Keep::Training { metric_rows } => strided(total, metric_rows),
+    };
+    let mut split = Split {
+        rows: Vec::new(),
+        metrics: Vec::new(),
+    };
+    match keep {
+        Keep::Metrics => split.metrics.reserve_exact(total),
+        Keep::Training { .. } => {
+            split.rows.reserve_exact(total);
+            split.metrics.reserve_exact(selected.len());
+        }
+    }
+    let parsed = stream_body(path, block_bytes, |block, first_line| {
+        let (rows, metrics) = parse_block(
+            path, block, first_line, label_mix, k, threads, keep, &selected,
+        )?;
+        split.rows.extend(rows);
+        split.metrics.extend(metrics);
+        Ok(())
+    })?;
+    let (rows, metrics) = match keep {
+        Keep::Metrics => (0, total),
+        Keep::Training { .. } => (total, selected.len()),
+    };
+    if parsed != total || split.rows.len() != rows || split.metrics.len() != metrics {
+        return Err(format!("{}: changed while it was read", path.display()));
+    }
+    Ok(split)
 }
 
 fn parse_features(text: &str) -> Result<([u16; MAX_PIECES], usize), String> {
@@ -301,7 +471,7 @@ fn parse_features(text: &str) -> Result<([u16; MAX_PIECES], usize), String> {
     Ok((features, count))
 }
 
-fn parse_row(line: &str, label_mix: f32, k: f32) -> Result<Row, String> {
+fn parse_row(line: &str, label_mix: f32, k: f32) -> Result<(Row, MetricRow), String> {
     let fields = line.split('\t').collect::<Vec<_>>();
     let [fen, _key, stm, outcome, teacher, white, black] = fields.as_slice() else {
         return Err("expected seven fields".to_owned());
@@ -348,18 +518,23 @@ fn parse_row(line: &str, label_mix: f32, k: f32) -> Result<Row, String> {
     let label = teacher.map_or(outcome, |score| {
         label_mix * outcome + (1.0 - label_mix) * sigmoid(sign * score, k)
     });
-    Ok(Row {
-        board,
-        features: if stm == 0 {
-            [white, black]
-        } else {
-            [black, white]
+    Ok((
+        Row {
+            features: if stm == 0 {
+                [white, black]
+            } else {
+                [black, white]
+            },
+            count: white_count as u8,
+            bucket: ((white_count - 1) / 4) as u8,
+            label,
         },
-        count: white_count as u8,
-        bucket: ((white_count - 1) / 4) as u8,
-        outcome,
-        label,
-    })
+        MetricRow {
+            board,
+            outcome,
+            label,
+        },
+    ))
 }
 
 /// SplitMix64: a small seeded generator for initialization and shuffling.
@@ -760,7 +935,7 @@ impl Metrics {
 }
 
 /// Integer metrics through the engine's own evaluation of each board.
-fn integer_metrics(network: &Network, rows: &[Row], k: f32, threads: usize) -> Metrics {
+fn integer_metrics(network: &Network, rows: &[MetricRow], k: f32, threads: usize) -> Metrics {
     let chunk = rows.len().div_ceil(threads).max(1);
     let partials = thread::scope(|scope| {
         let handles = rows
@@ -805,15 +980,6 @@ fn integer_metrics(network: &Network, rows: &[Row], k: f32, threads: usize) -> M
     total.label_mse /= total.rows as f64;
     total.outcome_mse /= total.rows as f64;
     total
-}
-
-fn subsample(rows: &[Row], maximum: usize) -> Vec<Row> {
-    if rows.len() <= maximum {
-        return rows.to_vec();
-    }
-    (0..maximum)
-        .map(|index| rows[index * (rows.len() - 1) / (maximum - 1)].clone())
-        .collect()
 }
 
 /// Raw pointer to state the epoch workers share under barrier discipline.
@@ -1061,18 +1227,28 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
     let started = Instant::now();
     let input_hashes = prepare::verify_dataset(data)?;
     let verified = started.elapsed().as_secs_f64();
-    let training = read_rows(
+    let Split {
+        rows: training,
+        metrics: training_sample,
+    } = read_split(
         &data.join("training.tsv"),
+        BLOCK_BYTES,
         options.label_mix,
         options.k,
         options.threads,
+        Keep::Training {
+            metric_rows: TRAIN_METRIC_ROWS,
+        },
     )?;
-    let development = read_rows(
+    let development = read_split(
         &data.join("development.tsv"),
+        BLOCK_BYTES,
         options.label_mix,
         options.k,
         options.threads,
-    )?;
+        Keep::Metrics,
+    )?
+    .metrics;
     let mut support = vec![false; INPUT_FEATURES];
     for row in &training {
         for side in &row.features {
@@ -1081,7 +1257,6 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
             }
         }
     }
-    let training_sample = subsample(&training, TRAIN_METRIC_ROWS);
     let initial_bytes = options
         .init_network
         .as_ref()
@@ -1282,7 +1457,7 @@ mod tests {
 
     const FEN: &str = "4k3/8/5n2/8/8/8/2P5/4K3 w - - 0 1";
 
-    fn row(fen: &str, stm: u8, outcome: f32, teacher: &str) -> Row {
+    fn line(fen: &str, stm: u8, outcome: f32, teacher: &str) -> String {
         let board: Board = fen.parse().unwrap();
         let features = |color| {
             jakgro::engine::nnue::active_features(&board, color)
@@ -1291,22 +1466,134 @@ mod tests {
                 .collect::<Vec<_>>()
                 .join(",")
         };
-        let line = format!(
+        format!(
             "{fen}\t{fen}\t{stm}\t{outcome}\t{teacher}\t{}\t{}",
             features(cozy_chess::Color::White),
             features(cozy_chess::Color::Black)
-        );
-        parse_row(&line, 0.5, 0.88).unwrap()
+        )
+    }
+
+    fn row(fen: &str, stm: u8, outcome: f32, teacher: &str) -> Row {
+        parse_row(&line(fen, stm, outcome, teacher), 0.5, 0.88)
+            .unwrap()
+            .0
     }
 
     #[test]
     fn black_labels_are_reoriented_once() {
-        let black = row(&FEN.replace(" w ", " b "), 1, 1.0, "150");
-        assert_eq!(black.outcome, 0.0);
+        let (black, metric) =
+            parse_row(&line(&FEN.replace(" w ", " b "), 1, 1.0, "150"), 0.5, 0.88).unwrap();
+        assert_eq!(metric.outcome, 0.0);
         assert!((black.label - 0.5 * sigmoid(-150.0, 0.88)).abs() < 1e-6);
+        assert_eq!(metric.label, black.label);
         let white = row(FEN, 0, 1.0, "-");
         assert_eq!(white.label, 1.0);
         assert!(parse_row(&format!("{FEN}\t{FEN}\t1\t1\t-\t0\t0"), 0.5, 0.88).is_err());
+    }
+
+    fn temporary(name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "nnue-train-{name}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ))
+    }
+
+    #[test]
+    fn strided_rows_match_the_historical_training_subsample() {
+        assert_eq!(strided(5, 8), vec![0, 1, 2, 3, 4]);
+        assert_eq!(strided(40, 7), vec![0, 6, 13, 19, 26, 32, 39]);
+        assert_eq!(line_count(b"a\nb\n"), 2);
+        assert_eq!(line_count(b"a\nb"), 2);
+        assert_eq!(line_count(b""), 0);
+    }
+
+    #[test]
+    fn streamed_splits_do_not_depend_on_the_block_size() {
+        let fens = [
+            FEN,
+            "4k3/8/5n2/8/8/8/3P4/4K3 b - - 0 1",
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            "r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 0 1",
+            "8/8/4k3/8/8/4K3/4P3/8 w - - 0 1",
+        ];
+        let lines = (0..40)
+            .map(|index| {
+                let fen = fens[index % fens.len()];
+                let teacher = if index % 4 == 0 {
+                    "-".to_owned()
+                } else {
+                    (index as i32 * 7 - 100).to_string()
+                };
+                let stm = u8::from(fen.contains(" b "));
+                line(fen, stm, [0.0, 0.5, 1.0][index % 3], &teacher)
+            })
+            .collect::<Vec<_>>();
+        let root = temporary("stream");
+        fs::create_dir_all(&root).unwrap();
+        let body = lines.join("\n");
+        let terminated = root.join("terminated.tsv");
+        let unterminated = root.join("unterminated.tsv");
+        fs::write(&terminated, format!("{}{body}\n", *crate::HEADER)).unwrap();
+        fs::write(&unterminated, format!("{}{body}", *crate::HEADER)).unwrap();
+        let training = Keep::Training { metric_rows: 7 };
+        let read = |path: &Path, block, keep| read_split(path, block, 0.25, 0.88, 3, keep);
+        let reference = read(&terminated, 1 << 20, training).unwrap();
+        assert_eq!(reference.rows.len(), 40);
+        let expected = strided(40, 7)
+            .into_iter()
+            .map(|index| {
+                fens[index % fens.len()]
+                    .parse::<Board>()
+                    .unwrap()
+                    .to_string()
+            })
+            .collect::<Vec<_>>();
+        let boards = |split: &Split| {
+            split
+                .metrics
+                .iter()
+                .map(|metric| metric.board.to_string())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(boards(&reference), expected);
+        for path in [&terminated, &unterminated] {
+            // Six hundred bytes hold the header and one or two rows, so most
+            // blocks end mid-file and carry a partial line into the next.
+            for block in [600, 1 << 20] {
+                let split = read(path, block, training).unwrap();
+                assert_eq!(boards(&split), expected);
+                assert_eq!(split.rows.len(), reference.rows.len());
+                for (row, expected) in split.rows.iter().zip(&reference.rows) {
+                    assert_eq!(row.features, expected.features);
+                    assert_eq!((row.count, row.bucket), (expected.count, expected.bucket));
+                    assert_eq!(row.label.to_bits(), expected.label.to_bits());
+                }
+                let development = read(path, block, Keep::Metrics).unwrap();
+                assert!(development.rows.is_empty());
+                assert_eq!(development.metrics.len(), 40);
+                assert_eq!(
+                    development.metrics[3].board.to_string(),
+                    fens[3].parse::<Board>().unwrap().to_string()
+                );
+            }
+        }
+        let error = read(&terminated, 100, training).err().unwrap();
+        assert!(error.contains("exceeds"), "{error}");
+        fs::write(&terminated, crate::HEADER.as_bytes()).unwrap();
+        let error = read(&terminated, 1 << 20, training).err().unwrap();
+        assert!(error.contains("empty dataset"), "{error}");
+        fs::write(
+            &terminated,
+            format!("{}{}\n\n{}\n", *crate::HEADER, lines[0], lines[1]),
+        )
+        .unwrap();
+        let error = read(&terminated, 1 << 20, training).err().unwrap();
+        assert!(error.contains(":4:"), "{error}");
+        fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]

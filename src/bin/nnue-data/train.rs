@@ -11,6 +11,11 @@
 //! epoch is re-read through the engine's own [`Network`] loader for its
 //! integer metrics.
 //!
+//! On request the forward pass reads a view of the weights instead of the
+//! weights themselves: folded with a king-bucket-independent factor, rounded
+//! to the export's quantization, or both. Gradients through the view update
+//! the float weights directly.
+//!
 //! Determinism does not depend on the thread count: a minibatch is split into
 //! a fixed number of shards whose partial gradients are reduced in shard
 //! order, and every per-thread reduction covers a fixed parameter range.
@@ -66,6 +71,11 @@ pub struct Options {
     /// transformer: the forward pass adds a feature's factor row to its own,
     /// and the export folds the factor into every supported row.
     pub factorize: bool,
+    /// Quantization-aware training: the forward pass reads every weight
+    /// rounded exactly as the export rounds it, and its gradient passes
+    /// straight through the rounding into the float weights, so the model
+    /// being fitted is the integer network the engine evaluates.
+    pub qat: bool,
 }
 
 impl Options {
@@ -123,6 +133,7 @@ impl Options {
                 })
                 .transpose()?,
             factorize: number(&values, "--factorize", false)?,
+            qat: number(&values, "--qat", false)?,
         };
         for key in values.keys() {
             if ![
@@ -140,6 +151,7 @@ impl Options {
                 "--init-network",
                 "--ema",
                 "--factorize",
+                "--qat",
             ]
             .contains(key)
             {
@@ -626,6 +638,19 @@ impl Parameters {
         self
     }
 
+    /// Rounds every tensor as the export rounds it and returns the value
+    /// each integer stands for: `quantize` of the result is `quantize` of
+    /// the original, and the float model of the result is the integer model.
+    fn rounded(mut self) -> Self {
+        let [input, output, bias] = export_scales();
+        round(&mut self.input, input);
+        round(&mut self.hidden, input);
+        round(&mut self.output, output);
+        round(&mut self.bias, bias);
+        round(&mut self.factor, input);
+        self
+    }
+
     /// The weights a factorized model's forward pass reads: every input row
     /// plus its factor row, and the other tensors as they are.
     fn folded(&self) -> Self {
@@ -969,6 +994,41 @@ fn adam_impl(
     }
 }
 
+/// The export's quantization scales: feature transformer and hidden bias,
+/// output weights, output bias.
+fn export_scales() -> [f64; 3] {
+    [
+        f64::from(ACTIVATION_MAX),
+        f64::from(OUTPUT_SCALE),
+        f64::from(OUTPUT_UNIT),
+    ]
+}
+
+/// The value the export stores for `value` at `scale`, as `quantize` rounds
+/// it: `round(value * scale) / scale`.
+#[inline(always)]
+fn rounded_weight(value: f32, scale: f64) -> f32 {
+    ((f64::from(value) * scale).round() / scale) as f32
+}
+
+fn round(values: &mut [f32], scale: f64) {
+    for value in values {
+        *value = rounded_weight(*value, scale);
+    }
+}
+
+/// Copies `source` into a view, rounded at `scale` when the view is rounded.
+fn refresh(view: &mut [f32], source: &[f32], scale: Option<f64>) {
+    match scale {
+        Some(scale) => {
+            for (value, &weight) in view.iter_mut().zip(source) {
+                *value = rounded_weight(weight, scale);
+            }
+        }
+        None => view.copy_from_slice(source),
+    }
+}
+
 /// Moves an exponential moving average one step toward `values`.
 fn blend(average: &mut [f32], values: &[f32], decay: f32) {
     for (average, &value) in average.iter_mut().zip(values) {
@@ -1090,23 +1150,40 @@ struct EpochState<'a> {
     shards: &'a mut [Parameters],
     /// The moving average `Options::ema` asks for, updated after every step.
     average: Option<&'a mut Parameters>,
+    /// The weights phase two reads, when they are not the parameters.
+    view: Option<&'a mut View>,
     /// What a factorized run keeps beside its parameters.
     factorization: Option<&'a mut Factorization>,
 }
 
-/// A factorized run's forward weights and reduced input gradient.
+/// The weights the forward pass reads when they are not the parameters
+/// themselves: a factorized run's folded rows, a quantization-aware run's
+/// rounded ones, or both. Refreshed after every update.
+struct View {
+    weights: Parameters,
+    /// Whether the weights are rounded as the export rounds them.
+    rounded: bool,
+}
+
+impl View {
+    fn new(parameters: &Parameters, rounded: bool) -> Self {
+        let weights = parameters.folded();
+        Self {
+            weights: if rounded { weights.rounded() } else { weights },
+            rounded,
+        }
+    }
+}
+
+/// The shard-reduced input gradient of the current step, which a
+/// factorized run's factor gradient sums over the king buckets.
 struct Factorization {
-    /// The folded weights phase two reads, refreshed after every update.
-    view: Parameters,
-    /// The shard-reduced input gradient of the current step, which the
-    /// factor's gradient sums over the king buckets.
     reduced: Vec<f32>,
 }
 
 impl Factorization {
-    fn new(parameters: &Parameters) -> Self {
+    fn new() -> Self {
         Self {
-            view: parameters.folded(),
             reduced: vec![0.0; INPUT_FEATURES * HIDDEN_SIZE],
         }
     }
@@ -1124,7 +1201,7 @@ struct Step<'a> {
 ///
 /// Per step, three barriers separate: (1) the main thread publishing the
 /// batch; (2) every worker accumulating its shard's gradient while reading
-/// the parameters, or a factorized run's folded view of them; (3) every
+/// the parameters, or the folded or rounded view of them; (3) every
 /// worker applying Adam to its own parameter range while reading all shards,
 /// then moving the same range of the average, if any, toward it. Worker zero
 /// also owns the small tensors.
@@ -1150,6 +1227,7 @@ fn run_epoch<'a>(
     let velocity = Ptr(state.velocity as *mut Parameters);
     let shards = Ptr(state.shards.as_mut_ptr());
     let average = state.average.map(|average| Ptr(average as *mut Parameters));
+    let view = state.view.map(|view| Ptr(view as *mut View));
     let factorization = state
         .factorization
         .map(|factorization| Ptr(factorization as *mut Factorization));
@@ -1186,8 +1264,8 @@ fn run_epoch<'a>(
                     // SAFETY: phase two reads the parameters or the view and
                     // writes only this worker's shard and loss slot.
                     let loss = unsafe {
-                        let model = match factorization {
-                            Some(factorization) => &(*factorization.get()).view,
+                        let model = match view {
+                            Some(view) => &(*view.get()).weights,
                             None => &*parameters.get(),
                         };
                         shard_gradient(
@@ -1202,7 +1280,7 @@ fn run_epoch<'a>(
                     barrier.wait();
                     // SAFETY: phase three reads every shard and writes only
                     // this worker's range of the parameters, the average, the
-                    // reduced gradient and the view (and, for worker zero,
+                    // reduced gradient and the view's weights (and, for worker zero,
                     // the small tensors nobody else writes).
                     unsafe {
                         let used = std::slice::from_raw_parts(shards.get(), shard_count);
@@ -1316,20 +1394,31 @@ fn run_epoch<'a>(
                                 blend(&mut average.bias, &parameters.bias, decay);
                             }
                         }
-                        if let Some(Factorization { view, .. }) = factorization {
+                        if let Some(view) = view {
+                            let View { weights, rounded } = &mut *view.get();
+                            let [input, output, bias] =
+                                export_scales().map(|scale| rounded.then_some(scale));
                             for range in ranges {
-                                let rows = view.input[range.clone()]
-                                    .iter_mut()
-                                    .zip(&parameters.input[range])
-                                    .zip(&parameters.factor[shared.clone()]);
-                                for ((value, &own), &factor) in rows {
-                                    *value = own + factor;
+                                let target = &mut weights.input[range.clone()];
+                                let own = &parameters.input[range];
+                                if factorization.is_some() {
+                                    let rows = target
+                                        .iter_mut()
+                                        .zip(own)
+                                        .zip(&parameters.factor[shared.clone()]);
+                                    for ((value, &own), &factor) in rows {
+                                        let folded = own + factor;
+                                        *value = input
+                                            .map_or(folded, |scale| rounded_weight(folded, scale));
+                                    }
+                                } else {
+                                    refresh(target, own, input);
                                 }
                             }
                             if worker == 0 {
-                                view.hidden.copy_from_slice(&parameters.hidden);
-                                view.output.copy_from_slice(&parameters.output);
-                                view.bias.copy_from_slice(&parameters.bias);
+                                refresh(&mut weights.hidden, &parameters.hidden, input);
+                                refresh(&mut weights.output, &parameters.output, output);
+                                refresh(&mut weights.bias, &parameters.bias, bias);
                             }
                         }
                     }
@@ -1494,7 +1583,8 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
     if options.factorize {
         parameters = parameters.with_factor();
     }
-    let mut factorization = options.factorize.then(|| Factorization::new(&parameters));
+    let mut view = (options.factorize || options.qat).then(|| View::new(&parameters, options.qat));
+    let mut factorization = options.factorize.then(Factorization::new);
     let mut moment = zeros();
     let mut velocity = zeros();
     let mut shards = (0..SHARDS).map(|_| Parameters::zeros()).collect::<Vec<_>>();
@@ -1539,6 +1629,7 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
                 velocity: &mut velocity,
                 shards: &mut shards,
                 average: average.as_mut(),
+                view: view.as_mut(),
                 factorization: factorization.as_mut(),
             },
             &mut step,
@@ -1672,6 +1763,7 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
             options
                 .factorize
                 .then(|| ", \"factorize\": true".to_owned()),
+            options.qat.then(|| ", \"qat\": true".to_owned()),
         ]
         .into_iter()
         .flatten()
@@ -1932,7 +2024,155 @@ mod tests {
             init_network: None,
             ema: None,
             factorize: false,
+            qat: false,
         }
+    }
+
+    #[test]
+    fn a_rounded_view_evaluates_as_the_engine_does() {
+        let support = vec![true; INPUT_FEATURES];
+        let mut parameters = Parameters::initialize(&support, 11).with_factor();
+        parameters.hidden.fill(0.3);
+        for (index, value) in parameters.output.iter_mut().enumerate() {
+            *value = ((index % 17) as f32 - 8.0) / 8.0;
+        }
+        for (index, value) in parameters.factor.iter_mut().enumerate() {
+            *value = ((index % 11) as f32 - 5.0) / 300.0;
+        }
+        parameters.bias.fill(0.05);
+        let network = Network::from_bytes(&parameters.quantize(&support).unwrap()).unwrap();
+        let rounded = View::new(&parameters, true);
+        let unrounded = View::new(&parameters, false);
+        let black = FEN.replace(" w ", " b ");
+        let positions = [
+            (FEN, 0),
+            (black.as_str(), 1),
+            (
+                "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+                0,
+            ),
+        ];
+        let mut missed = 0.0_f32;
+        for (fen, stm) in positions {
+            let (row, metric) = parse_row(&line(fen, stm, 0.5, "-"), 0.5, 0.88).unwrap();
+            let engine = network.evaluate(&metric.board) as f32;
+            let (_, score) = rounded.weights.forward(&row);
+            // The engine truncates its score toward zero; nothing else differs.
+            assert!(
+                (score - engine).abs() < 1.0 + 1e-3,
+                "{fen}: rounded view {score}, engine {engine}"
+            );
+            missed = missed.max((unrounded.weights.forward(&row).1 - engine).abs());
+        }
+        assert!(missed > 1.0, "the float weights already matched: {missed}");
+    }
+
+    #[test]
+    fn the_view_tracks_the_parameters_through_every_update() {
+        let rows = (1..=6)
+            .map(|file| {
+                let fen = format!("4k3/8/5n2/8/8/8/{file}P{}/4K3 w - - 0 1", 7 - file);
+                row(&fen, 0, [0.0, 0.5, 1.0][file % 3], "25")
+            })
+            .collect::<Vec<_>>();
+        let order = (0..rows.len()).collect::<Vec<_>>();
+        let support = vec![true; INPUT_FEATURES];
+        for (factorize, qat) in [(true, false), (false, true), (true, true)] {
+            let options = Options {
+                factorize,
+                qat,
+                ema: Some(0.9),
+                batch_size: 2,
+                ..small_run()
+            };
+            let zeros = || {
+                let zeros = Parameters::zeros();
+                if factorize {
+                    zeros.with_factor()
+                } else {
+                    zeros
+                }
+            };
+            let mut parameters = Parameters::initialize(&support, 4);
+            if factorize {
+                parameters = parameters.with_factor();
+            }
+            let mut view = View::new(&parameters, qat);
+            let mut factorization = factorize.then(Factorization::new);
+            let (mut moment, mut velocity) = (zeros(), zeros());
+            let mut shards = (0..SHARDS).map(|_| Parameters::zeros()).collect::<Vec<_>>();
+            let mut average = parameters.clone();
+            let mut step = 0;
+            run_epoch(
+                &rows,
+                &order,
+                &options,
+                EpochState {
+                    parameters: &mut parameters,
+                    moment: &mut moment,
+                    velocity: &mut velocity,
+                    shards: &mut shards,
+                    average: Some(&mut average),
+                    view: Some(&mut view),
+                    factorization: factorization.as_mut(),
+                },
+                &mut step,
+                0.01,
+            )
+            .unwrap();
+            assert_eq!(step, 3);
+            let expected = View::new(&parameters, qat).weights;
+            let label = format!("factorize {factorize} qat {qat}");
+            assert!(view.weights.input == expected.input, "{label}");
+            assert!(view.weights.hidden == expected.hidden, "{label}");
+            assert!(view.weights.output == expected.output, "{label}");
+            assert!(view.weights.bias == expected.bias, "{label}");
+            assert!(
+                view.weights.input != parameters.folded().input || !qat,
+                "{label}"
+            );
+            if factorize {
+                assert!(
+                    parameters.factor.iter().any(|&value| value != 0.0),
+                    "{label}"
+                );
+                assert!(average.factor.iter().any(|&value| value != 0.0), "{label}");
+            }
+        }
+    }
+
+    #[test]
+    fn quantization_aware_runs_train_and_report() {
+        let root = prepared("quantization");
+        let data = root.join("data");
+        train(&small_run(), &data, &root.join("plain")).unwrap();
+        let aware = Options {
+            qat: true,
+            ..small_run()
+        };
+        train(&aware, &data, &root.join("aware")).unwrap();
+        let combined = Options {
+            qat: true,
+            factorize: true,
+            ema: Some(0.5),
+            ..small_run()
+        };
+        train(&combined, &data, &root.join("combined")).unwrap();
+        let read = |name: &str| fs::read(root.join(name)).unwrap();
+        assert_ne!(read("aware/network.nnue"), read("plain/network.nnue"));
+        let report = |name: &str| fs::read_to_string(root.join(name)).unwrap();
+        assert!(report("aware/report.json").contains("\"k\": 0.88, \"qat\": true}"));
+        assert!(
+            report("combined/report.json")
+                .contains("\"ema\": 0.5, \"factorize\": true, \"qat\": true}")
+        );
+        assert!(!report("plain/report.json").contains("\"qat\""));
+        let (options, _, _) = Options::parse(
+            &["--data-dir", "d", "--output-dir", "o", "--qat", "true"].map(String::from),
+        )
+        .unwrap();
+        assert!(options.qat && !options.factorize);
+        fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]

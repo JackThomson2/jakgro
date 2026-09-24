@@ -71,7 +71,7 @@ fn main() -> ExitCode {
                  | score <network> <fen-text|-> \
                  | train --data-dir DIR --output-dir DIR [--epochs N] [--batch-size N] [--rate F] \
                  [--rate-decay F] [--l2 F] [--seed N] [--lambda F] [--k F] [--threads N] \
-                 [--init-network FILE] [--ema F] [--factorize BOOL]"
+                 [--init-network FILE] [--ema F] [--factorize BOOL] [--qat BOOL]"
                 .to_owned(),
         ),
     };

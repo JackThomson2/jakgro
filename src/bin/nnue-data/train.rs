@@ -26,8 +26,8 @@ use crate::{prepare, sha256};
 use cozy_chess::Board;
 use jakgro::engine::nnue::{
     ACTIVATION_MAX, FEATURE_SET, FILE_BYTES, FORMAT_VERSION, HEADER_BYTES, HIDDEN_SIZE,
-    INPUT_FEATURES, MAGIC, MAX_SCORE, Network, OUTPUT_BUCKETS, OUTPUT_SCALE, OUTPUT_UNIT,
-    OUTPUT_WEIGHT_LIMIT, SCORE_SCALE, active_features,
+    INPUT_FEATURES, KING_BUCKETS, MAGIC, MAX_SCORE, Network, OUTPUT_BUCKETS, OUTPUT_SCALE,
+    OUTPUT_UNIT, OUTPUT_WEIGHT_LIMIT, PIECE_PLANES, SCORE_SCALE, active_features,
 };
 
 /// Centipawns per unit of float output.
@@ -37,6 +37,10 @@ const SHARDS: usize = 16;
 /// Largest training subsample scored per epoch for the improvement rule.
 const TRAIN_METRIC_ROWS: usize = 65_536;
 const MAX_PIECES: usize = 32;
+/// Feature rows of one king bucket, and rows of the bucket-independent
+/// factor: a feature's factor row is its plane and square, `feature % FACTOR_ROWS`.
+const FACTOR_ROWS: usize = PIECE_PLANES * 64;
+const _: () = assert!(INPUT_FEATURES == KING_BUCKETS * FACTOR_ROWS);
 
 #[derive(Clone, Debug)]
 pub struct Options {
@@ -58,6 +62,10 @@ pub struct Options {
     /// and the best raw epoch is kept beside them as `raw-network.nnue`; the
     /// raw trajectory itself does not depend on it.
     pub ema: Option<f32>,
+    /// Trains a bucket-independent piece-square factor beside the feature
+    /// transformer: the forward pass adds a feature's factor row to its own,
+    /// and the export folds the factor into every supported row.
+    pub factorize: bool,
 }
 
 impl Options {
@@ -114,6 +122,7 @@ impl Options {
                         .map_err(|_| format!("--ema: invalid value {value}"))
                 })
                 .transpose()?,
+            factorize: number(&values, "--factorize", false)?,
         };
         for key in values.keys() {
             if ![
@@ -130,6 +139,7 @@ impl Options {
                 "--threads",
                 "--init-network",
                 "--ema",
+                "--factorize",
             ]
             .contains(key)
             {
@@ -594,6 +604,9 @@ struct Parameters {
     /// Per output bucket: side-to-move row, then opponent row.
     output: Vec<f32>,
     bias: Vec<f32>,
+    /// `FACTOR_ROWS` rows shared by the king buckets, when factorized; empty
+    /// otherwise. A feature's effective row is its own plus its factor row.
+    factor: Vec<f32>,
 }
 
 impl Parameters {
@@ -603,6 +616,33 @@ impl Parameters {
             hidden: vec![0.0; HIDDEN_SIZE],
             output: vec![0.0; OUTPUT_BUCKETS * 2 * HIDDEN_SIZE],
             bias: vec![0.0; OUTPUT_BUCKETS],
+            factor: Vec::new(),
+        }
+    }
+
+    /// Adds a zero factor, which leaves every effective row unchanged.
+    fn with_factor(mut self) -> Self {
+        self.factor = vec![0.0; FACTOR_ROWS * HIDDEN_SIZE];
+        self
+    }
+
+    /// The weights a factorized model's forward pass reads: every input row
+    /// plus its factor row, and the other tensors as they are.
+    fn folded(&self) -> Self {
+        let mut input = self.input.clone();
+        if !self.factor.is_empty() {
+            for bucket in input.chunks_mut(FACTOR_ROWS * HIDDEN_SIZE) {
+                for (value, &shared) in bucket.iter_mut().zip(&self.factor) {
+                    *value += shared;
+                }
+            }
+        }
+        Self {
+            input,
+            hidden: self.hidden.clone(),
+            output: self.output.clone(),
+            bias: self.bias.clone(),
+            factor: Vec::new(),
         }
     }
 
@@ -709,7 +749,15 @@ impl Parameters {
             payload.extend_from_slice(&scale_i16(value, activation)?.to_le_bytes());
         }
         for (feature, row) in self.input.chunks(HIDDEN_SIZE).enumerate() {
-            for &value in row {
+            // A factor row folds into every supported row of its plane and
+            // square; an unobserved row keeps no weight.
+            let start = feature % FACTOR_ROWS * HIDDEN_SIZE;
+            let shared = self
+                .factor
+                .get(start..start + HIDDEN_SIZE)
+                .filter(|_| support[feature]);
+            for (unit, &value) in row.iter().enumerate() {
+                let value = shared.map_or(value, |shared| value + shared[unit]);
                 let quantized = scale_i16(value, activation)?;
                 if !support[feature] && quantized != 0 {
                     return Err("unobserved feature rows must remain zero".to_owned());
@@ -1042,6 +1090,26 @@ struct EpochState<'a> {
     shards: &'a mut [Parameters],
     /// The moving average `Options::ema` asks for, updated after every step.
     average: Option<&'a mut Parameters>,
+    /// What a factorized run keeps beside its parameters.
+    factorization: Option<&'a mut Factorization>,
+}
+
+/// A factorized run's forward weights and reduced input gradient.
+struct Factorization {
+    /// The folded weights phase two reads, refreshed after every update.
+    view: Parameters,
+    /// The shard-reduced input gradient of the current step, which the
+    /// factor's gradient sums over the king buckets.
+    reduced: Vec<f32>,
+}
+
+impl Factorization {
+    fn new(parameters: &Parameters) -> Self {
+        Self {
+            view: parameters.folded(),
+            reduced: vec![0.0; INPUT_FEATURES * HIDDEN_SIZE],
+        }
+    }
 }
 
 /// What the workers need for one minibatch.
@@ -1056,11 +1124,17 @@ struct Step<'a> {
 ///
 /// Per step, three barriers separate: (1) the main thread publishing the
 /// batch; (2) every worker accumulating its shard's gradient while reading
-/// the parameters; (3) every worker applying Adam to its own parameter range
-/// while reading all shards, then moving the same range of the average, if
-/// any, toward it. Worker zero also owns the small tensors. Returns
-/// the summed batch losses, the batch count and the wall seconds of phases
-/// two and three.
+/// the parameters, or a factorized run's folded view of them; (3) every
+/// worker applying Adam to its own parameter range while reading all shards,
+/// then moving the same range of the average, if any, toward it. Worker zero
+/// also owns the small tensors.
+///
+/// A worker's range is the same factor rows in every king bucket. Adam is
+/// elementwise, so the partition changes no value, and it lets a factorized
+/// worker also update its factor rows, whose gradient sums those buckets'
+/// rows, and refresh the view of the rows they fold into, within phase three.
+/// Returns the summed batch losses, the batch count and the wall seconds of
+/// phases two and three.
 fn run_epoch<'a>(
     training: &'a [Row],
     order: &[usize],
@@ -1076,6 +1150,9 @@ fn run_epoch<'a>(
     let velocity = Ptr(state.velocity as *mut Parameters);
     let shards = Ptr(state.shards.as_mut_ptr());
     let average = state.average.map(|average| Ptr(average as *mut Parameters));
+    let factorization = state
+        .factorization
+        .map(|factorization| Ptr(factorization as *mut Factorization));
     let ema = options.ema;
     let mut current = Step {
         rows: Vec::new(),
@@ -1090,8 +1167,7 @@ fn run_epoch<'a>(
     let current_ptr = Ptr(&mut current as *mut Step<'a>);
     let mut losses = vec![0.0_f64; shard_count];
     let losses_ptr = Ptr(losses.as_mut_ptr());
-    let input_len = INPUT_FEATURES * HIDDEN_SIZE;
-    let range = input_len.div_ceil(shard_count);
+    let rows_per_worker = FACTOR_ROWS.div_ceil(shard_count);
     let k = options.k;
 
     thread::scope(|scope| {
@@ -1107,11 +1183,15 @@ fn run_epoch<'a>(
                         break;
                     }
                     let rows = step.rows.chunks(step.shard_size).nth(worker).unwrap_or(&[]);
-                    // SAFETY: phase two reads the parameters and writes only
-                    // this worker's shard and loss slot.
+                    // SAFETY: phase two reads the parameters or the view and
+                    // writes only this worker's shard and loss slot.
                     let loss = unsafe {
+                        let model = match factorization {
+                            Some(factorization) => &(*factorization.get()).view,
+                            None => &*parameters.get(),
+                        };
                         shard_gradient(
-                            &*parameters.get(),
+                            model,
                             rows,
                             step.rows.len(),
                             k,
@@ -1121,24 +1201,73 @@ fn run_epoch<'a>(
                     unsafe { *losses_ptr.get().add(worker) = loss };
                     barrier.wait();
                     // SAFETY: phase three reads every shard and writes only
-                    // this worker's range of the parameters and the average
-                    // (and, for worker zero, the small tensors nobody else
-                    // writes).
+                    // this worker's range of the parameters, the average, the
+                    // reduced gradient and the view (and, for worker zero,
+                    // the small tensors nobody else writes).
                     unsafe {
                         let used = std::slice::from_raw_parts(shards.get(), shard_count);
                         let parameters = &mut *parameters.get();
                         let moment = &mut *moment.get();
                         let velocity = &mut *velocity.get();
-                        let lo = (worker * range).min(input_len);
-                        let hi = ((worker + 1) * range).min(input_len);
-                        adam(
-                            &mut parameters.input[lo..hi],
-                            &mut moment.input[lo..hi],
-                            &mut velocity.input[lo..hi],
-                            |index| used.iter().map(|shard| shard.input[lo + index]).sum(),
-                            step.update,
-                            INPUT_LIMIT,
-                        );
+                        let mut factorization =
+                            factorization.map(|factorization| &mut *factorization.get());
+                        let first = (worker * rows_per_worker).min(FACTOR_ROWS);
+                        let last = ((worker + 1) * rows_per_worker).min(FACTOR_ROWS);
+                        let shared = first * HIDDEN_SIZE..last * HIDDEN_SIZE;
+                        let ranges = (0..KING_BUCKETS).map(|bucket| {
+                            (bucket * FACTOR_ROWS + first) * HIDDEN_SIZE
+                                ..(bucket * FACTOR_ROWS + last) * HIDDEN_SIZE
+                        });
+                        for range in ranges.clone() {
+                            let gradient = |index: usize| -> f32 {
+                                used.iter()
+                                    .map(|shard| shard.input[range.start + index])
+                                    .sum()
+                            };
+                            match factorization.as_deref_mut() {
+                                Some(Factorization { reduced, .. }) => {
+                                    let reduced = &mut reduced[range.clone()];
+                                    for (index, value) in reduced.iter_mut().enumerate() {
+                                        *value = gradient(index);
+                                    }
+                                    let reduced = &*reduced;
+                                    adam(
+                                        &mut parameters.input[range.clone()],
+                                        &mut moment.input[range.clone()],
+                                        &mut velocity.input[range.clone()],
+                                        |index| reduced[index],
+                                        step.update,
+                                        INPUT_LIMIT,
+                                    );
+                                }
+                                None => adam(
+                                    &mut parameters.input[range.clone()],
+                                    &mut moment.input[range.clone()],
+                                    &mut velocity.input[range.clone()],
+                                    gradient,
+                                    step.update,
+                                    INPUT_LIMIT,
+                                ),
+                            }
+                        }
+                        if let Some(Factorization { reduced, .. }) = factorization.as_deref() {
+                            adam(
+                                &mut parameters.factor[shared.clone()],
+                                &mut moment.factor[shared.clone()],
+                                &mut velocity.factor[shared.clone()],
+                                |index| {
+                                    (0..KING_BUCKETS)
+                                        .map(|bucket| {
+                                            reduced[bucket * FACTOR_ROWS * HIDDEN_SIZE
+                                                + shared.start
+                                                + index]
+                                        })
+                                        .sum()
+                                },
+                                step.update,
+                                INPUT_LIMIT,
+                            );
+                        }
                         if worker == 0 {
                             adam(
                                 &mut parameters.hidden,
@@ -1167,11 +1296,40 @@ fn run_epoch<'a>(
                         }
                         if let Some((average, decay)) = average.zip(ema) {
                             let average = &mut *average.get();
-                            blend(&mut average.input[lo..hi], &parameters.input[lo..hi], decay);
+                            for range in ranges.clone() {
+                                blend(
+                                    &mut average.input[range.clone()],
+                                    &parameters.input[range],
+                                    decay,
+                                );
+                            }
+                            if factorization.is_some() {
+                                blend(
+                                    &mut average.factor[shared.clone()],
+                                    &parameters.factor[shared.clone()],
+                                    decay,
+                                );
+                            }
                             if worker == 0 {
                                 blend(&mut average.hidden, &parameters.hidden, decay);
                                 blend(&mut average.output, &parameters.output, decay);
                                 blend(&mut average.bias, &parameters.bias, decay);
+                            }
+                        }
+                        if let Some(Factorization { view, .. }) = factorization {
+                            for range in ranges {
+                                let rows = view.input[range.clone()]
+                                    .iter_mut()
+                                    .zip(&parameters.input[range])
+                                    .zip(&parameters.factor[shared.clone()]);
+                                for ((value, &own), &factor) in rows {
+                                    *value = own + factor;
+                                }
+                            }
+                            if worker == 0 {
+                                view.hidden.copy_from_slice(&parameters.hidden);
+                                view.output.copy_from_slice(&parameters.output);
+                                view.bias.copy_from_slice(&parameters.bias);
                             }
                         }
                     }
@@ -1325,8 +1483,20 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
         }
         None => Parameters::initialize(&support, options.seed),
     };
-    let mut moment = Parameters::zeros();
-    let mut velocity = Parameters::zeros();
+    let zeros = || {
+        let zeros = Parameters::zeros();
+        if options.factorize {
+            zeros.with_factor()
+        } else {
+            zeros
+        }
+    };
+    if options.factorize {
+        parameters = parameters.with_factor();
+    }
+    let mut factorization = options.factorize.then(|| Factorization::new(&parameters));
+    let mut moment = zeros();
+    let mut velocity = zeros();
     let mut shards = (0..SHARDS).map(|_| Parameters::zeros()).collect::<Vec<_>>();
     // The average starts at the initial weights, so it needs no bias
     // correction; a random start is forgotten within the first epoch.
@@ -1369,6 +1539,7 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
                 velocity: &mut velocity,
                 shards: &mut shards,
                 average: average.as_mut(),
+                factorization: factorization.as_mut(),
             },
             &mut step,
             rate,
@@ -1496,9 +1667,15 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
         options.seed,
         options.label_mix,
         options.k,
-        options
-            .ema
-            .map_or_else(String::new, |decay| format!(", \"ema\": {decay}"))
+        [
+            options.ema.map(|decay| format!(", \"ema\": {decay}")),
+            options
+                .factorize
+                .then(|| ", \"factorize\": true".to_owned()),
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<String>()
     );
     let _ = writeln!(
         report,
@@ -1754,7 +1931,126 @@ mod tests {
             threads: 2,
             init_network: None,
             ema: None,
+            factorize: false,
         }
+    }
+
+    #[test]
+    fn factor_rows_fold_into_supported_rows_on_export() {
+        let mut support = vec![false; INPUT_FEATURES];
+        // One plane and square in two buckets, and another in one.
+        for feature in [7, FACTOR_ROWS + 7, 3 * FACTOR_ROWS + 500] {
+            support[feature] = true;
+        }
+        let mut factorized = Parameters::initialize(&support, 9).with_factor();
+        for (index, value) in factorized.factor.iter_mut().enumerate() {
+            *value = ((index % 13) as f32 - 6.0) / 400.0;
+        }
+        // The same network without a factor: supported rows hold their own
+        // weights plus their factor row, unobserved rows hold nothing.
+        let mut plain = factorized.folded();
+        for (feature, row) in plain.input.chunks_mut(HIDDEN_SIZE).enumerate() {
+            if !support[feature] {
+                row.fill(0.0);
+            }
+        }
+        assert!(plain.factor.is_empty());
+        assert_eq!(
+            factorized.quantize(&support).unwrap(),
+            plain.quantize(&support).unwrap()
+        );
+        // A zero factor leaves an exported network exactly as it was, so a
+        // factorized continuation starts from the published weights.
+        let bytes = plain.quantize(&support).unwrap();
+        let continued = Parameters::dequantize(&bytes).unwrap().with_factor();
+        assert_eq!(continued.quantize(&support).unwrap(), bytes);
+        assert_eq!(continued.folded().input, continued.input);
+    }
+
+    #[test]
+    fn factor_gradients_sum_their_rows_over_the_king_buckets() {
+        let rows = [
+            row(FEN, 0, 1.0, "40"),
+            row(&FEN.replace(" w ", " b "), 1, 0.0, "-80"),
+        ];
+        let refs = rows.iter().collect::<Vec<_>>();
+        let support = vec![true; INPUT_FEATURES];
+        let mut parameters = Parameters::initialize(&support, 3).with_factor();
+        parameters.hidden.fill(0.2);
+        for (index, value) in parameters.factor.iter_mut().enumerate() {
+            *value = ((index % 7) as f32 - 3.0) / 100.0;
+        }
+        let mut gradient = Parameters::zeros();
+        shard_gradient(&parameters.folded(), &refs, refs.len(), 0.88, &mut gradient);
+        let loss = |parameters: &Parameters| -> f64 {
+            let view = parameters.folded();
+            refs.iter()
+                .map(|row| {
+                    let (_, raw) = view.forward(row);
+                    (f64::from(sigmoid(raw, 0.88)) - f64::from(row.label)).powi(2)
+                })
+                .sum::<f64>()
+                / refs.len() as f64
+        };
+        // Both perspectives' first features, whose factor rows the two
+        // positions share across different king buckets.
+        for feature in [rows[0].features[0][1], rows[0].features[1][0]] {
+            let index = usize::from(feature) % FACTOR_ROWS * HIDDEN_SIZE + 5;
+            let analytic = (0..KING_BUCKETS)
+                .map(|bucket| f64::from(gradient.input[bucket * FACTOR_ROWS * HIDDEN_SIZE + index]))
+                .sum::<f64>();
+            let mut probe = parameters.clone();
+            let epsilon = 1e-3_f32;
+            probe.factor[index] += epsilon;
+            let plus = loss(&probe);
+            probe.factor[index] -= 2.0 * epsilon;
+            let minus = loss(&probe);
+            let numerical = (plus - minus) / (2.0 * f64::from(epsilon));
+            assert!(analytic != 0.0, "feature {feature} carries no gradient");
+            assert!(
+                (numerical - analytic).abs() < 1e-3 * (1.0 + analytic.abs()),
+                "feature {feature}: numerical {numerical} analytic {analytic}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_factorized_run_exports_its_folded_network() {
+        let root = prepared("factorize");
+        let data = root.join("data");
+        train(&small_run(), &data, &root.join("plain")).unwrap();
+        let factorized = Options {
+            factorize: true,
+            ema: Some(0.5),
+            ..small_run()
+        };
+        train(&factorized, &data, &root.join("factorized")).unwrap();
+        let read = |name: &str| fs::read(root.join(name)).unwrap();
+        // The engine's loader accepted every export; the factor moved the
+        // weights, so neither weight set is the plain run's.
+        assert_ne!(
+            read("factorized/raw-network.nnue"),
+            read("plain/network.nnue")
+        );
+        assert_ne!(read("factorized/network.nnue"), read("plain/network.nnue"));
+        let report = fs::read_to_string(root.join("factorized/report.json")).unwrap();
+        assert!(report.contains("\"ema\": 0.5, \"factorize\": true}"));
+        let plain = fs::read_to_string(root.join("plain/report.json")).unwrap();
+        assert!(!plain.contains("\"factorize\""));
+        let (options, _, _) = Options::parse(
+            &[
+                "--data-dir",
+                "d",
+                "--output-dir",
+                "o",
+                "--factorize",
+                "true",
+            ]
+            .map(String::from),
+        )
+        .unwrap();
+        assert!(options.factorize);
+        fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]

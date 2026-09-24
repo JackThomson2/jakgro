@@ -2047,6 +2047,7 @@ impl<'a> SearchContext<'a> {
 
 impl SearchContext<'_> {
     fn static_score(&mut self, board: &Board, ply: u32) -> Score {
+        self.telemetry.static_evaluations += 1;
         match &mut self.neural {
             Some(neural) => neural.evaluate(board, ply),
             None => evaluate_with_config(board, self.scoring),

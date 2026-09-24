@@ -156,6 +156,7 @@ pub struct SearchTelemetry {
     pub(super) null_probe_nodes: u64,
     pub(super) null_verification_nodes: u64,
     pub(super) static_pruning_attempts: u64,
+    pub(super) static_evaluations: u64,
     pub(super) interior_static_evaluation_hits: u64,
     pub(super) quiescence_static_evaluation_hits: u64,
     pub(super) reverse_futility_cutoffs: u64,
@@ -209,6 +210,7 @@ impl SearchTelemetry {
             null_probe_nodes: self.null_probe_nodes + other.null_probe_nodes,
             null_verification_nodes: self.null_verification_nodes + other.null_verification_nodes,
             static_pruning_attempts: self.static_pruning_attempts + other.static_pruning_attempts,
+            static_evaluations: self.static_evaluations + other.static_evaluations,
             interior_static_evaluation_hits: self.interior_static_evaluation_hits
                 + other.interior_static_evaluation_hits,
             quiescence_static_evaluation_hits: self.quiescence_static_evaluation_hits
@@ -294,6 +296,16 @@ impl SearchTelemetry {
     #[must_use]
     pub const fn static_pruning_attempts(self) -> u64 {
         self.static_pruning_attempts
+    }
+
+    /// Returns the number of static evaluations the evaluator computed.
+    ///
+    /// Every request the search makes of the network or the handcrafted
+    /// evaluation counts, whatever reads the score; evaluations recovered from
+    /// the table are counted by [`Self::static_evaluation_hits`] instead.
+    #[must_use]
+    pub const fn static_evaluations(self) -> u64 {
+        self.static_evaluations
     }
 
     /// Returns the number of static evaluations recovered from the table.

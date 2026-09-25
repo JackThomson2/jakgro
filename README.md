@@ -345,6 +345,9 @@ through reverse futility or a null-move cutoff store the evaluation they
 computed, and razoring hands its evaluation to quiescence. The measurements,
 and the VNNI output kernel and weight-row prefetching that were rejected, are
 in [`docs/tuning/nnue-inference-speed.md`](docs/tuning/nnue-inference-speed.md).
+On a Graviton4 the network is about a third of search time, and the NEON
+kernels measured faster than every variant built for them there; see
+[`docs/tuning/nnue-aarch64.md`](docs/tuning/nnue-aarch64.md).
 
 Networks are produced by the tuning-only `nnue-data` helper, entirely on CPU
 and without Python numeric dependencies:

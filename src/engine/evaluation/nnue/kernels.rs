@@ -249,14 +249,14 @@ impl Level {
     /// Returns every level this host supports, widest first.
     #[cfg(test)]
     pub(super) fn supported() -> Vec<Self> {
-        let mut levels = Vec::new();
         #[cfg(target_arch = "x86_64")]
-        {
-            levels.extend(Avx512::detect().map(Self::Avx512));
-            levels.extend(Avx2::detect().map(Self::Avx2));
-        }
-        levels.push(Self::Dispatched);
-        levels
+        let specialised = Avx512::detect()
+            .map(Self::Avx512)
+            .into_iter()
+            .chain(Avx2::detect().map(Self::Avx2));
+        #[cfg(not(target_arch = "x86_64"))]
+        let specialised = std::iter::empty::<Self>();
+        specialised.chain([Self::Dispatched]).collect()
     }
 }
 

@@ -137,6 +137,23 @@ fn next_iteration_decision(
     }
 }
 
+/// Time an iteration spent on the objective search, which is what predicts the
+/// cost of the next one.
+///
+/// The styled root works after its objective search under node caps that stay
+/// fixed while the objective search keeps growing, so only the time up to
+/// `objective_finished` is extrapolated. Without a styled root the whole
+/// iteration counts.
+fn objective_iteration_duration(
+    started: Instant,
+    finished: Instant,
+    objective_finished: Option<Instant>,
+) -> Duration {
+    objective_finished
+        .unwrap_or(finished)
+        .saturating_duration_since(started)
+}
+
 #[derive(Debug)]
 struct Aborted;
 #[derive(Debug, Default)]
@@ -1976,6 +1993,12 @@ struct SearchContext<'a> {
     /// stopped search is entitled to abandon its result entirely.
     first_iteration_pending: bool,
     started: Instant,
+    /// When the objective root search of the latest root call finished.
+    ///
+    /// The styled root spends more time after this instant, under node caps that
+    /// do not grow with the objective search, so the iteration forecast counts
+    /// only the time up to here.
+    objective_root_finished: Option<Instant>,
     pv: Vec<Vec<Move>>,
     hash_pv_depths: Vec<Option<u32>>,
     static_evaluations: Vec<Option<Score>>,
@@ -2030,6 +2053,7 @@ impl<'a> SearchContext<'a> {
             shared_node_budget: false,
             first_iteration_pending: false,
             started: Instant::now(),
+            objective_root_finished: None,
             pv: (0..=MAX_PLY)
                 .map(|ply| Vec::with_capacity((MAX_PLY - ply) as usize))
                 .collect(),
@@ -2621,6 +2645,7 @@ fn run_worker(
         // so exempting it would delay every parallel search by a helper's depth.
         first_iteration_pending: role.is_main(),
         started: shared.started,
+        objective_root_finished: None,
         pv: (0..=MAX_PLY)
             .map(|ply| Vec::with_capacity((MAX_PLY - ply) as usize))
             .collect(),
@@ -2703,7 +2728,11 @@ fn run_worker(
                 (alpha, beta) = aspiration_bounds(score, radius);
             }
         };
-        let iteration_duration = iteration_started.elapsed();
+        let iteration_duration = objective_iteration_duration(
+            iteration_started,
+            Instant::now(),
+            context.objective_root_finished.take(),
+        );
 
         let is_volatile =
             stability.observe(context.pv(0).first().copied(), iteration.primary_score);
@@ -2854,6 +2883,7 @@ fn search_root_styled(
     let objective_nodes = context.nodes.saturating_sub(objective_start_nodes);
     context.telemetry.objective_root_nodes += objective_nodes;
     let conventional = conventional?;
+    context.objective_root_finished = Some(Instant::now());
     let ConventionalRootResult {
         selected: objective,
         evidence,
@@ -7257,6 +7287,55 @@ mod tests {
             IterationDecision::Stop
         );
     }
+
+    /// The styled pass is left out of the time the next iteration is forecast from.
+    #[test]
+    fn iteration_forecasts_count_the_objective_search_not_the_styled_pass() {
+        use std::time::{Duration, Instant};
+
+        let started = Instant::now();
+        let finished = started + Duration::from_millis(30);
+        let objective_finished = started + Duration::from_millis(12);
+        assert_eq!(
+            super::objective_iteration_duration(started, finished, Some(objective_finished)),
+            Duration::from_millis(12),
+        );
+        assert_eq!(
+            super::objective_iteration_duration(started, finished, None),
+            Duration::from_millis(30),
+            "an iteration without a styled root is timed whole",
+        );
+    }
+
+    #[test]
+    fn only_the_styled_root_marks_where_its_objective_search_finished() {
+        let position = Position::default();
+        let moves = position.search_moves();
+        for (aggression, marked) in [(75, true), (0, false)] {
+            let table = super::TranspositionTable::new(1).unwrap();
+            let control = super::SearchControl::new();
+            let mut context =
+                super::SearchContext::for_test(&table, &control, super::SearchMode::Normal);
+            context.personality = super::EvaluationConfig::new(aggression);
+            let mut history = RepetitionTracker::new(position.hash_history());
+            super::search_root(
+                position.board(),
+                &moves,
+                &mut history,
+                2,
+                (-MATE_SCORE, MATE_SCORE),
+                &[],
+                &mut context,
+            )
+            .unwrap();
+            assert_eq!(
+                context.objective_root_finished.is_some(),
+                marked,
+                "aggression {aggression}",
+            );
+        }
+    }
+
     #[test]
     fn check_extensions_are_capped_per_line() {
         let quiet = super::EvaluationConfig::new(0);

@@ -900,7 +900,7 @@ mod tests {
     fn bucket_allocation_uses_the_requested_size() {
         for size_mib in [1, 3] {
             let table = TranspositionTable::new(size_mib).unwrap();
-            let bytes = table.buckets().len() * std::mem::size_of::<super::Bucket>();
+            let bytes = std::mem::size_of_val(table.buckets());
 
             assert_eq!(bytes, size_mib * 1024 * 1024);
         }

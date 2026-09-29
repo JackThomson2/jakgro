@@ -372,8 +372,10 @@ fn output_impl(weights: &[Row; 2], sums: [&Row; 2]) -> i64 {
     for (weights, sums) in weights.iter().zip(sums) {
         for (weights, sums) in weights
             .0
-            .chunks_exact(OUTPUT_CHUNK)
-            .zip(sums.0.chunks_exact(OUTPUT_CHUNK))
+            .as_chunks::<OUTPUT_CHUNK>()
+            .0
+            .iter()
+            .zip(sums.0.as_chunks::<OUTPUT_CHUNK>().0.iter())
         {
             let mut chunk = 0_i32;
             for (&weight, &sum) in weights.iter().zip(sums) {

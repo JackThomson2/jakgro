@@ -210,7 +210,9 @@ fn decode(header: &[u8; HEADER_BYTES], payload: &[u8]) -> Result<Network, LoadEr
         .map_err(|_| LoadError::Allocation)?;
     input_weights.extend(
         payload[2 * HIDDEN_SIZE..output_start]
-            .chunks_exact(2 * HIDDEN_SIZE)
+            .as_chunks::<{ 2 * HIDDEN_SIZE }>()
+            .0
+            .iter()
             .map(|row| Row(std::array::from_fn(|unit| read_i16(row, 2 * unit)))),
     );
     if !sums_fit_i16(&hidden_bias, &input_weights) {
@@ -232,26 +234,30 @@ fn decode(header: &[u8; HEADER_BYTES], payload: &[u8]) -> Result<Network, LoadEr
 /// legal or not. Trained networks sit far inside the bound; a file outside it
 /// is rejected rather than evaluated in wider, slower arithmetic.
 fn sums_fit_i16(hidden_bias: &Row, input_weights: &[Row]) -> bool {
-    input_weights.chunks_exact(PIECE_PLANES * 64).all(|bucket| {
-        let mut highest = hidden_bias.map(i32::from);
-        let mut lowest = highest;
-        for square in 0..64 {
-            let mut most = [0_i16; HIDDEN_SIZE];
-            let mut least = [0_i16; HIDDEN_SIZE];
-            for plane in bucket.chunks_exact(64) {
-                for (unit, &weight) in plane[square].iter().enumerate() {
-                    most[unit] = most[unit].max(weight);
-                    least[unit] = least[unit].min(weight);
+    input_weights
+        .as_chunks::<{ PIECE_PLANES * 64 }>()
+        .0
+        .iter()
+        .all(|bucket| {
+            let mut highest = hidden_bias.map(i32::from);
+            let mut lowest = highest;
+            for square in 0..64 {
+                let mut most = [0_i16; HIDDEN_SIZE];
+                let mut least = [0_i16; HIDDEN_SIZE];
+                for plane in bucket.as_chunks::<64>().0 {
+                    for (unit, &weight) in plane[square].iter().enumerate() {
+                        most[unit] = most[unit].max(weight);
+                        least[unit] = least[unit].min(weight);
+                    }
+                }
+                for unit in 0..HIDDEN_SIZE {
+                    highest[unit] += i32::from(most[unit]);
+                    lowest[unit] += i32::from(least[unit]);
                 }
             }
-            for unit in 0..HIDDEN_SIZE {
-                highest[unit] += i32::from(most[unit]);
-                lowest[unit] += i32::from(least[unit]);
-            }
-        }
-        highest.iter().all(|&sum| sum <= i32::from(i16::MAX))
-            && lowest.iter().all(|&sum| sum >= i32::from(i16::MIN))
-    })
+            highest.iter().all(|&sum| sum <= i32::from(i16::MAX))
+                && lowest.iter().all(|&sum| sum >= i32::from(i16::MIN))
+        })
 }
 
 fn read_i16(bytes: &[u8], offset: usize) -> i16 {

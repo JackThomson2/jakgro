@@ -1098,7 +1098,11 @@ impl<'a> MovePicker<'a> {
                     },
                     previous,
                 );
-                let forcing = forcing_order_bonus(gives_check, attacking_pawn_push, evaluation);
+                // A check that hangs the checking piece earns no forcing bonus; the
+                // swap list settles the destination from the parent position.
+                let safe_check =
+                    gives_check && static_exchange_eval_settle(board, chess_move, piece, 0) >= 0;
+                let forcing = forcing_order_bonus(safe_check, attacking_pawn_push, evaluation);
                 quiets.push(QuietMove {
                     facts: MoveFacts {
                         chess_move,
@@ -5449,26 +5453,26 @@ fn quiet_order_score(
 ) -> i64 {
     let chess_move = metadata.chess_move;
     let history = i64::from(ordering.quiet_history_score(board, chess_move, previous));
-    let forcing = forcing_order_bonus(
-        metadata.gives_check,
-        metadata.attacking_pawn_push,
-        evaluation,
-    );
+    let safe_check = metadata.gives_check
+        && static_exchange_eval_settle(board, chess_move, metadata.attacker, 0) >= 0;
+    let forcing = forcing_order_bonus(safe_check, metadata.attacking_pawn_push, evaluation);
     quiet_rank(chess_move, history, forcing, ordering.killers(ply))
 }
 
-/// Ranks a quiet move from its history, forcing bonus and killer status.
+/// Ranks a quiet move from its killer status, history and forcing bonus.
+///
+/// Killers lead. Every other quiet is ranked by its history plus the forcing
+/// bonus, which lies within the history range, so a forcing move leads the
+/// quiets of ordinary history but a quiet whose history is strong enough
+/// outranks it.
 fn quiet_rank(chess_move: Move, history: i64, forcing: i64, killers: [Option<Move>; 2]) -> i64 {
-    if forcing > 0 {
-        return 2_000_000 + history + forcing;
-    }
     if killers[0] == Some(chess_move) {
         return 3_000_000;
     }
     if killers[1] == Some(chess_move) {
         return 2_900_000;
     }
-    2_000_000 + history
+    2_000_000 + history + forcing
 }
 
 fn root_interest(
@@ -5520,8 +5524,14 @@ fn total_non_pawn_material(board: &Board) -> Score {
         .sum()
 }
 
+/// The ordering bonus an attacking profile gives a forcing quiet move.
+///
+/// At the default profile a safe check is worth half the history range and
+/// an attacking pawn push a quarter of it, so they lead the quiets of
+/// ordinary history without displacing a killer or a quiet with a strong
+/// record of its own.
 fn forcing_order_bonus(
-    gives_check: bool,
+    safe_check: bool,
     attacking_pawn_push: bool,
     evaluation: EvaluationConfig,
 ) -> i64 {
@@ -5529,11 +5539,11 @@ fn forcing_order_bonus(
     if aggression == 0 {
         return 0;
     }
-    if gives_check {
-        return 800_000 + aggression * 3_000;
+    if safe_check {
+        return aggression * 110;
     }
     if attacking_pawn_push {
-        return aggression * 1_500;
+        return aggression * 55;
     }
     0
 }

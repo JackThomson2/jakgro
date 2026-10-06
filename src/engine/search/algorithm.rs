@@ -753,6 +753,10 @@ struct MovePicker<'a> {
 }
 
 impl<'a> MovePicker<'a> {
+    /// Starts a picker over `board`. `preferred` is emitted first and must be
+    /// legal: the search validates a hash move when it reads it from the table
+    /// and a previous principal variation before it leads, so the picker does
+    /// not check again.
     fn new(
         board: &'a Board,
         mut storage: MovePickerStorage,
@@ -766,7 +770,7 @@ impl<'a> MovePicker<'a> {
         Self {
             board,
             storage,
-            preferred: preferred.filter(|chess_move| board.is_legal(*chess_move)),
+            preferred,
             picked_killers: [None; 2],
             ply,
             previous,
@@ -4261,7 +4265,12 @@ fn negamax(
         }
     }
 
-    let preferred = previous_pv.first().copied().or(hash_move);
+    // The hash move was validated when it was read from the table; a previous
+    // principal variation is the search's own, but is checked before it leads.
+    let preferred = match previous_pv.first() {
+        Some(&pv_move) => board.is_legal(pv_move).then_some(pv_move),
+        None => hash_move,
+    };
     let picker_storage = context.take_picker_storage(ply);
     let mut picker = MovePicker::new(
         board,
@@ -4301,7 +4310,10 @@ fn negamax(
         if Some(chess_move) == excluded {
             continue;
         }
-        let current_move = HistoryMove::from_board(board, chess_move);
+        let current_move = HistoryMove {
+            piece: metadata.attacker,
+            to: chess_move.to,
+        };
         let expected_child_pv = if preferred == Some(chess_move) {
             previous_pv.get(1..).unwrap_or_default()
         } else {
@@ -4316,9 +4328,12 @@ fn negamax(
                 .into_iter()
                 .flatten()
                 .any(|killer| killer == chess_move);
-        let history_score = context
-            .ordering
-            .quiet_history_score(board, chess_move, previous_move);
+        let history_score = context.ordering.quiet_history_score_of(
+            board.side_to_move(),
+            chess_move,
+            current_move,
+            previous_move,
+        );
         if pruning_evaluation.is_some_and(|evaluation| {
             should_prune_quiet_move(
                 depth,

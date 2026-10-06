@@ -469,7 +469,7 @@ impl MoveFacts {
     ///
     /// The mask only rejects, so a move it accepts still goes through the full
     /// recomputation. Passing `None` for `masks` declines the filter and always
-    /// recomputes, which is what callers outside quiet generation do.
+    /// recomputes; the picker passes the node's masks for every move it emits.
     fn search_metadata_with_masks(
         self,
         board: &Board,
@@ -639,10 +639,6 @@ struct PickerMove {
 }
 
 impl PickerMove {
-    fn metadata(self, board: &Board) -> MoveMetadata {
-        self.metadata_with_masks(board, None)
-    }
-
     fn metadata_with_masks(self, board: &Board, masks: Option<CheckMasks>) -> MoveMetadata {
         self.facts
             .search_metadata_with_masks(board, self.see, masks)
@@ -915,12 +911,19 @@ impl<'a> MovePicker<'a> {
         (index, metadata)
     }
 
+    /// Emits a hash move, promotion, capture or killer with the node's check
+    /// masks, built on the first emission, so that the full check detection
+    /// runs only for moves the masks cannot reject.
     fn emit_candidate(&mut self, candidate: PickerMove) -> (usize, MoveMetadata) {
         #[cfg(test)]
         {
             self.work.check_detections += 1;
         }
-        self.emit(candidate.metadata(self.board))
+        let board = self.board;
+        let masks = *self
+            .masks
+            .get_or_insert_with(|| CheckMasks::for_board(board));
+        self.emit(candidate.metadata_with_masks(board, Some(masks)))
     }
 
     fn pick_killer(
@@ -1025,14 +1028,18 @@ impl<'a> MovePicker<'a> {
         let previous = self.previous;
         let killers = ordering.killers(self.ply);
         let color = board.side_to_move();
-        let masks = *self.masks.insert(CheckMasks::for_board(board));
+        let masks = *self
+            .masks
+            .get_or_insert_with(|| CheckMasks::for_board(board));
         let quiets = &mut self.storage.quiets;
         #[cfg(test)]
         let work = &mut self.work;
         // When quiescence searches quiet checks, only moves that give check are accepted.
         // For non-king pieces not on discovery rays, any move not landing on a direct check
-        // square cannot give check. Filtering `piece_moves.to` early avoids move generation,
-        // classification, and metadata overhead for >90% of non-checking quiets.
+        // square cannot give check, and a king off those rays checks only by castling,
+        // which cozy-chess encodes as a move onto the castling rook's square. Filtering
+        // `piece_moves.to` early avoids move generation, classification, and metadata
+        // overhead for >90% of non-checking quiets.
         let quiet_checks_only = matches!(
             mode,
             MovePickerMode::Quiescence {
@@ -1052,11 +1059,12 @@ impl<'a> MovePicker<'a> {
         targets[Piece::Pawn as usize] = !pawn_tacticals;
         board.generate_moves_for_targets(BitBoard::FULL, &targets, |mut piece_moves| {
             let piece = piece_moves.piece;
-            if quiet_checks_only
-                && piece != Piece::King
-                && !masks.discovery_candidates.has(piece_moves.from)
-            {
-                piece_moves.to &= masks.direct[piece as usize];
+            if quiet_checks_only && !masks.discovery_candidates.has(piece_moves.from) {
+                piece_moves.to &= if piece == Piece::King {
+                    board.colors(color)
+                } else {
+                    masks.direct[piece as usize]
+                };
             }
             for chess_move in piece_moves {
                 if preferred == Some(chess_move) || picked_killers.contains(&Some(chess_move)) {
@@ -4993,18 +5001,24 @@ impl CheckMasks {
 
     /// Reports whether this move could possibly leave the enemy king in check.
     ///
-    /// Castling moves a rook and a promotion arrives as a different piece, so
-    /// both bypass the destination mask. A piece standing on a ray through the
-    /// enemy king may uncover a checking slider wherever it moves. An en passant
-    /// capture additionally vacates the captured pawn's square, which can
-    /// uncover a slider from a square this move never touches, so it is also
-    /// treated as possible without consulting the mask.
+    /// A promotion arrives as a different piece, so it bypasses the destination
+    /// mask. A piece standing on a ray through the enemy king may uncover a
+    /// checking slider wherever it moves. An en passant capture additionally
+    /// vacates the captured pawn's square, which can uncover a slider from a
+    /// square this move never touches, so it is also treated as possible without
+    /// consulting the mask. A king cannot check by itself, so off those rays it
+    /// checks only by castling, which moves a rook as well; cozy-chess encodes
+    /// castling as the king moving onto the castling rook's square, more than
+    /// one file away.
     fn may_give_check(self, chess_move: Move, moved: Piece, en_passant: bool) -> bool {
-        if chess_move.promotion.is_some() || moved == Piece::King || en_passant {
+        if chess_move.promotion.is_some() || en_passant {
             return true;
         }
         if self.discovery_candidates.has(chess_move.from) {
             return true;
+        }
+        if moved == Piece::King {
+            return (chess_move.from.file() as i32 - chess_move.to.file() as i32).abs() > 1;
         }
         self.direct[moved as usize].has(chess_move.to)
     }
@@ -6432,7 +6446,10 @@ mod tests {
         assert_eq!(with_checks.work().tactical_generations, 1);
         assert_eq!(with_checks.work().quiet_generations, 1);
         assert_eq!(with_checks.work().quiet_sorts, 1);
-        assert!(with_checks.work().check_detections > picked.len());
+        // The destination masks reject most quiets before any check detection
+        // runs; every candidate that survives them is detected exactly once.
+        assert!(with_checks.work().check_detections >= picked.len());
+        assert!(with_checks.work().check_detections < super::generate_moves(&board).len());
     }
 
     #[test]

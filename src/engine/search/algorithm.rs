@@ -621,7 +621,9 @@ struct QuietMove {
     facts: MoveFacts,
     gives_check: bool,
     attacking_pawn_push: bool,
-    order_score: i64,
+    /// The rank and the move key packed into one word by [`quiet_sort_key`], so
+    /// that sorting ascending on it alone orders the quiets.
+    sort_key: u64,
 }
 
 impl QuietMove {
@@ -1104,16 +1106,15 @@ impl<'a> MovePicker<'a> {
                     },
                     gives_check,
                     attacking_pawn_push,
-                    order_score: quiet_rank(chess_move, i64::from(history), forcing, killers),
+                    sort_key: quiet_sort_key(
+                        quiet_rank(chess_move, i64::from(history), forcing, killers),
+                        chess_move,
+                    ),
                 });
             }
             false
         });
-        quiets.sort_unstable_by(|left, right| {
-            right.order_score.cmp(&left.order_score).then_with(|| {
-                move_key(left.facts.chess_move).cmp(&move_key(right.facts.chess_move))
-            })
-        });
+        quiets.sort_unstable_by_key(|quiet| quiet.sort_key);
         #[cfg(test)]
         {
             self.work.quiet_sorts += 1;
@@ -5554,6 +5555,24 @@ fn move_key(chess_move: Move) -> u32 {
     (((chess_move.from as u32 * 64) + chess_move.to as u32) * 8) + promotion
 }
 
+/// Every quiet rank lies below this bound, so its complement fits in the
+/// bits above the move key.
+const QUIET_RANK_BOUND: i64 = 1 << 22;
+
+/// Packs a quiet's rank and move key into one word that sorts quiets the way
+/// the two-level comparison did: the highest rank first and, among equal
+/// ranks, the smallest move key first. Sorting ascending on this key is a
+/// single branchless comparison per step instead of a comparison that
+/// recomputes two move keys on every tie.
+fn quiet_sort_key(order_score: i64, chess_move: Move) -> u64 {
+    debug_assert!(
+        (0..QUIET_RANK_BOUND).contains(&order_score),
+        "quiet rank {order_score} outside the packed range"
+    );
+    let rank = (QUIET_RANK_BOUND - 1 - order_score) as u64;
+    rank << 15 | u64::from(move_key(chess_move))
+}
+
 fn ordering_piece_value(piece: Piece) -> Score {
     if piece == Piece::King {
         MATE_SCORE
@@ -6249,6 +6268,37 @@ mod tests {
         }
     }
 
+    #[test]
+    fn quiet_sort_key_orders_by_rank_then_move_key() {
+        let moves: Vec<Move> = ["a2a3", "h2h4", "b1c3", "e1g1", "g1f3", "d2d4"]
+            .iter()
+            .map(|text| text.parse().unwrap())
+            .collect();
+        // Ranks the picker produces: killers, forcing quiets and plain history
+        // at both ends of its range, with ties between distinct moves.
+        let ranks: [i64; 6] = [
+            3_000_000,
+            2_000_000 + 16_384,
+            2_000_000 - 16_384,
+            2_000_000 + 16_384,
+            2_000_000 + 800_000 + 75 * 3_000 + 16_384,
+            2_000_000,
+        ];
+        let mut by_key: Vec<(i64, Move)> =
+            ranks.iter().copied().zip(moves.iter().copied()).collect();
+        let mut by_comparison = by_key.clone();
+        by_key.sort_unstable_by_key(|&(rank, chess_move)| super::quiet_sort_key(rank, chess_move));
+        by_comparison.sort_unstable_by(|left, right| {
+            right
+                .0
+                .cmp(&left.0)
+                .then_with(|| super::move_key(left.1).cmp(&super::move_key(right.1)))
+        });
+        assert_eq!(by_key, by_comparison);
+        assert!(by_key.windows(2).all(|pair| pair[0].0 >= pair[1].0));
+        assert_eq!(by_key[2].0, by_key[3].0);
+        assert!(super::move_key(by_key[2].1) < super::move_key(by_key[3].1));
+    }
     #[test]
     fn staged_picker_matches_eager_non_root_ordering() {
         for fen in [

@@ -3,4 +3,4 @@ r2r4/pq2kpb1/2npbnpp/8/PpPB3N/1P3BP1/3N1PKP/R2QR3 w - - 5 15 ; id gate-rook-e6-i
 r1bqr1k1/1p4p1/p3pp1p/1Pp1B3/P1P1p2P/2P3P1/4PPK1/R3Q2R w - - 0 14 ; id gate-unsupported-bishop-f6 ; category anti-sacrifice ; nodes 20000 ; bm0 e5f4 ; bm100 e5f4
 r4rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP4/PPP3PP/R4RK1 w - - 0 10 ; id gate-unsupported-rook-f7 ; category anti-sacrifice ; nodes 20000 ; bm0 g1h1 ; bm100 g1h1
 6k1/5ppp/8/7Q/2B5/8/5PPP/6K1 w - - 0 1 ; id gate-forcing-mate-safety ; category safety ; nodes 20000 ; bm0 h5f7 ; bm100 h5f7
-2bqkr2/1ppnb1B1/3nB1p1/r5p1/Pp6/3PPN2/3PKP2/RNQ4R b - - 1 18 ; id gate-rook-f3-investment ; category sacrifice ; nodes 20000 ; bm0 d7e5 ; bm100 f8f3
+2bqkr2/1ppnb1B1/3nB1p1/r5p1/Pp6/3PPN2/3PKP2/RNQ4R b - - 1 18 ; id gate-rook-f3-investment ; category sacrifice ; nodes 160000 ; bm0 e7f6 ; bm100 f8f3

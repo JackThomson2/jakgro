@@ -1370,12 +1370,160 @@ impl HistoryMove {
     }
 }
 
+/// Entries per side to move in each correction table.
+const CORRECTION_ENTRIES: usize = 16_384;
+/// Bound of a correction entry; the update shrinks an entry toward zero in
+/// proportion to its size, so an entry saturates here only under a residual
+/// of constant sign.
+const CORRECTION_LIMIT: i32 = 1024;
+/// Bound of one update, a quarter of the limit.
+const CORRECTION_STEP_LIMIT: i32 = CORRECTION_LIMIT / 4;
+/// Weights of the pawn-structure and the two material entries in the
+/// correction, over 1024: a saturated pawn entry moves the evaluation by 24
+/// centipawns and each saturated material entry by 16.
+const CORRECTION_PAWN_WEIGHT: i32 = 24;
+const CORRECTION_MATERIAL_WEIGHT: i32 = 16;
+
+/// What the search has learned about the static evaluation's error in
+/// positions sharing a pawn structure or a side's material.
+///
+/// A node that finishes its move loop outside check, with a bound consistent
+/// with the direction of the error and a best move that is not a capture,
+/// records the difference between its result and its corrected evaluation,
+/// scaled by its depth. Later evaluations of positions with the same pawn
+/// structure, or the same non-pawn pieces for either side, are moved by a
+/// weighted sum of what was recorded. The network has no input for the
+/// halfmove clock or for the drawishness of a material class, so this is the
+/// device that learns, inside one game, that a class of positions returns
+/// less than the network says; the tables are carried from move to move and
+/// halved like the histories. Each table is indexed by the side to move as
+/// well, since an error in white's favour is not an error in black's.
+#[derive(Debug)]
+struct CorrectionHistory {
+    /// Indexed by side to move and the pawn-structure key.
+    pawn: Vec<i32>,
+    /// Indexed by the colour whose material is keyed, the side to move and
+    /// that colour's non-pawn material key.
+    material: Vec<i32>,
+}
+
+impl CorrectionHistory {
+    fn new() -> Self {
+        Self {
+            pawn: vec![0; 2 * CORRECTION_ENTRIES],
+            material: vec![0; 2 * 2 * CORRECTION_ENTRIES],
+        }
+    }
+
+    fn age(&mut self) {
+        for entry in &mut self.pawn {
+            *entry /= 2;
+        }
+        for entry in &mut self.material {
+            *entry /= 2;
+        }
+    }
+
+    /// The slots of `board` in the three tables, computed once per node and
+    /// handed to both the read and the update.
+    fn slots(board: &Board) -> CorrectionSlots {
+        let side = board.side_to_move() as usize;
+        let material = |color: Color| {
+            ((color as usize) * 2 + side) * CORRECTION_ENTRIES
+                + correction_slot(non_pawn_material_key(board, color))
+        };
+        CorrectionSlots {
+            pawn: side * CORRECTION_ENTRIES + correction_slot(pawn_structure_key(board)),
+            white: material(Color::White),
+            black: material(Color::Black),
+        }
+    }
+
+    fn corrected(&self, slots: CorrectionSlots, raw: Score) -> Score {
+        let correction = (self.pawn[slots.pawn] * CORRECTION_PAWN_WEIGHT
+            + (self.material[slots.white] + self.material[slots.black])
+                * CORRECTION_MATERIAL_WEIGHT)
+            / 1024;
+        (raw + correction).clamp(-TB_THRESHOLD + 1, TB_THRESHOLD - 1)
+    }
+
+    fn update(&mut self, slots: CorrectionSlots, depth: u32, difference: Score) {
+        let step = (difference.saturating_mul(depth.min(64) as Score) / 8)
+            .clamp(-CORRECTION_STEP_LIMIT, CORRECTION_STEP_LIMIT);
+        correction_gravity(&mut self.pawn[slots.pawn], step);
+        correction_gravity(&mut self.material[slots.white], step);
+        correction_gravity(&mut self.material[slots.black], step);
+    }
+}
+
+/// A position's slots in the correction tables.
+#[derive(Clone, Copy, Debug)]
+struct CorrectionSlots {
+    pawn: usize,
+    white: usize,
+    black: usize,
+}
+
+/// Moves an entry by `step`, less a share of itself that keeps it inside
+/// [`CORRECTION_LIMIT`] and lets a changed residual overrule an old one.
+fn correction_gravity(entry: &mut i32, step: i32) {
+    *entry += step - *entry * step.abs() / CORRECTION_LIMIT;
+}
+
+fn correction_slot(key: u64) -> usize {
+    (key as usize) & (CORRECTION_ENTRIES - 1)
+}
+
+/// A key of both sides' pawns.
+///
+/// Each bitboard is multiplied by its own odd constant before the two are
+/// combined, so that moving a white pawn and the mirrored black pawn, which
+/// leaves a plain exclusive-or of the boards unchanged, changes the key.
+fn pawn_structure_key(board: &Board) -> u64 {
+    let white = board.colored_pieces(Color::White, Piece::Pawn).0;
+    let black = board.colored_pieces(Color::Black, Piece::Pawn).0;
+    mix_key(
+        white
+            .wrapping_mul(0xD6E8_FEB8_6659_FD93)
+            .wrapping_add(black.wrapping_mul(0xA076_1D64_78BD_642F)),
+    )
+}
+
+/// A key of one side's pieces other than pawns, the king included.
+///
+/// Each piece type's bitboard is multiplied by its own odd constant before
+/// the sum is mixed, so that the same squares held by different pieces, or
+/// pieces exchanging squares, give different keys.
+fn non_pawn_material_key(board: &Board, color: Color) -> u64 {
+    let piece = |piece: Piece| board.colored_pieces(color, piece).0;
+    mix_key(
+        piece(Piece::Knight)
+            .wrapping_mul(0xE703_7ED1_A0B4_28DB)
+            .wrapping_add(piece(Piece::Bishop).wrapping_mul(0x8EBC_6AF0_9C88_C6E3))
+            .wrapping_add(piece(Piece::Rook).wrapping_mul(0x5899_65CC_7537_4CC3))
+            .wrapping_add(piece(Piece::Queen).wrapping_mul(0x1D8E_4E27_C47D_124F))
+            .wrapping_add(piece(Piece::King).wrapping_mul(0xC4CE_B9FE_1A85_EC53))
+            .wrapping_add(0x9E37_79B9_7F4A_7C15_u64.wrapping_mul(color as u64 + 1)),
+    )
+}
+
+/// A 64-bit mixer with a full avalanche, so that a bitboard's bits spread
+/// over every slot of a table.
+fn mix_key(mut key: u64) -> u64 {
+    key ^= key >> 30;
+    key = key.wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    key ^= key >> 27;
+    key = key.wrapping_mul(0x94D0_49BB_1331_11EB);
+    key ^ (key >> 31)
+}
+
 #[derive(Debug)]
 pub(super) struct MoveOrdering {
     killers: Vec<[Option<Move>; 2]>,
     history: Vec<i32>,
     continuation: Vec<i32>,
     capture_history: Vec<i16>,
+    correction: CorrectionHistory,
 }
 
 impl MoveOrdering {
@@ -1385,6 +1533,7 @@ impl MoveOrdering {
             history: vec![0; 2 * 64 * 64],
             continuation: vec![0; CONTINUATION_BUCKETS * CONTINUATION_BUCKETS],
             capture_history: vec![0; CAPTURE_HISTORY_ENTRIES],
+            correction: CorrectionHistory::new(),
         }
     }
 
@@ -1396,7 +1545,8 @@ impl MoveOrdering {
     /// keeps them as a prior the new search overrules as soon as it learns
     /// otherwise. A killer is a move at a ply, and the plies have shifted, so
     /// it means nothing and would be protected from every pruning rule for
-    /// nothing.
+    /// nothing. The evaluation corrections are halved the same way: the pawn
+    /// structure and the material of the next move are mostly this move's.
     fn age(&mut self) {
         for score in &mut self.history {
             *score /= 2;
@@ -1407,7 +1557,25 @@ impl MoveOrdering {
         for score in &mut self.capture_history {
             *score /= 2;
         }
+        self.correction.age();
         self.killers.fill([None; 2]);
+    }
+
+    /// The slots of `board` in the correction tables, computed once per node.
+    fn correction_slots(board: &Board) -> CorrectionSlots {
+        CorrectionHistory::slots(board)
+    }
+
+    /// A static evaluation with the correction the searches of positions
+    /// sharing the pawn structure and material have learned.
+    fn corrected_evaluation(&self, slots: CorrectionSlots, raw: Score) -> Score {
+        self.correction.corrected(slots, raw)
+    }
+
+    /// Teaches the correction tables what a node's search returned against its
+    /// corrected static evaluation.
+    fn record_evaluation_error(&mut self, slots: CorrectionSlots, depth: u32, difference: Score) {
+        self.correction.update(slots, depth, difference);
     }
 
     #[cfg(test)]
@@ -4145,7 +4313,7 @@ fn negamax(
     // signal and the table's stored evaluation all read it, and most probes hit
     // a stored value so the cost is small. Which nodes may *prune* on it is a
     // separate question that `static_pruning_allowed` answers.
-    let static_evaluation = if !in_check {
+    let raw_static_evaluation = if !in_check {
         Some(
             hash_entry
                 .and_then(Entry::static_evaluation)
@@ -4155,6 +4323,12 @@ fn negamax(
     } else {
         None
     };
+    // The table keeps the network's value. What the node prunes and compares
+    // on is that value plus the correction earlier searches of this pawn
+    // structure and material have learned.
+    let correction_slots = MoveOrdering::correction_slots(board);
+    let static_evaluation = raw_static_evaluation
+        .map(|raw| context.ordering.corrected_evaluation(correction_slots, raw));
     let pruning_evaluation =
         if static_pruning_allowed(board, depth, alpha, beta, pv_node, context.mode) {
             context.telemetry.static_pruning_attempts += 1;
@@ -4179,7 +4353,13 @@ fn negamax(
             return Ok(result);
         }
         context.telemetry.reverse_futility_cutoffs += 1;
-        store_static_evaluation(context, &probe, ply, evaluation);
+        store_static_evaluation(
+            context,
+            &probe,
+            ply,
+            evaluation,
+            raw_static_evaluation.unwrap_or(evaluation),
+        );
         // The node is worth at least beta and at most its evaluation; the
         // midpoint is the bound the table keeps.
         return Ok(NodeResult {
@@ -4206,7 +4386,7 @@ fn negamax(
             context.personality.quiescence_check_budget(),
             previous_move.map(|previous| previous.to),
             true,
-            Some(evaluation),
+            raw_static_evaluation,
             context,
         )?;
         if result.score <= alpha {
@@ -4234,7 +4414,13 @@ fn negamax(
         }
         context.telemetry.null_move_cutoffs += 1;
         if let Some(evaluation) = static_evaluation {
-            store_static_evaluation(context, &probe, ply, evaluation);
+            store_static_evaluation(
+                context,
+                &probe,
+                ply,
+                evaluation,
+                raw_static_evaluation.unwrap_or(evaluation),
+            );
         }
         return Ok(result);
     }
@@ -4316,6 +4502,7 @@ fn negamax(
         score: NEG_INFINITY,
         path_dependent: false,
     };
+    let mut best_is_tactical = false;
 
     while let Some((index, metadata)) = prefetched_move
         .take()
@@ -4475,6 +4662,7 @@ fn negamax(
                 score,
                 path_dependent: child_result.path_dependent,
             };
+            best_is_tactical = metadata.is_tactical();
             context.update_pv(board, ply, chess_move);
         }
         alpha = alpha.max(score);
@@ -4520,6 +4708,24 @@ fn negamax(
         picker.record_failed_capture(metadata);
     }
 
+    // A node that searched its moves outside check has measured its corrected
+    // evaluation against what the search returned. The difference teaches the
+    // correction tables when the bound points the same way as the difference
+    // and the best move is not a capture, whose gain the evaluation never
+    // claimed to include.
+    if context.mode.updates_ordering()
+        && excluded.is_none()
+        && let Some(evaluation) = static_evaluation
+        && best.score.abs() < TB_THRESHOLD
+        && !best_is_tactical
+        && ((best.score < evaluation && best.score < beta)
+            || (best.score > evaluation && best.score > alpha_original))
+    {
+        context
+            .ordering
+            .record_evaluation_error(correction_slots, depth, best.score - evaluation);
+    }
+
     if context.mode.writes_tt() && excluded.is_none() {
         let bound = if best.score <= alpha_original {
             Bound::Upper
@@ -4542,7 +4748,7 @@ fn negamax(
             best.score,
             bound,
             best_move,
-            static_evaluation,
+            raw_static_evaluation,
         );
     }
 
@@ -4566,17 +4772,18 @@ fn store_static_evaluation(
     context: &mut SearchContext<'_>,
     probe: &Probe,
     ply: u32,
-    evaluation: Score,
+    stand_pat: Score,
+    raw_evaluation: Score,
 ) {
     if probe.entry().is_none() && context.mode.writes_tt() {
         context.table.store_probed(
             probe,
             0,
             ply,
-            evaluation,
+            stand_pat,
             Bound::Lower,
             None,
-            Some(evaluation),
+            Some(raw_evaluation),
         );
     }
 }
@@ -4615,8 +4822,10 @@ fn quiescence(
                 path_dependent: result.path_dependent,
             });
         }
+        let raw = known_evaluation.unwrap_or_else(|| context.static_score(board, ply));
+        let slots = MoveOrdering::correction_slots(board);
         return Ok(NodeResult {
-            score: known_evaluation.unwrap_or_else(|| context.static_score(board, ply)),
+            score: context.ordering.corrected_evaluation(slots, raw),
             path_dependent: false,
         });
     }
@@ -4687,25 +4896,30 @@ fn quiescence(
         if let Some(result) = terminal_without_legal_moves(board, history, ply, context) {
             return Ok(result);
         }
+        let raw = known_evaluation.unwrap_or_else(|| context.static_score(board, ply));
+        let slots = MoveOrdering::correction_slots(board);
         return Ok(NodeResult {
-            score: known_evaluation.unwrap_or_else(|| context.static_score(board, ply)),
+            score: context.ordering.corrected_evaluation(slots, raw),
             path_dependent: false,
         });
     }
 
-    let stand_pat = if in_check {
-        None
-    } else {
-        // A stored evaluation is the same number this node would compute, so
-        // reusing it saves the extraction that dominates the profile.
-        Some(
-            hash_entry
-                .and_then(Entry::static_evaluation)
-                .inspect(|_| context.telemetry.quiescence_static_evaluation_hits += 1)
-                .or(known_evaluation)
-                .unwrap_or_else(|| context.static_score(board, ply)),
-        )
-    };
+    // A stored evaluation is the same number this node would compute, so
+    // reusing it saves the extraction that dominates the profile. The table
+    // and the caller hand over the network's value; the stand-pat adds the
+    // learned correction.
+    let raw_stand_pat = (!in_check).then(|| {
+        hash_entry
+            .and_then(Entry::static_evaluation)
+            .inspect(|_| context.telemetry.quiescence_static_evaluation_hits += 1)
+            .or(known_evaluation)
+            .unwrap_or_else(|| context.static_score(board, ply))
+    });
+    let stand_pat = raw_stand_pat.map(|raw| {
+        context
+            .ordering
+            .corrected_evaluation(MoveOrdering::correction_slots(board), raw)
+    });
     let alpha_original = alpha;
     let mut best = NodeResult {
         score: stand_pat.unwrap_or(NEG_INFINITY),
@@ -4722,7 +4936,7 @@ fn quiescence(
                 &best,
                 alpha_original,
                 beta,
-                Some(stand_pat),
+                raw_stand_pat,
                 context,
             );
             return Ok(best);
@@ -4840,7 +5054,15 @@ fn quiescence(
     }
 
     context.recycle_picker_storage(ply, picker.into_storage());
-    store_quiescence_result(&probe, ply, &best, alpha_original, beta, stand_pat, context);
+    store_quiescence_result(
+        &probe,
+        ply,
+        &best,
+        alpha_original,
+        beta,
+        raw_stand_pat,
+        context,
+    );
     Ok(best)
 }
 
@@ -9238,6 +9460,104 @@ mod tests {
                 assert!(emitted.contains(mv), "missing move {mv} in {fen}");
             }
         }
+    }
+
+    #[test]
+    fn correction_entries_saturate_inside_the_limit_and_unlearn() {
+        let mut entry = 0;
+        for _ in 0..200 {
+            super::correction_gravity(&mut entry, super::CORRECTION_STEP_LIMIT);
+            assert!(entry <= super::CORRECTION_LIMIT);
+        }
+        assert!(entry > super::CORRECTION_LIMIT * 9 / 10);
+        for _ in 0..40 {
+            super::correction_gravity(&mut entry, -super::CORRECTION_STEP_LIMIT);
+        }
+        assert!(
+            entry < 0,
+            "a residual of the other sign must overrule the old one"
+        );
+    }
+
+    #[test]
+    fn correction_keys_distinguish_structures_pieces_and_sides() {
+        let start = cozy_chess::Board::default();
+        let mut advanced = start.clone();
+        advanced.play_unchecked("e2e4".parse().unwrap());
+        let mut passed = advanced.clone();
+        passed.play_unchecked("e7e5".parse().unwrap());
+        assert_ne!(
+            super::pawn_structure_key(&start),
+            super::pawn_structure_key(&advanced)
+        );
+        assert_ne!(
+            super::pawn_structure_key(&advanced),
+            super::pawn_structure_key(&passed)
+        );
+        // Different pieces on the same squares are different material.
+        let knight = "4k3/8/8/8/8/8/8/N3K3 w - - 0 1"
+            .parse::<cozy_chess::Board>()
+            .unwrap();
+        let bishop = "4k3/8/8/8/8/8/8/B3K3 w - - 0 1"
+            .parse::<cozy_chess::Board>()
+            .unwrap();
+        assert_ne!(
+            super::non_pawn_material_key(&knight, cozy_chess::Color::White),
+            super::non_pawn_material_key(&bishop, cozy_chess::Color::White)
+        );
+        assert_eq!(
+            super::non_pawn_material_key(&knight, cozy_chess::Color::Black),
+            super::non_pawn_material_key(&bishop, cozy_chess::Color::Black)
+        );
+        // The same position is a different slot for each side to move.
+        let black_to_move = "4k3/8/8/8/8/8/8/N3K3 b - - 0 1"
+            .parse::<cozy_chess::Board>()
+            .unwrap();
+        let white_slots = super::CorrectionHistory::slots(&knight);
+        let black_slots = super::CorrectionHistory::slots(&black_to_move);
+        assert_ne!(white_slots.pawn, black_slots.pawn);
+        assert_ne!(white_slots.white, black_slots.white);
+        assert!(white_slots.pawn < 2 * super::CORRECTION_ENTRIES);
+        assert!(white_slots.black < 4 * super::CORRECTION_ENTRIES);
+    }
+
+    #[test]
+    fn corrected_evaluation_follows_the_recorded_error_and_is_bounded() {
+        let board = cozy_chess::Board::default();
+        let mut correction = super::CorrectionHistory::new();
+        let slots = super::CorrectionHistory::slots(&board);
+        assert_eq!(correction.corrected(slots, 30), 30);
+
+        // Searches keep returning 80 cp more than the evaluation says.
+        for _ in 0..5 {
+            correction.update(slots, 8, 80);
+        }
+        let raised = correction.corrected(slots, 30);
+        assert!(raised > 30, "corrected {raised}");
+        for _ in 0..200 {
+            correction.update(slots, 8, 80);
+        }
+        let saturated = correction.corrected(slots, 30);
+        let maximum = (super::CORRECTION_PAWN_WEIGHT + 2 * super::CORRECTION_MATERIAL_WEIGHT)
+            * super::CORRECTION_LIMIT
+            / 1024;
+        assert!(saturated > raised);
+        assert!(saturated <= 30 + maximum, "corrected {saturated}");
+
+        // Another pawn structure with the same material shares only the
+        // material entries, so it is corrected less.
+        let mut other = board.clone();
+        other.play_unchecked("a2a3".parse().unwrap());
+        other.play_unchecked("a7a6".parse().unwrap());
+        let other_slots = super::CorrectionHistory::slots(&other);
+        assert_eq!(other_slots.white, slots.white);
+        let shared = correction.corrected(other_slots, 30);
+        assert!(shared > 30 && shared < saturated, "corrected {shared}");
+
+        // Halving between moves keeps the sign and reduces the size.
+        correction.age();
+        let aged = correction.corrected(slots, 30);
+        assert!(aged > 30 && aged < saturated, "corrected {aged}");
     }
 
     fn warm_ordering() -> MoveOrdering {

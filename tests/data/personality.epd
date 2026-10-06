@@ -16,4 +16,4 @@ r1bqr1k1/1p4p1/p3pp1p/1Pp1B3/P1P1p2P/2P3P1/4PPK1/R3Q2R w - - 0 14 ; id unsupport
 r4rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP4/PPP3PP/R4RK1 w - - 0 10 ; id unsupported-rook-f7 ; category anti-sacrifice ; nodes 20000 ; bm0 g1h1 ; bm100 g1h1
 4r1kr/pp1bqpp1/2pQ1n1n/6N1/2P5/2N3P1/P3PPB1/3R1RK1 w - - 3 16 ; id avoid-queen-trade-queen-c7 ; category simplification ; nodes 20000 ; bm0 d6e7 ; bm100 d6c7
 r1b4r/1ppnq1bk/p3pnpp/1P1p1p2/P2P3P/2N1PNP1/2PB1PB1/R2Q2KR w - - 1 12 ; id queenside-pawn-thrust ; category initiative ; nodes 20000 ; bm0 b5a6 ; bm100 a4a5
-2bqkr2/1ppnb1B1/3nB1p1/r5p1/Pp6/3PPN2/3PKP2/RNQ4R b - - 1 18 ; id rook-f3-investment ; category sacrifice ; nodes 20000 ; bm0 d7e5 ; bm100 f8f3
+2bqkr2/1ppnb1B1/3nB1p1/r5p1/Pp6/3PPN2/3PKP2/RNQ4R b - - 1 18 ; id rook-f3-investment ; category sacrifice ; nodes 160000 ; bm0 e7f6 ; bm100 f8f3

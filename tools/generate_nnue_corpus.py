@@ -44,6 +44,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--engine", type=Path, required=True, help="UCI engine used on both sides")
     parser.add_argument("--eval-file", type=Path, help="NNUE network both sides load and enable")
+    parser.add_argument("--syzygy-path", help="Syzygy tablebase directories both sides load")
     parser.add_argument("--runner", type=Path, required=True, help="selfplay arbiter")
     parser.add_argument("--tune", type=Path, required=True, help="tuning-feature `tune` binary")
     parser.add_argument("--openings", type=Path, required=True)
@@ -78,8 +79,10 @@ def main(argv: list[str] | None = None) -> int:
                     "--openings", str(args.openings), "--random-plies", str(args.random_plies),
                     "--seed", str(seed), "--concurrency", str(args.concurrency),
                     "--event", f"NNUE corpus seed {seed}", "--pgn", str(pgn),
-                    *(["--candidate-eval-file", str(args.eval_file), "--baseline-eval-file", str(args.eval_file)]
-                      if args.eval_file is not None else []),
+                    *((["--candidate-eval-file", str(args.eval_file), "--baseline-eval-file", str(args.eval_file)]
+                      if args.eval_file is not None else [])
+                      + (["--candidate-syzygy-path", args.syzygy_path, "--baseline-syzygy-path", args.syzygy_path]
+                         if args.syzygy_path is not None else [])),
                 ], log)
                 pgns.append(pgn)
             positions = work / "positions.txt"
@@ -92,7 +95,8 @@ def main(argv: list[str] | None = None) -> int:
                 "settings": {"games_per_seed": args.games_per_seed, "seeds": args.seeds, "nodes": args.nodes,
                              "random_plies": args.random_plies, "skip_plies": args.skip_plies,
                              "candidate_aggression": args.candidate_aggression,
-                             "baseline_aggression": args.baseline_aggression},
+                             "baseline_aggression": args.baseline_aggression,
+                             "syzygy_path": args.syzygy_path},
                 "inputs": {name: {"path": str(path), "sha256": sha256(path)} for name, path in
                            (("engine", args.engine), ("runner", args.runner), ("tune", args.tune),
                             ("openings", args.openings))

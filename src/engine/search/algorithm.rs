@@ -21,13 +21,18 @@ use super::{
 use crate::engine::Position;
 use crate::engine::evaluation::{
     EvaluationConfig, MATE_SCORE, MATE_THRESHOLD, MAX_PLY, NEG_INFINITY, POS_INFINITY, Score,
-    StyleSnapshot, TacticalSnapshot, evaluate_with_config, exchange_outcome, exchange_risk_on,
-    piece_value, root_complexity_bonus, style_snapshot, tactical_snapshot,
+    StyleSnapshot, TB_THRESHOLD, TB_WIN_SCORE, TacticalSnapshot, evaluate_with_config,
+    exchange_outcome, exchange_risk_on, piece_value, root_complexity_bonus, style_snapshot,
+    tactical_snapshot,
 };
 use crate::engine::position::repetition_key;
+use crate::engine::tablebase::{TablebaseSettings, Wdl};
 
 const DEFAULT_DEPTH: u32 = 4;
 const MAX_DEPTH: u32 = 64;
+/// How much deeper than the node was searched a tablebase result is stored: it
+/// settles the position outright, so it outlasts a searched result.
+const TABLEBASE_STORED_DEPTH_BONUS: u32 = 6;
 const QUIESCENCE_DEPTH: u32 = 16;
 const ASPIRATION_INITIAL: Score = 50;
 const VOLATILE_HOLD_ITERATIONS: u8 = 2;
@@ -1643,7 +1648,7 @@ fn null_move_state_block(
     if !board.checkers().is_empty() {
         return Some(NullMoveBlock::InCheck);
     }
-    if beta.abs() >= MATE_THRESHOLD {
+    if beta.abs() >= TB_THRESHOLD {
         return Some(NullMoveBlock::MateWindow);
     }
     if board.halfmove_clock() >= NULL_MOVE_RULE_FIFTY_LIMIT {
@@ -1699,8 +1704,8 @@ fn static_pruning_allowed(
     depth <= STATIC_PRUNING_MAX_DEPTH
         && !pv_node
         && board.checkers().is_empty()
-        && alpha.abs() < MATE_THRESHOLD
-        && beta.abs() < MATE_THRESHOLD
+        && alpha.abs() < TB_THRESHOLD
+        && beta.abs() < TB_THRESHOLD
         && board.halfmove_clock() < STATIC_PRUNING_RULE_FIFTY_LIMIT
 }
 
@@ -1725,8 +1730,8 @@ fn reverse_futility_allowed(
     depth <= REVERSE_FUTILITY_MAX_DEPTH
         && !pv_node
         && board.checkers().is_empty()
-        && alpha.abs() < MATE_THRESHOLD
-        && beta.abs() < MATE_THRESHOLD
+        && alpha.abs() < TB_THRESHOLD
+        && beta.abs() < TB_THRESHOLD
         && board.halfmove_clock() < STATIC_PRUNING_RULE_FIFTY_LIMIT
 }
 
@@ -1909,7 +1914,7 @@ fn verified_null_move_cutoff(
     // The probe's score is what the null move established, and a bound the
     // table can use; a mate found by passing is not one the mover can claim,
     // so it is held at beta.
-    let established = if -probe.score >= MATE_THRESHOLD {
+    let established = if -probe.score >= TB_THRESHOLD {
         beta
     } else {
         -probe.score
@@ -1965,6 +1970,10 @@ struct SearchContext<'a> {
     mode: SearchMode,
     telemetry: SearchTelemetry,
     null_move_enabled: bool,
+    /// The tablebases this searcher may probe.
+    tablebase: Option<TablebaseSettings<'a>>,
+    /// Positions this searcher settled from the tablebases.
+    tablebase_hits: u64,
     node_limit: Option<u64>,
     nodes: u64,
     /// Local nodes already folded into the shared counter.
@@ -2043,6 +2052,8 @@ impl<'a> SearchContext<'a> {
             mode,
             telemetry: SearchTelemetry::default(),
             null_move_enabled: true,
+            tablebase: None,
+            tablebase_hits: 0,
             node_limit: None,
             nodes: 0,
             published_nodes: 0,
@@ -2374,6 +2385,9 @@ struct SharedSearch<'a> {
     started: Instant,
     stats: SearchStats,
     network: Option<&'a crate::engine::nnue::Network>,
+    tablebase: Option<TablebaseSettings<'a>>,
+    /// What the tablebases say the root position is worth, when they cover it.
+    root_tablebase_score: Option<Score>,
 }
 
 /// What a search leaves for the next search of the same game.
@@ -2495,6 +2509,30 @@ where
         .collect::<Vec<_>>();
     labeled_moves.sort_unstable_by(|left, right| left.0.cmp(&right.0));
 
+    // Where the tablebases cover the root they decide which moves keep its
+    // theoretical result, and only those are searched.
+    let mut root_tablebase_score = None;
+    if let Some(tablebase) = settings.tablebase
+        && root_board.occupied().len() as usize <= tablebase.limit
+    {
+        let moves = labeled_moves
+            .iter()
+            .map(|&(_, chess_move)| chess_move)
+            .collect::<Vec<_>>();
+        let repeated = has_repeated(
+            position.hash_history(),
+            usize::from(root_board.halfmove_clock()),
+        );
+        if let Some(ranking) =
+            tablebase
+                .tables
+                .rank_root(&root_board, &moves, tablebase.use_rule_50, repeated)
+        {
+            labeled_moves.retain(|(_, chess_move)| ranking.moves.contains(chess_move));
+            root_tablebase_score = Some(ranking.score);
+        }
+    }
+
     let fallback = labeled_moves
         .first()
         .map(|(move_text, _)| move_text.clone());
@@ -2520,6 +2558,8 @@ where
         started: Instant::now(),
         stats: SearchStats::default(),
         network: settings.network,
+        tablebase: settings.tablebase,
+        root_tablebase_score,
     };
 
     let history = RepetitionTracker::new(shared.hash_history);
@@ -2632,6 +2672,8 @@ fn run_worker(
         mode: SearchMode::Normal,
         telemetry: SearchTelemetry::default(),
         null_move_enabled: shared.limits.null_move.unwrap_or(true),
+        tablebase: shared.tablebase,
+        tablebase_hits: 0,
         node_limit: shared.limits.nodes,
         nodes: 0,
         published_nodes: 0,
@@ -2676,7 +2718,7 @@ fn run_worker(
         let iteration_started = Instant::now();
         let mut radius = ASPIRATION_INITIAL;
         let (mut alpha, mut beta) = previous_score
-            .filter(|score: &Score| score.abs() < MATE_THRESHOLD)
+            .filter(|score: &Score| score.abs() < TB_THRESHOLD)
             .map_or((NEG_INFINITY, POS_INFINITY), |score| {
                 aspiration_bounds(score, radius)
             });
@@ -2721,7 +2763,7 @@ fn run_worker(
             }
 
             radius = radius.saturating_mul(2);
-            if iteration.primary_score.abs() >= MATE_THRESHOLD || radius >= POS_INFINITY {
+            if iteration.primary_score.abs() >= TB_THRESHOLD || radius >= POS_INFINITY {
                 alpha = NEG_INFINITY;
                 beta = POS_INFINITY;
             } else if let Some(score) = previous_score {
@@ -2741,13 +2783,22 @@ fn run_worker(
         previous_pv.extend_from_slice(context.pv(0));
         if role.is_main() {
             let pv = format_pv(&shared.root_board, &previous_pv);
+            // A root the tablebases cover is worth what they say, unless the
+            // search has found a mate.
+            let score = match shared.root_tablebase_score {
+                Some(tablebase_score) if iteration.selected.score.abs() < MATE_THRESHOLD => {
+                    tablebase_score
+                }
+                _ => iteration.selected.score,
+            };
             let info = SearchInfo::new(
                 depth,
-                SearchScore::from_internal(iteration.selected.score),
+                SearchScore::from_internal(score),
                 context.total_nodes(),
                 context.started.elapsed(),
                 pv,
-            );
+            )
+            .with_tablebase_hits(context.tablebase_hits);
             report(info.clone());
             final_info = Some(info);
         }
@@ -2813,6 +2864,40 @@ fn aspiration_bounds(center: Score, radius: Score) -> (Score, Score) {
 fn mate_distance_bounds(ply: u32) -> (Score, Score) {
     (-MATE_SCORE + ply as Score, MATE_SCORE - ply as Score - 1)
 }
+
+/// Whether a position since the last zeroing move has occurred twice.
+///
+/// `keys` are the game's position keys ending at the current position, and the
+/// halfmove clock says how many plies back the reversible stretch reaches.
+fn has_repeated(keys: &[u64], halfmove_clock: usize) -> bool {
+    let stretch = &keys[keys.len().saturating_sub(halfmove_clock + 1)..];
+    stretch
+        .iter()
+        .enumerate()
+        .any(|(index, key)| stretch[index + 1..].contains(key))
+}
+
+/// The score and bound a tablebase result stands for `ply` plies below the
+/// root.
+///
+/// A win or loss is stored as a bound, since a shorter mate may exist, and a
+/// draw as exact. With the fifty-move rule on, a win or loss it cancels is a
+/// draw a couple of centipawns to the winning side, so a cursed win is still
+/// preferred to a plain draw.
+fn tablebase_result(wdl: Wdl, ply: u32, use_rule_50: bool) -> (Score, Bound) {
+    let win = (TB_WIN_SCORE - ply as Score, Bound::Lower);
+    let loss = (-TB_WIN_SCORE + ply as Score, Bound::Upper);
+    match wdl {
+        Wdl::Win => win,
+        Wdl::Loss => loss,
+        Wdl::CursedWin if use_rule_50 => (2, Bound::Exact),
+        Wdl::BlessedLoss if use_rule_50 => (-2, Bound::Exact),
+        Wdl::CursedWin => win,
+        Wdl::BlessedLoss => loss,
+        Wdl::Draw => (0, Bound::Exact),
+    }
+}
+
 fn next_search_depth(
     depth: u32,
     in_check: bool,
@@ -2892,7 +2977,7 @@ fn search_root_styled(
     let Some(objective_move) = objective_pv.first().copied() else {
         return Ok(RootSearchResult::from_primary(objective));
     };
-    if objective.score.abs() >= MATE_THRESHOLD
+    if objective.score.abs() >= TB_THRESHOLD
         || objective.score <= window.0
         || objective.score >= window.1
         || context.should_stop()
@@ -3234,8 +3319,7 @@ fn search_root_styled(
 
 fn candidate_reference_score(candidate: &RootCandidate) -> Score {
     // A later mate conclusion supersedes the earlier one, in either direction.
-    if candidate.score.abs() >= MATE_THRESHOLD || candidate.same_depth_score.abs() >= MATE_THRESHOLD
-    {
+    if candidate.score.abs() >= TB_THRESHOLD || candidate.same_depth_score.abs() >= TB_THRESHOLD {
         return candidate.score;
     }
     // An extra ply can refute an investment, but a centipawn improvement at
@@ -3290,7 +3374,7 @@ fn candidate_within_score_guard(candidate: Score, best: Score, margin: Score) ->
     if best >= 0 && candidate < 0 {
         return false;
     }
-    if candidate.abs() >= MATE_THRESHOLD || best.abs() >= MATE_THRESHOLD {
+    if candidate.abs() >= TB_THRESHOLD || best.abs() >= TB_THRESHOLD {
         candidate >= best
     } else {
         candidate >= best - margin
@@ -3989,6 +4073,37 @@ fn negamax(
         }
     }
 
+    // A position the tablebases cover is answered by them. Their answer is
+    // exact only where a zeroing move has just cleared the halfmove clock,
+    // which `covers` requires. It is returned whatever the window: a win or
+    // loss is stored as the bound it is, but a window that reaches the mate
+    // scores, which the search opens once its own score is decided, would
+    // otherwise never be crossed, and every move toward a decided ending would
+    // look no better than a shuffle beside it.
+    if excluded.is_none()
+        && let Some(tablebase) = context.tablebase
+        && tablebase.covers(board, depth)
+        && let Some(wdl) = tablebase.tables.probe_wdl(board)
+    {
+        context.tablebase_hits += 1;
+        let (score, bound) = tablebase_result(wdl, ply, tablebase.use_rule_50);
+        if context.mode.writes_tt() {
+            context.table.store_probed(
+                &probe,
+                depth + TABLEBASE_STORED_DEPTH_BONUS,
+                ply,
+                score,
+                bound,
+                None,
+                None,
+            );
+        }
+        return Ok(NodeResult {
+            score,
+            path_dependent: false,
+        });
+    }
+
     let in_check = !board.checkers().is_empty();
     // Internal iterative reduction: a deep node the table has never seen is
     // searched one ply shallower; the shallower search seeds the hash move the
@@ -4109,7 +4224,7 @@ fn negamax(
         && let Some(tt_move) = hash_move
         && entry.depth() + 3 >= depth
         && entry.bound() != Bound::Upper
-        && entry.score_at_ply(ply).abs() < MATE_THRESHOLD
+        && entry.score_at_ply(ply).abs() < TB_THRESHOLD
     {
         let singular_beta = entry.score_at_ply(ply) - SINGULAR_MARGIN * depth as Score;
         context.excluded_moves[ply.min(MAX_PLY) as usize] = Some(tt_move);
@@ -4502,6 +4617,32 @@ fn quiescence(
                 path_dependent: false,
             });
         }
+    }
+
+    // Captures that end in a position the tablebases cover are settled here
+    // too, whatever depth is left: they are how a search trades into an ending
+    // the evaluation overrates, and they are the leaves of every line.
+    if let Some(tablebase) = context.tablebase
+        && tablebase.covers(board, u32::MAX)
+        && let Some(wdl) = tablebase.tables.probe_wdl(board)
+    {
+        context.tablebase_hits += 1;
+        let (score, bound) = tablebase_result(wdl, ply, tablebase.use_rule_50);
+        if context.mode.writes_tt() {
+            context.table.store_probed(
+                &probe,
+                TABLEBASE_STORED_DEPTH_BONUS,
+                ply,
+                score,
+                bound,
+                None,
+                None,
+            );
+        }
+        return Ok(NodeResult {
+            score,
+            path_dependent: false,
+        });
     }
 
     if remaining == 0 && !in_check {
@@ -6898,6 +7039,8 @@ mod tests {
                 started: std::time::Instant::now(),
                 stats: SearchStats::default(),
                 network: None,
+                tablebase: None,
+                root_tablebase_score: None,
             };
             let mut reports = Vec::new();
             let outcome = super::run_worker(&shared, role, None, &mut |info| reports.push(info));
@@ -7334,6 +7477,64 @@ mod tests {
                 "aggression {aggression}",
             );
         }
+    }
+
+    #[test]
+    fn a_repetition_counts_only_inside_the_stretch_since_the_last_zeroing_move() {
+        // The current position is last; the clock says how far back moves were reversible.
+        assert!(super::has_repeated(&[1, 2, 3, 2, 4], 4));
+        assert!(super::has_repeated(&[1, 2, 3, 4, 2], 4));
+        assert!(!super::has_repeated(&[1, 2, 3, 4, 5], 4));
+        // A position that repeated before the last zeroing move does not count.
+        assert!(!super::has_repeated(&[1, 2, 3, 2, 4], 1));
+        assert!(!super::has_repeated(&[7, 7, 8, 9], 2));
+        assert!(!super::has_repeated(&[], 0));
+        assert!(!super::has_repeated(&[5], 0));
+    }
+
+    #[test]
+    fn quiescence_settles_a_position_the_tablebases_cover() {
+        use crate::engine::tablebase::{TablebaseSettings, Tablebases};
+
+        let tables =
+            Tablebases::load(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/syzygy")).unwrap();
+        // A drawn pawn ending the evaluation alone takes for an advantage.
+        let position = Position::from_fen("8/8/3k4/8/3P4/3K4/8/8 w - - 0 1").unwrap();
+        let control = super::SearchControl::new();
+        let score_with = |tablebase: Option<TablebaseSettings<'_>>| {
+            // Each call needs its own table: a result one stores would answer the next.
+            let table = super::TranspositionTable::new(1).unwrap();
+            let mut context =
+                super::SearchContext::for_test(&table, &control, super::SearchMode::Normal);
+            context.tablebase = tablebase;
+            let mut history = RepetitionTracker::new(position.hash_history());
+            let result = super::quiescence(
+                position.board(),
+                &mut history,
+                1,
+                -MATE_SCORE,
+                MATE_SCORE,
+                0,
+                0,
+                None,
+                false,
+                None,
+                &mut context,
+            )
+            .unwrap();
+            (result.score, context.tablebase_hits)
+        };
+
+        let (believed, hits) = score_with(None);
+        assert!(believed > 50, "the evaluation alone says {believed}");
+        assert_eq!(hits, 0);
+        let settings = TablebaseSettings {
+            tables: &tables,
+            limit: 3,
+            probe_depth: 1,
+            use_rule_50: true,
+        };
+        assert_eq!(score_with(Some(settings)), (0, 1));
     }
 
     #[test]

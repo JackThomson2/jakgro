@@ -5,10 +5,11 @@ use std::thread;
 use std::time::Duration;
 
 use crate::engine::{
-    DEFAULT_AGGRESSION, DEFAULT_HASH_MIB, DEFAULT_MOVE_OVERHEAD_MS, DEFAULT_THREADS,
-    EMBEDDED_EVAL_FILE, Engine, MAX_AGGRESSION, MAX_HASH_MIB, MAX_MOVE_OVERHEAD_MS, MAX_THREADS,
-    MIN_AGGRESSION, MIN_HASH_MIB, MIN_MOVE_OVERHEAD_MS, MIN_THREADS, Position, SearchInfo,
-    SearchLimits, SearchResult, SearchScore,
+    DEFAULT_AGGRESSION, DEFAULT_HASH_MIB, DEFAULT_MOVE_OVERHEAD_MS, DEFAULT_SYZYGY_PROBE_DEPTH,
+    DEFAULT_SYZYGY_PROBE_LIMIT, DEFAULT_THREADS, EMBEDDED_EVAL_FILE, Engine, MAX_AGGRESSION,
+    MAX_HASH_MIB, MAX_MOVE_OVERHEAD_MS, MAX_SYZYGY_PROBE_DEPTH, MAX_SYZYGY_PROBE_LIMIT,
+    MAX_THREADS, MIN_AGGRESSION, MIN_HASH_MIB, MIN_MOVE_OVERHEAD_MS, MIN_SYZYGY_PROBE_DEPTH,
+    MIN_THREADS, NO_SYZYGY_PATH, Position, SearchInfo, SearchLimits, SearchResult, SearchScore,
 };
 
 use super::command::{Command, PositionCommand, PositionSource, parse};
@@ -192,6 +193,22 @@ where
             "option name EvalFile type string default {EMBEDDED_EVAL_FILE}"
         )?;
         writeln!(self.output, "option name Use NNUE type check default true")?;
+        writeln!(
+            self.output,
+            "option name SyzygyPath type string default {NO_SYZYGY_PATH}"
+        )?;
+        writeln!(
+            self.output,
+            "option name SyzygyProbeDepth type spin default {DEFAULT_SYZYGY_PROBE_DEPTH} min {MIN_SYZYGY_PROBE_DEPTH} max {MAX_SYZYGY_PROBE_DEPTH}",
+        )?;
+        writeln!(
+            self.output,
+            "option name Syzygy50MoveRule type check default true"
+        )?;
+        writeln!(
+            self.output,
+            "option name SyzygyProbeLimit type spin default {DEFAULT_SYZYGY_PROBE_LIMIT} min 0 max {MAX_SYZYGY_PROBE_LIMIT}",
+        )?;
         writeln!(self.output, "uciok")?;
         self.output.flush()
     }
@@ -210,7 +227,7 @@ where
                 candidate.load_eval_file(path)
             };
             if let Err(error) = loaded {
-                return self.nnue_option_error("EvalFile", &error.to_string());
+                return self.option_error("EvalFile", &error.to_string());
             }
             self.cancel_active();
             self.engine = candidate;
@@ -227,10 +244,57 @@ where
             }
             let mut candidate = self.engine.clone();
             if let Err(error) = candidate.set_use_nnue(enabled) {
-                return self.nnue_option_error("Use NNUE", &error.to_string());
+                return self.option_error("Use NNUE", &error.to_string());
             }
             self.cancel_active();
             self.engine = candidate;
+            return Ok(());
+        }
+        if name.eq_ignore_ascii_case("SyzygyPath") {
+            // The probing library holds one set of tables at a time, so the
+            // running search that may be reading the old set ends first.
+            self.cancel_active();
+            return match self.engine.set_syzygy_path(value.unwrap_or_default()) {
+                Ok(summary) if summary.largest > 0 => self.write_line(&format!(
+                    "info string Found {} WDL and {} DTZ tablebase files (up to {}-man)",
+                    summary.wdl_files, summary.dtz_files, summary.largest,
+                )),
+                Ok(_) => Ok(()),
+                Err(error) => self.option_error("SyzygyPath", &error.to_string()),
+            };
+        }
+        if name.eq_ignore_ascii_case("SyzygyProbeDepth") {
+            let Some(value) = value.filter(|value| !value.is_empty()) else {
+                return self.debug_info("SyzygyProbeDepth requires a depth");
+            };
+            let Some(depth) = parse_clamped_spin(
+                value,
+                u64::from(MIN_SYZYGY_PROBE_DEPTH),
+                u64::from(MAX_SYZYGY_PROBE_DEPTH),
+            ) else {
+                return self.debug_info(&format!("invalid SyzygyProbeDepth value: {value}"));
+            };
+            self.engine.set_syzygy_probe_depth(depth as u32);
+            return Ok(());
+        }
+        if name.eq_ignore_ascii_case("Syzygy50MoveRule") {
+            let enabled = match value {
+                Some(value) if value.eq_ignore_ascii_case("true") => true,
+                Some(value) if value.eq_ignore_ascii_case("false") => false,
+                _ => return self.write_line("info string Syzygy50MoveRule requires true or false"),
+            };
+            self.engine.set_syzygy_rule_50(enabled);
+            return Ok(());
+        }
+        if name.eq_ignore_ascii_case("SyzygyProbeLimit") {
+            let Some(value) = value.filter(|value| !value.is_empty()) else {
+                return self.debug_info("SyzygyProbeLimit requires a piece count");
+            };
+            let Some(limit) = parse_clamped_spin(value, 0, u64::from(MAX_SYZYGY_PROBE_LIMIT))
+            else {
+                return self.debug_info(&format!("invalid SyzygyProbeLimit value: {value}"));
+            };
+            self.engine.set_syzygy_probe_limit(limit as u32);
             return Ok(());
         }
         if name.eq_ignore_ascii_case("Hash") {
@@ -414,6 +478,9 @@ where
             info.nodes(),
             info.nodes_per_second()
         );
+        if info.tablebase_hits() > 0 {
+            line.push_str(&format!(" tbhits {}", info.tablebase_hits()));
+        }
         if !info.pv().is_empty() {
             line.push_str(" pv ");
             line.push_str(&info.pv().join(" "));
@@ -442,7 +509,7 @@ where
         }
     }
 
-    fn nnue_option_error(&mut self, option: &str, message: &str) -> io::Result<()> {
+    fn option_error(&mut self, option: &str, message: &str) -> io::Result<()> {
         let message = message
             .chars()
             .map(|character| {
@@ -488,7 +555,7 @@ mod tests {
             concat!(
                 "id name Jakgro ",
                 env!("CARGO_PKG_VERSION"),
-                "\nid author Jakgro contributors\noption name Hash type spin default 16 min 1 max 1024\noption name Threads type spin default 1 min 1 max 128\noption name Aggression type spin default 75 min 0 max 100\noption name Move Overhead type spin default 10 min 0 max 5000\noption name Clear Hash type button\noption name EvalFile type string default <embedded>\noption name Use NNUE type check default true\nuciok\nreadyok\n"
+                "\nid author Jakgro contributors\noption name Hash type spin default 16 min 1 max 1024\noption name Threads type spin default 1 min 1 max 128\noption name Aggression type spin default 75 min 0 max 100\noption name Move Overhead type spin default 10 min 0 max 5000\noption name Clear Hash type button\noption name EvalFile type string default <embedded>\noption name Use NNUE type check default true\noption name SyzygyPath type string default <empty>\noption name SyzygyProbeDepth type spin default 1 min 1 max 100\noption name Syzygy50MoveRule type check default true\noption name SyzygyProbeLimit type spin default 7 min 0 max 7\nuciok\nreadyok\n"
             )
         );
     }
@@ -614,7 +681,7 @@ mod tests {
         let (sender, _) = std::sync::mpsc::channel();
         let mut session = super::Session::new(Vec::new(), sender);
         session
-            .nnue_option_error("EvalFile", "bad\r\nbestmove a1a2\t\0path")
+            .option_error("EvalFile", "bad\r\nbestmove a1a2\t\0path")
             .unwrap();
         let output = String::from_utf8(session.output).unwrap();
         assert_eq!(output.lines().count(), 1);

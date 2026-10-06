@@ -23,6 +23,12 @@ pub(super) const POS_INFINITY: Score = 32_000;
 pub(super) const MATE_SCORE: Score = 30_000;
 pub(super) const MAX_PLY: u32 = 128;
 pub(super) const MATE_THRESHOLD: Score = MATE_SCORE - MAX_PLY as Score;
+/// What a tablebase win is worth at the root, one below the shortest mate
+/// score. A win found `ply` plies down scores `TB_WIN_SCORE - ply`, so the
+/// band from `TB_THRESHOLD` up to `MATE_THRESHOLD` holds tablebase results,
+/// above any evaluation and below any mate.
+pub(super) const TB_WIN_SCORE: Score = MATE_THRESHOLD - 1;
+pub(super) const TB_THRESHOLD: Score = TB_WIN_SCORE - MAX_PLY as Score;
 pub(super) const MIN_AGGRESSION: u8 = 0;
 pub(super) const DEFAULT_AGGRESSION: u8 = 75;
 pub(super) const MAX_AGGRESSION: u8 = 100;

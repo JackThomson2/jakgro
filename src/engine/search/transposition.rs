@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicU8, AtomicU16, AtomicU64, Ordering};
 
 use cozy_chess::{Board, Move, Piece, Square};
 
-use super::{MATE_THRESHOLD, Score};
+use super::{Score, TB_THRESHOLD};
 use crate::engine::position::repetition_key;
 
 mod memory;
@@ -676,9 +676,9 @@ fn narrow(score: Score) -> i16 {
 }
 
 fn score_to_table(score: Score, ply: u32) -> Score {
-    if score >= MATE_THRESHOLD {
+    if score >= TB_THRESHOLD {
         score + ply as Score
-    } else if score <= -MATE_THRESHOLD {
+    } else if score <= -TB_THRESHOLD {
         score - ply as Score
     } else {
         score
@@ -686,9 +686,9 @@ fn score_to_table(score: Score, ply: u32) -> Score {
 }
 
 fn score_from_table(score: Score, ply: u32) -> Score {
-    if score >= MATE_THRESHOLD {
+    if score >= TB_THRESHOLD {
         score - ply as Score
-    } else if score <= -MATE_THRESHOLD {
+    } else if score <= -TB_THRESHOLD {
         score + ply as Score
     } else {
         score
@@ -699,8 +699,9 @@ fn score_from_table(score: Score, ply: u32) -> Score {
 mod tests {
     use std::sync::atomic::Ordering;
 
-    use super::{Bound, MATE_THRESHOLD, TranspositionTable};
+    use super::{Bound, TranspositionTable};
     use crate::engine::Position;
+    use crate::engine::evaluation::MATE_THRESHOLD;
 
     #[test]
     fn stores_and_recovers_entries() {

@@ -13,6 +13,7 @@ pub(crate) mod nnue_test_support;
 pub use neural::{EMBEDDED_EVAL_FILE, NnueConfigError};
 mod position;
 mod search;
+mod tablebase;
 
 /// Standalone experimental neural evaluation; loading does not enable it.
 pub use evaluation::nnue;
@@ -25,6 +26,11 @@ pub use position::{Position, PositionError};
 pub(crate) use search::TimeBudget;
 pub use search::{
     SearchControl, SearchInfo, SearchLimits, SearchResult, SearchScore, SearchTelemetry,
+};
+pub use tablebase::{
+    DEFAULT_SYZYGY_PROBE_DEPTH, DEFAULT_SYZYGY_PROBE_LIMIT, MAX_SYZYGY_PROBE_DEPTH,
+    MAX_SYZYGY_PROBE_LIMIT, MIN_SYZYGY_PROBE_DEPTH, NO_SYZYGY_PATH, TablebaseError,
+    TablebaseSummary,
 };
 
 /// Default transposition-table allocation in mebibytes.
@@ -93,6 +99,7 @@ pub struct Engine {
     table: Arc<Mutex<Arc<search::TranspositionTable>>>,
     memory: Arc<Mutex<search::SearchMemory>>,
     neural: neural::Configuration,
+    tablebase: tablebase::Configuration,
 }
 
 impl Default for Engine {
@@ -107,6 +114,7 @@ impl Default for Engine {
             table: Arc::new(Mutex::new(Arc::new(table))),
             memory: Arc::new(Mutex::new(search::SearchMemory::default())),
             neural: neural::Configuration::default(),
+            tablebase: tablebase::Configuration::default(),
         }
     }
 }
@@ -234,6 +242,7 @@ impl Engine {
                 move_overhead: self.move_overhead,
                 threads: self.threads,
                 network: self.neural.active_network(),
+                tablebase: self.tablebase.settings(),
             },
             &table,
             &self.memory,

@@ -27,7 +27,10 @@ pub(super) const DEFAULT_THREADS: usize = 1;
 pub(super) const MAX_THREADS: usize = 128;
 
 use super::Position;
-use super::evaluation::{EvaluationConfig, MATE_SCORE, MATE_THRESHOLD, Score};
+use super::evaluation::{
+    EvaluationConfig, MATE_SCORE, MATE_THRESHOLD, Score, TB_THRESHOLD, TB_WIN_SCORE,
+};
+use super::tablebase::TablebaseSettings;
 
 pub(super) use algorithm::SearchMemory;
 
@@ -71,12 +74,18 @@ pub enum SearchScore {
     Mate(i32),
 }
 
+/// What a decided tablebase result is reported as, less its distance in plies.
+const TABLEBASE_CENTIPAWNS: Score = 20_000;
+
 impl SearchScore {
     fn from_internal(score: Score) -> Self {
         if score.abs() >= MATE_THRESHOLD {
             let plies = MATE_SCORE - score.abs();
             let moves = (plies + 1) / 2;
             Self::Mate(if score.is_negative() { -moves } else { moves })
+        } else if score.abs() >= TB_THRESHOLD {
+            let plies = TB_WIN_SCORE - score.abs();
+            Self::Centipawns(score.signum() * (TABLEBASE_CENTIPAWNS - plies))
         } else {
             Self::Centipawns(score)
         }
@@ -91,6 +100,7 @@ pub struct SearchInfo {
     nodes: u64,
     elapsed: Duration,
     pv: Vec<String>,
+    tablebase_hits: u64,
 }
 
 impl SearchInfo {
@@ -101,7 +111,20 @@ impl SearchInfo {
             nodes,
             elapsed,
             pv,
+            tablebase_hits: 0,
         }
+    }
+
+    fn with_tablebase_hits(mut self, hits: u64) -> Self {
+        self.tablebase_hits = hits;
+        self
+    }
+
+    /// Returns how many positions the reporting searcher settled from the
+    /// tablebases.
+    #[must_use]
+    pub fn tablebase_hits(&self) -> u64 {
+        self.tablebase_hits
     }
 
     /// Returns the completed depth in plies.
@@ -607,11 +630,12 @@ impl SearchResult {
 
 /// Settings a search reads that are configured rather than derived per move.
 #[derive(Clone, Copy, Debug)]
-pub(super) struct SearchSettings<'network> {
+pub(super) struct SearchSettings<'resources> {
     pub(super) evaluation: EvaluationConfig,
     pub(super) move_overhead: Duration,
     pub(super) threads: usize,
-    pub(super) network: Option<&'network super::nnue::Network>,
+    pub(super) network: Option<&'resources super::nnue::Network>,
+    pub(super) tablebase: Option<TablebaseSettings<'resources>>,
 }
 
 impl SearchSettings<'_> {
@@ -622,6 +646,7 @@ impl SearchSettings<'_> {
             move_overhead: Duration::from_millis(DEFAULT_MOVE_OVERHEAD_MS),
             threads: DEFAULT_THREADS,
             network: None,
+            tablebase: None,
         }
     }
 }

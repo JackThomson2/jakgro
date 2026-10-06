@@ -313,6 +313,10 @@ def build_command(args: argparse.Namespace, candidate: str, baseline: str) -> li
         command += ["--candidate-eval-file", str(args.candidate_eval_file)]
     if args.baseline_eval_file is not None:
         command += ["--baseline-eval-file", str(args.baseline_eval_file)]
+    if args.candidate_syzygy_path is not None:
+        command += ["--candidate-syzygy-path", args.candidate_syzygy_path]
+    if args.baseline_syzygy_path is not None:
+        command += ["--baseline-syzygy-path", args.baseline_syzygy_path]
     return command
 
 
@@ -321,6 +325,16 @@ def eval_file_record(path: Path | None) -> dict[str, Any] | None:
     if path is None:
         return None
     return {"path": str(path), "sha256": sha256_file(path)}
+
+
+def resolve_tablebase_path(value: str | None) -> str | None:
+    """Resolves the colon-separated directories of a SyzygyPath, each of which must exist."""
+    if value is None:
+        return None
+    directories = [Path(part).resolve(strict=True) for part in value.split(":") if part]
+    if not directories or not all(directory.is_dir() for directory in directories):
+        raise ValueError(f"{value!r} is not a list of tablebase directories")
+    return ":".join(str(directory) for directory in directories)
 
 
 def build_manifest(
@@ -335,6 +349,7 @@ def build_manifest(
     identical = (
         candidate_hash == baseline_hash
         and args.candidate_eval_file == args.baseline_eval_file
+        and args.candidate_syzygy_path == args.baseline_syzygy_path
     )
     if (
         args.candidate_aggression == args.baseline_aggression
@@ -365,6 +380,7 @@ def build_manifest(
             "distinct_binaries_required": (
                 args.candidate_aggression == args.baseline_aggression
                 and args.candidate_eval_file == args.baseline_eval_file
+                and args.candidate_syzygy_path == args.baseline_syzygy_path
                 and not args.allow_identical_binaries
             ),
             "distinct_binary_hashes": candidate_hash != baseline_hash,
@@ -385,6 +401,7 @@ def build_manifest(
                 "sha256": candidate_hash,
                 "aggression": args.candidate_aggression,
                 "eval_file": eval_file_record(args.candidate_eval_file),
+                "syzygy_path": args.candidate_syzygy_path,
                 "revision": args.candidate_revision,
             },
             "baseline": {
@@ -393,6 +410,7 @@ def build_manifest(
                 "sha256": baseline_hash,
                 "aggression": args.baseline_aggression,
                 "eval_file": eval_file_record(args.baseline_eval_file),
+                "syzygy_path": args.baseline_syzygy_path,
                 "revision": args.baseline_revision,
             },
             "openings": {
@@ -509,6 +527,14 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
         type=Path,
         help="NNUE network the baseline loads and enables via EvalFile/Use NNUE",
     )
+    parser.add_argument(
+        "--candidate-syzygy-path",
+        help="Syzygy tablebase directories the candidate loads via SyzygyPath",
+    )
+    parser.add_argument(
+        "--baseline-syzygy-path",
+        help="Syzygy tablebase directories the baseline loads via SyzygyPath",
+    )
     parser.add_argument("--candidate-aggression", type=aggression, default=75)
     parser.add_argument("--baseline-aggression", type=aggression, default=75)
     parser.add_argument("--candidate-name")
@@ -595,6 +621,8 @@ def main(argv: list[str] | None = None) -> int:
         for name in ("candidate_eval_file", "baseline_eval_file"):
             if getattr(args, name) is not None:
                 setattr(args, name, getattr(args, name).resolve(strict=True))
+        for name in ("candidate_syzygy_path", "baseline_syzygy_path"):
+            setattr(args, name, resolve_tablebase_path(getattr(args, name)))
     except (OSError, ValueError) as error:
         print(f"run_sprt: {error}", file=sys.stderr)
         return 2

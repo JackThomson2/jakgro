@@ -359,6 +359,102 @@ impl Drop for EngineProcess {
     }
 }
 
+/// Three-piece tables small enough to keep in the repository.
+const SYZYGY_FIXTURES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/syzygy");
+
+fn final_score_line(engine: &mut EngineProcess, position: &str) -> String {
+    engine.send(&format!("position fen {position}"));
+    engine.send("go nodes 20000");
+    let lines = engine.receive_until(TEST_TIMEOUT, |line| line.starts_with("bestmove "));
+    lines
+        .iter()
+        .rev()
+        .find(|line| line.starts_with("info depth "))
+        .expect("the search reports an iteration")
+        .clone()
+}
+
+#[test]
+fn syzygy_path_loads_tables_reports_them_and_reaches_the_search() {
+    // Only draws are drawn here, yet the evaluation alone believes in a pawn.
+    let drawn = "8/8/3k4/8/3P4/3K4/8/8 w - - 0 1";
+    let mut engine = EngineProcess::spawn();
+    let before = final_score_line(&mut engine, drawn);
+    assert!(!before.contains(" tbhits "), "{before}");
+    assert!(!before.contains("score cp 0 "), "{before}");
+
+    engine.send(&format!(
+        "setoption name SyzygyPath value {SYZYGY_FIXTURES}"
+    ));
+    engine.send("isready");
+    let lines = engine.receive_until(TEST_TIMEOUT, |line| line == "readyok");
+    assert!(
+        lines.contains(
+            &"info string Found 5 WDL and 5 DTZ tablebase files (up to 3-man)".to_owned()
+        ),
+        "{lines:?}"
+    );
+    let with_tables = final_score_line(&mut engine, drawn);
+    assert!(with_tables.contains(" score cp 0 "), "{with_tables}");
+    assert!(with_tables.contains(" tbhits "), "{with_tables}");
+
+    engine.send("setoption name SyzygyPath value <empty>");
+    let removed = final_score_line(&mut engine, drawn);
+    assert!(!removed.contains(" tbhits "), "{removed}");
+    assert!(!removed.contains("score cp 0 "), "{removed}");
+}
+
+#[test]
+fn syzygy_path_errors_are_visible_and_leave_the_engine_usable() {
+    let mut engine = EngineProcess::spawn();
+    engine.send("setoption name SyzygyPath value /nonexistent/tablebase/directory");
+    engine.send("setoption name SyzygyPath");
+    engine.send("isready");
+    let lines = engine.receive_until(TEST_TIMEOUT, |line| line == "readyok");
+    assert!(
+        lines.contains(
+            &"info string SyzygyPath rejected: no Syzygy tablebase files were found in the path"
+                .to_owned()
+        ),
+        "{lines:?}"
+    );
+    assert!(
+        !lines
+            .iter()
+            .any(|line| line.contains("SyzygyPath rejected: SyzygyPath requires")),
+        "an absent value only clears the path: {lines:?}"
+    );
+    engine.send("position startpos");
+    engine.send("go nodes 2000");
+    let lines = engine.receive_until(TEST_TIMEOUT, |line| line.starts_with("bestmove "));
+    assert!(lines.last().unwrap().starts_with("bestmove "));
+}
+
+#[test]
+fn syzygy_settings_take_values_in_range_and_refuse_others() {
+    let mut engine = EngineProcess::spawn();
+    for command in [
+        "setoption name SyzygyProbeDepth value 12",
+        "setoption name SyzygyProbeDepth value 0",
+        "setoption name SyzygyProbeLimit value 5",
+        "setoption name SyzygyProbeLimit value 99",
+        "setoption name Syzygy50MoveRule value false",
+        "setoption name Syzygy50MoveRule value TRUE",
+        "setoption name Syzygy50MoveRule value maybe",
+    ] {
+        engine.send(command);
+    }
+    engine.send("isready");
+    let lines = engine.receive_until(TEST_TIMEOUT, |line| line == "readyok");
+    assert_eq!(
+        lines,
+        [
+            "info string Syzygy50MoveRule requires true or false",
+            "readyok"
+        ],
+    );
+}
+
 #[test]
 fn public_runner_handles_a_protocol_transcript() {
     assert_eq!(
@@ -366,7 +462,7 @@ fn public_runner_handles_a_protocol_transcript() {
         concat!(
             "id name Jakgro ",
             env!("CARGO_PKG_VERSION"),
-            "\nid author Jakgro contributors\noption name Hash type spin default 16 min 1 max 1024\noption name Threads type spin default 1 min 1 max 128\noption name Aggression type spin default 75 min 0 max 100\noption name Move Overhead type spin default 10 min 0 max 5000\noption name Clear Hash type button\noption name EvalFile type string default <embedded>\noption name Use NNUE type check default true\nuciok\nreadyok\n"
+            "\nid author Jakgro contributors\noption name Hash type spin default 16 min 1 max 1024\noption name Threads type spin default 1 min 1 max 128\noption name Aggression type spin default 75 min 0 max 100\noption name Move Overhead type spin default 10 min 0 max 5000\noption name Clear Hash type button\noption name EvalFile type string default <embedded>\noption name Use NNUE type check default true\noption name SyzygyPath type string default <empty>\noption name SyzygyProbeDepth type spin default 1 min 1 max 100\noption name Syzygy50MoveRule type check default true\noption name SyzygyProbeLimit type spin default 7 min 0 max 7\nuciok\nreadyok\n"
         )
     );
 }

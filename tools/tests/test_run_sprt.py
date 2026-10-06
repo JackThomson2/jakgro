@@ -378,6 +378,51 @@ class ManifestTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "must differ"):
                 run_sprt.build_manifest(args, ["cmd"], "A", "B", 1)
 
+    def test_tablebases_on_one_side_make_one_binary_two_configurations(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            tables = root / "syzygy"
+            tables.mkdir()
+            args = self._namespace(
+                root,
+                pgn=root / "m.pgn",
+                manifest=root / "m.json",
+                candidate_syzygy_path=str(tables),
+            )
+            args.baseline_engine = args.engine
+
+            manifest = run_sprt.build_manifest(args, ["cmd"], "A", "B", 1)
+
+            self.assertFalse(manifest["comparison"]["distinct_binaries_required"])
+            self.assertEqual(manifest["inputs"]["candidate"]["syzygy_path"], str(tables))
+            self.assertIsNone(manifest["inputs"]["baseline"]["syzygy_path"])
+            command = run_sprt.build_command(args, "A", "B")
+            self.assertEqual(
+                command[command.index("--candidate-syzygy-path") + 1], str(tables)
+            )
+            self.assertNotIn("--baseline-syzygy-path", command)
+
+            args.baseline_syzygy_path = str(tables)
+            with self.assertRaisesRegex(ValueError, "must differ"):
+                run_sprt.build_manifest(args, ["cmd"], "A", "B", 1)
+
+    def test_a_tablebase_path_is_a_list_of_existing_directories(self) -> None:
+        self.assertIsNone(run_sprt.resolve_tablebase_path(None))
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            (root / "five").mkdir()
+            (root / "six").mkdir()
+            (root / "file").write_bytes(b"not a directory")
+            listed = f"{root / 'five'}:{root / 'six'}"
+            self.assertEqual(
+                run_sprt.resolve_tablebase_path(listed),
+                f"{(root / 'five').resolve()}:{(root / 'six').resolve()}",
+            )
+            with self.assertRaises(OSError):
+                run_sprt.resolve_tablebase_path(str(root / "missing"))
+            with self.assertRaisesRegex(ValueError, "tablebase directories"):
+                run_sprt.resolve_tablebase_path(str(root / "file"))
+
     def test_derived_engine_names_are_disambiguated(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             args = self._namespace(Path(directory))

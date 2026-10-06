@@ -72,6 +72,8 @@ Engines:
   --baseline-aggression N       Aggression option for the baseline (default 75)
   --candidate-eval-file PATH    NNUE network the candidate loads and enables
   --baseline-eval-file PATH     NNUE network the baseline loads and enables
+  --candidate-syzygy-path DIRS  Syzygy tablebase directories the candidate loads
+  --baseline-syzygy-path DIRS   Syzygy tablebase directories the baseline loads
   --candidate-name NAME         PGN name; defaults from the Aggression value
   --baseline-name NAME          PGN name; defaults from the Aggression value
 
@@ -113,6 +115,8 @@ struct EngineConfig {
     aggression: u8,
     /// A network the engine must load and enable before its first search.
     eval_file: Option<PathBuf>,
+    /// Tablebase directories the engine must load before its first search.
+    syzygy_path: Option<String>,
 }
 
 /// The move limit applied to every search in the match.
@@ -172,6 +176,8 @@ impl MatchConfig {
             "--baseline-aggression",
             "--candidate-eval-file",
             "--baseline-eval-file",
+            "--candidate-syzygy-path",
+            "--baseline-syzygy-path",
             "--candidate-name",
             "--baseline-name",
             "--games",
@@ -259,12 +265,14 @@ impl MatchConfig {
                 name: candidate_name,
                 aggression: candidate_aggression,
                 eval_file: values.get("--candidate-eval-file").map(PathBuf::from),
+                syzygy_path: values.get("--candidate-syzygy-path").cloned(),
             },
             baseline: EngineConfig {
                 path: baseline_engine,
                 name: baseline_name,
                 aggression: baseline_aggression,
                 eval_file: values.get("--baseline-eval-file").map(PathBuf::from),
+                syzygy_path: values.get("--baseline-syzygy-path").cloned(),
             },
             games,
             hash_mib,
@@ -1248,6 +1256,7 @@ impl<'a> Engine<'a> {
         let hash_mib = self.hash_mib;
         let threads = self.threads;
         let eval_file = self.config.eval_file.clone();
+        let syzygy_path = self.config.syzygy_path.clone();
         self.send("uci")?;
         self.expect("uciok", self.handshake_timeout)?;
         self.send(&format!("setoption name Hash value {hash_mib}"))?;
@@ -1259,6 +1268,9 @@ impl<'a> Engine<'a> {
                 eval_file.display()
             ))?;
             self.send("setoption name Use NNUE value true")?;
+        }
+        if let Some(syzygy_path) = syzygy_path {
+            self.send(&format!("setoption name SyzygyPath value {syzygy_path}"))?;
         }
         self.send("isready")?;
         // A rejected network is reported as `info string ... rejected: ...`
@@ -1549,9 +1561,9 @@ fn results_json(config: &MatchConfig, report: &MatchReport) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        Adjudication, Clocks, GameRecord, GameResult, Limit, MATE_SCORE_CP, Opening, PlayedMove,
-        ScoreHistory, charge_clock, diversified_opening, draw_adjudicated, engine_names,
-        go_command, is_insufficient_material, is_threefold_repetition, move_comment,
+        Adjudication, Clocks, GameRecord, GameResult, Limit, MATE_SCORE_CP, MatchConfig, Opening,
+        PlayedMove, ScoreHistory, charge_clock, diversified_opening, draw_adjudicated,
+        engine_names, go_command, is_insufficient_material, is_threefold_repetition, move_comment,
         parse_best_move, parse_info_depth, parse_info_score, parse_openings, parse_time_control,
         position_command, render_movetext, resign_adjudicated, terminal_outcome,
     };
@@ -1596,6 +1608,33 @@ mod tests {
             }
         );
         assert!(openings[1].fen.ends_with(" d6 0 1"));
+    }
+
+    #[test]
+    fn tablebase_paths_belong_to_the_side_they_are_given_for() {
+        let arguments = [
+            "--engine",
+            "candidate",
+            "--baseline-engine",
+            "baseline",
+            "--candidate-syzygy-path",
+            "/tables/345:/tables/6",
+            "--openings",
+            "tools/data/openings.epd",
+            "--games",
+            "2",
+            "--pgn",
+            "out.pgn",
+        ]
+        .map(str::to_owned);
+
+        let config = MatchConfig::parse(&arguments).unwrap();
+
+        assert_eq!(
+            config.candidate.syzygy_path.as_deref(),
+            Some("/tables/345:/tables/6")
+        );
+        assert_eq!(config.baseline.syzygy_path, None);
     }
 
     #[test]

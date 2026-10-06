@@ -29,6 +29,8 @@ The [PGO and root-verification experiments](docs/tuning/pgo-root-verification.md
 
 The [styled-root clock report](docs/tuning/styled-root-clock.md) finds that most of the default profile's measured cost at 50 ms per move (45 Elo against Aggression 0, 15 at `10+0.1`) is the time its root probing takes, not the moves it chooses, and that the iteration forecast doubled that time. Forecasting from the objective search alone measures +15.6 Elo [9.6, 21.7] at 50 ms and +3.6 [-2.3, 9.6] at `1.0+0.01` without losing forcing moves or checks, and is inert without a deadline. Shallower probing budgets gained more at the shortest controls but lost forcing moves and checks as the search lengthened, and were not adopted.
 
+The [Syzygy report](docs/tuning/syzygy.md) starts from what the tablebases say about 1,800 external games: with five pieces or fewer, an evaluation of +2.5 or more was a draw 94.5% of the time, and 44.5 points (2.5% of the games, about 17 Elo) went unconverted in won endings, nearly all by running out the fifty-move rule. With `SyzygyPath` set the engine ranks root moves from the distance tables and answers covered positions from the win-draw-loss tables in the search and in quiescence. It then converts 800 of 800 won positions where the same engine without tables converts 64%, scores +39.8 Elo from endgame entries and +3.9 [+0.7, +7.2] from ordinary openings against itself at 50 ms, and in the 30+0.3 ladder gauntlet converts every won ending it reaches (60 of 60, against 42 of 94) and never stands in a lost one, while the gauntlet's score, 54.9% against 54.5%, is inside its noise. Without a path searches are node-for-node what they were, and with the five-man tables loaded throughput is within half a percent.
+
 The [evaluation strength trials](docs/tuning/aggression75-evaluation-strength.md) record eight small fits and three 1,024-game Aggression-75 screens, with **no demonstrated Elo gain**. The retained exact-evaluation cache is an experimental checkpoint: −1.0 Elo [−11.7, +9.7] and effectively unchanged throughput, despite passing the fixed-node safety and personality checks. The report preserves rejected fits, failed checks and reproduction evidence; it does not recommend replacing the baseline for strength.
 
 The [search selectivity series](docs/tuning/search-selectivity-series.md) measures **+70.4 Elo [63.8, 77.1]** at Aggression 75 and 50 ms/move, and +69.8 [60.4, 79.3] at `1.0+0.01`, over 4096 and 2048 paired games against the shipped 192-group head, with the Aggression 75/0 forcing-move ratio at 1.088 against the base's 1.062. Eight search patches landed: futile and losing quiescence captures pruned, static pruning to depth eight and quiet futility to depth six, an improving signal from every static evaluation, deeper reductions when not improving and for losing captures, null probes that use the table under the right key with a depth-scaled reduction and verification only from depth twelve, internal iterative reduction, and singular extensions from depth four. Ten other measurements were rejected, including narrower aspiration windows, cut-node reductions, history and swap-list pruning, and correction history. The report records every match and the fixture re-pins the deeper trees required.
@@ -85,7 +87,7 @@ Jakgro currently handles these GUI commands:
 - `uci`
 - `debug on|off`
 - `isready`
-- `setoption name Hash value <MiB>`, `setoption name Clear Hash`, `setoption name Threads value <1..128>`, `setoption name Aggression value <0..100>`, `setoption name Move Overhead value <milliseconds>`, `setoption name EvalFile value <path|<embedded>>`, and `setoption name Use NNUE value <true|false>`
+- `setoption name Hash value <MiB>`, `setoption name Clear Hash`, `setoption name Threads value <1..128>`, `setoption name Aggression value <0..100>`, `setoption name Move Overhead value <milliseconds>`, `setoption name EvalFile value <path|<embedded>>`, `setoption name Use NNUE value <true|false>`, `setoption name SyzygyPath value <directories|<empty>>`, `setoption name SyzygyProbeDepth value <1..100>`, `setoption name Syzygy50MoveRule value <true|false>`, and `setoption name SyzygyProbeLimit value <0..7>`
 - `ucinewgame`
 - `position startpos ...`
 - `position fen <six FEN fields> ...`
@@ -117,6 +119,14 @@ Quiescence generates quiet checks in its first ply at profiles 0–79, its first
 A sacrifice preference requires a full opponent reply, legal recapture settlement, settled attacking compensation, retained king safety, and a checking resource. Truncated exchanges, declined offers, and immediately recovered material receive no sacrifice preference. At high aggression, an eligible live line also outranks immediate repetition, terminal draws, and balanced queen or rook exchanges that do not increase the attack.
 
 Mate scores always outrank centipawn style preferences, and clearly forced defenses fall outside the bounded margins. Jakgro reports the selected move's actual searched score and principal variation over UCI; it never adds the entertainment score to the reported chess score. High settings can deliberately play weaker chess, which is the intended tradeoff rather than a strength claim.
+
+### Syzygy tablebases
+
+Jakgro reads Syzygy endgame tablebases when `SyzygyPath` names the directories that hold them, separated by colons. The three-, four- and five-man tables are 0.40 GB of win-draw-loss files (`.rtbw`) and 0.59 GB of distance-to-zero files (`.rtbz`); the six-man tables are 72.8 GB and 87.4 GB. Loading reports `info string Found … tablebase files (up to N-man)`, and a path with no usable tables is refused with `info string SyzygyPath rejected: …` and leaves the engine without any. `SyzygyProbeLimit` caps the piece count probed, which the tables' own size narrows further; `SyzygyProbeDepth` is the fewest plies of remaining depth at which a position with exactly that many pieces is probed; and `Syzygy50MoveRule=false` counts a win or loss that the fifty-move rule cancels as a win or loss.
+
+Where the tables cover the root position they rank its moves as Stockfish does. Every move that keeps a win inside the fifty-move rule ranks alike, so the search chooses among them, a move that lets the win run out ranks below them, and only the best-ranked moves are searched. Without distance files the ranking falls back to the win-draw-loss result of each reply. Inside the search, a position that the last move has just cleared the halfmove clock of, with no castling rights and no more pieces than the limit, is answered from the tables in the main search and in quiescence: a win or loss scores just below the mate scores, and a draw scores zero. A decided ending is reported as `cp ±(20000 - plies)`, and `tbhits` counts the positions the main searcher settled. With no path set, searches are node-for-node what they were.
+
+Probing is done by [`pyrrhic-rs`](https://crates.io/crates/pyrrhic-rs) (MIT), a Rust translation of Pyrrhic and Fathom, which borrows the engine's own move generation. The [Syzygy report](docs/tuning/syzygy.md) records the measurements; only the three-, four- and five-man tables have been exercised.
 
 ## Reproducible style and match measurement
 
@@ -418,3 +428,5 @@ network loaded through `--eval-file`.
 ## License
 
 No license has been selected yet.
+
+Reading Syzygy tablebases links [`pyrrhic-rs`](https://crates.io/crates/pyrrhic-rs), which is distributed under the MIT license. It is a translation of [Pyrrhic](https://github.com/AndyGrant/Pyrrhic) and [Fathom](https://github.com/basil00/Fathom), and carries their notices: Fathom © 2015 basil, modifications © 2016–2019 Jon Dart, and modifications © 2020 Andrew Grant.

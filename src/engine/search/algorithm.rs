@@ -50,10 +50,11 @@ const STYLED_ROOT_MAX_VERIFICATIONS: usize = 2;
 const ORDINARY_ROOT_MARGIN_MAX: Score = 26;
 const WINNING_ROOT_MARGIN_MAX: Score = 20;
 const WINNING_ROOT_SCORE: Score = 200;
-const LMR_SHALLOW_CHILD_DEPTH: u32 = 2;
-const LMR_SHALLOW_MOVE_INDEX: usize = 6;
-const LMR_MIN_CHILD_DEPTH: u32 = 3;
-const LMR_MIN_MOVE_INDEX: usize = 3;
+/// Shallowest child depth and earliest move index late-move reductions apply
+/// from. The first move of a node is never reduced; the second may be, and
+/// a reduced search keeps at least one ply.
+const LMR_MIN_CHILD_DEPTH: u32 = 2;
+const LMR_MIN_MOVE_INDEX: usize = 2;
 /// Quiet moves always searched before move-count pruning applies.
 const LMP_BASE: usize = 6;
 /// Growth of the move-count limit per ply of remaining depth.
@@ -1228,6 +1229,19 @@ fn late_move_pruning_limit(depth: u32, improving: bool) -> usize {
     if improving { base * 2 } else { base }
 }
 
+/// The late-move reduction of a move searched after the first at a node.
+///
+/// The table supplies a reduction growing with the remaining depth and the
+/// move's place in the order. Promotions, castling, protected moves and the
+/// moves of a node in check are searched at full depth; so are captures the
+/// swap list favours, while a losing capture is reduced one ply less than a
+/// quiet move in the same slot. A quiet check or a quiet move into the enemy
+/// king's zone is reduced one ply less than other quiets: searching them at
+/// full depth left reductions too mild to pay for themselves, and a ply
+/// less keeps the forcing moves the attacking profiles rely on in view. The
+/// history of a quiet moves its reduction by a ply either way, a node on the
+/// principal variation reduces a ply less, a node whose evaluation is not
+/// improving a ply more, and the reduced search always keeps one ply.
 #[allow(clippy::too_many_arguments)]
 fn late_move_reduction(
     child_depth: u32,
@@ -1239,14 +1253,10 @@ fn late_move_reduction(
     improving: bool,
     history_score: i32,
 ) -> u32 {
-    let shallow_candidate =
-        child_depth == LMR_SHALLOW_CHILD_DEPTH && move_index >= LMR_SHALLOW_MOVE_INDEX;
-    let regular_candidate = child_depth >= LMR_MIN_CHILD_DEPTH && move_index >= LMR_MIN_MOVE_INDEX;
-    if (!shallow_candidate && !regular_candidate)
+    if child_depth < LMR_MIN_CHILD_DEPTH
+        || move_index < LMR_MIN_MOVE_INDEX
         || metadata.chess_move.promotion.is_some()
-        || metadata.gives_check
         || metadata.castling
-        || metadata.king_zone_move
         || protected
         || in_check
     {
@@ -1256,6 +1266,9 @@ fn late_move_reduction(
     let depth_row = (child_depth as usize).min(LMR_DEPTH_ENTRIES - 1);
     let index_column = move_index.min(LMR_INDEX_ENTRIES - 1);
     let mut reduction = u32::from(LMR_TABLE[depth_row][index_column]);
+    if metadata.gives_check || metadata.king_zone_move {
+        reduction = reduction.saturating_sub(1);
+    }
     if metadata.is_quiet() {
         reduction = reduction.max(1);
         if history_score >= LMR_HISTORY_THRESHOLD {
@@ -1264,8 +1277,6 @@ fn late_move_reduction(
             reduction = reduction.saturating_add(1);
         }
     } else {
-        // A late capture the swap list does not favour is reduced one ply less
-        // than a quiet move in the same slot; a winning capture is not reduced.
         if metadata.see.is_none_or(|see| see >= 0) {
             return 0;
         }
@@ -1277,8 +1288,7 @@ fn late_move_reduction(
     if !improving {
         reduction = reduction.saturating_add(1);
     }
-    let minimum_remaining_depth = if shallow_candidate { 1 } else { 2 };
-    reduction.min(child_depth.saturating_sub(minimum_remaining_depth))
+    reduction.min(child_depth.saturating_sub(1))
 }
 
 fn reduced_search_needs_research(reduction: u32, score: Score, alpha: Score) -> bool {
@@ -7852,12 +7862,31 @@ mod tests {
             ),
             3,
         );
+        // Reductions begin with the second move at child depth two and never
+        // remove the last ply.
         assert_eq!(
             super::late_move_reduction(2, 3, metadata, false, false, false, true, 0),
-            0,
+            1,
         );
         assert_eq!(
             super::late_move_reduction(3, 2, metadata, false, false, false, true, 0),
+            1,
+        );
+        assert_eq!(
+            super::late_move_reduction(
+                2,
+                2,
+                metadata,
+                false,
+                false,
+                false,
+                false,
+                -super::HISTORY_MAX
+            ),
+            1,
+        );
+        assert_eq!(
+            super::late_move_reduction(2, 1, metadata, false, false, false, true, 0),
             0,
         );
         assert_eq!(
@@ -7873,13 +7902,19 @@ mod tests {
             1,
         );
 
+        // Castling is never reduced; a quiet check or a move into the enemy
+        // king's zone is reduced one ply less than the quiet in the same slot.
+        let castling = super::MoveMetadata {
+            castling: true,
+            ..metadata
+        };
+        assert_eq!(
+            super::late_move_reduction(6, 7, castling, false, false, false, true, 0),
+            0,
+        );
         for forcing in [
             super::MoveMetadata {
                 gives_check: true,
-                ..metadata
-            },
-            super::MoveMetadata {
-                castling: true,
                 ..metadata
             },
             super::MoveMetadata {
@@ -7889,11 +7924,15 @@ mod tests {
         ] {
             assert_eq!(
                 super::late_move_reduction(6, 7, forcing, false, false, false, true, 0),
-                0,
+                1,
             );
             assert_eq!(
                 super::late_move_reduction(6, 7, forcing, false, false, true, true, 0),
                 0,
+            );
+            assert_eq!(
+                super::late_move_reduction(20, 3, forcing, false, false, false, true, 0),
+                super::late_move_reduction(20, 3, metadata, false, false, false, true, 0) - 1,
             );
         }
 
@@ -7925,7 +7964,7 @@ mod tests {
         );
         assert_eq!(
             super::late_move_reduction(2, 5, metadata, false, false, false, true, 0),
-            0,
+            1,
         );
         {
             let (child_depth, move_index) = (2, 6);
@@ -8019,8 +8058,7 @@ mod tests {
                     );
                     assert!(pv <= scout);
                     assert!(scout - pv <= 1);
-                    let retained_depth = if depth == 2 { 1 } else { 2 };
-                    assert!(pv <= depth.saturating_sub(retained_depth));
+                    assert!(pv <= depth.saturating_sub(1));
                 }
             }
         }

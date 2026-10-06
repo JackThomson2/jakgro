@@ -215,10 +215,11 @@ shows. Each entry is expanded in section 3.
 4. **Correction history in its canonical form (Q1).** Four rejected forms were
    all cold per search, keyed by material counts, or applied only to pruning
    margins. GUESS +3..+12 at 10 s per move.
-5. **Stop paying for a styled root that cannot finish (A1–A3).** Skip or
-   rescale the styled pass once its budget cannot complete a verification,
-   and make the forcing-order bonus a bounded history term. Elo at equal
-   style; GUESS +5..+15 at 50 ms, +2..+8 at 10+0.1.
+5. **Make the forcing-order bonus a bounded history term (A2/O3).** Skipping
+   the styled pass once it cannot finish was measured and dropped: its probes
+   seed the table for the next objective iteration (A1). The interior
+   coupling remains; Elo at equal style GUESS +2..+6 at 50 ms, +2..+8 at
+   10+0.1.
 6. **Table replacement under saturation, keyed exclusion searches, a PV bit
    (T1, T3, T4).** The policy was written for 50 ms trees; at 4M nodes per move
    it refuses most quiescence stores and evicts deep stale entries first.
@@ -1136,22 +1137,29 @@ forcing bonus off +5.9, check-extension cap 2 +5.5/−0.8. At 10+0.1: Aggression
 0 +14.9 [+5.4, +24.5], styled root off +1.7 [−8.1, +11.5]. Section 1.3 adds:
 the styled root selects nothing beyond depth 6.
 
-**A1. Stop the styled pass once it cannot complete.**
+**A1. Stop the styled pass once it cannot complete — measured, not pursued.**
 The budget is flat 2048/4096 nodes from depth 6 (`styled_root_node_limit`);
 from depth 9 every iteration exhausts it and returns the objective move
 (section 1.3) while spending 1.5–4.6% of the nodes at depth 12–16 and 10–18%
-at 50 ms. Options, in order of fidelity to the current style: (a) skip the
-styled pass after two consecutive exhausted iterations unless the objective
-best move changed; (b) cap the styled budget at a percentage of the objective
-pass's nodes for that iteration (floor 128, ceiling unchanged) so shallow
-iterations keep their table-warming effect; (c) the parked shallower-budget
-patch (+25.6 at 50 ms, +12.4 at `1.0+0.01`, +3.0 at 10+0.1; checks ratio
-falling to 0.921 at 10+0.1 — the reason it was parked). Elo at equal style:
-GUESS +5..+15 at 50 ms, +2..+8 at 10+0.1 for (a); style unchanged at depth ≥ 9
-by construction because nothing is decided there. Effort S. Risk: 20k-node
-knife-edge fixtures (`standard-knight-e4-investment`,
-`standard-opposite-castle-storm-deeper`) may flip under (b). Test: Gate 1 and
-Gate 2 with the style bootstrap; fixed-node 4096 games to isolate the budget.
+at 50 ms. Two forms were screened by depth-13 node counts over the
+forty-position book (EVIDENCE). Skipping the whole styled pass after two
+consecutive passes that exhausted the budget without completing a
+verification, while the objective move stayed the same, searched **+3.6%**
+nodes at Aggression 75 (27,959,119 against 26,995,867) and +0.6% at
+Aggression 100, with the personality share at depth 14 falling from 2.6% to
+1.4%: the probes' null-window searches of the alternatives write entries
+the next iteration's objective search profits from by more than the probes
+cost, so the pass is not the pure cost section 1.3 made it look. Keeping the
+probes and skipping only the verifications, which never complete at depth,
+searched −0.5% at Aggression 75 and −3.1% at Aggression 100, too little for
+a match slot. What remains of the idea is (b), capping the budget at a
+fraction of the objective pass's nodes so shallow iterations keep their
+table-warming effect, and (c), the parked shallower-budget patch (+25.6 at
+50 ms, +12.4 at `1.0+0.01`, +3.0 at 10+0.1; checks ratio falling to 0.921 at
+10+0.1 — the reason it was parked). Both move the 20k-node knife-edge
+fixtures (`standard-knight-e4-investment`,
+`standard-opposite-castle-storm-deeper`) and need Gate 1 and Gate 2 with the
+style bootstrap; neither is expected above GUESS +0..+5 at 10+0.1.
 
 **A2. Forcing-order bonus as a bounded, SEE-gated history term.** See O3.
 This is the largest remaining interior coupling and the one whose removal
@@ -1422,10 +1430,10 @@ Phases 1 and 2 are a few days; 3–6 can run in parallel on this host.
    Gate 0/1/2 with style ratios; the LMR items first because every later
    reduction/pruning result depends on them; correction history and the table
    items decided at Gate 2 and Gate 3.
-4. **Personality at equal style (A1, A2/O3, A4, A8).** The styled-pass skip
-   and the bounded forcing bonus are small patches with large 50 ms gains and
-   style-neutral mechanisms; the fixture replacements pay for every later
-   search change.
+4. **Personality at equal style (A2/O3, A4, A8).** The bounded forcing bonus
+   is a small patch with a measured style-neutral removal behind it; the
+   fixture replacements pay for every later search change. The styled-pass
+   skip (A1) was measured and dropped.
 5. **Network (D1 → D2/D3 → D4; N1 meanwhile; N2 before a second generation; then
    N4/N5, N3).** The corpus regeneration is the single highest-expected-Elo
    experiment in this report; the trainer rewrite decides whether

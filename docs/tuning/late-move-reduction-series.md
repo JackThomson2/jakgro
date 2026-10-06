@@ -103,3 +103,75 @@ a2a3 at 20,000 nodes, with a root loss of 0 cp by the objective search and
 still declining the c3d5 investment the fixture gates, so bm75 accepts both.
 The personality, sacrifice-gate, null-move and UCI suites passed unchanged.
 The two late-move-reduction unit tests were rewritten to the new rules.
+
+## Follow-ups measured on the series head
+
+Each row is a candidate against the head that carries the patch above
+(`a48568c`), Aggression 75 on both sides, 4096 paired games per match; style
+ratios as above.
+
+### Re-search depth adjusted by the reduced score (audit S3): rejected
+
+After a reduced search raised alpha, the full-depth repeat went one ply
+deeper when the reduced score beat the best score so far by a margin and one
+ply shallower when it barely did, so that a one-ply reduction whose score
+barely rose was not repeated at all; the principal-variation re-search used
+the adjusted depth too. This is Stockfish's `doDeeperSearch` /
+`doShallowerSearch` pair. Three margin settings were screened and matched.
+
+| Deeper / shallower margin (cp) | Nodes at depth 13, Aggression 75 / 0 | 50 ms | 10+0.1 |
+|---|---|---|---|
+| 50 / 8 | 21,158,384 / 18,367,472 (−7.2% / −7.3%) | −2.5 [−8.8, +3.7] | +1.2 [−4.0, +6.3] |
+| 50 / off | 24,216,476 / 19,525,568 (+6.2% / −1.5%) | −4.3 [−10.5, +1.8] | — |
+| 25 / 8 | 22,294,859 / 17,966,720 (−2.2% / −9.3%) | −5.1 [−11.1, +0.9] | — |
+
+The node savings did not convert: every form lost at 50 ms and the best of
+them was null at 10+0.1 (forcing 0.992 [0.975, 1.010], checks 0.982 [0.937,
+1.029]). With reductions still much milder than Stockfish's, a reduced search
+that raises alpha is rarely wrong enough to deserve a deeper repeat and
+rarely so marginal that skipping the repeat is safe; the device belongs to a
+search that reduces harder. Not kept.
+
+### The forcing-order bonus bounded inside the history range (audit O3): kept
+
+Above Aggression 0 the quiet ordering gave every quiet check
+`800,000 + 3,000 × aggression` and every attacking pawn push
+`1,500 × aggression`, on a history scale of ±16,384: at the default profile a
+check ranked above the killers and a push above every quiet of ordinary
+history, however the check hung its piece or however strong the history of
+the quiet it displaced. The audit's ablation had measured the bonus switched
+off at +5.9 [−0.5, +12.3] with the forcing and check rates intact, the only
+personality knob whose removal left the style alone. Three forms were
+screened on the series head.
+
+| Form | Nodes at depth 13, Aggression 75 | 50 ms | Forcing / checks at 50 ms | 10+0.1 | Forcing / checks at 10+0.1 |
+|---|---|---|---|---|---|
+| bonus within the history range: safe check `110 × aggression`, push `55 × aggression`, killers first | 22,790,899 (−0.02%) | not matched | — | — | — |
+| bonus off | 23,896,729 (+4.8%) | +6.6 [+0.4, +12.8] | 0.986 [0.967, 1.005] / 0.966 [0.920, 1.012] | — | — |
+| **bounded as above, and no bonus for a check whose destination is en prise** | 23,635,857 (+3.7%) | **+6.9 [+0.8, +13.0]** | 1.001 [0.983, 1.020] / 1.007 [0.960, 1.054] | +3.6 [−1.4, +8.7] | 1.001 [0.983, 1.019] / 1.005 [0.960, 1.052] |
+
+The bounded bonus alone leaves the tree all but unchanged, because history
+values at depth 13 rarely exceed half the range and a check still leads;
+the gain needs the swap-list gate. A check that hangs the checking piece now
+earns nothing and is ordered by its history like any other quiet, while a
+safe check leads the quiets of ordinary history and yields to a killer or to
+a quiet with a strong record. Switching the bonus off entirely gains as much
+Elo but reads three to four percent fewer checks at 50 ms; the gated form
+keeps both rates at 1.00. At 10+0.1 the gated form reads +3.6 [−1.4, +8.7]
+with both rates still at 1.00; the two matches together put it at about
++5.0 ± 3.9 over 8192 games, and it is kept on that pooled evidence. The bonus
+is read at two places, the staged picker's quiet generation and the eager
+ordering of root and verification searches, and the swap list runs only for
+the checking quiets, a few percent of the quiets generated. The deeper trees
+moved two regression scores with their moves unchanged, `win-hanging-queen`
+485 to 499 and `contain-lone-rook` −518 to −529, and three
+standard-acceptance records at the default profile that probing both
+binaries across budgets showed to be knife edges: in
+`standard-open-king-gambit` the default plays a2a3 from 150,000 to 400,000
+nodes, three centipawns below c3d5, which the head itself plays at 300,000
+and both return to at 800,000, so bm75 adds a2a3 to the quiet alternatives
+it already accepted; and in the opposite-castle-storm position the default
+alternates between the storm pushes a2a4 and b2b4 from 10,000 to 800,000
+nodes on both binaries, while profile 0 plays b2b4 throughout, so both
+records accept both pushes. The personality, sacrifice-gate, null-move and
+UCI suites passed as they were.

@@ -17,8 +17,10 @@ The clock was measured above 27 ms per move for the first time. Spreading
 the soft budget over more moves with the whole increment added lost at 26
 moves and was not shown to gain at 20. Adding the whole increment to the
 fifteen-move budget measured +7.3 [+1.4, +13.2] over 4,096 games but stopped
-at the game cap with its sequential test short of acceptance, so the clock is
-unchanged; that arm is the one worth a confirmation run.
+at the game cap with its sequential test short of acceptance. It was adopted
+afterwards on that screen alone, at the maintainer's direction, in `search:
+time: Add the whole increment to the soft budget`; no confirmation run was
+made.
 
 The runs were made on 28 October 2026 against the series head `a30ddd8`; the
 confirmations played the commit that ships the network against it, and the
@@ -107,13 +109,14 @@ with an LLR of +2.67 against the 2.94 that accepts H1.
 
 Moving time from the opening into the endgame lost or did nothing; spending
 a little more on every move by adding the whole increment gained about seven
-Elo without a decision. The clock is left as it is. A +7 that stops short of
-its pre-registered acceptance is what selection noise looks like as often as
-a gain, and the change is one line with no fixture to re-pin, so a
-confirmation from a second opening seed, or at `60+0.6`, can decide it
-cheaply. The three arms also say the fifteen-move divisor chosen at
-`1.0+0.01` is not too short at `10+0.1`: both longer divisors spent less in
-the opening and gained nothing for it.
+Elo without a decision. A +7 that stops short of its pre-registered
+acceptance is what selection noise looks like as often as a gain, so this
+series left the clock as it was. The change is one line with no fixture to
+re-pin, and it was adopted afterwards at the maintainer's direction without
+the confirmation, from a second opening seed or at `60+0.6`, that would
+decide it; such a run remains the way to check it. The three arms also say
+the fifteen-move divisor chosen at `1.0+0.01` is not too short at `10+0.1`:
+both longer divisors spent less in the opening and gained nothing for it.
 
 ## Fixtures that moved
 

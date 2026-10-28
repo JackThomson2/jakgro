@@ -19,11 +19,11 @@
     },
     "head": {
       "sha256": "2a632315a13bacf7392e2863883a61b12a8ce6d7fcb173ec91c1fd2106e37ac3",
-      "source": "d9d32a1, the commit that ships the network; built from git archive and from the worktree with identical results."
+      "source": "49d29f3, the commit that ships the network (d9d32a1 before it was applied, with the identical tree); built from git archive and from the worktree with identical results."
     },
     "tm15inc": {
       "sha256": "fd40a0d95ceb0eb27b0c4f9fe44f570a3253e3f7ebfae74dca1fe8b5da64c925",
-      "source": "d9d32a1 with increment_share = increment."
+      "source": "49d29f3 with increment_share = increment."
     }
   },
   "networks": {

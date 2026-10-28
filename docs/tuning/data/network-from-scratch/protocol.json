@@ -3,11 +3,11 @@
   "baseline_revision": "a30ddd864b8bc03a5d581d09cf9af1ddc0d82d56",
   "arms": {
     "net-g3scratch": "Baseline binary loading artifacts/gen3/nets/g3scratch/network.nnue through EvalFile, against the same binary with its embedded network.",
-    "net-confirm": "Series head d9d32a1 (new network embedded) against the baseline binary, 1,024 rounds from opening seed 31337 with no sequential stop.",
-    "net-50ms": "Series head d9d32a1 against the baseline binary at 50 ms per move through tools/run_sprt.py and the selfplay arbiter, 2,048 pairs from docs/tuning/data/selective-search-confirmation.epd.",
+    "net-confirm": "Series head 49d29f3 (new network embedded) against the baseline binary, 1,024 rounds from opening seed 31337 with no sequential stop.",
+    "net-50ms": "Series head 49d29f3 against the baseline binary at 50 ms per move through tools/run_sprt.py and the selfplay arbiter, 2,048 pairs from docs/tuning/data/selective-search-confirmation.epd.",
     "tm20": "Baseline with DEFAULT_MOVES_TO_GO 15 -> 20 and the whole increment added to the soft budget instead of three quarters; embedded network.",
     "tm26": "Baseline with DEFAULT_MOVES_TO_GO 15 -> 26 and the whole increment added to the soft budget; embedded network.",
-    "tm15inc": "Series head d9d32a1 (new network embedded) with only the increment share changed from three quarters to the whole increment, against d9d32a1."
+    "tm15inc": "Series head 49d29f3 (new network embedded) with only the increment share changed from three quarters to the whole increment, against 49d29f3."
   },
   "build": {
     "toolchain": "1.98.1",

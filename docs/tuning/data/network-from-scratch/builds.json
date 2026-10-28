@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "toolchain": "1.98.1",
+  "cargo_version": "cargo 1.98.1 (797e8a9bc 2026-08-05)",
+  "profile": "release",
+  "rustflags": "",
+  "binaries": {
+    "baseline": {
+      "sha256": "3b4aa3e16d700acec357d4df712a51781a8c580051989e43ba8beafd9e765ebb",
+      "source": "Unmodified a30ddd8; the same binary as the baseline of the LMR and evasion ordering screens."
+    },
+    "tm20": {
+      "sha256": "ed04a70489f7734ec409bf29aa5bd925286d1d957dbf434ab07c1d6bf0f1579f",
+      "source": "a30ddd8 with DEFAULT_MOVES_TO_GO 20 and increment_share = increment."
+    },
+    "tm26": {
+      "sha256": "f255a4e3c554590fc59dc8ff411f5c1cb431bccb5d552aac4f2e33dba2f5daf6",
+      "source": "a30ddd8 with DEFAULT_MOVES_TO_GO 26 and increment_share = increment."
+    },
+    "head": {
+      "sha256": "2a632315a13bacf7392e2863883a61b12a8ce6d7fcb173ec91c1fd2106e37ac3",
+      "source": "d9d32a1, the commit that ships the network; built from git archive and from the worktree with identical results."
+    },
+    "tm15inc": {
+      "sha256": "fd40a0d95ceb0eb27b0c4f9fe44f570a3253e3f7ebfae74dca1fe8b5da64c925",
+      "source": "d9d32a1 with increment_share = increment."
+    }
+  },
+  "networks": {
+    "previous": "39ec8c5cab524eb81db580b42fe852b536ade5d1b1f07b42db90980c17e76d78",
+    "shipped": "6764e8da0594263bab3546cea58a72614396c1f87cee603ef17bed862538be4c"
+  },
+  "opening_book_sha256": "5835239f88cc2c7511b177c32392a69f3ede21819cf0616f80a7f907cd21d17e",
+  "fastchess_sha256": "c91094bc99da3dc4c51e84c88506cab80b4be8b92e63bc89327d9f61476d5b60"
+}

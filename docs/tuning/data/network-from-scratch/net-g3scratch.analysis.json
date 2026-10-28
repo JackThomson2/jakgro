@@ -1,0 +1,112 @@
+{
+  "baseline": "Baseline",
+  "book_plies_excluded_per_game": 16,
+  "candidate": "Candidate",
+  "fault_terminations": {},
+  "interval_note": "Unadjusted for sequential stopping and selection across arms. Degenerate strength intervals and style intervals with singular bootstrap replicates are unavailable, not zero-width.",
+  "pgn": "net-g3scratch.pgn",
+  "recorded_games": 1320,
+  "recorded_outcomes": {
+    "draws": 744,
+    "losses": 240,
+    "wins": 336
+  },
+  "schema_version": 1,
+  "strength": {
+    "draws": 741,
+    "elo": 25.12454,
+    "elo_ci95": [
+      13.106162,
+      37.203266
+    ],
+    "elo_margin_95": 12.048552,
+    "games": 1316,
+    "interval_status": "estimated",
+    "losses": 240,
+    "pair_distribution": {
+      "0.0": 22,
+      "0.5": 119,
+      "1.0": 301,
+      "1.5": 174,
+      "2.0": 42
+    },
+    "pairs": 658,
+    "score_percent": 53.609422,
+    "score_percent_ci95": [
+      51.885234,
+      55.333611
+    ],
+    "wins": 335
+  },
+  "style": {
+    "baseline_moves": 86918,
+    "bootstrap_samples": 4000,
+    "bootstrap_seed": 14875,
+    "candidate_moves": 86848,
+    "checks": {
+      "baseline": 8931,
+      "bootstrap_ci95": [
+        0.9590012423083242,
+        1.1187623447455315
+      ],
+      "bootstrap_replicates": {
+        "finite": 4000,
+        "unbounded": 0,
+        "undefined": 0
+      },
+      "candidate": 9253,
+      "rate_ratio": 1.0368892590471104,
+      "ratio_status": "finite"
+    },
+    "forcing": {
+      "baseline": 21162,
+      "bootstrap_ci95": [
+        0.9859661090669516,
+        1.052555054901149
+      ],
+      "bootstrap_replicates": {
+        "finite": 4000,
+        "unbounded": 0,
+        "undefined": 0
+      },
+      "candidate": 21556,
+      "rate_ratio": 1.019439290382777,
+      "ratio_status": "finite"
+    }
+  },
+  "terminations": {
+    "adjudication": 709,
+    "normal": 611
+  },
+  "uncompressed_pgn_sha256": "639b9dec23b038f90d2687369ed8eb5d7d02f7504528350026608032abb9fce3",
+  "unpaired_games": [
+    {
+      "black": "Baseline",
+      "result": "1/2-1/2",
+      "round": 656,
+      "termination": "normal",
+      "white": "Candidate"
+    },
+    {
+      "black": "Candidate",
+      "result": "1/2-1/2",
+      "round": 658,
+      "termination": "normal",
+      "white": "Baseline"
+    },
+    {
+      "black": "Baseline",
+      "result": "1/2-1/2",
+      "round": 661,
+      "termination": "adjudication",
+      "white": "Candidate"
+    },
+    {
+      "black": "Baseline",
+      "result": "1-0",
+      "round": 662,
+      "termination": "adjudication",
+      "white": "Candidate"
+    }
+  ]
+}

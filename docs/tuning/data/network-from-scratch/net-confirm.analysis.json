@@ -1,0 +1,83 @@
+{
+  "baseline": "Baseline",
+  "book_plies_excluded_per_game": 16,
+  "candidate": "Candidate",
+  "fault_terminations": {},
+  "interval_note": "Unadjusted for sequential stopping and selection across arms. Degenerate strength intervals and style intervals with singular bootstrap replicates are unavailable, not zero-width.",
+  "pgn": "net-confirm.pgn",
+  "recorded_games": 2048,
+  "recorded_outcomes": {
+    "draws": 1121,
+    "losses": 393,
+    "wins": 534
+  },
+  "schema_version": 1,
+  "strength": {
+    "draws": 1121,
+    "elo": 23.958027,
+    "elo_ci95": [
+      14.254628,
+      33.698897
+    ],
+    "elo_margin_95": 9.722134,
+    "games": 2048,
+    "interval_status": "estimated",
+    "losses": 393,
+    "pair_distribution": {
+      "0.0": 27,
+      "0.5": 219,
+      "1.0": 426,
+      "1.5": 290,
+      "2.0": 62
+    },
+    "pairs": 1024,
+    "score_percent": 53.442383,
+    "score_percent_ci95": [
+      52.050256,
+      54.83451
+    ],
+    "wins": 534
+  },
+  "style": {
+    "baseline_moves": 134873,
+    "bootstrap_samples": 4000,
+    "bootstrap_seed": 31337,
+    "candidate_moves": 134766,
+    "checks": {
+      "baseline": 13880,
+      "bootstrap_ci95": [
+        0.9555189526862825,
+        1.0891943296343285
+      ],
+      "bootstrap_replicates": {
+        "finite": 4000,
+        "unbounded": 0,
+        "undefined": 0
+      },
+      "candidate": 14156,
+      "rate_ratio": 1.0206944828822944,
+      "ratio_status": "finite"
+    },
+    "forcing": {
+      "baseline": 32925,
+      "bootstrap_ci95": [
+        0.9848607571733137,
+        1.0410746589680582
+      ],
+      "bootstrap_replicates": {
+        "finite": 4000,
+        "unbounded": 0,
+        "undefined": 0
+      },
+      "candidate": 33317,
+      "rate_ratio": 1.0127092682971133,
+      "ratio_status": "finite"
+    }
+  },
+  "terminations": {
+    "adjudication": 1085,
+    "normal": 963
+  },
+  "uncompressed_pgn_sha256": "248f079c078853c817e88a7c9eb7c9f300b944193058c3a2452fc93273a0c5be",
+  "unpaired_games": []
+}

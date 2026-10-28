@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "baseline_revision": "a30ddd864b8bc03a5d581d09cf9af1ddc0d82d56",
+  "arms": {
+    "net-g3scratch": "Baseline binary loading artifacts/gen3/nets/g3scratch/network.nnue through EvalFile, against the same binary with its embedded network.",
+    "net-confirm": "Series head d9d32a1 (new network embedded) against the baseline binary, 1,024 rounds from opening seed 31337 with no sequential stop.",
+    "net-50ms": "Series head d9d32a1 against the baseline binary at 50 ms per move through tools/run_sprt.py and the selfplay arbiter, 2,048 pairs from docs/tuning/data/selective-search-confirmation.epd.",
+    "tm20": "Baseline with DEFAULT_MOVES_TO_GO 15 -> 20 and the whole increment added to the soft budget instead of three quarters; embedded network.",
+    "tm26": "Baseline with DEFAULT_MOVES_TO_GO 15 -> 26 and the whole increment added to the soft budget; embedded network.",
+    "tm15inc": "Series head d9d32a1 (new network embedded) with only the increment share changed from three quarters to the whole increment, against d9d32a1."
+  },
+  "build": {
+    "toolchain": "1.98.1",
+    "profile": "release",
+    "locked": true,
+    "offline": true,
+    "extra_rustflags": null
+  },
+  "runner": "fastchess alpha 1.8.2 20260912-60d7a7a",
+  "match": {
+    "time_control": "10+0.1",
+    "aggression": 75,
+    "threads_per_engine": 1,
+    "hash_mib": 16,
+    "syzygy": false,
+    "book": "8moves_v3.pgn",
+    "book_plies": 16,
+    "opening_order": "random",
+    "opening_seed": {"default": 14875, "net-confirm": 31337},
+    "games_per_opening": 2,
+    "maximum_rounds_per_arm": 2048,
+    "maximum_games_per_arm": 4096,
+    "concurrency_per_arm": {"net-g3scratch": 28, "net-confirm": 50, "net-50ms": 30, "tm20": 28, "tm26": 28, "tm15inc": 30},
+    "time_margin_ms": 100,
+    "draw": {"movenumber": 40, "movecount": 8, "score": 10},
+    "resign": {"movecount": 3, "score": 600, "twosided": true},
+    "maximum_moves": 200,
+    "sprt": {"model": "logistic", "elo0": 0, "elo1": 5, "alpha": 0.05, "beta": 0.05}
+  },
+  "interpretation": {
+    "strength": "Each arm is compared directly with its own baseline. The first network arm and the first two clock arms ran at the same time on the 96-logical-CPU host, 84 games at once; the later arms overlapped each other at up to 80 games at once. The 50 ms arm used the selfplay arbiter, its random-walk book and its own pair-normal interval, not fastchess.",
+    "style": "Forcing and check rates of engine-played moves only, excluding the sixteen book plies, with a bootstrap over complete colour-reversed rounds (4000 replicates, seed 14875), from analyze_pairs.py.",
+    "intervals": "Pair-normal Elo intervals are descriptive and unadjusted for sequential stopping; an arm stopped by the SPRT carries the usual upward bias of an early stop at H1.",
+    "incomplete_pairs": "After a verified normal SPRT stop, unmatched recorded rounds are listed and excluded from the paired estimates."
+  },
+  "fixture_mining": {
+    "corpus": "artifacts/gen3/n20000 groups 78 and 79, the development split the network was not trained on",
+    "sampling": "every seventh row with |label score| <= 120, at least 18 pieces and the side to move not in check; unique by the first four FEN fields; shuffled with seed 29",
+    "screen": "Aggression 0 and 100 at 20,000 nodes with fresh tables (mine_fixtures.py); 6,000 positions in round 1 and 14,000 in round 2",
+    "verification": "the same move at 20,000, 40,000, 60,000 and 100,000 nodes for each profile, the two moves different, objective loss from Aggression 0 restricted to the Aggression 100 move at 20,000 and 100,000 nodes (verify_fixtures.py)"
+  }
+}

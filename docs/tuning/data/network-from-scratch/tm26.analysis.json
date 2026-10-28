@@ -1,0 +1,105 @@
+{
+  "baseline": "Baseline",
+  "book_plies_excluded_per_game": 16,
+  "candidate": "Candidate",
+  "fault_terminations": {},
+  "interval_note": "Unadjusted for sequential stopping and selection across arms. Degenerate strength intervals and style intervals with singular bootstrap replicates are unavailable, not zero-width.",
+  "pgn": "tm26.pgn",
+  "recorded_games": 1881,
+  "recorded_outcomes": {
+    "draws": 1141,
+    "losses": 399,
+    "wins": 341
+  },
+  "schema_version": 1,
+  "strength": {
+    "draws": 1138,
+    "elo": -10.733586,
+    "elo_ci95": [
+      -19.961731,
+      -1.52056
+    ],
+    "elo_margin_95": 9.220586,
+    "games": 1878,
+    "interval_status": "estimated",
+    "losses": 399,
+    "pair_distribution": {
+      "0.0": 33,
+      "0.5": 230,
+      "1.0": 462,
+      "1.5": 190,
+      "2.0": 24
+    },
+    "pairs": 939,
+    "score_percent": 48.455804,
+    "score_percent_ci95": [
+      47.130433,
+      49.781175
+    ],
+    "wins": 341
+  },
+  "style": {
+    "baseline_moves": 121216,
+    "bootstrap_samples": 4000,
+    "bootstrap_seed": 14875,
+    "candidate_moves": 121245,
+    "checks": {
+      "baseline": 13108,
+      "bootstrap_ci95": [
+        0.9167181014335587,
+        1.0531189049114844
+      ],
+      "bootstrap_replicates": {
+        "finite": 4000,
+        "unbounded": 0,
+        "undefined": 0
+      },
+      "candidate": 12871,
+      "rate_ratio": 0.9816845779910853,
+      "ratio_status": "finite"
+    },
+    "forcing": {
+      "baseline": 30647,
+      "bootstrap_ci95": [
+        0.9578710621218656,
+        1.0163797754055353
+      ],
+      "bootstrap_replicates": {
+        "finite": 4000,
+        "unbounded": 0,
+        "undefined": 0
+      },
+      "candidate": 30233,
+      "rate_ratio": 0.9862553827857774,
+      "ratio_status": "finite"
+    }
+  },
+  "terminations": {
+    "adjudication": 906,
+    "normal": 975
+  },
+  "uncompressed_pgn_sha256": "0fddb8d9b1c849a54e28736ad9cf725217d53aa521cae4ce5fbaa518a171881e",
+  "unpaired_games": [
+    {
+      "black": "Baseline",
+      "result": "1/2-1/2",
+      "round": 940,
+      "termination": "normal",
+      "white": "Candidate"
+    },
+    {
+      "black": "Baseline",
+      "result": "1/2-1/2",
+      "round": 943,
+      "termination": "normal",
+      "white": "Candidate"
+    },
+    {
+      "black": "Baseline",
+      "result": "1/2-1/2",
+      "round": 951,
+      "termination": "normal",
+      "white": "Candidate"
+    }
+  ]
+}

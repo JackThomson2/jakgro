@@ -8,7 +8,7 @@
 //! compiled for it; other callers select once per perspective update and once
 //! per output, never per feature.
 
-use std::ops::{Deref, DerefMut};
+use std::ops::{Deref, DerefMut, Range};
 
 use super::{ACTIVATION_MAX, HIDDEN_SIZE, OUTPUT_WEIGHT_LIMIT};
 
@@ -279,6 +279,14 @@ const fn lanes_within_chunk(lanes: usize, units: usize) -> bool {
     units.is_multiple_of(lanes) && units / lanes <= OUTPUT_CHUNK
 }
 
+/// Units an accumulator of `lanes` `i32` lanes may cover before it has to
+/// spill into the `i64` total: as many as leave each lane [`OUTPUT_CHUNK`]
+/// products.
+#[cfg(target_arch = "x86_64")]
+const fn spill_block(lanes: usize) -> usize {
+    lanes * OUTPUT_CHUNK
+}
+
 /// One pass adds at most two rows and subtracts at most two. Ordinary moves
 /// change two to four features of a perspective, which is one pass. A rebuild
 /// only adds, four rows to a pass.
@@ -408,8 +416,12 @@ mod avx2 {
 
     /// Units per vector.
     const WIDTH: usize = 16;
-    /// Each perspective has its own accumulator of `WIDTH / 2` lanes.
-    const _: () = assert!(lanes_within_chunk(WIDTH / 2, HIDDEN_SIZE));
+    /// Units one accumulator of `WIDTH / 2` lanes covers before it spills:
+    /// 512, so a 512-wide perspective takes exactly one block, as before
+    /// blocking. A wider row takes several, the last possibly shorter.
+    const BLOCK: usize = spill_block(WIDTH / 2);
+    const _: () = assert!(lanes_within_chunk(WIDTH / 2, BLOCK));
+    const _: () = assert!(BLOCK.is_multiple_of(WIDTH) && HIDDEN_SIZE.is_multiple_of(WIDTH));
 
     #[inline]
     #[target_feature(enable = "avx2")]
@@ -438,26 +450,51 @@ mod avx2 {
     /// The host must support AVX2.
     #[inline(always)]
     pub(super) unsafe fn output_body(weights: &[Row; 2], sums: [&Row; 2]) -> i64 {
+        let mut total = 0_i64;
+        for (weights, sums) in weights.iter().zip(sums) {
+            for block in 0..HIDDEN_SIZE.div_ceil(BLOCK) {
+                // A block is a whole number of vectors, at most `BLOCK` units.
+                let units = block * BLOCK..HIDDEN_SIZE.min((block + 1) * BLOCK);
+                // SAFETY: the caller guarantees AVX2; `units` lies within the
+                // rows and holds whole vectors.
+                total += unsafe { spill(accumulate(weights, sums, units)) };
+            }
+        }
+        total
+    }
+
+    /// The sum over `units` of the products of `weights` with the squared
+    /// clipped `sums`, in `WIDTH / 2` lanes of two products a vector.
+    ///
+    /// # Safety
+    ///
+    /// The host must support AVX2; `units` must lie within the rows, start
+    /// and end on a multiple of `WIDTH`, and span at most `BLOCK` units.
+    #[inline(always)]
+    unsafe fn accumulate(weights: &Row, sums: &Row, units: Range<usize>) -> __m256i {
         // SAFETY: the caller guarantees AVX2; rows are 64-byte aligned and
-        // `unit + WIDTH` stays within them; a vector is exactly its lanes.
+        // `unit + WIDTH` stays within them.
         unsafe {
             let zero = _mm256_setzero_si256();
             let ceiling = _mm256_set1_epi16(ACTIVATION_MAX as i16);
-            let mut total = 0_i64;
-            for (weights, sums) in weights.iter().zip(sums) {
-                let mut lanes = zero;
-                for unit in (0..HIDDEN_SIZE).step_by(WIDTH) {
-                    let sum = _mm256_load_si256(sums.0.as_ptr().add(unit).cast());
-                    let weight = _mm256_load_si256(weights.0.as_ptr().add(unit).cast());
-                    let activation = _mm256_min_epi16(_mm256_max_epi16(sum, zero), ceiling);
-                    let product = _mm256_mullo_epi16(weight, activation);
-                    lanes = _mm256_add_epi32(lanes, _mm256_madd_epi16(product, activation));
-                }
-                let lanes: [i32; WIDTH / 2] = std::mem::transmute::<__m256i, _>(lanes);
-                total += lanes.iter().map(|&lane| i64::from(lane)).sum::<i64>();
+            let mut lanes = zero;
+            for unit in units.step_by(WIDTH) {
+                let sum = _mm256_load_si256(sums.0.as_ptr().add(unit).cast());
+                let weight = _mm256_load_si256(weights.0.as_ptr().add(unit).cast());
+                let activation = _mm256_min_epi16(_mm256_max_epi16(sum, zero), ceiling);
+                let product = _mm256_mullo_epi16(weight, activation);
+                lanes = _mm256_add_epi32(lanes, _mm256_madd_epi16(product, activation));
             }
-            total
+            lanes
         }
+    }
+
+    /// Folds the lanes of an accumulator into one 64-bit sum.
+    #[inline(always)]
+    fn spill(lanes: __m256i) -> i64 {
+        // SAFETY: a vector is exactly its lanes.
+        let lanes: [i32; WIDTH / 2] = unsafe { std::mem::transmute::<__m256i, _>(lanes) };
+        lanes.iter().map(|&lane| i64::from(lane)).sum()
     }
 }
 
@@ -472,8 +509,14 @@ mod avx512 {
 
     /// Units per vector.
     const WIDTH: usize = 32;
-    /// One accumulator of `WIDTH / 2` lanes covers both perspectives.
-    const _: () = assert!(lanes_within_chunk(WIDTH / 2, 2 * HIDDEN_SIZE));
+    /// Units one accumulator of `WIDTH / 2` lanes covers before it spills:
+    /// 1024. While both perspectives fit one block together, as at 512
+    /// units, they share one accumulator and one reduction; a wider row
+    /// spills each perspective block by block, the last possibly shorter.
+    const BLOCK: usize = spill_block(WIDTH / 2);
+    const SHARED: bool = 2 * HIDDEN_SIZE <= BLOCK;
+    const _: () = assert!(lanes_within_chunk(WIDTH / 2, BLOCK));
+    const _: () = assert!(BLOCK.is_multiple_of(WIDTH) && HIDDEN_SIZE.is_multiple_of(WIDTH));
 
     #[inline]
     #[target_feature(enable = "avx512bw")]
@@ -502,24 +545,67 @@ mod avx512 {
     /// The host must support AVX-512BW.
     #[inline(always)]
     pub(super) unsafe fn output_body(weights: &[Row; 2], sums: [&Row; 2]) -> i64 {
+        // SAFETY: the caller guarantees AVX-512BW; every range lies within
+        // the rows and holds whole vectors; a shared accumulator covers
+        // `2 * HIDDEN_SIZE <= BLOCK` units and any other at most `BLOCK`.
+        unsafe {
+            let zero = _mm512_setzero_si512();
+            if SHARED {
+                let mut lanes = zero;
+                for (weights, sums) in weights.iter().zip(sums) {
+                    lanes = accumulate(lanes, weights, sums, 0..HIDDEN_SIZE);
+                }
+                return spill(lanes);
+            }
+            let mut total = 0_i64;
+            for (weights, sums) in weights.iter().zip(sums) {
+                for block in 0..HIDDEN_SIZE.div_ceil(BLOCK) {
+                    let units = block * BLOCK..HIDDEN_SIZE.min((block + 1) * BLOCK);
+                    total += spill(accumulate(zero, weights, sums, units));
+                }
+            }
+            total
+        }
+    }
+
+    /// `lanes` plus the sum over `units` of the products of `weights` with
+    /// the squared clipped `sums`, in `WIDTH / 2` lanes of two products a
+    /// vector.
+    ///
+    /// # Safety
+    ///
+    /// The host must support AVX-512BW; `units` must lie within the rows,
+    /// start and end on a multiple of `WIDTH`, and, together with whatever
+    /// `lanes` already covers, span at most `BLOCK` units.
+    #[inline(always)]
+    unsafe fn accumulate(
+        mut lanes: __m512i,
+        weights: &Row,
+        sums: &Row,
+        units: Range<usize>,
+    ) -> __m512i {
         // SAFETY: the caller guarantees AVX-512BW; rows are 64-byte aligned
-        // and `unit + WIDTH` stays within them; a vector is exactly its lanes.
+        // and `unit + WIDTH` stays within them.
         unsafe {
             let zero = _mm512_setzero_si512();
             let ceiling = _mm512_set1_epi16(ACTIVATION_MAX as i16);
-            let mut lanes = zero;
-            for (weights, sums) in weights.iter().zip(sums) {
-                for unit in (0..HIDDEN_SIZE).step_by(WIDTH) {
-                    let sum = _mm512_load_si512(sums.0.as_ptr().add(unit).cast());
-                    let weight = _mm512_load_si512(weights.0.as_ptr().add(unit).cast());
-                    let activation = _mm512_min_epi16(_mm512_max_epi16(sum, zero), ceiling);
-                    let product = _mm512_mullo_epi16(weight, activation);
-                    lanes = _mm512_add_epi32(lanes, _mm512_madd_epi16(product, activation));
-                }
+            for unit in units.step_by(WIDTH) {
+                let sum = _mm512_load_si512(sums.0.as_ptr().add(unit).cast());
+                let weight = _mm512_load_si512(weights.0.as_ptr().add(unit).cast());
+                let activation = _mm512_min_epi16(_mm512_max_epi16(sum, zero), ceiling);
+                let product = _mm512_mullo_epi16(weight, activation);
+                lanes = _mm512_add_epi32(lanes, _mm512_madd_epi16(product, activation));
             }
-            let lanes: [i32; WIDTH / 2] = std::mem::transmute::<__m512i, _>(lanes);
-            lanes.iter().map(|&lane| i64::from(lane)).sum()
+            lanes
         }
+    }
+
+    /// Folds the lanes of an accumulator into one 64-bit sum.
+    #[inline(always)]
+    fn spill(lanes: __m512i) -> i64 {
+        // SAFETY: a vector is exactly its lanes.
+        let lanes: [i32; WIDTH / 2] = unsafe { std::mem::transmute::<__m512i, _>(lanes) };
+        lanes.iter().map(|&lane| i64::from(lane)).sum()
     }
 }
 
@@ -683,6 +769,60 @@ mod tests {
             assert!(expected.abs() > i64::from(i32::MAX));
             for (kernel, result) in outputs(&weights, [&saturated, &saturated]) {
                 assert_eq!(result, expected, "{kernel}");
+            }
+        }
+    }
+
+    /// Every kernel must agree with the scalar definition and the exact sum
+    /// when every product is at its largest magnitude: weights at the limit,
+    /// sums far past the clip on either side, signs that agree within a
+    /// stretch of units so that partial sums grow as fast as they can, and
+    /// stretches shorter and longer than a spill block.
+    #[test]
+    fn output_kernels_match_the_scalar_definition_on_maximal_magnitudes() {
+        let sums = [i16::MAX, 255, 256, 0, -1, i16::MIN];
+        for stretch in [1, 8, 16, 64, 256, 512, HIDDEN_SIZE] {
+            for pattern in 0..4 {
+                let weight = |unit: usize, perspective: usize| {
+                    let flip = match pattern {
+                        0 => false,
+                        1 => perspective == 1,
+                        2 => (unit / stretch).is_multiple_of(2),
+                        _ => (unit / stretch + perspective).is_multiple_of(3),
+                    };
+                    if flip {
+                        -OUTPUT_WEIGHT_LIMIT
+                    } else {
+                        OUTPUT_WEIGHT_LIMIT
+                    }
+                };
+                let weights: [Row; 2] = std::array::from_fn(|perspective| {
+                    Row(std::array::from_fn(|unit| weight(unit, perspective)))
+                });
+                for clip in 0..sums.len() {
+                    // Mostly saturated, with the other clips sprinkled in.
+                    let rows: [Row; 2] = std::array::from_fn(|perspective| {
+                        Row(std::array::from_fn(|unit| {
+                            if (unit / stretch + perspective).is_multiple_of(5) {
+                                sums[(clip + unit) % sums.len()]
+                            } else {
+                                [i16::MAX, 255][perspective]
+                            }
+                        }))
+                    });
+                    let expected: i64 = (0..2)
+                        .flat_map(|perspective| {
+                            (0..HIDDEN_SIZE).map(move |unit| (perspective, unit))
+                        })
+                        .map(|(perspective, unit)| {
+                            let activation = i64::from(rows[perspective].0[unit].clamp(0, 255));
+                            i64::from(weights[perspective].0[unit]) * activation * activation
+                        })
+                        .sum();
+                    for (kernel, result) in outputs(&weights, [&rows[0], &rows[1]]) {
+                        assert_eq!(result, expected, "{kernel} {stretch} {pattern} {clip}");
+                    }
+                }
             }
         }
     }

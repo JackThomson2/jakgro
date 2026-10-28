@@ -41,6 +41,8 @@ The [principal-variation bit report](docs/tuning/principal-variation-bit-series.
 
 The [from-scratch network report](docs/tuning/network-from-scratch-series.md) ships the network trained from scratch, with the factorizer, quantization-aware training and the weight average from the first epoch, on the published corpus together with the self-play the head generated and labelled with the tablebases on. Loaded into the same binary it measures **+25.1 Elo [+13.1, +37.2]** against the network it replaces at `10+0.1` and Aggression 75, the sequential test accepting H1 after 1,316 games, and +24.0 [+14.3, +33.7] in a fixed 2,048-game confirmation from a second opening seed; at 50 ms per move it measures +6.4 [+0.3, +12.5]. The forcing and check rates are 1.019 and 1.037 of the old network's in the same games. Five profile controls the old network separated no longer separate and are replaced by positions mined from self-play the new network was not trained on, and the null-move contract measures its saving over five depths rather than one. The same report measures the clock at `10+0.1` for the first time: spreading the soft budget over 20 or 26 moves with the whole increment did not gain (+3.1 [−3.2, +9.3] and −10.7 [−20.0, −1.5]), and adding the whole increment to the fifteen-move budget measured +7.3 [+1.4, +13.2] over 4,096 games without reaching the sequential test's acceptance; that change was adopted afterwards on this screen alone, without a confirmation run.
 
+The [training-pipeline report](docs/tuning/nnue-training-pipeline.md) prepares the tools for a network trained on about twice the corpus. Corpus generation can now set the arbiter's adjudication thresholds. The trainer gains a per-step cosine schedule with warmup, and checkpoints written as each epoch finishes. A training row shrinks from 144 to 36 bytes, and dataset preparation from about 275 to about 50 bytes a kept row. The x86 output kernels now compile past 512 units. Every run the old tools could make gives byte-identical results, and at 512 units the engine is instruction-identical. A 1024-unit network searched 15 to 20 percent fewer nodes per second than a 512-unit one in a single-threaded measurement.
+
 The [Syzygy report](docs/tuning/syzygy.md) starts from what the tablebases say about 1,800 external games: with five pieces or fewer, an evaluation of +2.5 or more was a draw 94.5% of the time, and 44.5 points (2.5% of the games, about 17 Elo) went unconverted in won endings, nearly all by running out the fifty-move rule. With `SyzygyPath` set the engine ranks root moves from the distance tables and answers covered positions from the win-draw-loss tables in the search and in quiescence. It then converts 800 of 800 won positions where the same engine without tables converts 64%, scores +39.8 Elo from endgame entries and +3.9 [+0.7, +7.2] from ordinary openings against itself at 50 ms, and in the 30+0.3 ladder gauntlet converts every won ending it reaches (60 of 60, against 42 of 94) and never stands in a lost one, while the gauntlet's score, 54.9% against 54.5%, is inside its noise. Without a path searches are node-for-node what they were, and with the five-man tables loaded throughput is within half a percent.
 
 The [evaluation strength trials](docs/tuning/aggression75-evaluation-strength.md) record eight small fits and three 1,024-game Aggression-75 screens, with **no demonstrated Elo gain**. The retained exact-evaluation cache is an experimental checkpoint: −1.0 Elo [−11.7, +9.7] and effectively unchanged throughput, despite passing the fixed-node safety and personality checks. The report preserves rejected fits, failed checks and reproduction evidence; it does not recommend replacing the baseline for strength.
@@ -339,16 +341,18 @@ setoption name EvalFile value <embedded>  # back to the built-in network
 ```
 
 A rejected file is reported as `info string EvalFile rejected: ...` and leaves
-the previous configuration in place. The shipped network is the published
-512-unit network continued twice at a low rate on its own corpus plus
-20,000-node self-play of the search (`nnue-data train --init-network`). The
-first continuation, twenty-two epochs, measured +15.2 Elo [8.9, 21.5] over the
-published network in 4096 games at 50,000 nodes per move. The second, eight
-epochs with a row per plane and square shared by the king buckets,
-quantization-aware training and a moving average of the weights
-(`--factorize`, `--qat`, `--ema`), measured +25.9 [19.6, 32.2] over the first
-at 50,000 nodes and +20.0 [13.5, 26.6] at 50 ms per move, with the Aggression 75
-versus 0 forcing-move ratio at 1.178 against 1.129. The published 512-unit network measured
+the previous configuration in place. The shipped network was trained from
+scratch for 80 epochs on 333.9M rows, the published corpus together with
+self-play the head generated and labelled with the tablebases on, with the
+king-bucket factorizer, quantization-aware training and a moving average of
+the weights (`--factorize`, `--qat`, `--ema`) on from the first epoch. It
+measured +25.1 Elo [13.1, 37.2] at `10+0.1` over the network it replaced, and
++24.0 [14.3, 33.7] in a fixed 2,048-game confirmation. That network was the
+published 512-unit network continued twice at a low rate on its own corpus
+plus 20,000-node self-play (`nnue-data train --init-network`), the second time
+with the same three devices; it measured +25.9 [19.6, 32.2] over the first
+continuation at 50,000 nodes, and the first continuation +15.2 [8.9, 21.5]
+over the published network. The published 512-unit network measured
 +44.6 Elo [38.1, 51.1] over the previous 128-unit clipped-ReLU network at
 Aggression 75 in 4096 games at 50 ms per move (otherwise identical engines);
 the engine as a whole measured +128.1 [120.6, 135.7] over the head that
@@ -358,7 +362,8 @@ measured +147 [136, 158] over the handcrafted evaluator in 2048 paired
 searching about 1.3 times as many nodes per second, with the Aggression 75
 versus 0 forcing-move ratio kept (1.08 against the handcrafted 1.06). The
 series is recorded in
-[`docs/tuning/nnue-aggression75.md`](docs/tuning/nnue-aggression75.md).
+[`docs/tuning/nnue-aggression75.md`](docs/tuning/nnue-aggression75.md) and
+[`docs/tuning/network-from-scratch-series.md`](docs/tuning/network-from-scratch-series.md).
 
 The network is about a fifth of search time. Each search's accumulator stack
 selects the widest kernel level the host supports, AVX-512BW or AVX2 together
@@ -393,20 +398,32 @@ python3 tools/generate_nnue_corpus.py --engine target/release/jakgro \
 `generate_nnue_corpus.py` plays deterministic fixed-node self-play between two
 aggression profiles from seeded random-ply openings and extracts
 `FEN;white-outcome;white-score-cp` rows with `tune extract`, so the mover's own
-search score is the teacher label. `prepare` computes the runtime features,
+search score is the teacher label; its `--resign-score`, `--resign-move-count`,
+`--draw-move-number`, `--draw-move-count`, `--draw-score` and `--max-moves`
+reach the arbiter when given. `prepare` computes the runtime features,
 rejects (or, when asked, drops) duplicate positions and development rows that
 repeat a training position up to colour and rank mirroring, and binds the
-result to its inputs with parallel SHA-256 tree digests (`CHECKSUMS`). `train` runs
+result to its inputs with parallel SHA-256 tree digests (`CHECKSUMS`); it
+streams its inputs and remembers the rows it kept by 128-bit digests, about 50
+bytes a kept row. `train` runs
 full-parameter Adam over fixed gradient shards, so the exported network does
 not depend on the thread count; each epoch is exported, re-loaded through the
 engine's own network loader and scored on the development split, and the epoch
 with the lowest development label loss is published beside `report.json`.
-Splits are streamed in bounded blocks and only the rows scored for metrics keep
-a board, so a 216M-row run holds about 31 GB. `--init-network` continues an
+Splits are streamed in bounded blocks and each training row is held as its
+packed board, 36 bytes with its place in the shuffle, so the shipped network's
+333.9M rows take 12 GB. `--init-network` continues an
 exported network; `--ema DECAY` publishes an exponential moving average of the
 weights and keeps the best raw epoch as `raw-network.nnue`; `--factorize true`
 trains a row per plane and square shared by the king buckets and folds it into
 the export; and `--qat true` trains through the export's rounding.
+`--schedule cosine` with `--warmup-steps N` and `--final-rate F` sets the rate
+of every step instead of multiplying it by `--rate-decay` after each epoch, and
+`--save-every N` keeps the networks of every Nth epoch and the last in
+`checkpoints/`, written as each epoch finishes so they can be screened while
+the run continues; the
+[training-pipeline report](docs/tuning/nnue-training-pipeline.md) records
+these options and what they were measured on.
 `tools/nnue_recipe.sh` records the corpus and training settings the
 autoresearch harness measures, and `tools/nnue_corpus.sh` pre-generates any
 missing corpus members, including seed groups taught by a previously published

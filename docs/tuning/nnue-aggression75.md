@@ -293,8 +293,10 @@ replacing it. The corpus, the prepared data and the three reports are in
 
 ## Factorized network
 
-The shipped network (`nets/jakgro.nnue`, SHA-256
-`39ec8c5cab524eb81db580b42fe852b536ade5d1b1f07b42db90980c17e76d78`) is the
+The factorized network (SHA-256
+`39ec8c5cab524eb81db580b42fe852b536ade5d1b1f07b42db90980c17e76d78`), shipped
+until the network trained from scratch in the
+[from-scratch series](network-from-scratch-series.md) replaced it, is the
 continued network above continued once more, for eight epochs at rate 0.0001
 decaying by 0.9 per epoch, batch 8192, L2 1e-6, seed 75 and λ 0.25, with three
 trainer options added for it:

@@ -343,19 +343,112 @@ impl RateSchedule {
     }
 }
 
-/// One prepared position's training inputs, oriented to the side to move.
+/// One prepared position's training inputs: its board packed into 24 bytes,
+/// the side to move and the fitted label.
 ///
-/// A training row carries no board: gradients need only the features, and a
-/// board per row would more than double what a large corpus holds in memory.
-#[derive(Clone)]
+/// Both perspectives' features are derived from the board each time a shard
+/// reads the row, by [`Row::features`], so a row takes a quarter of the
+/// memory its two feature lists would.
+#[derive(Clone, Copy)]
 struct Row {
-    /// Side-to-move perspective features, then the opponent's.
-    features: [[u16; MAX_PIECES]; 2],
-    count: u8,
-    /// Output layer selected by the piece count.
-    bucket: u8,
+    /// Occupied squares, a1 = bit 0.
+    occupied: u64,
+    /// The piece on each occupied square in increasing square order, two to
+    /// a byte, low nibble first: `owner * 6 + kind`, with White = 0 and
+    /// P/N/B/R/Q/K = 0..5.
+    pieces: [u8; MAX_PIECES / 2],
     /// Fitted label after mixing outcome and teacher probability.
     label: f32,
+    black_to_move: bool,
+}
+
+/// Both perspectives' features of one training row, as the engine's
+/// [`active_features`] lists them: sorted, side to move first.
+struct RowFeatures {
+    features: [[u16; MAX_PIECES]; 2],
+    count: usize,
+    /// Output layer selected by the piece count.
+    bucket: usize,
+}
+
+impl Row {
+    /// Packs a board of at most `MAX_PIECES` pieces.
+    fn pack(board: &Board, label: f32) -> Self {
+        let mut codes = [0_u8; 64];
+        for (owner, color) in cozy_chess::Color::ALL.into_iter().enumerate() {
+            for (kind, piece) in cozy_chess::Piece::ALL.into_iter().enumerate() {
+                for square in board.colored_pieces(color, piece) {
+                    codes[square as usize] = (owner * 6 + kind) as u8;
+                }
+            }
+        }
+        let occupied = board.occupied().0;
+        let mut pieces = [0_u8; MAX_PIECES / 2];
+        let mut remaining = occupied;
+        let mut index = 0;
+        while remaining != 0 {
+            let square = remaining.trailing_zeros() as usize;
+            pieces[index / 2] |= codes[square] << (4 * (index % 2));
+            remaining &= remaining - 1;
+            index += 1;
+        }
+        Self {
+            occupied,
+            pieces,
+            label,
+            black_to_move: board.side_to_move() == cozy_chess::Color::Black,
+        }
+    }
+
+    /// Derives both perspectives' features from the packed board.
+    ///
+    /// A perspective numbers a feature `(bucket * 12 + plane) * 64 + square`,
+    /// with the plane relative to it and the square oriented to it, exactly
+    /// as [`active_features`] does; walking the relative planes in order and
+    /// each plane's oriented squares upward yields the features sorted.
+    #[inline(always)]
+    fn features(&self) -> RowFeatures {
+        let mut planes = [0_u64; PIECE_PLANES];
+        let mut remaining = self.occupied;
+        let mut count = 0;
+        while remaining != 0 {
+            let code = (self.pieces[count / 2] >> (4 * (count % 2))) & 0xF;
+            planes[usize::from(code)] |= remaining & remaining.wrapping_neg();
+            remaining &= remaining - 1;
+            count += 1;
+        }
+        let mut features = [[0_u16; MAX_PIECES]; 2];
+        let side_to_move = usize::from(self.black_to_move);
+        for (side, perspective) in [side_to_move, side_to_move ^ 1].into_iter().enumerate() {
+            let king = planes[6 * perspective + 5].trailing_zeros() as usize;
+            let mirror = king % 8 >= 4;
+            let oriented_king = king ^ (56 * perspective) ^ (7 * usize::from(mirror));
+            let bucket = oriented_king / 16 * 2 + oriented_king % 8 / 2;
+            let mut next = 0;
+            for plane in 0..PIECE_PLANES {
+                let squares = planes[((plane / 6) ^ perspective) * 6 + plane % 6];
+                // Black's view moves square `s` to `s ^ 56`, a mirrored one
+                // to `s ^ 7`.
+                let mut oriented = match (perspective == 1, mirror) {
+                    (false, false) => squares,
+                    (true, false) => squares.swap_bytes(),
+                    (false, true) => squares.reverse_bits().swap_bytes(),
+                    (true, true) => squares.reverse_bits(),
+                };
+                let base = (bucket * PIECE_PLANES + plane) * 64;
+                while oriented != 0 {
+                    features[side][next] = (base + oriented.trailing_zeros() as usize) as u16;
+                    oriented &= oriented - 1;
+                    next += 1;
+                }
+            }
+        }
+        RowFeatures {
+            features,
+            count,
+            bucket: (count - 1) / 4,
+        }
+    }
 }
 
 /// What integer metrics need of a position: the board the engine's own
@@ -579,8 +672,9 @@ fn parse_block(
 /// before any is parsed, then to parse every block on every thread.
 ///
 /// Every row's stored features are recomputed from its FEN with the engine's
-/// own mapping, so a dataset prepared by another feature set is rejected here
-/// rather than trusted.
+/// own mapping and again from the packed board the trainer keeps, so neither
+/// a dataset prepared by another feature set nor a packing fault goes
+/// unnoticed.
 fn read_split(
     path: &Path,
     block_bytes: usize,
@@ -695,23 +789,61 @@ fn parse_row(line: &str, label_mix: f32, k: f32) -> Result<(Row, MetricRow), Str
     let label = teacher.map_or(outcome, |score| {
         label_mix * outcome + (1.0 - label_mix) * sigmoid(sign * score, k)
     });
+    let row = Row::pack(&board, label);
+    let derived = row.features();
+    let stored = if stm == 0 {
+        [white, black]
+    } else {
+        [black, white]
+    };
+    if derived.count != white_count || derived.features != stored {
+        return Err(
+            "features derived from the packed board disagree with the stored ones".to_owned(),
+        );
+    }
     Ok((
-        Row {
-            features: if stm == 0 {
-                [white, black]
-            } else {
-                [black, white]
-            },
-            count: white_count as u8,
-            bucket: ((white_count - 1) / 4) as u8,
-            label,
-        },
+        row,
         MetricRow {
             board,
             outcome,
             label,
         },
     ))
+}
+
+/// Marks every feature some training row activates, deriving the rows'
+/// features on every thread.
+fn row_support(training: &[Row], threads: usize) -> Vec<bool> {
+    let parts = thread::scope(|scope| {
+        let handles = training
+            .chunks(training.len().div_ceil(threads).max(1))
+            .map(|rows| {
+                scope.spawn(move || {
+                    let mut support = vec![false; INPUT_FEATURES];
+                    for row in rows {
+                        let features = row.features();
+                        for side in &features.features {
+                            for &feature in &side[..features.count] {
+                                support[usize::from(feature)] = true;
+                            }
+                        }
+                    }
+                    support
+                })
+            })
+            .collect::<Vec<_>>();
+        handles
+            .into_iter()
+            .map(|handle| handle.join().expect("support pass panicked"))
+            .collect::<Vec<_>>()
+    });
+    let mut support = vec![false; INPUT_FEATURES];
+    for part in parts {
+        for (supported, seen) in support.iter_mut().zip(part) {
+            *supported |= seen;
+        }
+    }
+    support
 }
 
 /// SplitMix64: a small seeded generator for initialization and shuffling.
@@ -868,15 +1000,16 @@ impl Parameters {
         }
     }
 
-    /// Unclipped sums, activations and the raw float score of one row.
+    /// Unclipped sums, activations and the raw float score of one row's
+    /// features.
     #[inline(always)]
-    fn forward(&self, row: &Row) -> ([[f32; HIDDEN_SIZE]; 2], f32) {
+    fn forward(&self, row: &RowFeatures) -> ([[f32; HIDDEN_SIZE]; 2], f32) {
         let mut sums = [[0.0_f32; HIDDEN_SIZE]; 2];
-        let bucket = usize::from(row.bucket);
+        let bucket = row.bucket;
         let mut total = self.bias[bucket];
         for (side, sum) in sums.iter_mut().enumerate() {
             sum.copy_from_slice(&self.hidden);
-            for &feature in &row.features[side][..usize::from(row.count)] {
+            for &feature in &row.features[side][..row.count] {
                 let start = usize::from(feature) * HIDDEN_SIZE;
                 for (value, &weight) in sum.iter_mut().zip(&self.input[start..start + HIDDEN_SIZE])
                 {
@@ -1027,7 +1160,8 @@ fn shard_gradient_impl(
     let mut loss = 0.0_f64;
     let derivative_scale = 2.0 / batch as f32 * sigmoid_scale(k) * FLOAT_CP_SCALE;
     for row in rows {
-        let (sums, raw) = parameters.forward(row);
+        let features = row.features();
+        let (sums, raw) = parameters.forward(&features);
         let score = raw.clamp(-(MAX_SCORE as f32), MAX_SCORE as f32);
         let prediction = sigmoid(score, k);
         let error = prediction - row.label;
@@ -1036,7 +1170,7 @@ fn shard_gradient_impl(
             continue;
         }
         let outer = derivative_scale * error * prediction * (1.0 - prediction);
-        let bucket = usize::from(row.bucket);
+        let bucket = features.bucket;
         gradient.bias[bucket] += outer;
         for (side, sums) in sums.iter().enumerate() {
             let start = (bucket * 2 + side) * HIDDEN_SIZE;
@@ -1054,7 +1188,7 @@ fn shard_gradient_impl(
             for (value, &delta) in gradient.hidden.iter_mut().zip(&hidden_gradient) {
                 *value += delta;
             }
-            for &feature in &row.features[side][..usize::from(row.count)] {
+            for &feature in &features.features[side][..features.count] {
                 let start = usize::from(feature) * HIDDEN_SIZE;
                 for (value, &delta) in gradient.input[start..start + HIDDEN_SIZE]
                     .iter_mut()
@@ -1350,7 +1484,7 @@ struct Step<'a> {
 /// batch losses, the batch count and the wall seconds of phases two and three.
 fn run_epoch<'a>(
     training: &'a [Row],
-    order: &[usize],
+    order: &[u32],
     options: &Options,
     state: EpochState<'_>,
     step: &mut usize,
@@ -1575,7 +1709,7 @@ fn run_epoch<'a>(
                 current.rows.clear();
                 current
                     .rows
-                    .extend(batch.iter().map(|&index| &training[index]));
+                    .extend(batch.iter().map(|&index| &training[index as usize]));
                 current.shard_size = batch.len().div_ceil(shard_count).max(1);
                 current.update.step = *step;
                 current.update.rate = schedule.rate(*step);
@@ -1735,14 +1869,9 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
     )?
     .metrics;
     let schedule = RateSchedule::new(options, training.len().div_ceil(options.batch_size))?;
-    let mut support = vec![false; INPUT_FEATURES];
-    for row in &training {
-        for side in &row.features {
-            for &feature in &side[..usize::from(row.count)] {
-                support[usize::from(feature)] = true;
-            }
-        }
-    }
+    let row_count = u32::try_from(training.len())
+        .map_err(|_| "the trainer holds at most 2^32 - 1 training rows".to_owned())?;
+    let mut support = row_support(&training, options.threads);
     let initial_bytes = options
         .init_network
         .as_ref()
@@ -1791,7 +1920,7 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
     let initial_development =
         integer_metrics(&initial_network, &development, options.k, options.threads);
     let mut random = Random(options.seed ^ 0x9E37_79B9_7F4A_7C15);
-    let mut order = (0..training.len()).collect::<Vec<_>>();
+    let mut order = (0..row_count).collect::<Vec<_>>();
     let mut step = 0;
     let mut history = Vec::new();
     let mut best: Option<(usize, Metrics, Vec<u8>)> = None;
@@ -2108,6 +2237,96 @@ mod tests {
         assert!(parse_row(&format!("{FEN}\t{FEN}\t1\t1\t-\t0\t0"), 0.5, 0.88).is_err());
     }
 
+    /// A FEN of `pieces` on their squares, a1 = 0, with no castling rights.
+    fn placement(pieces: &[(usize, char)], black_to_move: bool) -> String {
+        let mut squares = [None; 64];
+        for &(square, piece) in pieces {
+            squares[square] = Some(piece);
+        }
+        let ranks = (0..8)
+            .rev()
+            .map(|rank| {
+                let mut text = String::new();
+                let mut empty = 0;
+                for square in &squares[rank * 8..rank * 8 + 8] {
+                    match square {
+                        Some(piece) => {
+                            if empty > 0 {
+                                text.push_str(&empty.to_string());
+                                empty = 0;
+                            }
+                            text.push(*piece);
+                        }
+                        None => empty += 1,
+                    }
+                }
+                if empty > 0 {
+                    text.push_str(&empty.to_string());
+                }
+                text
+            })
+            .collect::<Vec<_>>()
+            .join("/");
+        format!("{ranks} {} - - 0 1", if black_to_move { 'b' } else { 'w' })
+    }
+
+    #[test]
+    fn packed_rows_derive_the_engine_features() {
+        assert_eq!(std::mem::size_of::<Row>(), 32);
+        let mut fens = [
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R b KQkq - 0 1",
+            "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+            "rnbq1rk1/pp2ppbp/6p1/2pp4/2PPn3/4PNP1/PP3PBP/RNBQ1RK1 w - - 0 8",
+            FEN,
+        ]
+        .map(str::to_owned)
+        .to_vec();
+        // Each king on every square against the other king four or more
+        // ranks away, so both sides see every bucket, mirrored and not.
+        for king in 0..64 {
+            let rank = if king / 8 < 4 { 7 } else { 0 };
+            let far = rank * 8 + (king % 8 + 3) % 8;
+            for (white, black) in [(king, far), (far, king)] {
+                let mut pieces = vec![(white, 'K'), (black, 'k')];
+                for (square, piece) in [(0, 'N'), (12, 'P'), (49, 'p'), (63, 'n')] {
+                    if square != white && square != black {
+                        pieces.push((square, piece));
+                    }
+                }
+                for black_to_move in [false, true] {
+                    fens.push(placement(&pieces, black_to_move));
+                }
+            }
+        }
+        let mut checked = 0;
+        for fen in &fens {
+            // A few placements leave the side not to move in check.
+            let Ok(board) = fen.parse::<Board>() else {
+                continue;
+            };
+            let row = Row::pack(&board, 0.25);
+            let derived = row.features();
+            let stm = board.side_to_move();
+            for (side, perspective) in [stm, !stm].into_iter().enumerate() {
+                assert_eq!(
+                    derived.features[side][..derived.count],
+                    active_features(&board, perspective)[..],
+                    "{fen}: side {side}"
+                );
+            }
+            let pieces = board.occupied().len() as usize;
+            assert_eq!(
+                (derived.count, derived.bucket),
+                (pieces, (pieces - 1) / 4),
+                "{fen}"
+            );
+            assert_eq!(row.label, 0.25);
+            checked += 1;
+        }
+        assert!(checked > 200, "only {checked} positions were legal");
+    }
+
     fn temporary(name: &str) -> PathBuf {
         std::env::temp_dir().join(format!(
             "nnue-train-{name}-{}-{}",
@@ -2185,8 +2404,10 @@ mod tests {
                 assert_eq!(boards(&split), expected);
                 assert_eq!(split.rows.len(), reference.rows.len());
                 for (row, expected) in split.rows.iter().zip(&reference.rows) {
-                    assert_eq!(row.features, expected.features);
-                    assert_eq!((row.count, row.bucket), (expected.count, expected.bucket));
+                    assert_eq!(
+                        (row.occupied, row.pieces, row.black_to_move),
+                        (expected.occupied, expected.pieces, expected.black_to_move)
+                    );
                     assert_eq!(row.label.to_bits(), expected.label.to_bits());
                 }
                 let development = read(path, block, Keep::Metrics).unwrap();
@@ -2297,13 +2518,13 @@ mod tests {
         for (fen, stm) in positions {
             let (row, metric) = parse_row(&line(fen, stm, 0.5, "-"), 0.5, 0.88).unwrap();
             let engine = network.evaluate(&metric.board) as f32;
-            let (_, score) = rounded.weights.forward(&row);
+            let (_, score) = rounded.weights.forward(&row.features());
             // The engine truncates its score toward zero; nothing else differs.
             assert!(
                 (score - engine).abs() < 1.0 + 1e-3,
                 "{fen}: rounded view {score}, engine {engine}"
             );
-            missed = missed.max((unrounded.weights.forward(&row).1 - engine).abs());
+            missed = missed.max((unrounded.weights.forward(&row.features()).1 - engine).abs());
         }
         assert!(missed > 1.0, "the float weights already matched: {missed}");
     }
@@ -2316,7 +2537,7 @@ mod tests {
                 row(&fen, 0, [0.0, 0.5, 1.0][file % 3], "25")
             })
             .collect::<Vec<_>>();
-        let order = (0..rows.len()).collect::<Vec<_>>();
+        let order = (0..rows.len() as u32).collect::<Vec<_>>();
         let support = vec![true; INPUT_FEATURES];
         for (factorize, qat) in [(true, false), (false, true), (true, true)] {
             let options = Options {
@@ -2733,7 +2954,7 @@ mod tests {
             let view = parameters.folded();
             refs.iter()
                 .map(|row| {
-                    let (_, raw) = view.forward(row);
+                    let (_, raw) = view.forward(&row.features());
                     (f64::from(sigmoid(raw, 0.88)) - f64::from(row.label)).powi(2)
                 })
                 .sum::<f64>()
@@ -2741,7 +2962,8 @@ mod tests {
         };
         // Both perspectives' first features, whose factor rows the two
         // positions share across different king buckets.
-        for feature in [rows[0].features[0][1], rows[0].features[1][0]] {
+        let features = rows[0].features();
+        for feature in [features.features[0][1], features.features[1][0]] {
             let index = usize::from(feature) % FACTOR_ROWS * HIDDEN_SIZE + 5;
             let analytic = (0..KING_BUCKETS)
                 .map(|bucket| f64::from(gradient.input[bucket * FACTOR_ROWS * HIDDEN_SIZE + index]))
@@ -2856,15 +3078,16 @@ mod tests {
         let loss = |parameters: &Parameters| -> f64 {
             refs.iter()
                 .map(|row| {
-                    let (_, raw) = parameters.forward(row);
+                    let (_, raw) = parameters.forward(&row.features());
                     let prediction = f64::from(sigmoid(raw, 0.88));
                     (prediction - f64::from(row.label)).powi(2)
                 })
                 .sum::<f64>()
                 / refs.len() as f64
         };
-        let feature = usize::from(rows[0].features[0][1]) * HIDDEN_SIZE + 3;
-        let bucket = usize::from(rows[0].bucket);
+        let features = rows[0].features();
+        let feature = usize::from(features.features[0][1]) * HIDDEN_SIZE + 3;
+        let bucket = features.bucket;
         for (name, index) in [
             ("input", feature),
             ("hidden", 3),

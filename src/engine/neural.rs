@@ -40,11 +40,12 @@ impl Error for NnueConfigError {
 
 /// The network shipped inside the executable and used by default.
 ///
-/// `nets/jakgro.nnue` is the published network of the recipe in
-/// `tools/nnue_recipe.sh`, continued on the new head's self-play and then
-/// continued again with a king-bucket factor, quantization-aware training and
-/// a moving average of the weights, as `docs/tuning/nnue-aggression75.md`
-/// records; `nets/jakgro.report.json` records the last continuation.
+/// `nets/jakgro.nnue` was trained from scratch, with the king-bucket factor,
+/// quantization-aware training and a moving average of the weights from the
+/// first epoch, on the published corpus together with the self-play the
+/// current head generated as player and teacher with the tablebases on, as
+/// `docs/tuning/network-from-scratch-series.md` records;
+/// `nets/jakgro.report.json` records that training run.
 static EMBEDDED_NETWORK: LazyLock<Arc<nnue::Network>> = LazyLock::new(|| {
     Arc::new(
         nnue::Network::from_bytes(include_bytes!("../../nets/jakgro.nnue"))

@@ -1,8 +1,10 @@
 use jakgro::engine::{Engine, Position, SearchLimits, SearchScore, SearchTelemetry};
 
 const CONTRACT: &str = include_str!("data/null-move-contract.epd");
+/// Depths over which the node saving of null pruning is summed.
+const SAVING_DEPTHS: std::ops::RangeInclusive<u32> = 8..=12;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct ContractPosition {
     id: String,
     fen: String,
@@ -104,9 +106,8 @@ fn shallow_check_evasions_keep_the_winning_capture_with_or_without_null() {
 #[test]
 fn null_pruning_respects_its_blocks_and_saves_nodes_where_it_fires() {
     let mut allowed_attempts = 0;
-    // The position where null pruning fired most, with its node counts with
-    // and without it.
-    let mut busiest: Option<(u64, u64, u64)> = None;
+    // The position where null pruning fired most, with its cutoff count.
+    let mut busiest: Option<(u64, ContractPosition)> = None;
     for fixture in contracts() {
         let disabled = observe(&fixture, false);
         let enabled = observe(&fixture, true);
@@ -143,8 +144,8 @@ fn null_pruning_respects_its_blocks_and_saves_nodes_where_it_fires() {
         if fixture.null_allowed && enabled.telemetry.null_move_attempts() > 0 {
             allowed_attempts += enabled.telemetry.null_move_attempts();
             let cutoffs = enabled.telemetry.null_move_cutoffs();
-            if busiest.is_none_or(|(most, _, _)| cutoffs > most) {
-                busiest = Some((cutoffs, disabled.nodes, enabled.nodes));
+            if busiest.as_ref().is_none_or(|(most, _)| cutoffs > *most) {
+                busiest = Some((cutoffs, fixture.clone()));
             }
         }
         if !enabled.pv.is_empty() {
@@ -158,15 +159,25 @@ fn null_pruning_respects_its_blocks_and_saves_nodes_where_it_fires() {
         allowed_attempts > 0,
         "null pruning never activated on allowed positions"
     );
-    let (cutoffs, disabled_nodes, enabled_nodes) =
-        busiest.expect("an allowed position attempted null pruning");
+    let (cutoffs, fixture) = busiest.expect("an allowed position attempted null pruning");
     assert!(
         cutoffs > 0,
         "null pruning attempted but never cut on any allowed position"
     );
+    // One depth is not a stable witness of the saving: the node counts of a
+    // tree this small move by a fifth either way from one depth to the next
+    // as the table's contents shift, and which way depends on the network.
+    // The saving is measured over five consecutive depths instead.
+    let (enabled_nodes, disabled_nodes) = SAVING_DEPTHS.fold((0, 0), |(with, without), depth| {
+        (
+            with + observe_at_depth(&fixture, true, depth).nodes,
+            without + observe_at_depth(&fixture, false, depth).nodes,
+        )
+    });
     assert!(
         enabled_nodes * 100 <= disabled_nodes * 95,
         "null pruning did not reduce nodes by five percent where it fired most: \
-         {enabled_nodes} against {disabled_nodes} over {cutoffs} cutoffs"
+         {enabled_nodes} against {disabled_nodes} over depths {SAVING_DEPTHS:?} in {}",
+        fixture.id
     );
 }

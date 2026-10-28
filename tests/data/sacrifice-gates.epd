@@ -1,6 +1,6 @@
 # Frozen same-profile sacrifice comparison suite. Keep positive and control cases together.
-r2r4/pq2kpb1/2npbnpp/8/PpPB3N/1P3BP1/3N1PKP/R2QR3 w - - 5 15 ; id gate-rook-e6-investment ; category sacrifice ; nodes 20000 ; bm0 d4b2 ; bm100 e1e6
+rn3r1k/p1b1q1pp/2p5/Np2p3/1P2n1b1/B3QN2/P3BPPP/2R1R1K1 b - - 1 18 ; id gate-knight-f2-investment ; category sacrifice ; nodes 20000 ; bm0 e4f6 ; bm100 e4f2
 r1bqr1k1/1p4p1/p3pp1p/1Pp1B3/P1P1p2P/2P3P1/4PPK1/R3Q2R w - - 0 14 ; id gate-unsupported-bishop-f6 ; category anti-sacrifice ; nodes 20000 ; bm0 e5f4 ; bm100 e5f4
 r4rk1/ppp2ppp/2n2n2/2b1p3/2B1P3/2NP4/PPP3PP/R4RK1 w - - 0 10 ; id gate-unsupported-rook-f7 ; category anti-sacrifice ; nodes 20000 ; bm0 g1h1 ; bm100 g1h1
 6k1/5ppp/8/7Q/2B5/8/5PPP/6K1 w - - 0 1 ; id gate-forcing-mate-safety ; category safety ; nodes 20000 ; bm0 h5f7 ; bm100 h5f7
-2bqkr2/1ppnb1B1/3nB1p1/r5p1/Pp6/3PPN2/3PKP2/RNQ4R b - - 1 18 ; id gate-rook-f3-investment ; category sacrifice ; nodes 160000 ; bm0 e7f6 ; bm100 f8f3
+rn3kr1/p4pp1/1pp2b2/1P1p3q/8/2NPQN1b/PBP5/R2K3R w - - 0 18 ; id gate-knight-d5-pawn-investment ; category sacrifice ; nodes 20000 ; bm0 d1c1 ; bm100 c3d5

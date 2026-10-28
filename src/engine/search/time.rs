@@ -71,9 +71,9 @@ pub(super) fn allocate_time(
     }
 
     let moves_to_go = limits.moves_to_go.unwrap_or(DEFAULT_MOVES_TO_GO).max(1);
-    let increment_share = increment.unwrap_or_default().saturating_mul(3) / 4;
+    let increment = increment.unwrap_or_default();
     let soft = (usable / moves_to_go)
-        .saturating_add(increment_share)
+        .saturating_add(increment)
         .min(usable)
         .max(Duration::from_millis(1).min(usable));
     Some(TimeBudget::managed(soft, usable))
@@ -133,6 +133,24 @@ mod tests {
         assert!(budget.soft() < Duration::from_secs(2));
         assert_eq!(budget.hard(), budget.soft().saturating_mul(3));
         assert!(budget.hard() <= Duration::from_millis(29_890));
+    }
+
+    #[test]
+    fn the_soft_budget_adds_the_whole_increment() {
+        let without_increment = SearchLimits {
+            white_time: Some(Duration::from_secs(10)),
+            ..SearchLimits::default()
+        };
+        let with_increment = SearchLimits {
+            white_increment: Some(Duration::from_millis(100)),
+            ..without_increment.clone()
+        };
+
+        let base = allocate_time(Color::White, &without_increment, OVERHEAD).unwrap();
+        let budget = allocate_time(Color::White, &with_increment, OVERHEAD).unwrap();
+
+        assert_eq!(budget.soft(), base.soft() + Duration::from_millis(100));
+        assert_eq!(budget.hard(), budget.soft().saturating_mul(3));
     }
 
     #[test]

@@ -12,6 +12,7 @@
 use std::collections::{BTreeMap, HashSet};
 use std::fmt::Write as _;
 use std::fs::{self, File};
+use std::hash::{BuildHasherDefault, Hasher};
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
 
@@ -78,25 +79,63 @@ impl Options {
     }
 }
 
-/// Exact identities of every kept row in a split.
+/// Hash set of 128-bit digests; the digests are already uniform, so the
+/// table hashes them by folding rather than by SipHash.
+type DigestSet = HashSet<u128, BuildHasherDefault<DigestHasher>>;
+
 #[derive(Default)]
-struct Keys {
-    canonical: HashSet<String>,
-    /// Both perspectives' features, smaller vector first, joined by a sentinel.
-    identity: HashSet<Vec<u16>>,
+struct DigestHasher(u64);
+
+impl Hasher for DigestHasher {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+
+    fn write(&mut self, bytes: &[u8]) {
+        for &byte in bytes {
+            self.0 = (self.0 ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    }
+
+    fn write_u128(&mut self, value: u128) {
+        self.0 = (value as u64) ^ ((value >> 64) as u64);
+    }
 }
 
-fn identity(white: &[u16], black: &[u16]) -> Vec<u16> {
+/// Identities of every kept row in a split, as 128-bit digests.
+///
+/// Each is the first 16 bytes of the SHA-256 of the exact identity, so the
+/// sets cost a fixed few dozen bytes per row however long the keys are. For
+/// n digests the chance that two distinct identities share one is at most
+/// n^2 / 2^129: below 2^-65 for the two splits' 2^31 rows together. A
+/// collision could only drop a unique row as a duplicate, never keep one.
+#[derive(Default)]
+struct Keys {
+    canonical: DigestSet,
+    /// Both perspectives' features, smaller vector first, joined by a sentinel.
+    identity: DigestSet,
+}
+
+fn digest(bytes: &[u8]) -> u128 {
+    let mut hasher = sha256::Sha256::default();
+    hasher.update(bytes);
+    let digest = hasher.finish();
+    u128::from_be_bytes(digest[..16].try_into().expect("16 of 32 bytes"))
+}
+
+/// Digest of the feature identity: the smaller perspective's features, a
+/// `u16::MAX` sentinel and the other's, each index as two little-endian bytes.
+fn identity(white: &[u16], black: &[u16]) -> u128 {
     let (first, second) = if white <= black {
         (white, black)
     } else {
         (black, white)
     };
-    let mut key = Vec::with_capacity(first.len() + second.len() + 1);
-    key.extend_from_slice(first);
-    key.push(u16::MAX);
-    key.extend_from_slice(second);
-    key
+    let mut bytes = Vec::with_capacity(2 * (first.len() + second.len() + 1));
+    for &index in first.iter().chain([&u16::MAX]).chain(second) {
+        bytes.extend_from_slice(&index.to_le_bytes());
+    }
+    digest(&bytes)
 }
 
 #[derive(Default)]
@@ -155,8 +194,8 @@ impl SplitStats {
 
 /// One parsed input line, ready for the sequential deduplication pass.
 struct Parsed {
-    key: String,
-    identity: Vec<u16>,
+    key: u128,
+    identity: u128,
     white_to_move: bool,
     outcome: f64,
     teacher: bool,
@@ -167,6 +206,22 @@ struct Parsed {
 
 /// Lines per parallel batch; bounds the memory held between passes.
 const PARSE_BATCH_LINES: usize = 1 << 20;
+
+/// Bytes read from an input at a time, in whole lines.
+const READ_BLOCK_BYTES: usize = 16 << 20;
+
+/// Sizes of the streaming pass: tests shrink them to cross their boundaries.
+#[derive(Clone, Copy)]
+struct Limits {
+    /// Read block; must exceed `MAX_LINE_BYTES` so every legal line fits.
+    block_bytes: usize,
+    batch_lines: usize,
+}
+
+const LIMITS: Limits = Limits {
+    block_bytes: READ_BLOCK_BYTES,
+    batch_lines: PARSE_BATCH_LINES,
+};
 
 /// Parses one labelled line; terminal positions yield `None`.
 fn parse_line(line: &str) -> Result<Option<Parsed>, String> {
@@ -192,7 +247,7 @@ fn parse_line(line: &str) -> Result<Option<Parsed>, String> {
     );
     Ok(Some(Parsed {
         identity: identity(&white, &black),
-        key,
+        key: digest(key.as_bytes()),
         white_to_move: sample.board.side_to_move() == Color::White,
         outcome: sample.outcome,
         teacher: sample.teacher.is_some(),
@@ -228,65 +283,139 @@ fn parse_batch(batch: &[(usize, &str)]) -> Result<Vec<Option<Parsed>>, String> {
     })
 }
 
-fn process_split(
+/// Calls `visit` with every line of `source` and its 1-based number, split
+/// as `str::lines` splits a whole file, reading blocks of whole lines of at
+/// most `block_bytes` so memory does not grow with the input.
+fn stream_lines(
     source: &Path,
-    target: &Path,
-    keys: &mut Keys,
-    training: Option<&Keys>,
-    deduplicate: bool,
-    drop_overlap: bool,
-) -> Result<SplitStats, String> {
-    let bytes = fs::read(source).map_err(|error| format!("{}: {error}", source.display()))?;
-    let text = std::str::from_utf8(&bytes).map_err(|error| {
+    block_bytes: usize,
+    mut visit: impl FnMut(usize, &str) -> Result<(), String>,
+) -> Result<(), String> {
+    assert!(block_bytes as u64 > crate::MAX_LINE_BYTES);
+    let failed = |error: std::io::Error| format!("{}: {error}", source.display());
+    let mut file = File::open(source).map_err(failed)?;
+    let invalid = |offset: usize, error: std::str::Utf8Error| {
         format!(
             "{}: invalid UTF-8 at byte {}",
             source.display(),
-            error.valid_up_to()
+            offset + error.valid_up_to()
         )
-    })?;
-    let mut writer = BufWriter::new(
-        File::create(target).map_err(|error| format!("{}: {error}", target.display()))?,
-    );
-    writer
-        .write_all(HEADER.as_bytes())
-        .map_err(|error| error.to_string())?;
-    let mut stats = SplitStats::new();
-    let mut batch: Vec<(usize, &str)> = Vec::with_capacity(PARSE_BATCH_LINES);
-    let mut lines = text.lines().enumerate().peekable();
-    while lines.peek().is_some() {
-        batch.clear();
-        for (index, line) in lines.by_ref() {
-            let number = index + 1;
-            if line.len() as u64 > crate::MAX_LINE_BYTES {
-                return Err(format!(
-                    "line {number}: record exceeds {} bytes",
-                    crate::MAX_LINE_BYTES
-                ));
+    };
+    let mut buffer = vec![0_u8; block_bytes];
+    let mut filled = 0;
+    // Byte offset of `buffer[0]` in the file, and lines before it.
+    let mut offset = 0;
+    let mut number = 0;
+    loop {
+        let read = crate::fill(&mut file, &mut buffer[filled..]).map_err(failed)?;
+        let finished = filled + read < buffer.len();
+        filled += read;
+        let end = if finished {
+            filled
+        } else if let Some(last) = buffer[..filled].iter().rposition(|&byte| byte == b'\n') {
+            last + 1
+        } else {
+            // A full block without a line end: a record that cannot fit.
+            if let Err(error) = std::str::from_utf8(&buffer[..filled])
+                && error.error_len().is_some()
+            {
+                return Err(invalid(offset, error));
             }
-            let line = line.trim();
-            if line.is_empty() || line.starts_with('#') {
-                continue;
-            }
-            batch.push((number, line));
-            if batch.len() == PARSE_BATCH_LINES {
-                break;
-            }
+            return Err(format!(
+                "line {}: record exceeds {} bytes",
+                number + 1,
+                crate::MAX_LINE_BYTES
+            ));
+        };
+        // A block ends after a line feed, which is never inside a character.
+        let text = std::str::from_utf8(&buffer[..end]).map_err(|error| invalid(offset, error))?;
+        let mut rest = text;
+        while !rest.is_empty() {
+            let line = match rest.split_once('\n') {
+                Some((line, tail)) => {
+                    rest = tail;
+                    line.strip_suffix('\r').unwrap_or(line)
+                }
+                None => std::mem::take(&mut rest),
+            };
+            number += 1;
+            visit(number, line)?;
         }
-        for parsed in parse_batch(&batch)? {
+        if finished {
+            return Ok(());
+        }
+        buffer.copy_within(end..filled, 0);
+        filled -= end;
+        offset += end;
+    }
+}
+
+/// The sequential half of a split's pass: batches lines for the parallel
+/// parse, then deduplicates and writes them in file order.
+struct Pass<'a, W: Write> {
+    keys: &'a mut Keys,
+    training: Option<&'a Keys>,
+    deduplicate: bool,
+    drop_overlap: bool,
+    stats: SplitStats,
+    writer: W,
+    batch_lines: usize,
+    /// The batch's trimmed lines, concatenated, with their numbers and ends.
+    text: String,
+    lines: Vec<(usize, usize)>,
+}
+
+impl<W: Write> Pass<'_, W> {
+    fn line(&mut self, number: usize, line: &str) -> Result<(), String> {
+        if line.len() as u64 > crate::MAX_LINE_BYTES {
+            return Err(format!(
+                "line {number}: record exceeds {} bytes",
+                crate::MAX_LINE_BYTES
+            ));
+        }
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            return Ok(());
+        }
+        self.text.push_str(line);
+        self.lines.push((number, self.text.len()));
+        if self.lines.len() == self.batch_lines {
+            self.flush()?;
+        }
+        Ok(())
+    }
+
+    fn flush(&mut self) -> Result<(), String> {
+        let mut start = 0;
+        let batch = self
+            .lines
+            .iter()
+            .map(|&(number, end)| {
+                let line = &self.text[start..end];
+                start = end;
+                (number, line)
+            })
+            .collect::<Vec<_>>();
+        let parsed = parse_batch(&batch)?;
+        drop(batch);
+        self.text.clear();
+        self.lines.clear();
+        let (keys, stats) = (&mut *self.keys, &mut self.stats);
+        for parsed in parsed {
             stats.raw_rows += 1;
             let Some(parsed) = parsed else {
                 *stats.dropped.entry("terminal_position").or_default() += 1;
                 continue;
             };
             let reason = if keys.canonical.contains(&parsed.key) {
-                Some(("canonical_duplicate", deduplicate))
+                Some(("canonical_duplicate", self.deduplicate))
             } else if keys.identity.contains(&parsed.identity) {
-                Some(("feature_duplicate", deduplicate))
-            } else if training.is_some_and(|training| {
+                Some(("feature_duplicate", self.deduplicate))
+            } else if self.training.is_some_and(|training| {
                 training.canonical.contains(&parsed.key)
                     || training.identity.contains(&parsed.identity)
             }) {
-                Some(("training_overlap", drop_overlap))
+                Some(("training_overlap", self.drop_overlap))
             } else {
                 None
             };
@@ -310,13 +439,50 @@ fn process_split(
                     stats.feature_support[usize::from(feature)] += 1;
                 }
             }
-            writer
+            self.writer
                 .write_all(parsed.row.as_bytes())
                 .map_err(|error| error.to_string())?;
             keys.canonical.insert(parsed.key);
             keys.identity.insert(parsed.identity);
         }
+        Ok(())
     }
+}
+
+fn process_split(
+    source: &Path,
+    target: &Path,
+    keys: &mut Keys,
+    training: Option<&Keys>,
+    (deduplicate, drop_overlap): (bool, bool),
+    limits: Limits,
+) -> Result<SplitStats, String> {
+    // Fail on an unreadable input before creating the output, as before.
+    File::open(source).map_err(|error| format!("{}: {error}", source.display()))?;
+    let mut writer = BufWriter::new(
+        File::create(target).map_err(|error| format!("{}: {error}", target.display()))?,
+    );
+    writer
+        .write_all(HEADER.as_bytes())
+        .map_err(|error| error.to_string())?;
+    let mut pass = Pass {
+        keys,
+        training,
+        deduplicate,
+        drop_overlap,
+        stats: SplitStats::new(),
+        writer,
+        batch_lines: limits.batch_lines,
+        text: String::new(),
+        lines: Vec::with_capacity(limits.batch_lines.min(PARSE_BATCH_LINES)),
+    };
+    stream_lines(source, limits.block_bytes, |number, line| {
+        pass.line(number, line)
+    })?;
+    pass.flush()?;
+    let Pass {
+        stats, mut writer, ..
+    } = pass;
     if stats.raw_rows == 0 {
         return Err(format!("{}: input contains no positions", source.display()));
     }
@@ -366,6 +532,10 @@ pub fn helper_sha256() -> Result<String, String> {
 
 /// Prepares both splits into a new output directory and returns the summary.
 pub fn prepare(options: &Options) -> Result<String, String> {
+    prepare_with(options, LIMITS)
+}
+
+fn prepare_with(options: &Options, limits: Limits) -> Result<String, String> {
     if options.output.exists() {
         return Err("output already exists; choose a new directory".to_owned());
     }
@@ -396,8 +566,8 @@ pub fn prepare(options: &Options) -> Result<String, String> {
         &staging.join("training.tsv"),
         &mut training_keys,
         None,
-        options.deduplicate,
-        false,
+        (options.deduplicate, false),
+        limits,
     )?;
     let mut development_keys = Keys::default();
     let development_stats = process_split(
@@ -405,8 +575,8 @@ pub fn prepare(options: &Options) -> Result<String, String> {
         &staging.join("development.tsv"),
         &mut development_keys,
         Some(&training_keys),
-        options.deduplicate,
-        options.drop_overlap,
+        (options.deduplicate, options.drop_overlap),
+        limits,
     )?;
     drop((training_keys, development_keys));
     // Inputs are re-hashed after the pass: a corpus rewritten underneath the
@@ -511,6 +681,15 @@ mod tests {
         deduplicate: bool,
         drop_overlap: bool,
     ) -> Result<(PathBuf, String), String> {
+        run_with(
+            training.as_bytes(),
+            development.as_bytes(),
+            (deduplicate, drop_overlap),
+            LIMITS,
+        )
+    }
+
+    fn scratch() -> PathBuf {
         let root = std::env::temp_dir().join(format!(
             "nnue-prepare-{}-{}",
             std::process::id(),
@@ -520,6 +699,16 @@ mod tests {
                 .as_nanos()
         ));
         fs::create_dir_all(&root).unwrap();
+        root
+    }
+
+    fn run_with(
+        training: &[u8],
+        development: &[u8],
+        (deduplicate, drop_overlap): (bool, bool),
+        limits: Limits,
+    ) -> Result<(PathBuf, String), String> {
+        let root = scratch();
         fs::write(root.join("training.txt"), training).unwrap();
         fs::write(root.join("development.txt"), development).unwrap();
         let options = Options {
@@ -529,7 +718,143 @@ mod tests {
             deduplicate,
             drop_overlap,
         };
-        prepare(&options).map(|summary| (root, summary))
+        prepare_with(&options, limits).map(|summary| (root, summary))
+    }
+
+    /// The smallest legal read block, and batches that straddle blocks.
+    const SMALL: Limits = Limits {
+        block_bytes: crate::MAX_LINE_BYTES as usize + 1,
+        batch_lines: 7,
+    };
+
+    #[test]
+    fn streamed_lines_split_as_a_whole_file_does() {
+        let root = scratch();
+        let path = root.join("lines.txt");
+        let long = "x".repeat(4000);
+        let mut text = String::new();
+        for index in 0..40 {
+            let _ = write!(text, "{index}\r\n\n \r{long}\n\r\n{index}\r\r\n");
+        }
+        for tail in ["", "end", "end\r", "end\n", "end\r\n", "\n", "\r"] {
+            let text = format!("{text}{tail}");
+            fs::write(&path, &text).unwrap();
+            assert!(text.len() > 10 * SMALL.block_bytes);
+            for block_bytes in [SMALL.block_bytes, 4099, 1 << 20] {
+                let mut lines = Vec::new();
+                stream_lines(&path, block_bytes, |number, line| {
+                    lines.push((number, line.to_owned()));
+                    Ok(())
+                })
+                .unwrap();
+                let whole = text
+                    .lines()
+                    .enumerate()
+                    .map(|(index, line)| (index + 1, line.to_owned()))
+                    .collect::<Vec<_>>();
+                assert!(lines == whole, "tail {tail:?} block {block_bytes}");
+            }
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn inputs_larger_than_a_read_block_prepare_identically() {
+        let mirror = "4k3/2p5/8/8/8/5N2/8/4K3 b - - 0 1";
+        let clocks = FEN.replace("0 1", "7 40");
+        let comment = format!("# {}", "padding ".repeat(400));
+        let mut training = String::new();
+        for round in 0..30 {
+            let _ = write!(
+                training,
+                "{FEN};1;150\r\n{comment}\n\n{clocks};0.5\n  {mirror};0\n{};1;{round}\n",
+                pawn_on(3 + round % 3)
+            );
+        }
+        let mut development = String::new();
+        for round in 0..30 {
+            let _ = write!(
+                development,
+                "{comment}\n{mirror};0\n{};0;-{round}\n{};1\n",
+                pawn_on(if round % 2 == 0 { 1 } else { 6 }),
+                pawn_on(3)
+            );
+        }
+        assert!(training.len() > 10 * SMALL.block_bytes);
+        let read = |root: &Path, name: &str| {
+            fs::read_to_string(root.join("prepared").join(name))
+                .unwrap()
+                .replace(&root.to_string_lossy().into_owned(), "ROOT")
+        };
+        let flags = (true, true);
+        let (whole, expected) =
+            run_with(training.as_bytes(), development.as_bytes(), flags, LIMITS).unwrap();
+        let (small, summary) =
+            run_with(training.as_bytes(), development.as_bytes(), flags, SMALL).unwrap();
+        assert_eq!(summary, expected);
+        assert!(summary.contains("\"training\": {\"raw_rows\": 120, \"rows\": 4,"));
+        assert!(
+            summary
+                .contains("\"dropped\": {\"canonical_duplicate\": 86, \"feature_duplicate\": 30}}")
+        );
+        assert!(summary.contains("\"development\": {\"raw_rows\": 90, \"rows\": 2,"));
+        assert!(
+            summary
+                .contains("\"dropped\": {\"canonical_duplicate\": 28, \"training_overlap\": 60}}")
+        );
+        for name in [
+            "training.tsv",
+            "development.tsv",
+            "CHECKSUMS",
+            "manifest.json",
+        ] {
+            assert!(read(&whole, name) == read(&small, name), "{name}");
+        }
+        for root in [whole, small] {
+            fs::remove_dir_all(root).unwrap();
+        }
+
+        // Errors past the first block keep their line numbers and messages.
+        let lines = training.lines().count();
+        let failures = [
+            (
+                format!("{training}{FEN};2\n"),
+                format!("line {}: ", lines + 1),
+            ),
+            (
+                format!("{training}#\n{}\n", "y".repeat(4097)),
+                format!("line {}: record exceeds 4096 bytes", lines + 2),
+            ),
+            (
+                format!("{training}{}", "z".repeat(9000)),
+                format!("line {}: record exceeds 4096 bytes", lines + 1),
+            ),
+        ];
+        for (training, message) in failures {
+            for limits in [LIMITS, SMALL] {
+                let error = run_with(training.as_bytes(), development.as_bytes(), flags, limits)
+                    .unwrap_err();
+                assert!(error.starts_with(&message), "{error}");
+            }
+        }
+        let mut invalid = training.clone().into_bytes();
+        invalid.extend_from_slice(b"\xff;1\n");
+        for limits in [LIMITS, SMALL] {
+            let error = run_with(&invalid, development.as_bytes(), flags, limits).unwrap_err();
+            assert!(
+                error.ends_with(&format!("invalid UTF-8 at byte {}", training.len())),
+                "{error}"
+            );
+        }
+        // Without --deduplicate the first repeat is still an error.
+        let error = run_with(
+            training.as_bytes(),
+            development.as_bytes(),
+            (false, true),
+            SMALL,
+        )
+        .unwrap_err();
+        assert!(error.starts_with("canonical_duplicate"), "{error}");
     }
 
     #[test]

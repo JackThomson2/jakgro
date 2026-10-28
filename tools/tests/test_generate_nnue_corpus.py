@@ -59,6 +59,45 @@ class GenerateNnueCorpusTests(unittest.TestCase):
             self.assertNotIn("--baseline-syzygy-path", command)
         self.assertIsNone(manifest["settings"]["syzygy_path"])
 
+    def test_given_adjudication_settings_reach_every_selfplay_run_and_the_manifest(self) -> None:
+        commands, manifest = self.run_generator([
+            "--resign-score", "1000", "--resign-move-count", "5", "--draw-move-number", "60",
+            "--draw-move-count", "8", "--draw-score", "-5", "--max-moves", "300",
+        ])
+
+        selfplay_commands = [command for command in commands if command[1:2] != ["extract"]]
+        self.assertEqual(len(selfplay_commands), 2)
+        expected = {
+            "--resign-score": "1000", "--resign-move-count": "5", "--draw-move-number": "60",
+            "--draw-move-count": "8", "--draw-score": "-5", "--max-moves": "300",
+        }
+        for command in selfplay_commands:
+            for option, value in expected.items():
+                self.assertEqual(command.count(option), 1)
+                self.assertEqual(command[command.index(option) + 1], value)
+        extract_command = next(command for command in commands if command[1:2] == ["extract"])
+        for option in expected:
+            self.assertNotIn(option, extract_command)
+        self.assertEqual(manifest["settings"]["adjudication"], {
+            "resign_score": 1000, "resign_move_count": 5, "draw_move_number": 60,
+            "draw_move_count": 8, "draw_score": -5, "max_moves": 300,
+        })
+
+    def test_omitted_adjudication_settings_keep_the_arbiter_defaults(self) -> None:
+        commands, manifest = self.run_generator(["--resign-score", "600"])
+
+        for command in commands:
+            for option in ("--resign-move-count", "--draw-move-number", "--draw-move-count",
+                           "--draw-score", "--max-moves"):
+                self.assertNotIn(option, command)
+        selfplay_commands = [command for command in commands if command[1:2] != ["extract"]]
+        for command in selfplay_commands:
+            self.assertEqual(command[command.index("--resign-score") + 1], "600")
+        self.assertEqual(manifest["settings"]["adjudication"], {
+            "resign_score": 600, "resign_move_count": None, "draw_move_number": None,
+            "draw_move_count": None, "draw_score": None, "max_moves": None,
+        })
+
 
 if __name__ == "__main__":
     unittest.main()

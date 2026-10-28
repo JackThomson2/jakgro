@@ -7,6 +7,8 @@ annotated PGN into `FEN;white-outcome;white-score-cp` rows: every position not
 in check whose played move is neither a capture nor a promotion, labelled by
 the game result and by the score the mover's search reported. Fixed nodes,
 one thread and a fixed seed make the PGN, and so the corpus, reproducible.
+Adjudication thresholds reach the arbiter only when given, so an omitted one
+keeps the arbiter's default.
 
 The output is plain text ready for `nnue-data prepare`, beside a manifest
 binding the binaries, suite and settings by hash.
@@ -21,6 +23,20 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+# The selfplay arbiter's adjudication options, forwarded verbatim when given.
+ADJUDICATION_OPTIONS = (
+    ("--resign-score", "centipawn resignation threshold"),
+    ("--resign-move-count", "consecutive lost full moves before a resignation"),
+    ("--draw-move-number", "earliest draw adjudication move"),
+    ("--draw-move-count", "consecutive quiet full moves before a draw"),
+    ("--draw-score", "centipawn window for a draw"),
+    ("--max-moves", "draw after this many full moves"),
+)
+
+
+def option_key(option: str) -> str:
+    return option.removeprefix("--").replace("-", "_")
 
 
 def sha256(path: Path) -> str:
@@ -57,7 +73,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--baseline-aggression", type=int, default=0)
     parser.add_argument("--concurrency", type=int, default=8)
     parser.add_argument("--skip-plies", type=int, default=8)
+    adjudication_group = parser.add_argument_group(
+        "adjudication", "selfplay adjudication thresholds; an omitted one keeps the arbiter's default")
+    for option, help_text in ADJUDICATION_OPTIONS:
+        adjudication_group.add_argument(option, type=int, help=help_text)
     args = parser.parse_args(argv)
+    adjudication = {option_key(option): getattr(args, option_key(option)) for option, _ in ADJUDICATION_OPTIONS}
+    adjudication_arguments = [argument for option, _ in ADJUDICATION_OPTIONS
+                              if adjudication[option_key(option)] is not None
+                              for argument in (option, str(adjudication[option_key(option)]))]
     output = args.output.resolve()
     if output.exists():
         print(f"generate_nnue_corpus: {output} already exists", file=sys.stderr)
@@ -78,7 +102,7 @@ def main(argv: list[str] | None = None) -> int:
                     "--games", str(args.games_per_seed), "--nodes", str(args.nodes),
                     "--openings", str(args.openings), "--random-plies", str(args.random_plies),
                     "--seed", str(seed), "--concurrency", str(args.concurrency),
-                    "--event", f"NNUE corpus seed {seed}", "--pgn", str(pgn),
+                    "--event", f"NNUE corpus seed {seed}", "--pgn", str(pgn), *adjudication_arguments,
                     *((["--candidate-eval-file", str(args.eval_file), "--baseline-eval-file", str(args.eval_file)]
                       if args.eval_file is not None else [])
                       + (["--candidate-syzygy-path", args.syzygy_path, "--baseline-syzygy-path", args.syzygy_path]
@@ -96,7 +120,7 @@ def main(argv: list[str] | None = None) -> int:
                              "random_plies": args.random_plies, "skip_plies": args.skip_plies,
                              "candidate_aggression": args.candidate_aggression,
                              "baseline_aggression": args.baseline_aggression,
-                             "syzygy_path": args.syzygy_path},
+                             "syzygy_path": args.syzygy_path, "adjudication": adjudication},
                 "inputs": {name: {"path": str(path), "sha256": sha256(path)} for name, path in
                            (("engine", args.engine), ("runner", args.runner), ("tune", args.tune),
                             ("openings", args.openings))

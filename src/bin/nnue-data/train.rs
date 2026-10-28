@@ -52,8 +52,15 @@ pub struct Options {
     pub epochs: usize,
     pub batch_size: usize,
     pub rate: f32,
-    /// Multiplies the learning rate after every epoch.
+    /// Multiplies the exponential schedule's learning rate after every epoch.
     pub rate_decay: f32,
+    /// How the learning rate moves from one Adam step to the next.
+    pub schedule: Schedule,
+    /// Steps over which the rate rises linearly from zero to its scheduled
+    /// value; zero starts at the full rate.
+    pub warmup_steps: usize,
+    /// The cosine schedule's rate at the last step, zero unless given.
+    pub final_rate: Option<f32>,
     pub l2: f32,
     pub seed: u64,
     pub label_mix: f32,
@@ -114,6 +121,16 @@ impl Options {
             batch_size: number(&values, "--batch-size", 256)?,
             rate: number(&values, "--rate", 0.001)?,
             rate_decay: number(&values, "--rate-decay", 1.0)?,
+            schedule: number(&values, "--schedule", Schedule::Exponential)?,
+            warmup_steps: number(&values, "--warmup-steps", 0)?,
+            final_rate: values
+                .get("--final-rate")
+                .map(|value| {
+                    value
+                        .parse()
+                        .map_err(|_| format!("--final-rate: invalid value {value}"))
+                })
+                .transpose()?,
             l2: number(&values, "--l2", 1e-6)?,
             seed: number(&values, "--seed", 75)?,
             label_mix: number(&values, "--lambda", 0.5)?,
@@ -143,6 +160,9 @@ impl Options {
                 "--batch-size",
                 "--rate",
                 "--rate-decay",
+                "--schedule",
+                "--warmup-steps",
+                "--final-rate",
                 "--l2",
                 "--seed",
                 "--lambda",
@@ -187,6 +207,19 @@ impl Options {
             "rate decay must be finite in (0,1]",
         )?;
         check(
+            self.schedule == Schedule::Exponential || self.rate_decay == 1.0,
+            "rate decay applies to the exponential schedule only",
+        )?;
+        check(
+            self.final_rate.is_none() || self.schedule == Schedule::Cosine,
+            "a final rate needs the cosine schedule",
+        )?;
+        check(
+            self.final_rate
+                .is_none_or(|rate| rate.is_finite() && (0.0..=self.rate).contains(&rate)),
+            "final rate must be finite in [0,rate]",
+        )?;
+        check(
             self.l2.is_finite() && (0.0..=1.0).contains(&self.l2),
             "L2 must be finite in [0,1]",
         )?;
@@ -204,6 +237,89 @@ impl Options {
                 .is_none_or(|decay| decay.is_finite() && decay > 0.0 && decay < 1.0),
             "EMA decay must be finite in (0,1)",
         )
+    }
+}
+
+/// How a run's learning rate moves from one Adam step to the next.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Schedule {
+    /// `rate * rate_decay^(epoch - 1)`, constant within an epoch.
+    Exponential,
+    /// Half a cosine period from `rate` down to the final rate, spread over
+    /// every step after the warmup.
+    Cosine,
+}
+
+impl std::str::FromStr for Schedule {
+    type Err = ();
+
+    fn from_str(text: &str) -> Result<Self, ()> {
+        match text {
+            "exponential" => Ok(Self::Exponential),
+            "cosine" => Ok(Self::Cosine),
+            _ => Err(()),
+        }
+    }
+}
+
+/// The learning rate of every Adam step of one run.
+struct RateSchedule {
+    schedule: Schedule,
+    rate: f32,
+    final_rate: f32,
+    warmup_steps: usize,
+    steps_per_epoch: usize,
+    total_steps: usize,
+    /// The exponential schedule's rate per epoch, each the previous one
+    /// multiplied by the decay in `f32`.
+    epoch_rates: Vec<f32>,
+}
+
+impl RateSchedule {
+    fn new(options: &Options, steps_per_epoch: usize) -> Result<Self, String> {
+        let total_steps = options.epochs * steps_per_epoch;
+        if options.warmup_steps >= total_steps {
+            return Err(format!(
+                "warmup steps must be fewer than the run's {total_steps} steps"
+            ));
+        }
+        let mut rate = options.rate;
+        let epoch_rates = (0..options.epochs)
+            .map(|_| {
+                let current = rate;
+                rate *= options.rate_decay;
+                current
+            })
+            .collect();
+        Ok(Self {
+            schedule: options.schedule,
+            rate: options.rate,
+            final_rate: options.final_rate.unwrap_or(0.0),
+            warmup_steps: options.warmup_steps,
+            steps_per_epoch,
+            total_steps,
+            epoch_rates,
+        })
+    }
+
+    /// The rate of the one-based `step`: the schedule's value, scaled by
+    /// `step / warmup_steps` while the warmup lasts.
+    fn rate(&self, step: usize) -> f32 {
+        let scheduled = match self.schedule {
+            Schedule::Exponential => self.epoch_rates[(step - 1) / self.steps_per_epoch],
+            Schedule::Cosine => {
+                let progress = step.saturating_sub(self.warmup_steps) as f64
+                    / (self.total_steps - self.warmup_steps) as f64;
+                let (first, last) = (f64::from(self.rate), f64::from(self.final_rate));
+                let cosine = 0.5 * (1.0 + (std::f64::consts::PI * progress).cos());
+                (last + (first - last) * cosine) as f32
+            }
+        };
+        if step < self.warmup_steps {
+            (f64::from(scheduled) * step as f64 / self.warmup_steps as f64) as f32
+        } else {
+            scheduled
+        }
     }
 }
 
@@ -1210,15 +1326,15 @@ struct Step<'a> {
 /// elementwise, so the partition changes no value, and it lets a factorized
 /// worker also update its factor rows, whose gradient sums those buckets'
 /// rows, and refresh the view of the rows they fold into, within phase three.
-/// Returns the summed batch losses, the batch count and the wall seconds of
-/// phases two and three.
+/// Every step's learning rate comes from `schedule`. Returns the summed
+/// batch losses, the batch count and the wall seconds of phases two and three.
 fn run_epoch<'a>(
     training: &'a [Row],
     order: &[usize],
     options: &Options,
     state: EpochState<'_>,
     step: &mut usize,
-    rate: f32,
+    schedule: &RateSchedule,
 ) -> Result<(f64, usize, [f64; 2]), String> {
     let shard_count = state.shards.len();
     let barrier = std::sync::Barrier::new(shard_count + 1);
@@ -1237,7 +1353,7 @@ fn run_epoch<'a>(
         shard_size: 1,
         update: AdamUpdate {
             step: 0,
-            rate,
+            rate: 0.0,
             l2: options.l2,
         },
         finished: false,
@@ -1442,6 +1558,7 @@ fn run_epoch<'a>(
                     .extend(batch.iter().map(|&index| &training[index]));
                 current.shard_size = batch.len().div_ceil(shard_count).max(1);
                 current.update.step = *step;
+                current.update.rate = schedule.rate(*step);
             }
             let phase = Instant::now();
             barrier.wait();
@@ -1551,6 +1668,7 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
         Keep::Metrics,
     )?
     .metrics;
+    let schedule = RateSchedule::new(options, training.len().div_ceil(options.batch_size))?;
     let mut support = vec![false; INPUT_FEATURES];
     for row in &training {
         for side in &row.features {
@@ -1613,7 +1731,6 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
     let mut best: Option<(usize, Metrics, Vec<u8>)> = None;
     let mut best_average: Option<(usize, Metrics, Vec<u8>)> = None;
 
-    let mut rate = options.rate;
     for epoch in 1..=options.epochs {
         random.shuffle(&mut order);
         let mut epoch_loss = 0.0_f64;
@@ -1633,7 +1750,7 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
                 factorization: factorization.as_mut(),
             },
             &mut step,
-            rate,
+            &schedule,
         )?;
         epoch_loss += loss_sum;
         batches += batch_count;
@@ -1702,7 +1819,6 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
             }
         }
         history.push(record);
-        rate *= options.rate_decay;
     }
     let (chosen, raw) = match options.ema {
         Some(_) => (best_average, best),
@@ -1759,6 +1875,14 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
         options.label_mix,
         options.k,
         [
+            (options.schedule == Schedule::Cosine).then(|| {
+                format!(
+                    ", \"schedule\": \"cosine\", \"final_rate\": {}",
+                    schedule.final_rate
+                )
+            }),
+            (options.warmup_steps > 0)
+                .then(|| format!(", \"warmup_steps\": {}", options.warmup_steps)),
             options.ema.map(|decay| format!(", \"ema\": {decay}")),
             options
                 .factorize
@@ -2016,6 +2140,9 @@ mod tests {
             batch_size: 4,
             rate: 0.01,
             rate_decay: 1.0,
+            schedule: Schedule::Exponential,
+            warmup_steps: 0,
+            final_rate: None,
             l2: 0.0,
             seed: 5,
             label_mix: 0.25,
@@ -2117,7 +2244,7 @@ mod tests {
                     factorization: factorization.as_mut(),
                 },
                 &mut step,
-                0.01,
+                &RateSchedule::new(&options, 3).unwrap(),
             )
             .unwrap();
             assert_eq!(step, 3);
@@ -2172,6 +2299,165 @@ mod tests {
         )
         .unwrap();
         assert!(options.qat && !options.factorize);
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn the_exponential_schedule_repeats_the_per_epoch_decay() {
+        let options = Options {
+            epochs: 6,
+            rate: 0.0057,
+            rate_decay: 0.9,
+            ..small_run()
+        };
+        let schedule = RateSchedule::new(&options, 7).unwrap();
+        // The rate each epoch of a run without a schedule used: the first
+        // epoch's rate, multiplied by the decay after every epoch.
+        let mut rate = options.rate;
+        let mut step = 0;
+        for _ in 0..options.epochs {
+            for _ in 0..7 {
+                step += 1;
+                assert_eq!(schedule.rate(step).to_bits(), rate.to_bits(), "step {step}");
+            }
+            rate *= options.rate_decay;
+        }
+        let warm = RateSchedule::new(
+            &Options {
+                warmup_steps: 10,
+                ..options.clone()
+            },
+            7,
+        )
+        .unwrap();
+        for step in 1..10 {
+            let expected = schedule.rate(step) * step as f32 / 10.0;
+            assert!(
+                (warm.rate(step) - expected).abs() <= expected * 1e-6,
+                "step {step}"
+            );
+        }
+        for step in 10..=42 {
+            assert_eq!(warm.rate(step).to_bits(), schedule.rate(step).to_bits());
+        }
+    }
+
+    #[test]
+    fn the_cosine_schedule_warms_up_and_ends_at_the_final_rate() {
+        let options = Options {
+            epochs: 4,
+            rate: 0.004,
+            schedule: Schedule::Cosine,
+            warmup_steps: 10,
+            final_rate: Some(0.0004),
+            ..small_run()
+        };
+        let schedule = RateSchedule::new(&options, 25).unwrap();
+        let rates = (1..=100)
+            .map(|step| schedule.rate(step))
+            .collect::<Vec<_>>();
+        assert!((rates[0] - 0.0004).abs() < 1e-9, "{}", rates[0]);
+        assert!(rates[..10].windows(2).all(|pair| pair[0] < pair[1]));
+        assert_eq!(rates[9], 0.004);
+        assert!(rates[9..].windows(2).all(|pair| pair[0] > pair[1]));
+        // Halfway through the 90 steps after the warmup.
+        assert!((rates[54] - 0.0022).abs() < 1e-7, "{}", rates[54]);
+        assert_eq!(rates[99], 0.0004);
+        let unwarmed = RateSchedule::new(
+            &Options {
+                warmup_steps: 0,
+                final_rate: None,
+                ..options
+            },
+            25,
+        )
+        .unwrap();
+        assert!(unwarmed.rate(1) < 0.004 && unwarmed.rate(1) > 0.0039);
+        assert_eq!(unwarmed.rate(100), 0.0);
+    }
+
+    #[test]
+    fn schedule_options_parse_and_reject_mismatches() {
+        let parse = |extra: &[&str]| {
+            let arguments = ["--data-dir", "d", "--output-dir", "o"]
+                .iter()
+                .chain(extra)
+                .map(|value| value.to_string())
+                .collect::<Vec<_>>();
+            Options::parse(&arguments).map(|(options, _, _)| options)
+        };
+        let defaults = parse(&[]).unwrap();
+        assert_eq!(
+            (
+                defaults.schedule,
+                defaults.warmup_steps,
+                defaults.final_rate
+            ),
+            (Schedule::Exponential, 0, None)
+        );
+        let cosine = parse(&[
+            "--schedule",
+            "cosine",
+            "--warmup-steps",
+            "500",
+            "--final-rate",
+            "0.0001",
+        ])
+        .unwrap();
+        assert_eq!(
+            (cosine.schedule, cosine.warmup_steps, cosine.final_rate),
+            (Schedule::Cosine, 500, Some(0.0001))
+        );
+        for rejected in [
+            &["--schedule", "linear"][..],
+            &["--final-rate", "0.0001"],
+            &["--schedule", "cosine", "--rate-decay", "0.9"],
+            &["--schedule", "cosine", "--final-rate", "0.01"],
+            &["--schedule", "cosine", "--final-rate", "-0.0001"],
+            &["--warmup-steps", "-1"],
+        ] {
+            assert!(parse(rejected).is_err(), "{rejected:?}");
+        }
+        let warmed = |warmup_steps| {
+            RateSchedule::new(
+                &Options {
+                    warmup_steps,
+                    ..small_run()
+                },
+                3,
+            )
+        };
+        assert!(warmed(8).is_ok());
+        assert!(warmed(9).is_err());
+    }
+
+    #[test]
+    fn a_cosine_run_trains_and_records_its_schedule() {
+        let root = prepared("cosine");
+        let data = root.join("data");
+        let cosine = Options {
+            schedule: Schedule::Cosine,
+            warmup_steps: 2,
+            final_rate: Some(0.001),
+            ..small_run()
+        };
+        train(&cosine, &data, &root.join("cosine")).unwrap();
+        train(&small_run(), &data, &root.join("plain")).unwrap();
+        let read = |name: &str| fs::read(root.join(name)).unwrap();
+        assert_ne!(read("cosine/network.nnue"), read("plain/network.nnue"));
+        let report = |name: &str| fs::read_to_string(root.join(name)).unwrap();
+        assert!(report("cosine/report.json").contains(
+            "\"k\": 0.88, \"schedule\": \"cosine\", \"final_rate\": 0.001, \"warmup_steps\": 2}"
+        ));
+        let plain = report("plain/report.json");
+        assert!(!plain.contains("\"schedule\"") && !plain.contains("\"warmup_steps\""));
+        // Twelve rows in batches of four make nine steps.
+        let too_long = Options {
+            warmup_steps: 9,
+            ..small_run()
+        };
+        assert!(train(&too_long, &data, &root.join("too-long")).is_err());
+        assert!(!root.join("too-long").exists());
         fs::remove_dir_all(&root).unwrap();
     }
 

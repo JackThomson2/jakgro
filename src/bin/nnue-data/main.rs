@@ -72,7 +72,7 @@ fn main() -> ExitCode {
                  | train --data-dir DIR --output-dir DIR [--epochs N] [--batch-size N] [--rate F] \
                  [--rate-decay F] [--schedule exponential|cosine] [--warmup-steps N] \
                  [--final-rate F] [--l2 F] [--seed N] [--lambda F] [--k F] [--threads N] \
-                 [--init-network FILE] [--ema F] [--factorize BOOL] [--qat BOOL]"
+                 [--init-network FILE] [--ema F] [--factorize BOOL] [--qat BOOL] [--save-every N]"
                 .to_owned(),
         ),
     };

@@ -83,6 +83,13 @@ pub struct Options {
     /// straight through the rounding into the float weights, so the model
     /// being fitted is the integer network the engine evaluates.
     pub qat: bool,
+    /// Saves the networks of every this-many-th epoch and of the last one
+    /// in `checkpoints/` as each epoch finishes: the weights `network.nnue`
+    /// would hold as `epoch-N.nnue`, and with a moving average the raw
+    /// weights as `raw-epoch-N.nnue`. Until the run completes they are in
+    /// the staging directory beside the output, where a failed run leaves
+    /// them.
+    pub save_every: Option<usize>,
 }
 
 impl Options {
@@ -151,6 +158,14 @@ impl Options {
                 .transpose()?,
             factorize: number(&values, "--factorize", false)?,
             qat: number(&values, "--qat", false)?,
+            save_every: values
+                .get("--save-every")
+                .map(|value| {
+                    value
+                        .parse()
+                        .map_err(|_| format!("--save-every: invalid value {value}"))
+                })
+                .transpose()?,
         };
         for key in values.keys() {
             if ![
@@ -172,6 +187,7 @@ impl Options {
                 "--ema",
                 "--factorize",
                 "--qat",
+                "--save-every",
             ]
             .contains(key)
             {
@@ -236,6 +252,10 @@ impl Options {
             self.ema
                 .is_none_or(|decay| decay.is_finite() && decay > 0.0 && decay < 1.0),
             "EMA decay must be finite in (0,1)",
+        )?;
+        check(
+            self.save_every.is_none_or(|every| every > 0),
+            "save-every must be positive",
         )
     }
 }
@@ -1631,6 +1651,43 @@ impl Epoch {
     }
 }
 
+/// One network a checkpoint epoch saved, as the report lists it.
+struct Checkpoint {
+    epoch: usize,
+    /// Which weights: `average` or `raw`.
+    weights: &'static str,
+    /// Path relative to the output directory.
+    path: String,
+    sha256: String,
+    training: Metrics,
+    development: Metrics,
+}
+
+impl Checkpoint {
+    fn json(&self) -> String {
+        format!(
+            "{{\"epoch\": {}, \"weights\": \"{}\", \"path\": {}, \"sha256\": \"{}\", \"integer_development\": {}, \"integer_training\": {}}}",
+            self.epoch,
+            self.weights,
+            prepare::json_string(&self.path),
+            self.sha256,
+            self.development.json(),
+            self.training.json()
+        )
+    }
+}
+
+/// Writes one checkpoint network into `directory` through a temporary name,
+/// so a reader screening checkpoints during the run never loads a partial
+/// file.
+fn write_checkpoint(directory: &Path, name: &str, bytes: &[u8]) -> Result<(), String> {
+    let failed = |error: std::io::Error| format!("{}: {error}", directory.join(name).display());
+    fs::create_dir_all(directory).map_err(failed)?;
+    let partial = directory.join(format!(".{name}.partial"));
+    fs::write(&partial, bytes).map_err(failed)?;
+    fs::rename(&partial, directory.join(name)).map_err(failed)
+}
+
 /// Trains from a prepared dataset directory and writes the selected network.
 ///
 /// Every epoch is exported and scored with integer inference. The published
@@ -1638,10 +1695,19 @@ impl Epoch {
 /// lowest development label loss among those; the history records all. With
 /// a moving average, both weight sets are scored every epoch under the same
 /// rule: the best averaged epoch is published and the best raw one is kept
-/// as `raw-network.nnue`.
+/// as `raw-network.nnue`. With `Options::save_every`, the chosen epochs'
+/// networks are also kept in `checkpoints/`, each listed in the report with
+/// its metrics.
 pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, String> {
     if output.exists() {
         return Err("output already exists; choose a new directory".to_owned());
+    }
+    let staging = output.with_extension("staging");
+    if options.save_every.is_some() && staging.exists() {
+        return Err(format!(
+            "{} exists and may hold an unfinished run's checkpoints; move or remove it first",
+            staging.display()
+        ));
     }
     let started = Instant::now();
     let input_hashes = prepare::verify_dataset(data)?;
@@ -1730,6 +1796,7 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
     let mut history = Vec::new();
     let mut best: Option<(usize, Metrics, Vec<u8>)> = None;
     let mut best_average: Option<(usize, Metrics, Vec<u8>)> = None;
+    let mut checkpoints = Vec::new();
 
     for epoch in 1..=options.epochs {
         random.shuffle(&mut order);
@@ -1788,6 +1855,39 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
                 .map(|(training, development, _)| [*training, *development]),
         };
         println!("{}", record.json());
+        if options
+            .save_every
+            .is_some_and(|every| epoch % every == 0 || epoch == options.epochs)
+        {
+            let directory = staging.join("checkpoints");
+            let width = options.epochs.to_string().len();
+            let raw_prefix = if averaged.is_some() { "raw-" } else { "" };
+            let saved = averaged
+                .iter()
+                .map(|(training, development, bytes)| {
+                    ("average", "", *training, *development, bytes)
+                })
+                .chain([(
+                    "raw",
+                    raw_prefix,
+                    training_metric,
+                    development_metric,
+                    &bytes,
+                )]);
+            for (weights, prefix, training, development, network) in saved {
+                let name = format!("{prefix}epoch-{epoch:0width$}.nnue");
+                write_checkpoint(&directory, &name, network)?;
+                eprintln!("nnue-data: saved {}", directory.join(&name).display());
+                checkpoints.push(Checkpoint {
+                    epoch,
+                    weights,
+                    path: format!("checkpoints/{name}"),
+                    sha256: sha256::hex(network),
+                    training,
+                    development,
+                });
+            }
+        }
         // A fresh run must first beat its random initialization on the
         // training sample, which rules out a diverged model; a continued run
         // starts from a network that already fits its corpus, so it must
@@ -1834,8 +1934,7 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
     if prepare::verify_dataset(data)? != input_hashes {
         return Err("training inputs changed".to_owned());
     }
-    let staging = output.with_extension("staging");
-    if staging.exists() {
+    if options.save_every.is_none() && staging.exists() {
         fs::remove_dir_all(&staging).map_err(|error| error.to_string())?;
     }
     fs::create_dir_all(&staging).map_err(|error| error.to_string())?;
@@ -1888,6 +1987,9 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
                 .factorize
                 .then(|| ", \"factorize\": true".to_owned()),
             options.qat.then(|| ", \"qat\": true".to_owned()),
+            options
+                .save_every
+                .map(|every| format!(", \"save_every\": {every}")),
         ]
         .into_iter()
         .flatten()
@@ -1936,6 +2038,17 @@ pub fn train(options: &Options, data: &Path, output: &Path) -> Result<String, St
                 || "null".to_owned(),
                 |(_, _, bytes)| format!("\"{}\"", sha256::hex(bytes))
             )
+        );
+    }
+    if options.save_every.is_some() {
+        let _ = writeln!(
+            report,
+            "  \"checkpoints\": [{}],",
+            checkpoints
+                .iter()
+                .map(Checkpoint::json)
+                .collect::<Vec<_>>()
+                .join(", ")
         );
     }
     let _ = writeln!(report, "  \"history\": [{history_json}],");
@@ -2152,6 +2265,7 @@ mod tests {
             ema: None,
             factorize: false,
             qat: false,
+            save_every: None,
         }
     }
 
@@ -2458,6 +2572,113 @@ mod tests {
         };
         assert!(train(&too_long, &data, &root.join("too-long")).is_err());
         assert!(!root.join("too-long").exists());
+        fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn chosen_epochs_are_saved_without_changing_the_run() {
+        let root = prepared("checkpoints");
+        let data = root.join("data");
+        let averaged = Options {
+            ema: Some(0.5),
+            ..small_run()
+        };
+        let saving = Options {
+            save_every: Some(2),
+            ..averaged.clone()
+        };
+        train(&averaged, &data, &root.join("unsaved")).unwrap();
+        train(&saving, &data, &root.join("saved")).unwrap();
+        let read = |name: &str| fs::read(root.join(name)).unwrap();
+        let report = |name: &str| fs::read_to_string(root.join(name)).unwrap();
+        let listed = |name: &str| {
+            let mut names = fs::read_dir(root.join(name))
+                .unwrap()
+                .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+                .collect::<Vec<_>>();
+            names.sort();
+            names
+        };
+        assert_eq!(read("saved/network.nnue"), read("unsaved/network.nnue"));
+        assert_eq!(
+            read("saved/raw-network.nnue"),
+            read("unsaved/raw-network.nnue")
+        );
+        // Every second epoch and the last; the published kind of weights
+        // under the plain name, the raw ones beside them.
+        let names = listed("saved/checkpoints");
+        assert_eq!(
+            names,
+            [
+                "epoch-2.nnue",
+                "epoch-3.nnue",
+                "raw-epoch-2.nnue",
+                "raw-epoch-3.nnue"
+            ]
+        );
+        let saved = report("saved/report.json");
+        assert!(saved.contains("\"save_every\": 2}"));
+        for name in &names {
+            let bytes = read(&format!("saved/checkpoints/{name}"));
+            Network::from_bytes(&bytes).unwrap();
+            let entry = format!(
+                "\"path\": \"checkpoints/{name}\", \"sha256\": \"{}\"",
+                sha256::hex(&bytes)
+            );
+            assert!(saved.contains(&entry), "{name}");
+        }
+        for weights in ["average", "raw"] {
+            for epoch in [2, 3] {
+                let entry = format!("{{\"epoch\": {epoch}, \"weights\": \"{weights}\"");
+                assert!(saved.contains(&entry), "{entry}");
+            }
+        }
+        let unsaved = report("unsaved/report.json");
+        assert!(!unsaved.contains("\"checkpoints\"") && !unsaved.contains("\"save_every\""));
+
+        // Without a moving average each checkpoint is the raw network, and
+        // the published one is the selected epoch's.
+        let every = Options {
+            save_every: Some(1),
+            ..small_run()
+        };
+        train(&every, &data, &root.join("raw")).unwrap();
+        assert_eq!(
+            listed("raw/checkpoints"),
+            ["epoch-1.nnue", "epoch-2.nnue", "epoch-3.nnue"]
+        );
+        let selected = report("raw/report.json")
+            .split("\"selected_epoch\": ")
+            .nth(1)
+            .and_then(|rest| rest.split(',').next()?.parse::<usize>().ok())
+            .unwrap();
+        assert_eq!(
+            read("raw/network.nnue"),
+            read(&format!("raw/checkpoints/epoch-{selected}.nnue"))
+        );
+
+        // A leftover staging directory is refused rather than replaced.
+        fs::create_dir_all(root.join("again.staging/checkpoints")).unwrap();
+        fs::write(root.join("again.staging/checkpoints/epoch-1.nnue"), b"kept").unwrap();
+        assert!(train(&saving, &data, &root.join("again")).is_err());
+        assert_eq!(read("again.staging/checkpoints/epoch-1.nnue"), b"kept");
+
+        let parse = |value: &str| {
+            Options::parse(
+                &[
+                    "--data-dir",
+                    "d",
+                    "--output-dir",
+                    "o",
+                    "--save-every",
+                    value,
+                ]
+                .map(String::from),
+            )
+            .map(|(options, _, _)| options.save_every)
+        };
+        assert_eq!(parse("5"), Ok(Some(5)));
+        assert!(parse("0").is_err());
         fs::remove_dir_all(&root).unwrap();
     }
 
